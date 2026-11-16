@@ -5,7 +5,7 @@ gh api -X PUT "repos/evanfang0054/baton/branches/main/protection" --input - <<'J
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["ci", "e2e", "docker"]
+    "contexts": ["verify (22)", "verify (24)", "e2e", "build"]
   },
   "enforce_admins": false,
   "required_pull_request_reviews": {
