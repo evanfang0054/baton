@@ -27,6 +27,7 @@ function invalid(ctx: TransitionContext, event: TaskTransitionEvent): Transition
 
 /**
  * 纯状态转移：不读写 IO，不修改入参；成功时 effects 以 emitTaskStatus 结尾。
+ * 调用方必须传入经 zod 校验的 TaskStatus / TaskTransitionEvent；assertNever 只做类型穷尽兜底。
  */
 export function transition(ctx: TransitionContext, event: TaskTransitionEvent): TransitionResult {
   if (event.type === 'cancel') {

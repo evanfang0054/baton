@@ -1639,6 +1639,8 @@ git commit -m "feat(core): 增加状态机 API 与执行/审批转移"
 
 ## Task 7: Core 验收、打回、终态与完整转移矩阵
 
+> 实现说明：本任务的测试代码在 core review 后已强化为 `{ to, effects }` 全量矩阵；最终版本见 `packages/core/test/transition-matrix.test.ts` 与执行记录。
+
 Blocking: Task 6
 Slice type: tracer-bullet
 Seam: `transition-matrix.test.ts` + `guards.test.ts` + `terminal.test.ts`
@@ -1898,6 +1900,8 @@ git commit -m "feat(core): 补齐验收、打回、终态与完整转移矩阵"
 
 ## Task 8: Effects 快照、覆盖率与全量验收
 
+> 实现说明：effects 快照在 core review 后扩展为 approval/no-retry/error 等 12 条；最终版本见 `packages/core/test/effects.test.ts` 与执行记录。
+
 Blocking: Task 5, Task 7
 Slice type: verification
 Seam: `packages/core/test/effects.test.ts` + `pnpm verify`
@@ -2068,7 +2072,8 @@ git commit -m "test(core): 增加 effects 快照、覆盖率与全量验收"
 | 2026-11-17 | Task 5 | protocol tests 64 passed；typecheck/prettier 通过 | `c47a9c1` | @ag-ui/core 1.0.4；ServerMessage；导出契约 |
 | 2026-11-17 | Task 6 | core happy-path 5 tests；typecheck/prettier 通过 | `3c2af1c` | TransitionContext / TaskEffect / transition 前半段 |
 | 2026-11-17 | Task 7 | core tests 14 passed；108 组合矩阵 | `beefabb` | verifying/review/terminal + guards |
-| 2026-11-17 | Task 8 | `pnpm verify`、`pnpm pack:check` 均通过；core coverage 96.66% | 本提交 | effects 快照、notices、contract 核对 |
+| 2026-11-17 | Task 8 | `pnpm verify`、`pnpm pack:check` 均通过；core coverage 96.66% | `f9a2307` | effects 快照、notices、contract 核对 |
+| 2026-11-17 | Core review fixes | core 27 tests；coverage 96.66%；verify/pack:check 绿 | `01fca6e` | effect 追加顺序、108 矩阵精确断言、approval 快照、retryMax 边界 |
 
 **Batch review（Task 1–3）修复**：
 

@@ -81,6 +81,19 @@ describe('guards', () => {
     expect(result.effects).not.toContainEqual({ type: 'incrementRetry' })
   })
 
+  it('rejects a malformed verify_ok at runtime', () => {
+    const malformed = {
+      type: 'verify_ok',
+      reviewId: 'r1',
+      exitCode: 1,
+      output: 'bad',
+      diffStat: diff,
+    } as unknown as TaskTransitionEvent
+    const result = transition(ctx('verifying'), malformed)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('invalid_transition')
+  })
+
   it('does not increment retryCount on reject', () => {
     const result = expectOk(
       transition(ctx('review', { retryCount: 1 }), {

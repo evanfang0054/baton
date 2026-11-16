@@ -351,6 +351,8 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
 
 `start` 守卫失败返回 `code: 'guard_failed'`，`details` 包含 `runningCount` 与 `maxConcurrency`。
 
+`verify_ok.exitCode !== 0` 属于 payload 违约；正常入口由 zod 拦截。`transition` 的运行时守卫按 `invalid_transition` 拒绝，避免绕过 schema 的调用方静默通过。
+
 ## 6. 测试与验收
 
 ### 6.1 Protocol 测试
@@ -366,7 +368,7 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
 ### 6.2 Core 测试
 
 - 表驱动矩阵：9 个状态 × 全部事件类型，覆盖合法/非法转移。
-- 四条关键流程的 effects 快照：happy path、approval request/allow/deny、verify_fail 自动重试与不重试、error from waiting_input、reject。
+- 关键流程的 effects 快照：happy path、approval request/allow/deny、verify_fail 自动重试与不重试、error from waiting_input、reject。
 - 守卫测试：并发满、autopilot 开关、`retryMax` 边界（0/1/2）、终态 cancel、非法 event。
 - 终态测试：`done/failed/cancelled` 的任意事件都返回 `invalid_transition`。
 - `cancel` 在 `todo` 与 `running` 下 effects 不同：前者无 `interruptSession`，后者有。

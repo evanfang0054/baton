@@ -1,4 +1,5 @@
-import type { DiffStat, TaskStatus, TaskTransitionEvent } from '@baton/protocol'
+import { TaskStatus } from '@baton/protocol'
+import type { DiffStat, TaskTransitionEvent } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
 import { transition } from '../src/state-machine/index.js'
 import type { TaskEffect } from '../src/state-machine/types.js'
@@ -126,6 +127,10 @@ const EXPECTED: Record<string, { status: TaskStatus; effects: TaskEffect[] }> = 
 }
 
 describe('transition matrix', () => {
+  it('matches the protocol status enum', () => {
+    expect(STATUSES).toEqual([...TaskStatus.options])
+  })
+
   it('covers 9 statuses x 12 events with exact target and effects', () => {
     expect(STATUSES.length * EVENTS.length).toBe(108)
     for (const status of STATUSES) {
