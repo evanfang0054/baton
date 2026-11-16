@@ -28,9 +28,11 @@ test-results
 .turbo
 
 # AI files
-.github
 CLAUDE.md
-docs
 AGENTS.md
 .hermes.md
 /baton.ai
+
+# Local runtime
+.env
+workspace/
