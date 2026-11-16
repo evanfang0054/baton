@@ -20,6 +20,7 @@
 ## 现行 plan
 
 - [M0 骨架实施计划](plans/2026-11-16-m0-skeleton.md)
+- [M1-1/M1-2 协议领域模型与状态机实施计划](plans/2026-11-17-m1-protocol-state-machine.md)
 
 ## 约定
 
