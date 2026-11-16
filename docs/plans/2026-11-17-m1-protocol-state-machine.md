@@ -217,6 +217,11 @@ export type SessionStatus = z.infer<typeof SessionStatus>
 export const ApprovalDecision = z.enum(['allow', 'deny'])
 export type ApprovalDecision = z.infer<typeof ApprovalDecision>
 
+/** 审批风险级别；policy 阈值与 ApprovalRequest 共用同一枚举，避免两侧漂移。 */
+export const RiskLevel = z.enum(['low', 'medium', 'high'])
+export type RiskLevel = z.infer<typeof RiskLevel>
+
+/** 人工验收结论；机器结果看 Review.verifyExitCode，不要混用。 */
 export const ReviewVerdict = z.enum(['approved', 'rejected'])
 export type ReviewVerdict = z.infer<typeof ReviewVerdict>
 
@@ -242,6 +247,7 @@ export type AppError = z.infer<typeof AppError>
 ```ts
 // packages/protocol/src/policy.ts
 import { z } from 'zod'
+import { RiskLevel } from './enums.js'
 
 const DEFAULT_ALLOW = [
   'Read',
@@ -271,7 +277,7 @@ const ApprovalPolicy = z.object({
   default: z.literal('ask').default('ask'),
   allow: z.array(z.string().min(1)).default(DEFAULT_ALLOW),
   deny: z.array(z.string().min(1)).default(DEFAULT_DENY),
-  autoApproveMaxRisk: z.enum(['low', 'medium', 'high']).default('low'),
+  autoApproveMaxRisk: RiskLevel.default('low'),
 })
 
 const AutopilotPolicy = z.object({
@@ -281,18 +287,10 @@ const AutopilotPolicy = z.object({
 })
 
 export const PolicySchema = z.object({
-  verify: VerifyPolicy.default({ timeoutSec: 900, maxOutputBytes: 262144 }),
-  approval: ApprovalPolicy.default({
-    default: 'ask',
-    allow: DEFAULT_ALLOW,
-    deny: DEFAULT_DENY,
-    autoApproveMaxRisk: 'low',
-  }),
-  autopilot: AutopilotPolicy.default({
-    enabled: false,
-    retryMax: 2,
-    digestCron: '0 9,21 * * *',
-  }),
+  // 用函数默认值，避免多个 parse 共享同一份数组/对象默认值。
+  verify: VerifyPolicy.default(() => VerifyPolicy.parse({})),
+  approval: ApprovalPolicy.default(() => ApprovalPolicy.parse({})),
+  autopilot: AutopilotPolicy.default(() => AutopilotPolicy.parse({})),
 })
 export type Policy = z.infer<typeof PolicySchema>
 ```
@@ -1132,6 +1130,7 @@ describe('protocol exports', () => {
       'EdgeType',
       'SessionStatus',
       'ApprovalDecision',
+      'RiskLevel',
       'ReviewVerdict',
       'Engine',
       'WorkspaceMode',
@@ -2055,3 +2054,22 @@ git commit -m "test(core): 增加 effects 快照、覆盖率与全量验收"
 - **Scope check**：8 个任务，单子系统；没有 daemon/web/adapter/DB 实现。
 - **GDD**：显式跳过；sprint contract 的 25 条与 108 矩阵承担测试设计职责。
 - **结构校验替代**：仓库无 `scripts/validate-handoff.sh`；已检查 frontmatter、8 个任务、无占位符、文件路径存在。
+
+---
+
+## 执行记录
+
+| 日期 | Task | 结果 | Commit | 备注 |
+|---|---|---|---|---|
+| 2026-11-17 | Task 1 | protocol tests 10 passed；typecheck/prettier 通过 | `482044e` | Policy 默认值改用函数默认值，避免多次 parse 共享数组 |
+| 2026-11-17 | Task 2 | protocol tests 13 passed；typecheck/prettier 通过 | `037571d` | 六类节点与全部核心实体补齐 valid/invalid fixtures |
+| 2026-11-17 | Task 3 | protocol tests 18 passed；typecheck/prettier 通过 | `37dbbfe` | Event cursor、Review verdict/evidence、Audit/Notice 补齐测试 |
+
+**Batch review（Task 1–3）修复**：
+
+- `PolicySchema` 改用 `.default(() => Inner.parse({}))`，并新增“两次 parse 不共享默认数组”的测试。
+- 新增 `RiskLevel` 枚举，`Policy.autoApproveMaxRisk` 与 `ApprovalRequest.risk` 共用。
+- `Review.verifyExitCode` / `verifyOutput` / `diffStat` 收紧为必填；`verdict` / `decidedAt` 仍可空。spec 4.3 同步说明。
+- `Event.ordinal` / `seq`、`Review.verdict` / `verifyExitCode` 增加语义注释。
+- 测试改为逐实体 valid/invalid；六类节点全部覆盖；`TaskTransitionEvent` 改为 `toEqual` round-trip。
+- `Viewport.zoom > 0` 已记录在 spec 4.1。

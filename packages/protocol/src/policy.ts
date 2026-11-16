@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { RiskLevel } from './enums.js'
 
 const DEFAULT_ALLOW = [
   'Read',
@@ -28,7 +29,7 @@ const ApprovalPolicy = z.object({
   default: z.literal('ask').default('ask'),
   allow: z.array(z.string().min(1)).default(DEFAULT_ALLOW),
   deny: z.array(z.string().min(1)).default(DEFAULT_DENY),
-  autoApproveMaxRisk: z.enum(['low', 'medium', 'high']).default('low'),
+  autoApproveMaxRisk: RiskLevel.default('low'),
 })
 
 const AutopilotPolicy = z.object({
@@ -38,17 +39,9 @@ const AutopilotPolicy = z.object({
 })
 
 export const PolicySchema = z.object({
-  verify: VerifyPolicy.default({ timeoutSec: 900, maxOutputBytes: 262144 }),
-  approval: ApprovalPolicy.default({
-    default: 'ask',
-    allow: DEFAULT_ALLOW,
-    deny: DEFAULT_DENY,
-    autoApproveMaxRisk: 'low',
-  }),
-  autopilot: AutopilotPolicy.default({
-    enabled: false,
-    retryMax: 2,
-    digestCron: '0 9,21 * * *',
-  }),
+  // 用函数默认值，避免多个 parse 共享同一份数组/对象默认值。
+  verify: VerifyPolicy.default(() => VerifyPolicy.parse({})),
+  approval: ApprovalPolicy.default(() => ApprovalPolicy.parse({})),
+  autopilot: AutopilotPolicy.default(() => AutopilotPolicy.parse({})),
 })
 export type Policy = z.infer<typeof PolicySchema>

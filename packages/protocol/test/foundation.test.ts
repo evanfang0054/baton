@@ -41,6 +41,13 @@ describe('protocol foundation', () => {
     expect(p.autopilot.digestCron).toBe('0 9,21 * * *')
   })
 
+  it('returns fresh default objects per parse', () => {
+    const first = PolicySchema.parse({})
+    first.approval.allow.push('Mutation')
+    const second = PolicySchema.parse({})
+    expect(second.approval.allow).not.toContain('Mutation')
+  })
+
   it('rejects invalid policy values', () => {
     expect(() => PolicySchema.parse({ approval: { autoApproveMaxRisk: 'extreme' } })).toThrow()
     expect(() => PolicySchema.parse({ autopilot: { retryMax: -1 } })).toThrow()

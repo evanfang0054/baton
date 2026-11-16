@@ -25,6 +25,11 @@ export type SessionStatus = z.infer<typeof SessionStatus>
 export const ApprovalDecision = z.enum(['allow', 'deny'])
 export type ApprovalDecision = z.infer<typeof ApprovalDecision>
 
+/** 审批风险级别；policy 阈值与 ApprovalRequest 共用同一枚举，避免两侧漂移。 */
+export const RiskLevel = z.enum(['low', 'medium', 'high'])
+export type RiskLevel = z.infer<typeof RiskLevel>
+
+/** 人工验收结论；机器结果看 Review.verifyExitCode，不要混用。 */
 export const ReviewVerdict = z.enum(['approved', 'rejected'])
 export type ReviewVerdict = z.infer<typeof ReviewVerdict>
 

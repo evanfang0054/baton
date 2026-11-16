@@ -82,7 +82,7 @@ interface DiffStat {
 interface Viewport {
   x: number
   y: number
-  zoom: number
+  zoom: number // 协议层要求 > 0；0 缩放无意义
 }
 ```
 
@@ -97,6 +97,7 @@ type NodeType = 'text' | 'image' | 'file' | 'agent' | 'review' | 'group'
 type EdgeType = 'context'
 type SessionStatus = 'running' | 'waiting_input' | 'ended' | 'failed'
 type ApprovalDecision = 'allow' | 'deny'
+type RiskLevel = 'low' | 'medium' | 'high'
 type ReviewVerdict = 'approved' | 'rejected'
 type Engine = 'claude-sdk' | 'pty' | 'fake'
 type WorkspaceMode = 'main' | 'worktree'
@@ -135,8 +136,10 @@ type WorkspaceMode = 'main' | 'worktree'
 - `Task.nodeId` 可为 `null`（为总管后续派活预留），但 `TaskCreateInput.nodeId` 必填。
 - `Task.engine` 使用 `Engine`；M1 实际使用 `fake` 与 `claude-sdk`。
 - `Session.endedAt`、`Approval.decidedAt`、`Review.decidedAt` 可为 `null`。
+- `Approval.decision` / `Approval.decidedBy` 在待审批时为 `null`，决定后写入。
+- `Review.verifyExitCode` / `verifyOutput` / `diffStat` 必填：review 行只在 verify 执行后创建；`Review.verdict` / `decidedAt` 在人工决定前为 `null`。
 - `Review.verdict` 表示**人的决定**，取值 `approved | rejected | null`；verify 是否通过由 `verifyExitCode` 表达。不得把机器结果写进 `verdict`。
-- `Approval.request` 使用通用结构 `{ toolName, input: unknown, risk: 'low' | 'medium' | 'high', reason?: string }`；适配器负责把引擎的授权请求映射到该结构。
+- `Approval.request` 使用通用结构 `{ toolName, input: unknown, risk: RiskLevel, reason?: string }`；适配器负责把引擎的授权请求映射到该结构。
 
 **事件游标语义**：
 
