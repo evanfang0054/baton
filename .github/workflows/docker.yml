@@ -38,10 +38,16 @@ jobs:
       - name: smoke
         run: |
           docker run -d --name baton -e BATON_TOKEN=ci -p 7317:7317 baton:ci
+          ok=0
           for i in $(seq 1 30); do
-            curl -fsS http://127.0.0.1:7317/api/health && break
+            if curl -fsS http://127.0.0.1:7317/api/health; then ok=1; break; fi
             sleep 2
           done
+          if [ "$ok" != "1" ]; then
+            docker logs baton || true
+            docker rm -f baton || true
+            exit 1
+          fi
           docker exec baton id -u
           docker logs baton
           docker rm -f baton

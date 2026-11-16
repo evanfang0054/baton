@@ -39,6 +39,7 @@ ENV NODE_ENV=production \
     BATON_WEB_ROOT=/app/apps/daemon/dist/web \
     BATON_MIGRATIONS_DIR=/app/apps/daemon/dist/migrations
 COPY --from=prod-deps --chown=node:node /app/node_modules /app/node_modules
+COPY --from=prod-deps --chown=node:node /app/apps/daemon/node_modules /app/apps/daemon/node_modules
 COPY --from=build --chown=node:node /app/apps/daemon/dist /app/apps/daemon/dist
 COPY --from=build --chown=node:node /app/apps/daemon/package.json /app/apps/daemon/package.json
 RUN mkdir -p /data /workspace /home/node/.claude \
