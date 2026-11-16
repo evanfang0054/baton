@@ -16,6 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ag-ui/core": "^1.0.4",
     "zod": "^4.6.7"
   },
   "devDependencies": {

@@ -127,6 +127,9 @@ importers:
 
   packages/protocol:
     dependencies:
+      '@ag-ui/core':
+        specifier: ^1.0.4
+        version: 1.0.4(zod@4.6.7)
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -139,6 +142,14 @@ importers:
         version: 5.1.0(@types/node@24.19.2)(vite@8.3.8(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15))
 
 packages:
+
+  '@ag-ui/core@1.0.4':
+    resolution: {integrity: sha512-Z/G3UXYRyZ/1LcOtCCf6RJiFPTjRqaNublW/kQ7wsfiP4Qw5oIVmvO6NkUQYoqCoMXuXggyD3MMH2Td5OVKECQ==}
+    peerDependencies:
+      zod: ^3.25.18 || ^4.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
 
   '@cacheable/memory@2.2.0':
     resolution: {integrity: sha512-CTLKqLItRCEixEAewD3/j9DB3/o96gpTPD4eJ1v+DGOlxZRZncRQkGYqqnAGCscYd6RNeXfGeiuCphsPtqyIfQ==}
@@ -2437,6 +2448,10 @@ packages:
         optional: true
 
 snapshots:
+
+  '@ag-ui/core@1.0.4(zod@4.6.7)':
+    optionalDependencies:
+      zod: 4.6.7
 
   '@cacheable/memory@2.2.0':
     dependencies:
