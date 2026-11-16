@@ -1523,24 +1523,21 @@ import type { TaskStatus, TaskTransitionEvent } from '@baton/protocol'
 import { effects } from './effects.js'
 import type { TaskEffect, TransitionContext, TransitionResult } from './types.js'
 
-const TERMINAL = new Set<TaskStatus>(['done', 'failed', 'cancelled'])
-const ACTIVE_SESSION = new Set<TaskStatus>(['running', 'waiting_input', 'verifying'])
+const TERMINAL: ReadonlySet<TaskStatus> = new Set(['done', 'failed', 'cancelled'])
+// verifying 是 verify 子进程阶段，agent session 已结束；取消 verify 由 M1-5 的 verify executor 处理。
+const ACTIVE_SESSION: ReadonlySet<TaskStatus> = new Set(['running', 'waiting_input'])
 
 function ok(status: TaskStatus, retryCount: number, extra: TaskEffect[]): TransitionResult {
-  return { ok: true, status, retryCount, effects: [effects.emitTaskStatus(status), ...extra] }
+  return { ok: true, status, retryCount, effects: [...extra, effects.emitTaskStatus(status)] }
 }
 
-function invalid(ctx: TransitionContext, event: TaskTransitionEvent): TransitionResult {
-  return {
-    ok: false,
-    error: {
-      code: 'invalid_transition',
-      message: `cannot apply ${event.type} from ${ctx.status}`,
-      details: { from: ctx.status, event: event.type },
-    },
-  }
+function assertNever(value: never): never {
+  throw new Error(`unhandled task status: ${String(value)}`)
 }
 
+/**
+ * 纯状态转移：不读写 IO，不修改入参；成功时 effects 以 emitTaskStatus 结尾。
+ */
 export function transition(
   ctx: TransitionContext,
   event: TaskTransitionEvent,
@@ -1607,6 +1604,9 @@ export function transition(
     case 'failed':
     case 'cancelled':
       return invalid(ctx, event)
+
+    default:
+      return assertNever(ctx.status)
   }
 }
 ```
@@ -1836,7 +1836,7 @@ Expected: FAIL，`verifying` / `review` 分支尚未实现
 ```ts
 // packages/core/src/state-machine/transition.ts（替换最后三个 case）
     case 'verifying': {
-      if (event.type === 'verify_ok') {
+      if (event.type === 'verify_ok' && event.exitCode === 0) {
         return ok('review', ctx.retryCount, [
           effects.persistVerifyResult(event.reviewId, event.exitCode, event.output, event.diffStat),
         ])
@@ -2068,7 +2068,7 @@ git commit -m "test(core): 增加 effects 快照、覆盖率与全量验收"
 | 2026-11-17 | Task 5 | protocol tests 64 passed；typecheck/prettier 通过 | `c47a9c1` | @ag-ui/core 1.0.4；ServerMessage；导出契约 |
 | 2026-11-17 | Task 6 | core happy-path 5 tests；typecheck/prettier 通过 | `3c2af1c` | TransitionContext / TaskEffect / transition 前半段 |
 | 2026-11-17 | Task 7 | core tests 14 passed；108 组合矩阵 | `beefabb` | verifying/review/terminal + guards |
-| 2026-11-17 | Task 8 | `pnpm verify`、`pnpm pack:check` 均通过；core coverage 100% | 本提交 | effects 快照、notices、contract 核对 |
+| 2026-11-17 | Task 8 | `pnpm verify`、`pnpm pack:check` 均通过；core coverage 96.66% | 本提交 | effects 快照、notices、contract 核对 |
 
 **Batch review（Task 1–3）修复**：
 
@@ -2089,6 +2089,17 @@ git commit -m "test(core): 增加 effects 快照、覆盖率与全量验收"
 - `task.create` 补 `workspaceMode` 默认值断言。
 - 修复两处测试未使用解构变量，`pnpm lint` 恢复绿色。
 
+**Core review（Task 6–8）修复**：
+
+- `emitTaskStatus` 改为 effects 末尾追加，与 spec 5.2 “统一追加”一致；所有快照重新生成。
+- 108 矩阵改为 `{ to, effects }` 全量断言，覆盖 18 个合法组合与 90 个非法组合。
+- 新增 approval request/allow/deny、error from waiting_input、verify_fail 不重试快照。
+- 补齐 autopilot 关闭与 `retryMax = 0/1/2` 边界。
+- `verifying` 不再触发 `interruptSession`；pending approval 清理写入 spec，M1-5 实现。
+- 增加 `assertNever`、只读 Set、`transition` JSDoc 与 `verify_ok` 运行时守卫。
+- 测试统一用 `expectOk` helper；`terminal.test.ts` 遍历全部 12 个事件。
+- `.gitignore` 加入 allowed paths 仅用于忽略 coverage 产物，作为实现期例外记录。
+
 ### Contract 25 条核对
 
 | Contract | 证据 |
@@ -2106,14 +2117,14 @@ git commit -m "test(core): 增加 effects 快照、覆盖率与全量验收"
 | 11 Policy 默认值 | 默认值断言 + fresh object 测试 |
 | 12 AppError | 缺 code/message 拒绝 |
 | 13 状态机 API | `transition` / types / effects 导出 |
-| 14 108 矩阵 | `transition-matrix.test.ts` 9×12 |
-| 15 effects 快照 | `effects.test.ts.snap` 7 条 |
-| 16 守卫 | 并发满、autopilot、retryMax 边界 |
+| 14 108 矩阵 | `transition-matrix.test.ts` 9×12，逐组合断言 `{ to, effects }` |
+| 15 effects 快照 | `effects.test.ts.snap` 12 条，覆盖 approval/retry/no-retry/error/reject |
+| 16 守卫 | 并发满、autopilot 关闭、retryMax 0/1/2 边界 |
 | 17 计数 | verify_fail 递增；reject 不递增 |
 | 18 终态 | done/failed/cancelled 拒绝；cancel review/running 差异 |
 | 19 状态广播 | 每个成功转移恰好一条 emitTaskStatus |
 | 20 分层 | `check:boundaries` / `check:protocol` 通过；core 只依赖 protocol |
-| 21 覆盖率 | core coverage 100%，阈值 80% |
+| 21 覆盖率 | core coverage 96.66%，阈值 80% |
 | 22 全量校验 | `pnpm verify` 退出码 0 |
 | 23 变更边界 | `git diff ... -- apps` 为空；全量路径在 allowed list 内 |
 | 24 文档许可 | notices 增加 coverage-v8；spec/contract/plan 互链 |

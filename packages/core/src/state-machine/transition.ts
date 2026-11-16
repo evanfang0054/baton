@@ -2,11 +2,16 @@ import type { TaskStatus, TaskTransitionEvent } from '@baton/protocol'
 import { effects } from './effects.js'
 import type { TaskEffect, TransitionContext, TransitionResult } from './types.js'
 
-const TERMINAL = new Set<TaskStatus>(['done', 'failed', 'cancelled'])
-const ACTIVE_SESSION = new Set<TaskStatus>(['running', 'waiting_input', 'verifying'])
+const TERMINAL: ReadonlySet<TaskStatus> = new Set(['done', 'failed', 'cancelled'])
+// verifying 是 verify 子进程阶段，agent session 已结束；取消 verify 由 M1-5 的 verify executor 处理。
+const ACTIVE_SESSION: ReadonlySet<TaskStatus> = new Set(['running', 'waiting_input'])
 
 function ok(status: TaskStatus, retryCount: number, extra: TaskEffect[]): TransitionResult {
-  return { ok: true, status, retryCount, effects: [effects.emitTaskStatus(status), ...extra] }
+  return { ok: true, status, retryCount, effects: [...extra, effects.emitTaskStatus(status)] }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`unhandled task status: ${String(value)}`)
 }
 
 function invalid(ctx: TransitionContext, event: TaskTransitionEvent): TransitionResult {
@@ -20,6 +25,9 @@ function invalid(ctx: TransitionContext, event: TaskTransitionEvent): Transition
   }
 }
 
+/**
+ * 纯状态转移：不读写 IO，不修改入参；成功时 effects 以 emitTaskStatus 结尾。
+ */
 export function transition(ctx: TransitionContext, event: TaskTransitionEvent): TransitionResult {
   if (event.type === 'cancel') {
     if (TERMINAL.has(ctx.status)) return invalid(ctx, event)
@@ -76,7 +84,7 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
       return invalid(ctx, event)
 
     case 'verifying': {
-      if (event.type === 'verify_ok') {
+      if (event.type === 'verify_ok' && event.exitCode === 0) {
         return ok('review', ctx.retryCount, [
           effects.persistVerifyResult(event.reviewId, event.exitCode, event.output, event.diffStat),
         ])
@@ -120,5 +128,8 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
     case 'failed':
     case 'cancelled':
       return invalid(ctx, event)
+
+    default:
+      return assertNever(ctx.status)
   }
 }

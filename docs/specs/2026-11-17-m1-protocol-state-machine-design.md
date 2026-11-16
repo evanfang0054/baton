@@ -10,6 +10,7 @@ spec_ref: 2026-11-16-baton-architecture-design.md
 # M1-1/M1-2 协议领域模型与状态机设计
 
 > 子 spec。回链主架构设计：`docs/specs/2026-11-16-baton-architecture-design.md`。
+> 关联 contract：`docs/contracts/M1-protocol-state-machine.contract.md`；plan：`docs/plans/2026-11-17-m1-protocol-state-machine.md`。
 > 本文只锁定 M1 的第一块可测切片；后续任务按第 8 节映射推进。
 
 ## 0. 文档信息
@@ -327,6 +328,8 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
 - `start` 的并发守卫失败返回 `ok: false, code: 'guard_failed'`，task 保持 `queued`，由调度器等槽位释放后重试。
 - `error` 允许从 `running` 和 `waiting_input` 进入 `failed`；`verifying` 的 verify 执行器自身异常由 daemon 合成为 `verify_fail`（非 0 退出码 + 错误摘要），进入正常的验收/重试分支，避免丢失验收证据。
 - `cancel` 从 `review` 进入 `cancelled` 时保留 review 记录，不删除证据。
+- `interruptSession` 只在 `running` / `waiting_input` 出现；`verifying` 的 agent session 已结束，取消 verify 子进程由 M1-5 的 verify executor 负责。
+- `interruptSession` 的消费者必须同时关闭该 session 的 pending approvals；M1-5 实现。
 - 终态 `done/failed/cancelled` 不接受任何转移；失败后重试需要创建新 task。
 - 每个成功转移都恰好追加一条 `emitTaskStatus`；daemon 不再重复广播状态。
 - 失败转移不产生任何 effects，只返回 `AppError`。
@@ -363,11 +366,7 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
 ### 6.2 Core 测试
 
 - 表驱动矩阵：9 个状态 × 全部事件类型，覆盖合法/非法转移。
-- 四条关键流程的 effects 快照：
-  1. happy path：`todo → queued → running → verifying → review → done`。
-  2. approval：`running → waiting_input → running`（allow 与 deny 各一条）。
-  3. verify_fail 自动重试：`verifying → queued`，`retryCount` 递增，effects 顺序固定。
-  4. reject：`review → queued`，`retryCount` 不变，feedback 进入 effects。
+- 四条关键流程的 effects 快照：happy path、approval request/allow/deny、verify_fail 自动重试与不重试、error from waiting_input、reject。
 - 守卫测试：并发满、autopilot 开关、`retryMax` 边界（0/1/2）、终态 cancel、非法 event。
 - 终态测试：`done/failed/cancelled` 的任意事件都返回 `invalid_transition`。
 - `cancel` 在 `todo` 与 `running` 下 effects 不同：前者无 `interruptSession`，后者有。

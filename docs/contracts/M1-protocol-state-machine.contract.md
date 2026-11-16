@@ -31,7 +31,7 @@
 - [ ] **20. 分层与依赖**：`packages/core` 只依赖 `@baton/protocol`；`pnpm check:boundaries` 与 `pnpm check:protocol` 通过；core 的 `package.json` 没有除 `@baton/protocol` 外的运行时依赖。
 - [ ] **21. 覆盖率达标**：`packages/core` 增加 `vitest` + `@vitest/coverage-v8@^5.1.0` 与覆盖率阈值 80%（lines/functions/branches/statements）；`pnpm --filter @baton/core test` 低于阈值时非 0 退出。
 - [ ] **22. 全量校验**：`pnpm verify`、`pnpm check:boundaries`、`pnpm check:protocol`、`pnpm format:check` 全部退出码 0。
-- [ ] **23. 变更边界**：`git diff --name-only origin/main...HEAD -- apps` 为空；实现改动只落在 `packages/protocol/**`、`packages/core/**`、`docs/specs/2026-11-17-m1-protocol-state-machine-design.md`、`docs/contracts/M1-protocol-state-machine.contract.md`、`docs/plans/2026-11-17-m1-protocol-state-machine.md`、`docs/README.md`、`THIRD_PARTY_NOTICES.md`、`pnpm-lock.yaml`、`.gitignore`。
+- [ ] **23. 变更边界**：`git diff --name-only origin/main...HEAD -- apps` 为空；实现改动只落在 `packages/protocol/**`、`packages/core/**`、`docs/specs/2026-11-17-m1-protocol-state-machine-design.md`、`docs/contracts/M1-protocol-state-machine.contract.md`、`docs/plans/2026-11-17-m1-protocol-state-machine.md`、`docs/README.md`、`THIRD_PARTY_NOTICES.md`、`pnpm-lock.yaml`、`.gitignore`。说明：`.gitignore` 是实现期补充的 allowed path，仅用于忽略 `coverage/` 产物。
 - [ ] **24. 文档与许可**：`THIRD_PARTY_NOTICES.md` 包含 `@ag-ui/core`；新增 `@vitest/coverage-v8` 已列入开发依赖声明；spec/contract/plan 互相链接。
 - [ ] **25. 无占位实现**：`packages/protocol/src` 与 `packages/core/src` 中无 `TODO`/`FIXME`；未完成能力没有以空实现混入。
 
