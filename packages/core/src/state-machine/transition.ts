@@ -75,8 +75,47 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
       }
       return invalid(ctx, event)
 
-    case 'verifying':
+    case 'verifying': {
+      if (event.type === 'verify_ok') {
+        return ok('review', ctx.retryCount, [
+          effects.persistVerifyResult(event.reviewId, event.exitCode, event.output, event.diffStat),
+        ])
+      }
+      if (event.type === 'verify_fail') {
+        const persisted = effects.persistVerifyResult(
+          event.reviewId,
+          event.exitCode,
+          event.output,
+          event.diffStat,
+        )
+        if (ctx.autopilot.enabled && ctx.retryCount < ctx.autopilot.retryMax) {
+          return ok('queued', ctx.retryCount + 1, [
+            persisted,
+            effects.incrementRetry(),
+            effects.appendFeedback(event.output),
+            effects.enqueueTask(),
+          ])
+        }
+        return ok('review', ctx.retryCount, [persisted])
+      }
+      return invalid(ctx, event)
+    }
+
     case 'review':
+      if (event.type === 'approve') {
+        return ok('done', ctx.retryCount, [
+          effects.persistReviewVerdict(event.reviewId, 'approved'),
+        ])
+      }
+      if (event.type === 'reject') {
+        return ok('queued', ctx.retryCount, [
+          effects.persistReviewVerdict(event.reviewId, 'rejected'),
+          effects.appendFeedback(event.feedback),
+          effects.enqueueTask(),
+        ])
+      }
+      return invalid(ctx, event)
+
     case 'done':
     case 'failed':
     case 'cancelled':
