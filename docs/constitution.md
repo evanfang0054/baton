@@ -15,7 +15,7 @@
 
 - **分层**：`packages/core` 是纯函数层，不 import `node:fs` / `node:net` / `apps/*`；`apps/web` 不 import `apps/daemon`；适配器只能经 `AgentAdapter` 接口调用。
 - **契约**：协议与配置只在 `packages/protocol` 用 zod 定义，类型由 `z.infer` 推导；禁止手写重复类型。
-- **安全**：不实现通用 shell；不执行模型生成的命令；所有路径过 jail；非 `127.0.0.1` 监听必须带 token；日志脱敏。
+- **安全**：不实现通用 shell；不执行模型生成的命令；所有路径过 jail；非 `127.0.0.1` 监听必须带 token；日志、注释、文档与截图一律脱敏，不写个人身份、凭据、本机绝对路径与主机信息。
 - **依赖**：新增依赖先查许可。GPL / AGPL / Sustainable Use 禁止；Apache-2.0 需更新 `THIRD_PARTY_NOTICES.md`；Claude Agent SDK 为非 OSI 许可，只能当依赖，不得 fork 或再分发源码。
 - **范围**：v1 非目标（DSH 插件、外部触发器、向量库、真终端、多用户、DAG 编排）未经 spec/ADR 不得顺手实现。
 

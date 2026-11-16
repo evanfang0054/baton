@@ -22,7 +22,7 @@ gates: [user-review-passed]
 
 ### 0.1 与草案的四处事实校正
 
-1. **DSH 没有 Python SDK**。本机 `~/.dsh` 是 Cordis/Node 插件体系；npm 上只有 `@deepseek-ai/dsh`（CLI，`engines.node >= 24.9`）与 `@deepseek-ai/dsh-headless`（one-shot runner，无 Host/HTTP/浏览器层），不存在 `dsh-sdk`。
+1. **DSH 没有 Python SDK**。本机 DSH 安装目录是 Cordis/Node 插件体系；npm 上只有 `@deepseek-ai/dsh`（CLI，`engines.node >= 24.9`）与 `@deepseek-ai/dsh-headless`（one-shot runner，无 Host/HTTP/浏览器层），不存在 `dsh-sdk`。
 2. **Claude Code 不需要 PTY 也能拿到结构化流**。官方 `@anthropic-ai/claude-agent-sdk` 提供流式事件与 `canUseTool` 授权回调；PTY 只作为无结构化接口时的兜底。
 3. **没有可 fork 的整机项目**。最接近的 `vibe-kanban` 已进入停服期且是 Rust；DSH 生态的画布插件只能跑在 DSH 内。因此复用落在组件层。
 4. **公开仓库默认无许可即"保留所有权利"**。本 spec 同步落地 MIT LICENSE。
@@ -454,7 +454,7 @@ M1 起用 baton 开发 baton：任务从 Issue 手动贴入，M2 再接 GitHub �
 2. workspace 存相对路径，根由 `BATON_WORKSPACES_ROOT` 指定（容器内 `/workspace`）。
 3. 数据卷 `/data`，工作区 `/workspace`，凭据卷 `/home/node/.claude`；根文件系统只读，`/tmp` 用 tmpfs。
 4. 非 root（镜像自带 `node` 用户），`cap_drop: ALL`，`no-new-privileges`，不挂 docker.sock。
-5. OAuth 登录不适合容器：优先 `ANTHROPIC_API_KEY`，或把宿主机的 `~/.claude` 作为命名卷挂入。
+5. OAuth 登录不适合容器：优先 `ANTHROPIC_API_KEY`，或把宿主机的 Claude 凭据目录作为命名卷挂入。
 6. worktree 模式下宿主机与容器 uid 不一致会触发 git `dubious ownership`：镜像内预设 `safe.directory /workspace`，compose 支持覆盖 `user:`。
 
 **compose 一键部署**：
