@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "pnpm -r --if-present run test",
-    "build": "pnpm -r --if-present run build",
+    "build": "pnpm -r --if-present run build && node scripts/copy-web.mjs",
+    "pack:check": "node scripts/pack-check.mjs",
     "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm build"
   },
   "devDependencies": {

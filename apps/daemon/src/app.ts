@@ -1,7 +1,11 @@
-import Fastify, { type FastifyInstance } from 'fastify'
-import { createRequire } from 'node:module'
+import cookie from '@fastify/cookie'
 import { HealthResponse } from '@baton/protocol'
+import Fastify, { type FastifyInstance } from 'fastify'
+import { existsSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import type { Config } from './config.js'
+import { registerAuth } from './http/auth.js'
+import { registerStatic } from './http/static.js'
 import { attachWs } from './ws/server.js'
 
 const require = createRequire(import.meta.url)
@@ -10,6 +14,12 @@ const startedAt = Date.now()
 
 export async function buildApp(config: Config): Promise<FastifyInstance> {
   const app = Fastify({ logger: false })
+  await app.register(cookie)
+
+  const hasWeb = existsSync(config.webRoot)
+  registerAuth(app, config, hasWeb)
+  if (hasWeb) await registerStatic(app, config.webRoot)
+
   app.get('/api/health', async () => {
     return HealthResponse.parse({
       status: 'ok',
@@ -17,7 +27,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
       uptimeSec: (Date.now() - startedAt) / 1000,
     })
   })
-  app.get('/', async (_req, reply) => reply.type('text/html').send('<h1>baton</h1>'))
+
   await attachWs(app, config)
   return app
 }
