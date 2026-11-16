@@ -1,0 +1,67 @@
+import { z } from 'zod'
+import { Id, Timestamp } from '../common.js'
+import { Engine } from '../enums.js'
+
+const NodeBase = z.object({
+  id: Id,
+  canvasId: Id,
+  x: z.number(),
+  y: z.number(),
+  w: z.number().positive().default(320),
+  h: z.number().positive().default(200),
+  groupId: Id.nullable(),
+  createdAt: Timestamp,
+  updatedAt: Timestamp,
+})
+
+export const TextNode = NodeBase.extend({
+  type: z.literal('text'),
+  data: z.object({ content: z.string() }),
+})
+
+export const ImageNode = NodeBase.extend({
+  type: z.literal('image'),
+  data: z.object({ src: z.string().min(1), alt: z.string().optional() }),
+})
+
+export const FileNode = NodeBase.extend({
+  type: z.literal('file'),
+  data: z.object({
+    path: z.string().min(1),
+    name: z.string().min(1),
+    mime: z.string().min(1).optional(),
+  }),
+})
+
+export const AgentNode = NodeBase.extend({
+  type: z.literal('agent'),
+  data: z.object({
+    title: z.string().min(1),
+    engine: Engine,
+    taskId: Id.nullable(),
+  }),
+})
+
+export const ReviewNode = NodeBase.extend({
+  type: z.literal('review'),
+  data: z.object({ taskId: Id }),
+})
+
+export const GroupNode = NodeBase.extend({
+  type: z.literal('group'),
+  data: z.object({
+    label: z.string().min(1),
+    color: z.string().min(1).optional(),
+    collapsed: z.boolean().default(false),
+  }),
+})
+
+export const Node = z.discriminatedUnion('type', [
+  TextNode,
+  ImageNode,
+  FileNode,
+  AgentNode,
+  ReviewNode,
+  GroupNode,
+])
+export type Node = z.infer<typeof Node>
