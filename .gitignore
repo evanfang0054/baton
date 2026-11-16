@@ -29,9 +29,10 @@ test-results
 
 # AI files
 CLAUDE.md
-AGENTS.md
 .hermes.md
 /baton.ai
+# 本项目的 AGENTS.md 需要入库共享，覆盖全局 ignore
+!AGENTS.md
 
 # Local runtime
 .env
