@@ -41,7 +41,7 @@
 - 总管：`ai` 7 + `@ai-sdk/deepseek` 或 `@ai-sdk/openai-compatible`
 - 构建：pnpm 10 workspaces、tsup、Vite
 - 测试：vitest、`@playwright/test`
-- 规范：ESLint 9 + Prettier、TypeScript 严格模式、dependency-cruiser
+- 规范：ESLint 10 + Prettier、TypeScript 严格模式、dependency-cruiser
 
 ## 命令
 

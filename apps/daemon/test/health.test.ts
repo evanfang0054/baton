@@ -10,6 +10,7 @@ describe('GET /api/health', () => {
       token: null,
       dataDir: '/tmp',
       webRoot: '/tmp',
+      workspacesRoot: '/tmp',
     })
     const res = await app.inject({ method: 'GET', url: '/api/health' })
     expect(res.statusCode).toBe(200)

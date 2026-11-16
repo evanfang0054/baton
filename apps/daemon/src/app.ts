@@ -1,16 +1,18 @@
 import Fastify, { type FastifyInstance } from 'fastify'
+import { createRequire } from 'node:module'
 import { HealthResponse } from '@baton/protocol'
 import type { Config } from './config.js'
 
+const require = createRequire(import.meta.url)
+const { version } = require('../package.json') as { version: string }
 const startedAt = Date.now()
-const VERSION = '0.0.0'
 
 export async function buildApp(_config: Config): Promise<FastifyInstance> {
   const app = Fastify({ logger: false })
   app.get('/api/health', async () => {
     return HealthResponse.parse({
       status: 'ok',
-      version: VERSION,
+      version,
       uptimeSec: (Date.now() - startedAt) / 1000,
     })
   })

@@ -292,7 +292,7 @@ verify 命令解析优先级：任务级配置 > 项目 `.baton/policy.json` > `
 | 状态 | `zustand`、`@tanstack/react-query` | MIT |
 | UI | Tailwind 4、shadcn/ui、`lucide-react`、`sonner`、`cmdk` | MIT / ISC |
 | 系统 | `execa`、`p-queue`、`simple-git`、`chokidar`、`croner`、`node-notifier`、`picomatch` | MIT |
-| 工程 | `vitest`、`@playwright/test`、`tsup`、Vite、`changesets`、`dependency-cruiser`、ESLint 9、Prettier、husky、lint-staged、commitlint | MIT / Apache-2.0 |
+| 工程 | `vitest`、`@playwright/test`、`tsup`、Vite、`changesets`、`dependency-cruiser`、ESLint 10、Prettier、husky、lint-staged、commitlint | MIT / Apache-2.0 |
 
 ### 3.2 借鉴实现，不复制代码
 

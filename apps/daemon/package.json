@@ -3,14 +3,14 @@
   "version": "0.0.0",
   "type": "module",
   "main": "./dist/index.js",
-  "bin": {
-    "baton": "./dist/bin.js"
-  },
   "engines": {
     "node": ">=22"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node scripts/copy-migrations.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

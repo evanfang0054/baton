@@ -1,29 +1,37 @@
+import { readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { ConfigSchema, type Config } from '@baton/protocol'
 
-export interface Config {
-  host: string
-  port: number
-  token: string | null
-  dataDir: string
-  webRoot: string
+export type { Config }
+
+function argValue(argv: string[], name: string): string | undefined {
+  const index = argv.indexOf(name)
+  return index >= 0 ? argv[index + 1] : undefined
+}
+
+function readTokenFile(file: string): string {
+  try {
+    return readFileSync(file, 'utf8').trim()
+  } catch {
+    throw new Error(`cannot read BATON_TOKEN_FILE: ${file}`)
+  }
 }
 
 export function loadConfig(argv: string[], env: NodeJS.ProcessEnv): Config {
-  let host = '127.0.0.1'
-  let port = 7317
-  for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === '--host') host = argv[i + 1] ?? host
-    if (argv[i] === '--port') port = Number(argv[i + 1] ?? port)
-  }
-  const token = env.BATON_TOKEN ?? null
-  if (host !== '127.0.0.1' && !token) {
+  const home = env.HOME ?? homedir()
+  const tokenFile = env.BATON_TOKEN_FILE
+  const token = env.BATON_TOKEN ?? (tokenFile ? readTokenFile(tokenFile) : null)
+  const config = ConfigSchema.parse({
+    host: argValue(argv, '--host') ?? env.BATON_HOST ?? '127.0.0.1',
+    port: Number(argValue(argv, '--port') ?? env.BATON_PORT ?? 7317),
+    token: token && token.length > 0 ? token : null,
+    dataDir: env.BATON_DATA_DIR ?? join(home, '.baton'),
+    webRoot: env.BATON_WEB_ROOT ?? join(process.cwd(), 'apps/web/dist'),
+    workspacesRoot: env.BATON_WORKSPACES_ROOT ?? home,
+  })
+  if (config.host !== '127.0.0.1' && !config.token) {
     throw new Error('BATON_TOKEN is required when binding a non-loopback host')
   }
-  return {
-    host,
-    port,
-    token,
-    dataDir: env.BATON_DATA_DIR ?? `${env.HOME ?? '.'}/.baton`,
-    webRoot: env.BATON_WEB_ROOT ?? join(process.cwd(), 'apps/web/dist'),
-  }
+  return config
 }

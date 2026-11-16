@@ -10,11 +10,19 @@ afterEach(() => {
   dirs.splice(0).forEach((d) => rmSync(d, { recursive: true, force: true }))
 })
 
-function tables(db: ReturnType<typeof openDb>): string[] {
+interface SchemaRow {
+  type: string
+  name: string
+  tbl_name: string
+  sql: string | null
+}
+
+function schema(db: ReturnType<typeof openDb>): SchemaRow[] {
   return db
-    .prepare("select name from sqlite_master where type='table' order by name")
-    .all()
-    .map((r) => (r as { name: string }).name)
+    .prepare(
+      "select type, name, tbl_name, sql from sqlite_master where name not like 'sqlite_%' and name <> '__drizzle_migrations' order by type, name",
+    )
+    .all() as SchemaRow[]
 }
 
 describe('migrateDb', () => {
@@ -25,13 +33,25 @@ describe('migrateDb', () => {
 
     const db1 = openDb(file)
     migrateDb(db1)
-    const before = tables(db1)
+    const before = schema(db1)
     db1.close()
 
     const db2 = openDb(file)
     migrateDb(db2)
-    expect(tables(db2)).toEqual(before)
-    expect(before).toContain('task')
+    expect(schema(db2)).toEqual(before)
+    expect(before.filter((row) => row.type === 'table')).toHaveLength(11)
+    expect(
+      before
+        .filter((row) => row.type === 'index')
+        .map((row) => row.name)
+        .sort(),
+    ).toEqual([
+      'audit_ts_idx',
+      'event_session_seq_idx',
+      'node_canvas_idx',
+      'task_status_idx',
+      'workspace_rel_path_unique',
+    ])
     db2.close()
   })
 })

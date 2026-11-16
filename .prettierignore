@@ -1,0 +1,7 @@
+**/dist
+**/migrations
+pnpm-lock.yaml
+playwright-report
+test-results
+baton.ai
+*.md
