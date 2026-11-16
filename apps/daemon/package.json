@@ -3,18 +3,26 @@
   "version": "0.0.0",
   "type": "module",
   "main": "./dist/index.js",
-  "bin": { "baton": "./dist/bin.js" },
-  "engines": { "node": ">=22" },
+  "bin": {
+    "baton": "./dist/bin.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
+    "better-sqlite3": "^13.2.0",
+    "drizzle-orm": "^0.45.4",
     "fastify": "^5.12.8"
   },
   "devDependencies": {
     "@baton/protocol": "workspace:*",
+    "@types/better-sqlite3": "^9.6.0",
+    "drizzle-kit": "^0.31.11",
     "tsup": "^9.0.0",
     "typescript": "^5.9.3",
     "vitest": "^5.1.0"
