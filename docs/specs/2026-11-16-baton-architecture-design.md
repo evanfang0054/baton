@@ -349,7 +349,7 @@ verify 命令解析优先级：任务级配置 > 项目 `.baton/policy.json` > `
 
 - trunk-based：`main` 受保护，短分支 `feat/…`、`fix/…`，squash 合并，禁止 force push。
 - 2-3 人规模：1 人 approve 即可，作者合并。
-- 必需检查：`ci`、`e2e`、`docker`。
+- 必需检查：`verify (22)`、`verify (24)`、`e2e`、`build`。
 
 ### 4.4 DoD（Definition of Done）
 

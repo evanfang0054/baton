@@ -79,7 +79,7 @@ pnpm docker:smoke   # 构建镜像并跑健康检查
 - Commit：`<type>(<scope>): <subject>`，类型 `feat|fix|docs|style|refactor|perf|test|chore|build|ci`
 - Scope：`daemon|web|core|adapter|protocol|ui|docker|ci|docs`
 - 分支：trunk-based。`main` 受保护，短分支 `feat/…`、`fix/…`，squash 合并，禁止 force push。
-- 评审：1 人 approve，作者合并；必需检查 `ci`、`e2e`、`docker`。
+- 评审：1 人 approve，作者合并；必需检查 `verify (22)`、`verify (24)`、`e2e`、`build`。
 - 不提交生成物、`dist`、`node_modules`、`.env`。
 
 ## 项目结构

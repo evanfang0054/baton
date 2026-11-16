@@ -2,11 +2,6 @@ name: e2e
 
 on:
   pull_request:
-    paths:
-      - 'apps/web/**'
-      - 'playwright.config.ts'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
 
 permissions:
   contents: read

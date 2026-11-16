@@ -2,14 +2,6 @@ name: docker
 
 on:
   pull_request:
-    paths:
-      - 'Dockerfile'
-      - '.dockerignore'
-      - 'compose.yaml'
-      - 'apps/**'
-      - 'packages/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
   push:
     tags:
       - 'v*'

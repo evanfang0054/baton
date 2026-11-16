@@ -17,7 +17,7 @@
 - [ ] **9. 分层规则真的会拦人**：`pnpm check:boundaries` 通过；仓库内负向 fixture（临时在 `packages/core` 写入 `import 'node:fs'`）会让该命令以非 0 退出，恢复后再次通过。
 - [ ] **10. 协议单一真源**：`packages/protocol` 至少导出 `health` 与 `ws.ping` 两个 zod schema，daemon 与 web 均从该包取类型；手写重复类型会触发 tsc 错误（负向 fixture 验证）。
 - [ ] **11. 容器可部署**：`docker build` 成功；容器内 `id -u` 不为 0；容器内健康检查通过；`docker image inspect` 的未压缩体积 ≤ 700MB。
-- [ ] **12. CI 三道闸**：PR 上 `ci`（Node 22 与 24 矩阵）、`e2e`、`docker` 三个 workflow 均通过；`main` 的 required checks 包含三者，以 `gh api` 查询结果为证。
+- [ ] **12. CI 三道闸**：PR 上 `verify (22)`、`verify (24)`、`e2e`、`build` 均通过；`main` 的 required checks 包含这四项，以 `gh api` 查询结果为证。
 - [ ] **13. 文档能自助**：README 给出 dev / pack / docker 三种启动方式；`docs/runbooks/docker.md` 说明 token、数据卷、工作区挂载与常见失败。
 
 ## Boundary Conditions
