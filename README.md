@@ -1,5 +1,5 @@
 # baton
 
-It doesn't play. It keeps the beat.
+它不演奏，只定拍子。
 
-A workbench for agents.
+一个 Agent 工作台。
