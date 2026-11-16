@@ -36,7 +36,7 @@ export const ApprovalDecideInput = z.object({
 export type ApprovalDecideInput = z.infer<typeof ApprovalDecideInput>
 
 export const ReviewDecideInput = z.discriminatedUnion('decision', [
-  z.object({ reviewId: Id, decision: z.literal('approve') }),
+  z.object({ reviewId: Id, decision: z.literal('approve') }).strict(),
   z.object({
     reviewId: Id,
     decision: z.literal('reject'),

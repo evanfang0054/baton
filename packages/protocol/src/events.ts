@@ -3,6 +3,7 @@ import { EventSchemas } from './agui.js'
 import { DiffStat, Id, Timestamp } from './common.js'
 import { ApprovalRequest } from './entities/approval.js'
 import { TaskStatus } from './enums.js'
+import { AppError } from './errors.js'
 
 const EventBase = z.object({
   v: z.literal(1),
@@ -23,12 +24,7 @@ export type AckEvent = z.infer<typeof AckEvent>
 export const ErrorEvent = EventBase.extend({
   type: z.literal('error'),
   seq: z.number().int().nonnegative().optional(),
-  payload: z.object({
-    commandId: Id.optional(),
-    code: z.string().min(1),
-    message: z.string().min(1),
-    details: z.unknown().optional(),
-  }),
+  payload: AppError.extend({ commandId: Id.optional() }),
 })
 export type ErrorEvent = z.infer<typeof ErrorEvent>
 

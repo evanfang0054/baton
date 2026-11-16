@@ -58,7 +58,8 @@ describe('event/approval/review/audit/notice entities', () => {
     expect(Review.parse(reviewBase)).toEqual(reviewBase)
     expect(Review.parse({ ...reviewBase, verdict: 'approved' }).verdict).toBe('approved')
     expect(() => Review.parse({ ...reviewBase, verdict: 'passed' })).toThrow()
-    const { verifyExitCode: _exitCode, ...missingExitCode } = reviewBase
+    const missingExitCode = { ...reviewBase }
+    delete (missingExitCode as { verifyExitCode?: unknown }).verifyExitCode
     expect(() => Review.parse(missingExitCode)).toThrow()
   })
 

@@ -120,7 +120,8 @@ describe('core entities', () => {
       endedAt: null,
     }
     expect(Session.parse(session)).toEqual(session)
-    const { endedAt: _endedAt, ...missingEndedAt } = session
+    const missingEndedAt = { ...session }
+    delete (missingEndedAt as { endedAt?: unknown }).endedAt
     expect(() => Session.parse(missingEndedAt)).toThrow()
   })
 })

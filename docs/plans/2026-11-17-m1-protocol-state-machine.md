@@ -2064,6 +2064,8 @@ git commit -m "test(core): 增加 effects 快照、覆盖率与全量验收"
 | 2026-11-17 | Task 1 | protocol tests 10 passed；typecheck/prettier 通过 | `482044e` | Policy 默认值改用函数默认值，避免多次 parse 共享数组 |
 | 2026-11-17 | Task 2 | protocol tests 13 passed；typecheck/prettier 通过 | `037571d` | 六类节点与全部核心实体补齐 valid/invalid fixtures |
 | 2026-11-17 | Task 3 | protocol tests 18 passed；typecheck/prettier 通过 | `37dbbfe` | Event cursor、Review verdict/evidence、Audit/Notice 补齐测试 |
+| 2026-11-17 | Task 4 | protocol tests 54 passed；typecheck/prettier 通过 | `83c8eba` | 6 个命令；review.decide approve/reject 分支 |
+| 2026-11-17 | Task 5 | protocol tests 64 passed；typecheck/prettier 通过 | `c47a9c1` | @ag-ui/core 1.0.4；ServerMessage；导出契约 |
 
 **Batch review（Task 1–3）修复**：
 
@@ -2073,3 +2075,13 @@ git commit -m "test(core): 增加 effects 快照、覆盖率与全量验收"
 - `Event.ordinal` / `seq`、`Review.verdict` / `verifyExitCode` 增加语义注释。
 - 测试改为逐实体 valid/invalid；六类节点全部覆盖；`TaskTransitionEvent` 改为 `toEqual` round-trip。
 - `Viewport.zoom > 0` 已记录在 spec 4.1。
+
+**Batch review（Task 4–5）修复**：
+
+- `ErrorEvent` 复用 `AppError`，避免错误形状两处定义。
+- `agui.ts` 合并重复 import/re-export，并注明 `/schemas` 子路径的原因。
+- `review.decide` 的 approve 分支改为 strict，显式拒绝多余 feedback。
+- `exports.test.ts` 改为逐 schema 断言 `parse` 函数存在，并覆盖 6 个命令输入与 6 个服务端事件。
+- `ServerMessage` 补齐 `seq` 不对称测试：可重放事件必须有 `seq`，ack/error 可省略。
+- `task.create` 补 `workspaceMode` 默认值断言。
+- 修复两处测试未使用解构变量，`pnpm lint` 恢复绿色。
