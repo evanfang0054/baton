@@ -15,6 +15,10 @@
 
 - [M0 骨架](contracts/M0-skeleton.contract.md)
 
+## 现行 plan
+
+- [M0 骨架实施计划](plans/2026-11-16-m0-skeleton.md)
+
 ## 约定
 
 - spec 一旦进入实现阶段不再大改；方案变更以新的 spec 或 ADR 追加，并回链旧文档。
