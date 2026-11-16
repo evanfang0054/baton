@@ -1,0 +1,63 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: #1f2933;
+  background: #f5f7fa;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 380px;
+  height: 100vh;
+  gap: 1px;
+  background: #d9e2ec;
+}
+
+.panel {
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.kanban,
+.supervisor {
+  padding: 16px;
+}
+
+.kanban ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.kanban li {
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border: 1px solid #d9e2ec;
+  border-radius: 6px;
+  background: #fbfcfe;
+}
+
+.supervisor textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: none;
+  border: 1px solid #d9e2ec;
+  border-radius: 6px;
+  padding: 8px;
+  background: #fbfcfe;
+}
+
+.canvas {
+  position: relative;
+}

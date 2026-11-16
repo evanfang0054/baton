@@ -70,6 +70,7 @@ pnpm docker:smoke   # 构建镜像并跑健康检查
 ### 浏览器
 
 - 自动化回归用 Playwright（CI 可重复）。
+- 不执行 `playwright install` 下载自带 Chromium：默认使用系统 Chrome（`channel: 'chrome'`），CI runner 已预装；需要其他浏览器时用 `PLAYWRIGHT_EXECUTABLE_PATH`。
 - 需要真实打开浏览器操作、观察或取证的 e2e 验证（验收 UI、复现 bug、登录态场景），使用 **ego-lite 浏览器**（`ego-browser` skill / `ego-browser` CLI），不要用静态截图或纯 HTTP 断言推断交互结果。
 - 使用 ego-lite 时保留关键步骤截图或页面快照，作为验收证据附在 PR 或任务记录中。
 

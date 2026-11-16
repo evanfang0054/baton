@@ -502,7 +502,7 @@ volumes:
 | 工作流 | 触发 | 内容 |
 |---|---|---|
 | `ci.yml` | PR / main | Node 22 与 24 矩阵：install → typecheck → lint → unit → build → dependency-cruiser → 协议快照 |
-| `e2e.yml` | PR（路径过滤） | Playwright chromium；失败上传 trace |
+| `e2e.yml` | PR（路径过滤） | Playwright + 系统 Chrome（`channel: chrome`，不下载 Chromium）；失败上传 trace |
 | `docker.yml` | PR / tag | PR：build + 起容器 + 健康检查 + 体积报告；tag：buildx 推 `linux/amd64,linux/arm64` 到 GHCR |
 | `release.yml` | tag `v*` | `verify:full` → changesets publish → `npm pack` 产物 + Release notes |
 
