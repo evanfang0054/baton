@@ -41,7 +41,7 @@
 - 总管：`ai` 7 + `@ai-sdk/deepseek` 或 `@ai-sdk/openai-compatible`
 - 构建：pnpm 10 workspaces、tsup、Vite
 - 测试：vitest、`@playwright/test`
-- 规范：ESLint 9 + Prettier、TypeScript 严格模式、dependency-cruiser
+- 规范：ESLint 10 + Prettier、TypeScript 严格模式、dependency-cruiser
 
 ## 命令
 
@@ -70,6 +70,7 @@ pnpm docker:smoke   # 构建镜像并跑健康检查
 ### 浏览器
 
 - 自动化回归用 Playwright（CI 可重复）。
+- 不执行 `playwright install` 下载自带 Chromium：默认使用系统 Chrome（`channel: 'chrome'`），CI runner 已预装；需要其他浏览器时用 `PLAYWRIGHT_EXECUTABLE_PATH`。
 - 需要真实打开浏览器操作、观察或取证的 e2e 验证（验收 UI、复现 bug、登录态场景），使用 **ego-lite 浏览器**（`ego-browser` skill / `ego-browser` CLI），不要用静态截图或纯 HTTP 断言推断交互结果。
 - 使用 ego-lite 时保留关键步骤截图或页面快照，作为验收证据附在 PR 或任务记录中。
 
@@ -78,12 +79,12 @@ pnpm docker:smoke   # 构建镜像并跑健康检查
 - Commit：`<type>(<scope>): <subject>`，类型 `feat|fix|docs|style|refactor|perf|test|chore|build|ci`
 - Scope：`daemon|web|core|adapter|protocol|ui|docker|ci|docs`
 - 分支：trunk-based。`main` 受保护，短分支 `feat/…`、`fix/…`，squash 合并，禁止 force push。
-- 评审：1 人 approve，作者合并；必需检查 `ci`、`e2e`、`docker`。
+- 评审：1 人 approve，作者合并；必需检查 `verify (22)`、`verify (24)`、`pack-check`、`e2e`、`build`。
 - 不提交生成物、`dist`、`node_modules`、`.env`。
 
 ## 项目结构
 
-> 当前仓库处于 M0 之前，代码尚未建立；以下是 M0 的目标结构。
+> M0 骨架已建立；以下为当前结构。
 
 ```
 baton/

@@ -292,7 +292,7 @@ verify 命令解析优先级：任务级配置 > 项目 `.baton/policy.json` > `
 | 状态 | `zustand`、`@tanstack/react-query` | MIT |
 | UI | Tailwind 4、shadcn/ui、`lucide-react`、`sonner`、`cmdk` | MIT / ISC |
 | 系统 | `execa`、`p-queue`、`simple-git`、`chokidar`、`croner`、`node-notifier`、`picomatch` | MIT |
-| 工程 | `vitest`、`@playwright/test`、`tsup`、Vite、`changesets`、`dependency-cruiser`、ESLint 9、Prettier、husky、lint-staged、commitlint | MIT / Apache-2.0 |
+| 工程 | `vitest`、`@playwright/test`、`tsup`、Vite、`changesets`、`dependency-cruiser`、ESLint 10、Prettier、husky、lint-staged、commitlint | MIT / Apache-2.0 |
 
 ### 3.2 借鉴实现，不复制代码
 
@@ -349,7 +349,7 @@ verify 命令解析优先级：任务级配置 > 项目 `.baton/policy.json` > `
 
 - trunk-based：`main` 受保护，短分支 `feat/…`、`fix/…`，squash 合并，禁止 force push。
 - 2-3 人规模：1 人 approve 即可，作者合并。
-- 必需检查：`ci`、`e2e`、`docker`。
+- 必需检查：`verify (22)`、`verify (24)`、`pack-check`、`e2e`、`build`。
 
 ### 4.4 DoD（Definition of Done）
 
@@ -446,7 +446,7 @@ M1 起用 baton 开发 baton：任务从 Issue 手动贴入，M2 再接 GitHub �
 
 ### 6.3 Docker
 
-**镜像**：`node:24-bookworm-slim`（daemon 要求 ≥22，M2 的 DSH CLI 要求 ≥24.9，提前对齐）。预装 `git`、`ripgrep`、`ca-certificates`、`openssh-client`、`tini`。Claude 原生二进制由 SDK 的平台包（`@anthropic-ai/claude-agent-sdk-linux-{x64,arm64}`，解包约 348MB）在构建期安装。多阶段构建，运行阶段用 `pnpm deploy --prod` 只保留生产依赖。
+**镜像**：`node:24-bookworm-slim`（daemon 要求 ≥22，M2 的 DSH CLI 要求 ≥24.9，提前对齐）。预装 `git`、`ripgrep`、`ca-certificates`、`openssh-client`、`tini`，并预设 `safe.directory /workspace`。M0 不包含 Claude 二进制；M1 接入 SDK 后由平台包（约 348MB）带入，届时镜像约 500-600MB。多阶段构建，运行阶段只复制生产依赖与 `dist`。
 
 **运行时约定**：
 
@@ -501,9 +501,9 @@ volumes:
 
 | 工作流 | 触发 | 内容 |
 |---|---|---|
-| `ci.yml` | PR / main | Node 22 与 24 矩阵：install → typecheck → lint → unit → build → dependency-cruiser → 协议快照 |
-| `e2e.yml` | PR（路径过滤） | Playwright chromium；失败上传 trace |
-| `docker.yml` | PR / tag | PR：build + 起容器 + 健康检查 + 体积报告；tag：buildx 推 `linux/amd64,linux/arm64` 到 GHCR |
+| `ci.yml` | PR / main | Node 22 与 24 矩阵：install → typecheck → lint → format → 守卫 → unit → build；另有 `pack-check` job 验证 npm 安装链路 |
+| `e2e.yml` | PR | Playwright + 系统 Chrome（`channel: chrome`，不下载 Chromium）；失败上传 trace |
+| `docker.yml` | PR / tag | PR：build + 起容器 + 健康检查 + 非 root + 体积上限；tag：buildx 推 `linux/amd64,linux/arm64` 到 GHCR |
 | `release.yml` | tag `v*` | `verify:full` → changesets publish → `npm pack` 产物 + Release notes |
 
 通用约束：权限最小化（默认 `contents: read`，仅发布任务有 `packages: write` 与 `id-token: write`）；并发 `cancel-in-progress`；PR 任务不接触 secrets；缓存 pnpm store、Playwright 浏览器、docker `type=gha`。

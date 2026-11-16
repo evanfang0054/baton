@@ -1,0 +1,44 @@
+{
+  "name": "baton-workspace",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.27.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @evanfang0054/baton --filter @baton/web run dev",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm -r --if-present run test",
+    "build": "pnpm -r --if-present run build && node scripts/copy-web.mjs",
+    "check:boundaries": "depcruise --config .dependency-cruiser.cjs apps packages",
+    "check:boundaries:selftest": "node scripts/check-boundaries-selftest.mjs",
+    "check:protocol": "node scripts/check-protocol-duplicates.mjs",
+    "pack:check": "node scripts/pack-check.mjs",
+    "docker:smoke": "node scripts/docker-smoke.mjs",
+    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm check:boundaries && pnpm check:boundaries:selftest && pnpm check:protocol && pnpm test && pnpm build",
+    "verify:full": "pnpm verify && pnpm exec playwright test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^22.0.0",
+    "dependency-cruiser": "^18.7.2",
+    "eslint": "^10.15.0",
+    "globals": "^16.0.0",
+    "prettier": "^3.10.1",
+    "tsup": "^9.0.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.2",
+    "vitest": "^5.1.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "better-sqlite3"
+    ]
+  }
+}

@@ -1,0 +1,41 @@
+services:
+  baton:
+    image: ghcr.io/evanfang0054/baton:latest
+    build:
+      context: .
+    ports:
+      - '7317:7317'
+    environment:
+      BATON_HOST: 0.0.0.0
+      BATON_DATA_DIR: /data
+      BATON_WORKSPACES_ROOT: /workspace
+      BATON_TOKEN: ${BATON_TOKEN:?BATON_TOKEN is required}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - baton-data:/data
+      - ${BATON_WORKSPACE:-./workspace}:/workspace
+      - baton-claude:/home/node/.claude
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:7317/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  baton-data:
+  baton-claude:
