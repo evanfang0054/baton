@@ -15,6 +15,7 @@
 ## 现行 contract
 
 - [M0 骨架](contracts/M0-skeleton.contract.md)
+- [M1-1/M1-2 协议领域模型与状态机](contracts/M1-protocol-state-machine.contract.md)
 
 ## 现行 plan
 
