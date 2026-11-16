@@ -1,0 +1,157 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`effects snapshots > happy path 1`] = `
+{
+  "effects": [
+    {
+      "status": "queued",
+      "type": "emitTaskStatus",
+    },
+    {
+      "type": "enqueueTask",
+    },
+  ],
+  "ok": true,
+  "retryCount": 0,
+  "status": "queued",
+}
+`;
+
+exports[`effects snapshots > happy path 2`] = `
+{
+  "effects": [
+    {
+      "status": "running",
+      "type": "emitTaskStatus",
+    },
+    {
+      "type": "startSession",
+    },
+  ],
+  "ok": true,
+  "retryCount": 0,
+  "status": "running",
+}
+`;
+
+exports[`effects snapshots > happy path 3`] = `
+{
+  "effects": [
+    {
+      "status": "verifying",
+      "type": "emitTaskStatus",
+    },
+    {
+      "type": "runVerify",
+    },
+  ],
+  "ok": true,
+  "retryCount": 0,
+  "status": "verifying",
+}
+`;
+
+exports[`effects snapshots > happy path 4`] = `
+{
+  "effects": [
+    {
+      "status": "review",
+      "type": "emitTaskStatus",
+    },
+    {
+      "diffStat": {
+        "deletions": 0,
+        "filesChanged": 1,
+        "insertions": 2,
+      },
+      "exitCode": 0,
+      "output": "ok",
+      "reviewId": "r1",
+      "type": "persistVerifyResult",
+    },
+  ],
+  "ok": true,
+  "retryCount": 0,
+  "status": "review",
+}
+`;
+
+exports[`effects snapshots > happy path 5`] = `
+{
+  "effects": [
+    {
+      "status": "done",
+      "type": "emitTaskStatus",
+    },
+    {
+      "reviewId": "r1",
+      "type": "persistReviewVerdict",
+      "verdict": "approved",
+    },
+  ],
+  "ok": true,
+  "retryCount": 0,
+  "status": "done",
+}
+`;
+
+exports[`effects snapshots > reject does not increment retry 1`] = `
+{
+  "effects": [
+    {
+      "status": "queued",
+      "type": "emitTaskStatus",
+    },
+    {
+      "reviewId": "r1",
+      "type": "persistReviewVerdict",
+      "verdict": "rejected",
+    },
+    {
+      "feedback": "fix it",
+      "type": "appendFeedback",
+    },
+    {
+      "type": "enqueueTask",
+    },
+  ],
+  "ok": true,
+  "retryCount": 1,
+  "status": "queued",
+}
+`;
+
+exports[`effects snapshots > verify fail retry 1`] = `
+{
+  "effects": [
+    {
+      "status": "queued",
+      "type": "emitTaskStatus",
+    },
+    {
+      "diffStat": {
+        "deletions": 0,
+        "filesChanged": 1,
+        "insertions": 2,
+      },
+      "exitCode": 1,
+      "output": "bad",
+      "reviewId": "r1",
+      "type": "persistVerifyResult",
+    },
+    {
+      "type": "incrementRetry",
+    },
+    {
+      "feedback": "bad",
+      "type": "appendFeedback",
+    },
+    {
+      "type": "enqueueTask",
+    },
+  ],
+  "ok": true,
+  "retryCount": 1,
+  "status": "queued",
+}
+`;

@@ -12,6 +12,7 @@ baton 以 MIT 许可发布。运行时会依赖下列第三方组件，其许可
 | `drizzle-orm` | Apache-2.0 | ORM |
 | `@openai/codex-sdk` | Apache-2.0 | Codex 适配器（M2） |
 | `@playwright/test` | Apache-2.0 | 端到端测试（仅开发依赖） |
+| `@vitest/coverage-v8` | MIT | 单元测试覆盖率（仅开发依赖） |
 | `@ag-ui/core` | MIT | Agent 事件模型 |
 | `@assistant-ui/react` | MIT | 总管聊天界面 |
 | `@xyflow/react` | MIT | 画布引擎 |

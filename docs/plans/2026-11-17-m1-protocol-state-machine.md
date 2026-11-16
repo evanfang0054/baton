@@ -2066,6 +2066,9 @@ git commit -m "test(core): 增加 effects 快照、覆盖率与全量验收"
 | 2026-11-17 | Task 3 | protocol tests 18 passed；typecheck/prettier 通过 | `37dbbfe` | Event cursor、Review verdict/evidence、Audit/Notice 补齐测试 |
 | 2026-11-17 | Task 4 | protocol tests 54 passed；typecheck/prettier 通过 | `83c8eba` | 6 个命令；review.decide approve/reject 分支 |
 | 2026-11-17 | Task 5 | protocol tests 64 passed；typecheck/prettier 通过 | `c47a9c1` | @ag-ui/core 1.0.4；ServerMessage；导出契约 |
+| 2026-11-17 | Task 6 | core happy-path 5 tests；typecheck/prettier 通过 | `3c2af1c` | TransitionContext / TaskEffect / transition 前半段 |
+| 2026-11-17 | Task 7 | core tests 14 passed；108 组合矩阵 | `beefabb` | verifying/review/terminal + guards |
+| 2026-11-17 | Task 8 | `pnpm verify`、`pnpm pack:check` 均通过；core coverage 100% | 本提交 | effects 快照、notices、contract 核对 |
 
 **Batch review（Task 1–3）修复**：
 
@@ -2085,3 +2088,33 @@ git commit -m "test(core): 增加 effects 快照、覆盖率与全量验收"
 - `ServerMessage` 补齐 `seq` 不对称测试：可重放事件必须有 `seq`，ack/error 可省略。
 - `task.create` 补 `workspaceMode` 默认值断言。
 - 修复两处测试未使用解构变量，`pnpm lint` 恢复绿色。
+
+### Contract 25 条核对
+
+| Contract | 证据 |
+|---|---|
+| 1 导出完整 | `packages/protocol/test/exports.test.ts` 覆盖 43 个运行时 schema + EventType |
+| 2 导出 parse | 每个 schema 断言 `parse` 为函数；类型 `AgentEvent` 由 tsc 验证 |
+| 3 实体 schema | `entities-core.test.ts` / `entities-events.test.ts` 逐实体 valid/invalid |
+| 4 节点联合 | 六类节点 valid/mismatch 全覆盖 |
+| 5 Review 语义 | `Review.verdict` 拒绝 passed/failed；verify 字段必填 |
+| 6 事件游标 | Event 缺 ordinal/seq、负数、非整数均拒绝 |
+| 7 转移事件 | 12 个事件 `toEqual` round-trip；exitCode/feedback/note 约束 |
+| 8 WS 命令 | 6 个命令 round-trip；approve/reject 分支与默认 workspaceMode |
+| 9 WS 事件 | 6 个事件 round-trip；seq 不对称测试 |
+| 10 AG-UI | `TEXT_MESSAGE_CONTENT` 通过官方 `EventSchemas` |
+| 11 Policy 默认值 | 默认值断言 + fresh object 测试 |
+| 12 AppError | 缺 code/message 拒绝 |
+| 13 状态机 API | `transition` / types / effects 导出 |
+| 14 108 矩阵 | `transition-matrix.test.ts` 9×12 |
+| 15 effects 快照 | `effects.test.ts.snap` 7 条 |
+| 16 守卫 | 并发满、autopilot、retryMax 边界 |
+| 17 计数 | verify_fail 递增；reject 不递增 |
+| 18 终态 | done/failed/cancelled 拒绝；cancel review/running 差异 |
+| 19 状态广播 | 每个成功转移恰好一条 emitTaskStatus |
+| 20 分层 | `check:boundaries` / `check:protocol` 通过；core 只依赖 protocol |
+| 21 覆盖率 | core coverage 100%，阈值 80% |
+| 22 全量校验 | `pnpm verify` 退出码 0 |
+| 23 变更边界 | `git diff ... -- apps` 为空；全量路径在 allowed list 内 |
+| 24 文档许可 | notices 增加 coverage-v8；spec/contract/plan 互链 |
+| 25 无占位 | `packages/protocol/src` 与 `packages/core/src` 无 TODO/FIXME |
