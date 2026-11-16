@@ -25,20 +25,21 @@ try {
     env: { ...process.env, BATON_DATA_DIR: join(project, '.data') },
   })
 
+  let healthy = false
   for (let i = 0; i < 60; i += 1) {
     try {
       const res = await fetch('http://127.0.0.1:7398/api/health')
       if (res.ok) {
-        console.log('pack-check ok')
-        child.kill()
-        process.exit(0)
+        healthy = true
+        break
       }
     } catch {
       // server not ready yet
     }
     await new Promise((resolve) => setTimeout(resolve, 500))
   }
-  throw new Error('health check timeout')
+  if (!healthy) throw new Error('health check timeout')
+  console.log('pack-check ok')
 } finally {
   child?.kill()
   rmSync(dir, { recursive: true, force: true })

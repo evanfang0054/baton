@@ -7,6 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "pnpm --parallel --filter @evanfang0054/baton --filter @baton/web run dev",
     "typecheck": "pnpm -r --if-present run typecheck",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -18,7 +19,8 @@
     "check:protocol": "node scripts/check-protocol-duplicates.mjs",
     "pack:check": "node scripts/pack-check.mjs",
     "docker:smoke": "node scripts/docker-smoke.mjs",
-    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm check:boundaries && pnpm check:boundaries:selftest && pnpm check:protocol && pnpm test && pnpm build"
+    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm check:boundaries && pnpm check:boundaries:selftest && pnpm check:protocol && pnpm test && pnpm build",
+    "verify:full": "pnpm verify && pnpm exec playwright test"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

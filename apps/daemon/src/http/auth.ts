@@ -13,7 +13,7 @@ export function registerAuth(app: FastifyInstance, config: Config, hasWeb: boole
   app.get('/auth', async (req, reply) => {
     const token = (req.query as { token?: string }).token
     if (!config.token || token !== config.token) {
-      return reply.code(401).send({ code: 'unauthorized' })
+      return reply.code(401).send({ code: 'unauthorized', message: 'invalid or missing token' })
     }
     return setSessionCookie(reply, token).redirect('/')
   })

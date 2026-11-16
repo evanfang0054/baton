@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { ConfigSchema, type Config } from '@baton/protocol'
 
 export type { Config }
@@ -14,7 +14,7 @@ function readTokenFile(file: string): string {
   try {
     return readFileSync(file, 'utf8').trim()
   } catch {
-    throw new Error(`cannot read BATON_TOKEN_FILE: ${file}`)
+    throw new Error(`cannot read BATON_TOKEN_FILE: ${basename(file)}`)
   }
 }
 

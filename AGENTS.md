@@ -79,12 +79,12 @@ pnpm docker:smoke   # 构建镜像并跑健康检查
 - Commit：`<type>(<scope>): <subject>`，类型 `feat|fix|docs|style|refactor|perf|test|chore|build|ci`
 - Scope：`daemon|web|core|adapter|protocol|ui|docker|ci|docs`
 - 分支：trunk-based。`main` 受保护，短分支 `feat/…`、`fix/…`，squash 合并，禁止 force push。
-- 评审：1 人 approve，作者合并；必需检查 `verify (22)`、`verify (24)`、`e2e`、`build`。
+- 评审：1 人 approve，作者合并；必需检查 `verify (22)`、`verify (24)`、`pack-check`、`e2e`、`build`。
 - 不提交生成物、`dist`、`node_modules`、`.env`。
 
 ## 项目结构
 
-> 当前仓库处于 M0 之前，代码尚未建立；以下是 M0 的目标结构。
+> M0 骨架已建立；以下为当前结构。
 
 ```
 baton/

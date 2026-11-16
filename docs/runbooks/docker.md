@@ -16,6 +16,8 @@ docker compose up -d
 ```bash
 docker run -d --name baton -p 7317:7317 \
   -e BATON_TOKEN=$(openssl rand -hex 32) \
+  --read-only --tmpfs /tmp:size=256m \
+  --cap-drop ALL --security-opt no-new-privileges:true \
   -v baton-data:/data \
   -v "$PWD/workspace:/workspace" \
   ghcr.io/evanfang0054/baton:latest

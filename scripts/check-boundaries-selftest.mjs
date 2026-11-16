@@ -2,6 +2,18 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 
 const file = 'packages/core/src/__fixture_fs.ts'
+
+try {
+  execFileSync('pnpm', ['check:boundaries'], { encoding: 'utf8', stdio: 'pipe' })
+} catch (err) {
+  throw new Error(
+    `baseline boundaries failed; fix existing violations first:\n${err.stdout ?? ''}`,
+    {
+      cause: err,
+    },
+  )
+}
+
 mkdirSync('packages/core/src', { recursive: true })
 writeFileSync(file, "import 'node:fs'\n")
 

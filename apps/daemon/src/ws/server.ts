@@ -1,5 +1,5 @@
 import websocket from '@fastify/websocket'
-import { WsEnvelope } from '@baton/protocol'
+import { WsEnvelope, WsPong } from '@baton/protocol'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { WebSocket } from 'ws'
 import type { Config } from '../config.js'
@@ -15,17 +15,22 @@ function tokenFromRequest(req: FastifyRequest): string | null {
   const cookie = req.headers.cookie
   const raw =
     typeof cookie === 'string' ? cookie.match(/(?:^|;\s*)baton_token=([^;]+)/)?.[1] : undefined
-  return raw ? decodeURIComponent(raw) : null
+  if (!raw) return null
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return null
+  }
 }
 
 export async function attachWs(app: FastifyInstance, config: Config): Promise<void> {
-  await app.register(websocket)
+  await app.register(websocket, { options: { maxPayload: 64 * 1024 } })
   app.get('/ws', { websocket: true }, (socket: WebSocket, req) => {
-    const timer = setTimeout(() => socket.close(4401, 'unauthorized'), 5000)
     const supplied = tokenFromRequest(req)
-    if (config.token && supplied !== config.token) return
-    clearTimeout(timer)
-    socket.on('close', () => clearTimeout(timer))
+    if (config.token && supplied !== config.token) {
+      socket.close(4401, 'unauthorized')
+      return
+    }
     socket.on('message', (raw) => {
       let parsed: unknown
       try {
@@ -40,13 +45,18 @@ export async function attachWs(app: FastifyInstance, config: Config): Promise<vo
         return
       }
       if (envelope.data.type === 'ping') {
+        const pong = WsPong.parse({
+          type: 'pong',
+          id: envelope.data.id ?? '',
+          ts: Date.now(),
+        })
         socket.send(
           JSON.stringify({
             v: 1,
             type: 'pong',
-            id: envelope.data.id,
-            ts: Date.now(),
-            payload: {},
+            id: pong.id,
+            ts: pong.ts,
+            payload: pong,
           }),
         )
       }

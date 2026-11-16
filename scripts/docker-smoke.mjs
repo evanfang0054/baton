@@ -42,7 +42,7 @@ try {
   )
   const megabytes = size / 1048576
   console.log(`docker smoke ok (uid=${uid}, image=${megabytes.toFixed(0)}MB)`)
-  if (megabytes > 700) console.warn(`warning: image exceeds 700MB (${megabytes.toFixed(0)}MB)`)
+  if (megabytes > 700) throw new Error(`image exceeds 700MB (${megabytes.toFixed(0)}MB)`)
 } finally {
   execFileSync('docker', ['rm', '-f', container], { stdio: 'ignore' })
 }

@@ -19,7 +19,6 @@ function migrationCandidates(): string[] {
     fileURLToPath(new URL('./migrations', import.meta.url)),
     fileURLToPath(new URL('../../migrations', import.meta.url)),
     join(process.cwd(), 'apps/daemon/migrations'),
-    join(process.cwd(), 'migrations'),
   ]
 }
 

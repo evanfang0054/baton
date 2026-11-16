@@ -10,3 +10,11 @@ baton.ai
 .DS_Store
 playwright-report
 test-results
+.env
+.env.*
+!.env.example
+workspace
+*.db
+*.db-shm
+*.db-wal
+.claude

@@ -15,9 +15,9 @@
 - [ ] **7. 监听地址约束**：默认 `127.0.0.1` 无需 token 即可启动；`--host 0.0.0.0` 且无 token 时进程以退出码 `1` 结束，并打印包含 `BATON_TOKEN` 的错误。
 - [ ] **8. 存储初始化幂等**：空数据目录启动时自动建库并应用迁移；连续启动两次均成功，第二次前后 `sqlite_master` 导出完全一致。
 - [ ] **9. 分层规则真的会拦人**：`pnpm check:boundaries` 通过；仓库内负向 fixture（临时在 `packages/core` 写入 `import 'node:fs'`）会让该命令以非 0 退出，恢复后再次通过。
-- [ ] **10. 协议单一真源**：`packages/protocol` 至少导出 `health` 与 `ws.ping` 两个 zod schema，daemon 与 web 均从该包取类型；手写重复类型会触发 tsc 错误（负向 fixture 验证）。
+- [ ] **10. 协议单一真源**：`packages/protocol` 至少导出 `health`、`ws` 与 `config` schema，daemon 从该包取类型；web 在 M1 接入 WS 时复用同一 schema；跨包重复定义由 `check:protocol` 拦截。
 - [ ] **11. 容器可部署**：`docker build` 成功；容器内 `id -u` 不为 0；容器内健康检查通过；`docker image inspect` 的未压缩体积 ≤ 700MB。
-- [ ] **12. CI 三道闸**：PR 上 `verify (22)`、`verify (24)`、`e2e`、`build` 均通过；`main` 的 required checks 包含这四项，以 `gh api` 查询结果为证。
+- [ ] **12. CI 三道闸**：PR 上 `verify (22)`、`verify (24)`、`pack-check`、`e2e`、`build` 均通过；`main` 的 required checks 包含这五项，以 `gh api` 查询结果为证。
 - [ ] **13. 文档能自助**：README 给出 dev / pack / docker 三种启动方式；`docs/runbooks/docker.md` 说明 token、数据卷、工作区挂载与常见失败。
 
 ## Boundary Conditions

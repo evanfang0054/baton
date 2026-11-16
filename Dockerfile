@@ -30,6 +30,7 @@ FROM node:24-bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git ca-certificates ripgrep openssh-client tini \
  && rm -rf /var/lib/apt/lists/*
+RUN git config --system --add safe.directory /workspace
 WORKDIR /app
 ENV NODE_ENV=production \
     BATON_HOST=0.0.0.0 \
