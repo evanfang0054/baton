@@ -1,0 +1,257 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`effects snapshots > approval request, allow and deny 1`] = `
+{
+  "effects": [
+    {
+      "approvalId": "a1",
+      "type": "requestApproval",
+    },
+    {
+      "status": "waiting_input",
+      "type": "emitTaskStatus",
+    },
+  ],
+  "ok": true,
+  "retryCount": 0,
+  "status": "waiting_input",
+}
+`;
+
+exports[`effects snapshots > approval request, allow and deny 2`] = `
+{
+  "effects": [
+    {
+      "approvalId": "a1",
+      "decision": "allow",
+      "type": "resolveApproval",
+    },
+    {
+      "status": "running",
+      "type": "emitTaskStatus",
+    },
+  ],
+  "ok": true,
+  "retryCount": 0,
+  "status": "running",
+}
+`;
+
+exports[`effects snapshots > approval request, allow and deny 3`] = `
+{
+  "effects": [
+    {
+      "approvalId": "a1",
+      "decision": "deny",
+      "note": "use soft delete",
+      "type": "resolveApproval",
+    },
+    {
+      "status": "running",
+      "type": "emitTaskStatus",
+    },
+  ],
+  "ok": true,
+  "retryCount": 0,
+  "status": "running",
+}
+`;
+
+exports[`effects snapshots > error from waiting_input interrupts the session 1`] = `
+{
+  "effects": [
+    {
+      "reason": "boom",
+      "type": "interruptSession",
+    },
+    {
+      "status": "failed",
+      "type": "emitTaskStatus",
+    },
+  ],
+  "ok": true,
+  "retryCount": 0,
+  "status": "failed",
+}
+`;
+
+exports[`effects snapshots > happy path 1`] = `
+{
+  "effects": [
+    {
+      "type": "enqueueTask",
+    },
+    {
+      "status": "queued",
+      "type": "emitTaskStatus",
+    },
+  ],
+  "ok": true,
+  "retryCount": 0,
+  "status": "queued",
+}
+`;
+
+exports[`effects snapshots > happy path 2`] = `
+{
+  "effects": [
+    {
+      "type": "startSession",
+    },
+    {
+      "status": "running",
+      "type": "emitTaskStatus",
+    },
+  ],
+  "ok": true,
+  "retryCount": 0,
+  "status": "running",
+}
+`;
+
+exports[`effects snapshots > happy path 3`] = `
+{
+  "effects": [
+    {
+      "type": "runVerify",
+    },
+    {
+      "status": "verifying",
+      "type": "emitTaskStatus",
+    },
+  ],
+  "ok": true,
+  "retryCount": 0,
+  "status": "verifying",
+}
+`;
+
+exports[`effects snapshots > happy path 4`] = `
+{
+  "effects": [
+    {
+      "diffStat": {
+        "deletions": 0,
+        "filesChanged": 1,
+        "insertions": 2,
+      },
+      "exitCode": 0,
+      "output": "ok",
+      "reviewId": "r1",
+      "type": "persistVerifyResult",
+    },
+    {
+      "status": "review",
+      "type": "emitTaskStatus",
+    },
+  ],
+  "ok": true,
+  "retryCount": 0,
+  "status": "review",
+}
+`;
+
+exports[`effects snapshots > happy path 5`] = `
+{
+  "effects": [
+    {
+      "reviewId": "r1",
+      "type": "persistReviewVerdict",
+      "verdict": "approved",
+    },
+    {
+      "status": "done",
+      "type": "emitTaskStatus",
+    },
+  ],
+  "ok": true,
+  "retryCount": 0,
+  "status": "done",
+}
+`;
+
+exports[`effects snapshots > reject does not increment retry 1`] = `
+{
+  "effects": [
+    {
+      "reviewId": "r1",
+      "type": "persistReviewVerdict",
+      "verdict": "rejected",
+    },
+    {
+      "feedback": "fix it",
+      "type": "appendFeedback",
+    },
+    {
+      "type": "enqueueTask",
+    },
+    {
+      "status": "queued",
+      "type": "emitTaskStatus",
+    },
+  ],
+  "ok": true,
+  "retryCount": 1,
+  "status": "queued",
+}
+`;
+
+exports[`effects snapshots > verify fail retry 1`] = `
+{
+  "effects": [
+    {
+      "diffStat": {
+        "deletions": 0,
+        "filesChanged": 1,
+        "insertions": 2,
+      },
+      "exitCode": 1,
+      "output": "bad",
+      "reviewId": "r1",
+      "type": "persistVerifyResult",
+    },
+    {
+      "type": "incrementRetry",
+    },
+    {
+      "feedback": "bad",
+      "type": "appendFeedback",
+    },
+    {
+      "type": "enqueueTask",
+    },
+    {
+      "status": "queued",
+      "type": "emitTaskStatus",
+    },
+  ],
+  "ok": true,
+  "retryCount": 1,
+  "status": "queued",
+}
+`;
+
+exports[`effects snapshots > verify fail without autopilot goes to review 1`] = `
+{
+  "effects": [
+    {
+      "diffStat": {
+        "deletions": 0,
+        "filesChanged": 1,
+        "insertions": 2,
+      },
+      "exitCode": 1,
+      "output": "bad",
+      "reviewId": "r1",
+      "type": "persistVerifyResult",
+    },
+    {
+      "status": "review",
+      "type": "emitTaskStatus",
+    },
+  ],
+  "ok": true,
+  "retryCount": 0,
+  "status": "review",
+}
+`;
