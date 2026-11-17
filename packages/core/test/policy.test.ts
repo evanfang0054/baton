@@ -43,7 +43,8 @@ describe('matchRule', () => {
   })
 })
 
-describe('classifyRisk', () => {  it.each([
+describe('classifyRisk', () => {
+  it.each([
     ['Read', { file_path: 'src/a.ts' }, 'low'],
     ['Grep', { pattern: 'x' }, 'low'],
     ['Edit', { file_path: 'src/a.ts', cwd: '/workspace/demo' }, 'medium'],
@@ -116,7 +117,9 @@ describe('evaluateApproval', () => {
       { killSwitch: false },
     )
     expect(decision).toMatchObject({ decision: 'ask', autoApproved: false, risk: 'medium' })
-    expect(decision.matchedRule).toBe('Bash:pnpm {test,lint,typecheck,build,install --frozen-lockfile}')
+    expect(decision.matchedRule).toBe(
+      'Bash:pnpm {test,lint,typecheck,build,install --frozen-lockfile}',
+    )
   })
 
   it('asks for unknown tools with high risk', () => {
@@ -150,5 +153,23 @@ describe('evaluateApproval', () => {
       { killSwitch: false },
     )
     expect(decision.reason).not.toContain('super-secret')
+  })
+
+  it('snapshots representative decisions', () => {
+    const decisions = [
+      evaluateApproval(policy(), request('Read', { file_path: 'src/a.ts' }), {
+        killSwitch: false,
+      }),
+      evaluateApproval(
+        policy({ autopilot: autopilotOn }),
+        request('Read', { file_path: 'src/a.ts' }),
+        { killSwitch: false },
+      ),
+      evaluateApproval(policy(), request('Bash', { command: 'rm -rf /tmp/demo' }), {
+        killSwitch: false,
+      }),
+      evaluateApproval(policy(), request('UnknownTool', { x: 1 }), { killSwitch: false }),
+    ]
+    expect(decisions).toMatchSnapshot()
   })
 })

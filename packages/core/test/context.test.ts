@@ -66,6 +66,7 @@ describe('assembleContext', () => {
       contentByNodeId: { n3: '# 登录页规格\n使用暗色变量。' },
     })
     expect(again).toEqual(result)
+    expect(result.prompt).toMatchSnapshot()
   })
 
   it('detects sensitive paths', () => {

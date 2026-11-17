@@ -1527,8 +1527,38 @@ git commit -m "test(core): 增加 M1-5 消费形态验收并完成全量校验"
 
 | 日期 | Task | 结果 | Commit | 备注 |
 |---|---|---|---|---|
-| 待填 | Task 1 | 待执行 | 待填 |  |
-| 待填 | Task 2 | 待执行 | 待填 |  |
-| 待填 | Task 3 | 待执行 | 待填 |  |
-| 待填 | Task 4 | 待执行 | 待填 |  |
-| 待填 | Task 5 | 待执行 | 待填 |  |
+| 2026-11-17 | Task 1 | protocol 66 tests；typecheck 通过 | `c6477bc` | `AgentAdapter` type-only；默认 Bash 规则改 glob |
+| 2026-11-17 | Task 2 | core 71 tests（含 context）；coverage 89%+ branches | `1757b21` | context 快照；敏感路径；深度/预算/40 节点边界 |
+| 2026-11-17 | Task 3 | core 71 tests；typecheck 通过；picomatch 接入 | `62dedea` | policy 快照；风险表；verify 解析；notices |
+| 2026-11-17 | Task 4 | adapters 5 tests；typecheck 通过 | `cc99e0f` | fake 默认脚本 / allow / deny / interrupt / send / error |
+| 2026-11-17 | Task 5 | `pnpm verify`、`check:boundaries`、`check:protocol`、`format:check`、`pack:check` 全绿；`apps` 空 diff | 待提交 | 消费 fixture；快照；执行记录 |
+
+### Contract 25 条核对
+
+| Contract | 证据 |
+|---|---|
+| 1 Protocol adapter 导出 | `packages/protocol/test/exports.test.ts` 的 AgentAdapter 用例；`pnpm --filter @baton/protocol typecheck` |
+| 2 Policy 默认规则 | `packages/protocol/test/policy-defaults.test.ts` 精确数组断言 |
+| 3 Context API | `packages/core/src/context/index.ts`；`check:boundaries` 无违规 |
+| 4 种子与闭包 | `context.test.ts` 的显式/前驱/group/深度/40 节点用例 |
+| 5 排序与确定性 | `context.test.ts` 两次调用 `toEqual` + prompt 快照 |
+| 6 渲染 | `context.test.ts` 的 text/file/image 与 title/path 断言 |
+| 7 预算与脱敏 | `context.test.ts` 的 sensitive/empty/budget/truncated 用例 |
+| 8 Policy 匹配 | `policy.test.ts` 的 matchRule/路径/命令/稳定 JSON 用例 |
+| 9 风险分级 | `policy.test.ts` 的 classifyRisk 表与 max 行为 |
+| 10 自动批准 | `policy.test.ts` 的 autopilot/kill switch/medium/unknown 用例 |
+| 11 Verify 解析 | `verify.test.ts` 的优先级/回退/空命令用例 |
+| 12 Adapters 包 | `packages/adapters/package.json` + workspace 安装 + `pnpm -r test` |
+| 13 FakeAdapter 契约 | `packages/adapters/test/fake.test.ts` 默认序列 + `EventSchemas` 校验 |
+| 14 FakeAdapter 控制 | `fake.test.ts` 的 deny/interrupt/send/custom error 用例 |
+| 15 消费形态 | `packages/core/test/consumption.test.ts` |
+| 16 变更边界 | `git diff --name-only main...HEAD -- apps` 输出为空 |
+| 17 分层 | `pnpm check:boundaries`（104 modules, 201 deps, no violations） |
+| 18 全量校验 | `pnpm verify` 退出码 0；`format:check` / `check:protocol` / 两个包测试 / `pack:check` 通过 |
+| 19 覆盖率 | core `All files`：Stmts 95.91 / Branch 89.62 / Funcs 96.15 / Lines 97.5 |
+| 20 依赖与许可 | `packages/core/package.json` 的 picomatch；`THIRD_PARTY_NOTICES.md` 的 picomatch/types |
+| 21 文档与占位 | `docs/README.md` 三份链接；`grep -rn "TODO\|FIXME" packages/*/src` 无输出 |
+| 22 性能与确定性 | core 测试 < 1s；fake 无定时器/随机数；快照稳定 |
+| 23 默认值兼容 | protocol 既有 66 tests 全绿；`PolicySchema` 类型未变 |
+| 24 错误形状 | `verify.test.ts` 空命令返回 `invalid_payload`；未知工具返回 high 不抛错 |
+| 25 无占位实现 | 三个 core 函数与 FakeAdapter 均有实现与测试；无 TODO/FIXME |

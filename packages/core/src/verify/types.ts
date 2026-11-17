@@ -10,5 +10,4 @@ export interface VerifyCommandInput {
 export type VerifyCommandSource = 'task' | 'policy' | 'package' | 'fallback'
 
 export type VerifyCommandResult =
-  | { ok: true; command: string; source: VerifyCommandSource }
-  | { ok: false; error: AppError }
+  { ok: true; command: string; source: VerifyCommandSource } | { ok: false; error: AppError }

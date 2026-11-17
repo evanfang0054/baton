@@ -43,9 +43,7 @@ export function evaluateApproval(
   }
 
   const auto =
-    policy.autopilot.enabled &&
-    !ctx.killSwitch &&
-    within(risk, policy.approval.autoApproveMaxRisk)
+    policy.autopilot.enabled && !ctx.killSwitch && within(risk, policy.approval.autoApproveMaxRisk)
 
   if (auto) {
     return {

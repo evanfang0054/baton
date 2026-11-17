@@ -101,8 +101,7 @@ describe('FakeAdapter', () => {
 
     expect(
       events.some(
-        (event) =>
-          event.type === 'TEXT_MESSAGE_CONTENT' && event.delta === 'extra instruction',
+        (event) => event.type === 'TEXT_MESSAGE_CONTENT' && event.delta === 'extra instruction',
       ),
     ).toBe(true)
   })

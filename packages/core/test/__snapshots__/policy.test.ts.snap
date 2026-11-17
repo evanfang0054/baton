@@ -1,0 +1,33 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`evaluateApproval > snapshots representative decisions 1`] = `
+[
+  {
+    "autoApproved": false,
+    "decision": "ask",
+    "matchedRule": "Read",
+    "reason": "rule Read matched but auto-approve conditions not met",
+    "risk": "low",
+  },
+  {
+    "autoApproved": true,
+    "decision": "allow",
+    "matchedRule": "Read",
+    "reason": "auto-approved by rule Read",
+    "risk": "low",
+  },
+  {
+    "autoApproved": false,
+    "decision": "deny",
+    "matchedRule": "Bash:rm -rf *",
+    "reason": "denied by rule Bash:rm -rf *",
+    "risk": "high",
+  },
+  {
+    "autoApproved": false,
+    "decision": "ask",
+    "reason": "no matching allow rule",
+    "risk": "high",
+  },
+]
+`;
