@@ -15,11 +15,15 @@ export function stableStringify(value: unknown): string {
     if (input instanceof Date) return input.toISOString()
     if (seen.has(input)) return '[Circular]'
     seen.add(input)
-    if (Array.isArray(input)) return input.map(normalize)
-    const entries = Object.entries(input as Record<string, unknown>)
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-      .map(([key, item]) => [key, normalize(item)] as const)
-    return Object.fromEntries(entries)
+    try {
+      if (Array.isArray(input)) return input.map(normalize)
+      const entries = Object.entries(input as Record<string, unknown>)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([key, item]) => [key, normalize(item)] as const)
+      return Object.fromEntries(entries)
+    } finally {
+      seen.delete(input)
+    }
   }
 
   return JSON.stringify(normalize(value)) ?? 'null'
@@ -71,7 +75,8 @@ export function matchRuleResult(rule: string, request: ApprovalRequest): RuleMat
   try {
     return picomatch.isMatch(target, pattern, options) ? 'match' : 'no-match'
   } catch {
-    return 'no-match'
+    // 非法 pattern 不能静默放行；deny 侧会把它当作 unextractable 处理。
+    return 'unextractable'
   }
 }
 

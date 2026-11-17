@@ -8,7 +8,7 @@ const HIGH_BASH =
   /(^|\s)(sudo|rm\s+-rf|git\s+push|pnpm\s+add|npm\s+install|yarn\s+add)\b|curl[^|]*\|\s*sh/i
 const MEDIUM_BASH = /^(pnpm|npm|yarn)\s+(test|lint|typecheck|build)\b|^git\s+(status|diff|log)\b/i
 // 复合命令可能把高风险动作藏在后半段，例如 `pnpm test; curl ...`。
-const SHELL_META = /[;&|`$()<>]/
+const SHELL_META = /[;&|`$()<>\r\n]/
 
 function normalizePath(value: string): string {
   return value.replaceAll('\\', '/').replace(/\/+/g, '/')

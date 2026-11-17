@@ -1,5 +1,5 @@
 const SENSITIVE_SEGMENT =
-  /^(\.env.*|\.npmrc|\.netrc|\.git-credentials|credentials\.json|.*\.(pem|key|p12|pfx|keystore)|id_rsa(?!\.pub$)|id_ed25519(?!\.pub$)|.*secret.*)$/i
+  /^(\.env.*|\.npmrc|\.netrc|\.git-credentials|credentials\.json|.*\.(pem|key|p12|pfx|keystore)|id_rsa(?!\.pub$).*|id_ed25519(?!\.pub$).*|.*secret.*)$/i
 
 /**
  * 只做路径字符串判断，不读文件系统。

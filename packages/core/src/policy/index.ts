@@ -1,4 +1,3 @@
-export * from './types.js'
-export * from './match.js'
-export * from './risk.js'
-export * from './evaluate.js'
+export type { PolicyContext, PolicyDecision } from './types.js'
+export { evaluateApproval } from './evaluate.js'
+export { classifyRisk } from './risk.js'

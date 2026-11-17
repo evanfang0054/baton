@@ -80,6 +80,8 @@ describe('assembleContext', () => {
     expect(isSensitivePath('credentials.json')).toBe(true)
     expect(isSensitivePath('certs/client.p12')).toBe(true)
     expect(isSensitivePath('id_ed25519')).toBe(true)
+    expect(isSensitivePath('id_rsa.bak')).toBe(true)
+    expect(isSensitivePath('id_rsa_old')).toBe(true)
     expect(isSensitivePath('id_rsa.pub')).toBe(false)
     expect(isSensitivePath('id_ed25519.pub')).toBe(false)
     expect(isSensitivePath('src/index.ts')).toBe(false)
@@ -289,13 +291,35 @@ describe('assembleContext', () => {
     expect(result.included.find((item) => item.id === 'n2')?.depth).toBe(0)
   })
 
+  it('drops the target agent when it is a child of a selected group', () => {
+    const group3 = node('g3', 'group', { label: 'G3', collapsed: false }, 0, 230)
+    const target3 = node(
+      'target3',
+      'agent',
+      { title: 'T3', engine: 'fake', taskId: null },
+      1,
+      231,
+      'g3',
+    )
+    const text3 = node('text3', 'text', { content: 'group target text' }, 2, 232, 'g3')
+    const result = assembleContext({
+      taskPrompt: 'demo',
+      targetNodeId: 'target3',
+      selectedNodeIds: ['g3'],
+      nodes: [...nodes, group3, target3, text3],
+      edges: [],
+    })
+    expect(result.included.map((item) => item.id)).toEqual(['text3'])
+    expect(result.dropped).toContainEqual({ id: 'target3', reason: 'target' })
+  })
+
   it('does not expand an unselected group', () => {
     const result = assembleContext({
       taskPrompt: 'demo',
       targetNodeId: 'n4',
       selectedNodeIds: [],
       nodes,
-      edges: [],
+      edges: [edge('e-group', 'n6', 'n4')],
     })
     expect(result.included).toEqual([])
   })
