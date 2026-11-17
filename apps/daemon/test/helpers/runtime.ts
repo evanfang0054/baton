@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Config } from '../../src/config.js'
 import type { BroadcastEvent } from '../../src/db/event-store.js'
+import { createAdapterFactory, type AdapterFactory } from '../../src/runtime/adapter-factory.js'
 import { createRuntime, type Runtime } from '../../src/runtime/index.js'
 import type { StartSessionInput } from '../../src/runtime/types.js'
 import { createTestDb, seedTask, type SeededTask, type TestDb } from './db.js'
@@ -19,10 +20,16 @@ export interface TestRuntimeHandle {
   approvals: Array<{ approvalId: string; decision: 'allow' | 'deny'; note?: string }>
   verifies: string[]
   createTask(overrides?: Partial<TaskCreateInput>): string
-  cleanup(): void
+  cleanup(): Promise<void>
 }
 
-export function createTestRuntime(options: { maxConcurrency?: number } = {}): TestRuntimeHandle {
+export function createTestRuntime(
+  options: {
+    maxConcurrency?: number
+    useSessionRunner?: boolean
+    adapters?: AdapterFactory
+  } = {},
+): TestRuntimeHandle {
   const root = mkdtempSync(join(tmpdir(), 'baton-runtime-'))
   const database = createTestDb()
   const seeded = seedTask(database.raw)
@@ -58,18 +65,22 @@ export function createTestRuntime(options: { maxConcurrency?: number } = {}): Te
     broadcast: (event) => {
       events.push(event)
     },
-    startSession: (input) => {
-      startSessions.push(input)
-    },
-    interruptSession: (taskId) => {
-      interrupts.push(taskId)
-    },
-    resolveApproval: (approvalId, decision, note) => {
-      approvals.push({ approvalId, decision, ...(note ? { note } : {}) })
-    },
-    runVerify: (taskId) => {
-      verifies.push(taskId)
-    },
+    ...(options.useSessionRunner
+      ? { adapters: options.adapters ?? createAdapterFactory() }
+      : {
+          startSession: (input: StartSessionInput) => {
+            startSessions.push(input)
+          },
+          interruptSession: (taskId: string) => {
+            interrupts.push(taskId)
+          },
+          resolveApproval: (approvalId: string, decision: 'allow' | 'deny', note?: string) => {
+            approvals.push({ approvalId, decision, ...(note ? { note } : {}) })
+          },
+          runVerify: (taskId: string) => {
+            verifies.push(taskId)
+          },
+        }),
     now: () => tick++,
     newId: () => `id-${++id}`,
   })
@@ -101,7 +112,8 @@ export function createTestRuntime(options: { maxConcurrency?: number } = {}): Te
     approvals,
     verifies,
     createTask,
-    cleanup: () => {
+    cleanup: async () => {
+      await runtime.close()
       database.raw.close()
       rmSync(root, { recursive: true, force: true })
     },

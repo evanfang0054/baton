@@ -1,0 +1,62 @@
+import { afterEach, describe, expect, it } from 'vitest'
+import { getApproval, insertApproval, listSessionsByTask } from '../src/db/repositories.js'
+import { reconcileOnBoot } from '../src/runtime/boot.js'
+import type { TestRuntimeHandle } from './helpers/runtime.js'
+import { createTestRuntime } from './helpers/runtime.js'
+
+const handles: TestRuntimeHandle[] = []
+
+function setup(): TestRuntimeHandle {
+  const handle = createTestRuntime({ maxConcurrency: 3 })
+  handles.push(handle)
+  return handle
+}
+
+afterEach(async () => {
+  await Promise.all(handles.splice(0).map((handle) => handle.cleanup()))
+})
+
+describe('reconcileOnBoot', () => {
+  it('fails active tasks, cancels verifying tasks and expires approvals', async () => {
+    const handle = setup()
+    const first = handle.createTask({ title: 'one' })
+    const second = handle.createTask({ title: 'two' })
+    const verifying = handle.createTask({ title: 'three' })
+
+    for (const taskId of [first, second, verifying]) {
+      handle.runtime.applyTransition(taskId, { type: 'enqueue' })
+    }
+    await handle.runtime.settle()
+    handle.runtime.applyTransition(verifying, { type: 'completed' })
+    await handle.runtime.settle()
+
+    const firstSession = listSessionsByTask(handle.database.db, first)[0]!
+    handle.database.db.transaction((tx) =>
+      insertApproval(tx, {
+        id: 'approval-boot',
+        sessionId: firstSession.id,
+        requestId: 'req-boot',
+        request: { toolName: 'Bash', input: { command: 'pnpm test' }, risk: 'medium' },
+      }),
+    )
+
+    reconcileOnBoot({
+      db: handle.database.db,
+      applyTransition: handle.runtime.applyTransition,
+      now: () => 99,
+      newId: () => 'audit-boot',
+    })
+
+    expect(handle.runtime.getTask(first)?.status).toBe('failed')
+    expect(handle.runtime.getTask(second)?.status).toBe('failed')
+    expect(handle.runtime.getTask(verifying)?.status).toBe('cancelled')
+    expect(listSessionsByTask(handle.database.db, first)[0]?.status).toBe('failed')
+    expect(getApproval(handle.database.db, 'approval-boot')?.decision).toBe('deny')
+    expect(getApproval(handle.database.db, 'approval-boot')?.decidedBy).toBe('system')
+
+    const audit = handle.database.raw
+      .prepare("select action from audit where action = 'approval.expired'")
+      .get() as { action: string } | undefined
+    expect(audit?.action).toBe('approval.expired')
+  })
+})

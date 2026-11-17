@@ -19,7 +19,9 @@ import {
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
+import type { AdapterFactory } from './adapter-factory.js'
 import { createScheduler, type Scheduler } from './scheduler.js'
+import { createSessionRunner, type SessionRunner } from './session-runner.js'
 import { createTaskService } from './task-service.js'
 import { createTransitionRunner } from './transition-runner.js'
 import type { RuntimeHooks, StartSessionInput, TransitionOutcome } from './types.js'
@@ -28,14 +30,15 @@ export interface RuntimeDeps {
   db: Db
   config: Config
   broadcast: (event: BroadcastEvent) => void
-  startSession: (input: StartSessionInput) => void | Promise<void>
-  interruptSession: (taskId: string) => void | Promise<void>
-  resolveApproval: (
+  adapters?: AdapterFactory
+  startSession?: (input: StartSessionInput) => void | Promise<void>
+  interruptSession?: (taskId: string) => void | Promise<void>
+  resolveApproval?: (
     approvalId: string,
     decision: 'allow' | 'deny',
     note?: string,
   ) => void | Promise<void>
-  runVerify: (taskId: string) => void | Promise<void>
+  runVerify?: (taskId: string) => void | Promise<void>
   now?: () => number
   newId?: () => string
 }
@@ -62,13 +65,21 @@ export function createRuntime(deps: RuntimeDeps) {
   const verifyMeta = new Map<string, number>()
   const pending = new Set<Promise<void>>()
   const schedulerHolder: { value?: Scheduler } = {}
+  const sessionHolder: { value?: SessionRunner } = {}
 
   const hooks: RuntimeHooks = {
     broadcast: deps.broadcast,
-    startSession: deps.startSession,
-    interruptSession: deps.interruptSession,
-    resolveApproval: deps.resolveApproval,
-    runVerify: deps.runVerify,
+    startSession:
+      deps.startSession ??
+      ((input) => (sessionHolder.value ? sessionHolder.value.start(input) : undefined)),
+    interruptSession:
+      deps.interruptSession ??
+      ((taskId) => (sessionHolder.value ? sessionHolder.value.interrupt(taskId) : undefined)),
+    resolveApproval:
+      deps.resolveApproval ??
+      ((approvalId, decision, note) =>
+        sessionHolder.value ? sessionHolder.value.approve(approvalId, decision, note) : undefined),
+    runVerify: deps.runVerify ?? (() => {}),
     kick: () => schedulerHolder.value?.kick(),
     track: (action) => {
       const promise = Promise.resolve()
@@ -227,7 +238,10 @@ export function createRuntime(deps: RuntimeDeps) {
     maxOrdinal: eventStore.maxOrdinal,
     settle,
     start: () => schedulerHolder.value?.kick(),
-    close: settle,
+    close: async () => {
+      await sessionHolder.value?.dispose()
+      await settle()
+    },
     getTask: (id: string) => getTask(deps.db, id),
     getReviewByTask: (taskId: string) => getReviewByTask(deps.db, taskId),
     getSession: (id: string) => getSession(deps.db, id),
@@ -238,6 +252,19 @@ export function createRuntime(deps: RuntimeDeps) {
 
   const created = createScheduler(runtime)
   schedulerHolder.value = created
+
+  if (deps.adapters) {
+    sessionHolder.value = createSessionRunner({
+      db: deps.db,
+      adapters: deps.adapters,
+      eventStore,
+      broadcast: deps.broadcast,
+      applyTransition,
+      now,
+      newId,
+    })
+  }
+
   return { ...runtime, scheduler: created }
 }
 

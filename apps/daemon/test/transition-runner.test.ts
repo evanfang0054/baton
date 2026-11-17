@@ -13,8 +13,8 @@ function setup(options?: { maxConcurrency?: number }): TestRuntimeHandle {
   return handle
 }
 
-afterEach(() => {
-  handles.splice(0).forEach((handle) => handle.cleanup())
+afterEach(async () => {
+  await Promise.all(handles.splice(0).map((handle) => handle.cleanup()))
 })
 
 describe('transition runner', () => {
