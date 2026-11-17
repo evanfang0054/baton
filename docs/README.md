@@ -28,6 +28,7 @@
 - [M1-3/M1-4 上下文、策略与适配器](contracts/M1-context-policy-adapter.contract.md)
 - [M1-5 daemon 运行时闭环](contracts/M1-daemon-runtime.contract.md)
 - [M1-5a 任务注意力语义](contracts/M1-attention-semantics.contract.md)
+- [M1-6a 任务控制台](contracts/M1-web-console.contract.md)
 
 ## 现行 plan
 
