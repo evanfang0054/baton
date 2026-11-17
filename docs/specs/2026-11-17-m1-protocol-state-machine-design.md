@@ -12,6 +12,7 @@ spec_ref: 2026-11-16-baton-architecture-design.md
 > 子 spec。回链主架构设计：`docs/specs/2026-11-16-baton-architecture-design.md`。
 > 关联 contract：`docs/contracts/M1-protocol-state-machine.contract.md`；plan：`docs/plans/2026-11-17-m1-protocol-state-machine.md`。
 > 本文只锁定 M1 的第一块可测切片；后续任务按第 8 节映射推进。
+> M1-5a 的 `session_reported` / `user_input` / `cause` 增量见 `docs/specs/2026-11-17-m1-attention-semantics-design.md`；本文转移表不被直接改写。
 
 ## 0. 文档信息
 

@@ -1,3 +1,5 @@
+import type { TaskTransitionEvent } from '@baton/protocol'
+import type { Logger } from '../log.js'
 import type { Db } from '../db/types.js'
 import {
   insertAudit,
@@ -11,12 +13,10 @@ import type { TransitionOutcome } from './types.js'
 
 export interface BootReconcilerDeps {
   db: Db
-  applyTransition: (
-    taskId: string,
-    event: { type: 'error'; message: string } | { type: 'cancel'; reason?: string },
-  ) => TransitionOutcome
+  applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
   now: () => number
   newId: () => string
+  logger?: Logger
 }
 
 /**
@@ -24,19 +24,32 @@ export interface BootReconcilerDeps {
  * 只使用现有转移事件，不新增协议分支。
  */
 export function reconcileOnBoot(deps: BootReconcilerDeps): void {
+  const apply = (taskId: string, event: TaskTransitionEvent): void => {
+    const outcome = deps.applyTransition(taskId, event)
+    if (!outcome.ok) {
+      deps.logger?.error(
+        { action: 'boot.reconcile', taskId, code: outcome.error.code },
+        'boot reconcile failed',
+      )
+    }
+  }
+
   const activeSessions = listSessionsByStatus(deps.db, ['running', 'waiting_input'])
   for (const session of activeSessions) {
     deps.db.transaction((tx) => updateSessionStatus(tx, session.id, 'failed', deps.now()))
   }
 
   for (const task of listTasksByStatus(deps.db, ['running', 'waiting_input'])) {
-    deps.applyTransition(task.id, { type: 'error', message: 'daemon restarted' })
+    apply(task.id, { type: 'error', message: 'daemon restarted' })
   }
 
   for (const task of listTasksByStatus(deps.db, ['verifying'])) {
-    deps.applyTransition(task.id, {
-      type: 'cancel',
-      reason: 'daemon restarted during verify',
+    apply(task.id, {
+      type: 'verify_fail',
+      reviewId: deps.newId(),
+      exitCode: 124,
+      output: 'daemon restarted during verify',
+      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
     })
   }
 

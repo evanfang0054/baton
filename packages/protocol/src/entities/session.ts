@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Id, Timestamp } from '../common.js'
-import { Engine, SessionStatus } from '../enums.js'
+import { Engine, SessionOutcome, SessionStatus } from '../enums.js'
 
 export const Session = z.object({
   id: Id,
@@ -8,6 +8,7 @@ export const Session = z.object({
   adapter: Engine,
   engineSessionId: z.string().nullable(),
   status: SessionStatus,
+  outcome: SessionOutcome.nullable(),
   startedAt: Timestamp,
   endedAt: Timestamp.nullable(),
 })

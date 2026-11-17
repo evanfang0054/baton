@@ -2,6 +2,7 @@ import {
   APPROVAL_REQUEST_EVENT,
   EventSchemas,
   EventType,
+  SESSION_OUTCOME_EVENT,
   type AgentAdapter,
   type AgentEvent,
   type AgentRun,
@@ -13,7 +14,8 @@ import {
 export type FakeStep =
   | { kind: 'text'; text: string }
   | { kind: 'approval'; request: ApprovalRequest }
-  | { kind: 'finish' }
+  | { kind: 'pause'; outcome: 'blocked' | 'dropped'; reason?: string }
+  | { kind: 'finish'; outcome?: 'ready' | 'unreported' }
   | { kind: 'error'; message: string }
 
 interface FakeOptions {
@@ -73,6 +75,7 @@ export class FakeAdapter implements AgentAdapter {
     const runId = 'fake-run'
     const queue: string[] = []
     let pending: { requestId: string; deferred: Deferred<ApprovalDecision> } | null = null
+    let pauseWait: Deferred<string> | null = null
     let interrupted = false
     let closed = false
     let finished = false
@@ -148,15 +151,45 @@ export class FakeAdapter implements AgentAdapter {
               if (isClosed() || interrupted) {
                 return
               }
+              yield event({
+                type: EventType.CUSTOM,
+                name: SESSION_OUTCOME_EVENT,
+                value: { outcome: 'ready' },
+              })
               finished = true
               yield event({ type: EventType.RUN_FINISHED, threadId, runId })
               return
             }
+          } else if (step.kind === 'pause') {
+            yield event({
+              type: EventType.CUSTOM,
+              name: SESSION_OUTCOME_EVENT,
+              value: {
+                outcome: step.outcome,
+                ...(step.reason ? { reason: step.reason } : {}),
+              },
+            })
+            const wait = deferred<string>()
+            pauseWait = wait
+            const reply = await wait.promise
+            pauseWait = null
+            if (isClosed() || interrupted) {
+              return
+            }
+            yield* text(`fake: resumed: ${reply}`)
           } else if (step.kind === 'error') {
             finished = true
             yield event({ type: EventType.RUN_ERROR, message: step.message })
             return
           } else if (step.kind === 'finish') {
+            if (step.outcome === 'unreported') {
+              return
+            }
+            yield event({
+              type: EventType.CUSTOM,
+              name: SESSION_OUTCOME_EVENT,
+              value: { outcome: 'ready' },
+            })
             break
           }
         }
@@ -174,6 +207,8 @@ export class FakeAdapter implements AgentAdapter {
         closed = true
         pending?.deferred.resolve('deny')
         pending = null
+        pauseWait?.resolve('')
+        pauseWait = null
       }
     })()
 
@@ -194,6 +229,12 @@ export class FakeAdapter implements AgentAdapter {
         if (isClosed()) {
           throw new Error('fake adapter run is closed')
         }
+        if (pauseWait) {
+          const wait = pauseWait
+          pauseWait = null
+          wait.resolve(delta)
+          return
+        }
         queue.push(delta)
       },
       interrupt: async () => {
@@ -201,12 +242,16 @@ export class FakeAdapter implements AgentAdapter {
         closed = true
         pending?.deferred.resolve('deny')
         pending = null
+        pauseWait?.resolve('')
+        pauseWait = null
       },
       dispose: async () => {
         interrupted = true
         closed = true
         pending?.deferred.resolve('deny')
         pending = null
+        pauseWait?.resolve('')
+        pauseWait = null
       },
     }
   }

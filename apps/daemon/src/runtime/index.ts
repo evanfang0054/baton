@@ -1,3 +1,4 @@
+import { canAcceptUserInput } from '@baton/core'
 import type {
   AppError,
   ApprovalDecideInput,
@@ -41,6 +42,7 @@ export interface RuntimeDeps {
     note?: string,
   ) => void | Promise<void>
   runVerify?: (taskId: string) => void | Promise<void>
+  sendToSession?: (taskId: string, text: string) => void | Promise<void>
   now?: () => number
   newId?: () => string
   logger?: Logger
@@ -73,6 +75,7 @@ export function createRuntime(deps: RuntimeDeps) {
   const sessionHolder: { value?: SessionRunner } = {}
   const verifyHolder: { value?: VerifyRunner } = {}
   let closing = false
+  let booting = false
 
   const hooks: RuntimeHooks = {
     broadcast: deps.broadcast,
@@ -92,8 +95,12 @@ export function createRuntime(deps: RuntimeDeps) {
       ((approvalId, decision, note) =>
         sessionHolder.value ? sessionHolder.value.approve(approvalId, decision, note) : undefined),
     runVerify: deps.runVerify ?? ((taskId) => verifyHolder.value?.run(taskId) ?? Promise.resolve()),
+    sendToSession:
+      deps.sendToSession ??
+      ((taskId, text) =>
+        sessionHolder.value ? sessionHolder.value.reply(taskId, text) : undefined),
     kick: () => {
-      if (closing) {
+      if (closing || booting) {
         return
       }
       schedulerHolder.value?.kick()
@@ -250,6 +257,46 @@ export function createRuntime(deps: RuntimeDeps) {
         return ackFromOutcome(enqueue(message.payload.taskId))
       case 'task.cancel':
         return ackFromOutcome(cancel(message.payload.taskId, message.payload.reason))
+      case 'session.reply': {
+        const task = getTask(deps.db, message.payload.taskId)
+        if (!task) {
+          return {
+            ok: false,
+            error: appError('task_not_found', 'task not found', {
+              taskId: message.payload.taskId,
+            }),
+          }
+        }
+        if (task.status !== 'waiting_input') {
+          return {
+            ok: false,
+            error: appError('reply_not_allowed', 'task is not waiting for input', {
+              taskId: task.id,
+              status: task.status,
+            }),
+          }
+        }
+        if (!canAcceptUserInput(task.waitingReason)) {
+          return {
+            ok: false,
+            error: appError('reply_not_allowed', 'approval must be decided with approval.decide', {
+              taskId: task.id,
+              waitingReason: task.waitingReason,
+            }),
+          }
+        }
+        if (!sessionHolder.value?.has(task.id)) {
+          return {
+            ok: false,
+            error: appError('session_not_active', 'no active session for task', {
+              taskId: task.id,
+            }),
+          }
+        }
+        return ackFromOutcome(
+          applyTransition(task.id, { type: 'user_input', text: message.payload.text }),
+        )
+      }
       case 'approval.decide':
         return ackFromOutcome(decideApproval(message.payload))
       case 'review.decide':
@@ -288,10 +335,14 @@ export function createRuntime(deps: RuntimeDeps) {
     replay,
     maxOrdinal: eventStore.maxOrdinal,
     settle,
+    beginBoot: () => {
+      booting = true
+    },
     start: () => {
       if (closing) {
         return
       }
+      booting = false
       schedulerHolder.value?.kick()
     },
     close: async () => {

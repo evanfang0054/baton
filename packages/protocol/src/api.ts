@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Id } from './common.js'
+import { Id, Timestamp } from './common.js'
 import { TaskStatus } from './enums.js'
 import { Approval, Canvas, Edge, Node, Review, Session, Task, Workspace } from './entities/index.js'
 
@@ -39,5 +39,6 @@ export const TaskDetailResponse = z.object({
   sessions: z.array(Session),
   approvals: z.array(Approval),
   review: Review.nullable(),
+  waitingSince: Timestamp.nullable(),
 })
 export type TaskDetailResponse = z.infer<typeof TaskDetailResponse>

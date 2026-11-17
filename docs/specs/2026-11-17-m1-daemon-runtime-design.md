@@ -15,7 +15,7 @@ spec_ref: 2026-11-16-baton-architecture-design.md
 
 ## 0. 文档信息
 
-- **状态**：设计草案，待用户评审。
+- **状态**：已实现，已随 PR #5 合并；M1-5a 增量见 `docs/specs/2026-11-17-m1-attention-semantics-design.md`。
 - **范围**：`apps/daemon/**`；`packages/protocol` 的 `ack.data`、REST DTO 与 `Config.maxConcurrency`；SQLite migration；`apps/daemon/tsup.config.ts` 的打包配置。
 - **不在范围**：`apps/web`、`packages/core` 的行为、`packages/adapters` 的行为、`agent-claude`/`agent-pty`、worktree、总管、画布节点/连线的写接口、自动批准 UI、kill switch 持久化、DSH、向量召回、移动端、外部触发器。
 - **文档位置**：spec 落 `docs/specs/`，contract 落 `docs/contracts/`，plan 落 `docs/plans/`。

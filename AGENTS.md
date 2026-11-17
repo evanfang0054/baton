@@ -35,6 +35,7 @@
 ## 技术栈
 
 - 前端：React 19 + Vite + `@xyflow/react` 13（画布）+ Zustand + TanStack Query + Tailwind 4 + shadcn/ui
+- 设计系统：根目录 `DESIGN.md`（暗色任务驾驶舱；单一薰衣草蓝主色 + 语义状态色）
 - 后端：Node 22 + TypeScript ESM + Fastify 5 + `ws` + pino + zod 4
 - 存储：SQLite（better-sqlite3）+ Drizzle ORM / drizzle-kit
 - Agent：`@anthropic-ai/claude-agent-sdk`（执行器）、`@ag-ui/core`（事件模型）
@@ -97,6 +98,7 @@ baton/
 │   ├── adapters/        # agent-claude / agent-pty / agent-fake
 │   └── ui/              # 共享 React 组件
 ├── docs/{specs,adr,runbooks}
+├── DESIGN.md            # web 视觉唯一真源（暗色主题 / token / 组件规范）
 ├── .github/workflows/
 ├── compose.yaml
 └── Dockerfile
@@ -136,7 +138,7 @@ baton/
 ### 提交前
 
 1. `pnpm verify` 并贴真实输出；
-2. UI 改动附截图或 gif；
+2. UI 改动附截图或 gif，并对照根目录 `DESIGN.md` 说明使用的 token；
 3. 协议/schema 变更附迁移说明；
 4. 依赖变更更新 `THIRD_PARTY_NOTICES.md`；
 5. 检查是否越出 v1 范围。
@@ -157,6 +159,11 @@ baton/
 - Agent 节点只读日志：虚拟滚动 + 后端节流；缩小时用 `html-to-image` 降级。
 - 不做可交互终端；授权用卡片/气泡承载。
 - 大列表、长日志、diff 一律虚拟化。
+- **视觉先读根目录 `DESIGN.md`**：颜色、字体、间距、圆角、状态色一律用其中的 token；禁止在组件里硬编码 hex。
+- v1 只做暗色主题；主色只用于主操作、焦点、选中和链接；语义色只用于任务状态/attention，不做装饰。
+- 状态不能只靠颜色表达：必须有文字或图标；对比度达到 WCAG AA，焦点可见，键盘可达。
+- 组件优先 shadcn/ui，按 `DESIGN.md` 覆盖主题；不引入第二套 UI 库。
+- 新增颜色/状态色/字体/圆角前，先改 `DESIGN.md`，再改代码。
 
 ### 后端
 
@@ -234,6 +241,7 @@ baton/
 - README 保持简短，细节进 `docs/`。
 - 注释解释"为什么"，不解释"是什么"。
 - 新增依赖必须更新 `THIRD_PARTY_NOTICES.md`。
+- web 视觉规范以根目录 `DESIGN.md` 为准；它不是 spec，但改动主题/新增 token 必须先改它。
 
 ## 部署运维
 
@@ -260,3 +268,4 @@ baton/
 13. 需要打开浏览器完成 e2e 验证时，使用 ego-lite 浏览器；自动化回归仍用 Playwright。
 14. 网络检索优先 oss-search；返回空结果时改用 GitHub API / npm registry / 官方文档，并注明来源。
 15. 注释、日志、文档、截图一律脱敏：不写个人身份、凭据、本机绝对路径与主机信息。
+16. web 视觉以根目录 `DESIGN.md` 为唯一真源；组件内禁止硬编码颜色、字号、圆角与间距。

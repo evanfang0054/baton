@@ -41,15 +41,22 @@ export async function bootstrap(config: Config): Promise<BootstrapResult> {
     logger,
   })
 
-  reconcileOnBoot({ db: orm, applyTransition: runtime.applyTransition, now, newId })
+  runtime.beginBoot()
+  reconcileOnBoot({ db: orm, applyTransition: runtime.applyTransition, now, newId, logger })
 
-  const app = await buildApp(config, {
-    db: orm,
-    runtime,
-    hub,
-    logger,
-    now,
-    newId,
-  })
-  return { app, db, orm, runtime, hub, logger }
+  try {
+    const app = await buildApp(config, {
+      db: orm,
+      runtime,
+      hub,
+      logger,
+      now,
+      newId,
+    })
+    return { app, db, orm, runtime, hub, logger }
+  } catch (error) {
+    await runtime.close()
+    db.close()
+    throw error
+  }
 }

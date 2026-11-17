@@ -19,6 +19,7 @@ const task = {
   title: 'demo',
   prompt: '<task>demo</task>',
   status: 'todo',
+  waitingReason: null,
   engine: 'fake',
   workspaceMode: 'main',
   branch: null,
@@ -60,6 +61,7 @@ describe('REST DTO schemas', () => {
       sessions: [],
       approvals: [],
       review: null,
+      waitingSince: null,
     })
     expect(detail.review).toBeNull()
   })

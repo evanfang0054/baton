@@ -174,6 +174,14 @@ describe('migrateDb', () => {
     expect(rows).toEqual([{ id: eventId, ordinal: 1 }])
     expect(columns(db, 'event').find((column) => column.name === 'ordinal')?.notnull).toBe(1)
     expect(columns(db, 'review').find((column) => column.name === 'verdict')?.notnull).toBe(0)
+    expect(columns(db, 'task').find((column) => column.name === 'waiting_reason')?.notnull).toBe(0)
+    expect(columns(db, 'session').find((column) => column.name === 'outcome')?.notnull).toBe(0)
+    expect(db.prepare('select waiting_reason from task where id = ?').get(taskId)).toEqual({
+      waiting_reason: null,
+    })
+    expect(db.prepare('select outcome from session where id = ?').get(sessionId)).toEqual({
+      outcome: null,
+    })
     expect(
       db.prepare("select name from sqlite_master where type = 'table' and name = 'ws_event'").get(),
     ).toBeDefined()

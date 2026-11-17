@@ -35,5 +35,6 @@ baton 以 MIT 许可发布。运行时会依赖下列第三方组件，其许可
 
 - `BloopAI/vibe-kanban`（Apache-2.0）：参考其 executor、worktree 隔离与 review 流程的设计。项目已进入停服期，不引入依赖、不复制代码。
 - `answertsundere/dsh-canvas-plugin`（MIT）、`ljcoder2015/dsh-canvas-flow`（MIT）：参考其会话状态判定、流式渲染与卡片产物组织。
+- `VoltAgent/awesome-design-md`（MIT）：参考并改写其 `design-md/linear.app/DESIGN.md` 的色板、排版与表面层级，生成根目录 `DESIGN.md`；未使用 Linear 品牌资产，不代表与 Linear 存在关联或背书。
 
 如后续确实需要复制上述项目的代码片段，必须在提交中标注来源与许可，并更新本文件。

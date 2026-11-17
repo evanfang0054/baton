@@ -1,8 +1,18 @@
-import type { ApprovalDecision, DiffStat, ReviewVerdict, TaskStatus } from '@baton/protocol'
+import type {
+  ApprovalDecision,
+  DiffStat,
+  ReviewVerdict,
+  TaskStatus,
+  TaskStatusCause,
+} from '@baton/protocol'
 import type { TaskEffect } from './types.js'
 
 export const effects = {
-  emitTaskStatus: (status: TaskStatus): TaskEffect => ({ type: 'emitTaskStatus', status }),
+  emitTaskStatus: (status: TaskStatus, cause?: TaskStatusCause): TaskEffect => ({
+    type: 'emitTaskStatus',
+    status,
+    ...(cause ? { cause } : {}),
+  }),
   enqueueTask: (): TaskEffect => ({ type: 'enqueueTask' }),
   startSession: (): TaskEffect => ({ type: 'startSession' }),
   requestApproval: (approvalId: string): TaskEffect => ({ type: 'requestApproval', approvalId }),
@@ -30,4 +40,6 @@ export const effects = {
     type: 'interruptSession',
     ...(reason ? { reason } : {}),
   }),
+  sendToSession: (text: string): TaskEffect => ({ type: 'sendToSession', text }),
+  appendUserReply: (text: string): TaskEffect => ({ type: 'appendUserReply', text }),
 }

@@ -3,8 +3,12 @@ import {
   APPROVAL_REQUEST_EVENT,
   ApprovalRequestValue,
   EventType,
+  SESSION_OUTCOME_EVENT,
+  SessionOutcomeValue,
+  USER_MESSAGE_EVENT,
   type AgentRun,
   type Policy,
+  type SessionOutcome,
   type TaskTransitionEvent,
 } from '@baton/protocol'
 import type { BroadcastEvent, EventStore } from '../db/event-store.js'
@@ -37,12 +41,17 @@ export interface ActiveRun {
   sessionId: string
   run: AgentRun
   requestIdByApprovalId: Map<string, string>
+  seq: number
+  outcome: SessionOutcome | null
+  outcomeReason?: string
 }
 
 export interface SessionRunner {
   start(input: StartSessionInput): Promise<void>
   interrupt(taskId: string): Promise<void>
   approve(approvalId: string, decision: 'allow' | 'deny', note?: string): Promise<void>
+  reply(taskId: string, text: string): Promise<void>
+  has(taskId: string): boolean
   close(): Promise<void>
 }
 
@@ -50,8 +59,12 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
   const activeRuns = new Map<string, ActiveRun>()
   const running = new Set<Promise<void>>()
 
-  function endSession(sessionId: string, status: 'ended' | 'failed'): void {
-    deps.db.transaction((tx) => updateSessionStatus(tx, sessionId, status, deps.now()))
+  function endSession(
+    sessionId: string,
+    status: 'ended' | 'failed',
+    outcome: SessionOutcome | null = null,
+  ): void {
+    deps.db.transaction((tx) => updateSessionStatus(tx, sessionId, status, deps.now(), outcome))
   }
 
   function failTask(taskId: string, sessionId: string, error: unknown): void {
@@ -134,7 +147,6 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
   }
 
   async function consume(active: ActiveRun, policy: Policy): Promise<void> {
-    let seq = 0
     let finished = false
     try {
       for await (const event of active.run.events) {
@@ -148,7 +160,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
           break
         }
 
-        seq += 1
+        const seq = ++active.seq
         const wsEvent = deps.eventStore.appendSessionEvent({
           sessionId: active.sessionId,
           seq,
@@ -161,10 +173,58 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
           deps.db.transaction((tx) => updateSessionEngineId(tx, active.sessionId, event.threadId))
         } else if (event.type === EventType.CUSTOM && event.name === APPROVAL_REQUEST_EVENT) {
           await handleApproval(active, policy, event.value)
+        } else if (event.type === EventType.CUSTOM && event.name === SESSION_OUTCOME_EVENT) {
+          const parsed = SessionOutcomeValue.safeParse(event.value)
+          if (!parsed.success || active.outcome !== null) {
+            deps.applyTransition(active.taskId, {
+              type: 'error',
+              message: 'invalid session outcome',
+            })
+            endSession(active.sessionId, 'failed')
+            break
+          }
+          active.outcome = parsed.data.outcome
+          if (parsed.data.reason) {
+            active.outcomeReason = parsed.data.reason
+          }
+
+          if (parsed.data.outcome === 'blocked' || parsed.data.outcome === 'dropped') {
+            const outcome = deps.applyTransition(active.taskId, {
+              type: 'session_reported',
+              outcome: parsed.data.outcome,
+              ...(parsed.data.reason ? { reason: parsed.data.reason } : {}),
+            })
+            if (!outcome.ok) {
+              endSession(active.sessionId, 'failed')
+              break
+            }
+            deps.db.transaction((tx) =>
+              updateSessionStatus(tx, active.sessionId, 'waiting_input', null, null),
+            )
+            // 不 break：run 仍然活着，等待 session.reply 调 send。
+          }
         } else if (event.type === EventType.RUN_FINISHED) {
           finished = true
-          deps.applyTransition(active.taskId, { type: 'completed' })
-          endSession(active.sessionId, 'ended')
+          if (active.outcome === 'ready') {
+            const outcome = deps.applyTransition(active.taskId, { type: 'completed' })
+            endSession(
+              active.sessionId,
+              outcome.ok ? 'ended' : 'failed',
+              outcome.ok ? 'ready' : null,
+            )
+          } else if (active.outcome === 'blocked' || active.outcome === 'dropped') {
+            deps.applyTransition(active.taskId, {
+              type: 'error',
+              message: `RUN_FINISHED after ${active.outcome} outcome`,
+            })
+            endSession(active.sessionId, 'failed')
+          } else {
+            deps.applyTransition(active.taskId, {
+              type: 'session_reported',
+              outcome: 'unreported',
+            })
+            endSession(active.sessionId, 'ended', 'unreported')
+          }
           break
         } else if (event.type === EventType.RUN_ERROR) {
           finished = true
@@ -179,10 +239,20 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
 
       if (!finished) {
         const current = getTask(deps.db, active.taskId)
-        if (current && (current.status === 'running' || current.status === 'waiting_input')) {
+        if (current?.status === 'running') {
+          const outcome = deps.applyTransition(active.taskId, {
+            type: 'session_reported',
+            outcome: 'unreported',
+          })
+          endSession(
+            active.sessionId,
+            outcome.ok ? 'ended' : 'failed',
+            outcome.ok ? 'unreported' : null,
+          )
+        } else if (current?.status === 'waiting_input') {
           deps.applyTransition(active.taskId, {
             type: 'error',
-            message: 'adapter stream ended unexpectedly',
+            message: 'adapter stream ended while waiting for input',
           })
           endSession(active.sessionId, 'failed')
         } else if (current?.status === 'cancelled') {
@@ -229,6 +299,8 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       sessionId: input.sessionId,
       run,
       requestIdByApprovalId: new Map(),
+      seq: 0,
+      outcome: null,
     }
     activeRuns.set(input.sessionId, active)
     const promise = consume(active, input.policy)
@@ -253,14 +325,56 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     throw appError('approval_expired', 'approval is no longer active', { approvalId })
   }
 
+  function findByTask(taskId: string): ActiveRun | undefined {
+    return [...activeRuns.values()].find((run) => run.taskId === taskId)
+  }
+
   async function interrupt(taskId: string): Promise<void> {
-    for (const active of activeRuns.values()) {
-      if (active.taskId !== taskId) {
-        continue
-      }
-      await active.run.interrupt().catch(() => {})
+    const active = findByTask(taskId)
+    if (!active) {
       return
     }
+    await active.run.interrupt().catch(() => {})
+  }
+
+  async function reply(taskId: string, text: string): Promise<void> {
+    const active = findByTask(taskId)
+    if (!active) {
+      throw appError('session_not_active', 'no active session for task', { taskId })
+    }
+    if (active.outcome !== 'blocked' && active.outcome !== 'dropped') {
+      throw appError('reply_not_allowed', 'session is not waiting for a reply', {
+        taskId,
+        outcome: active.outcome,
+      })
+    }
+
+    active.outcome = null
+    active.outcomeReason = undefined
+    deps.db.transaction((tx) => updateSessionStatus(tx, active.sessionId, 'running', null, null))
+
+    const seq = ++active.seq
+    const wsEvent = deps.eventStore.appendSessionEvent({
+      sessionId: active.sessionId,
+      seq,
+      event: { type: EventType.CUSTOM, name: USER_MESSAGE_EVENT, value: { text } },
+      ts: deps.now(),
+    })
+    deps.broadcast(wsEvent)
+
+    try {
+      await active.run.send(text)
+    } catch (error) {
+      deps.applyTransition(taskId, { type: 'error', message: toAppError(error).message })
+      endSession(active.sessionId, 'failed')
+      activeRuns.delete(active.sessionId)
+      await active.run.dispose().catch(() => {})
+      throw error
+    }
+  }
+
+  function has(taskId: string): boolean {
+    return findByTask(taskId) !== undefined
   }
 
   async function close(): Promise<void> {
@@ -273,5 +387,5 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     await Promise.all([...running])
   }
 
-  return { start, interrupt, approve, close }
+  return { start, interrupt, approve, reply, has, close }
 }

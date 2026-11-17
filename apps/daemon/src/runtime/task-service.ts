@@ -110,6 +110,7 @@ export function createTaskService(deps: TaskServiceDeps) {
           title: input.title,
           prompt: assembled.prompt,
           status: 'todo',
+          waitingReason: null,
           engine: input.engine,
           workspaceMode: input.workspaceMode,
           branch: null,

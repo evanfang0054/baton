@@ -28,11 +28,14 @@ export function registerTaskRoutes(app: FastifyInstance, deps: { db: Db }): void
     if (!task) {
       throw appError('task_not_found', 'task not found', { taskId: params.id })
     }
+    const waitingSince =
+      task.status === 'waiting_input' || task.status === 'review' ? task.updatedAt : null
     return TaskDetailResponse.parse({
       task,
       sessions: listSessionsByTask(deps.db, task.id),
       approvals: listApprovalsByTask(deps.db, task.id),
       review: getReviewByTask(deps.db, task.id),
+      waitingSince,
     })
   })
 }

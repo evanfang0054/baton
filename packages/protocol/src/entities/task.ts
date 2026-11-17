@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Id, Timestamp } from '../common.js'
-import { Engine, TaskStatus, WorkspaceMode } from '../enums.js'
+import { Engine, TaskStatus, WaitingReason, WorkspaceMode } from '../enums.js'
 
 export const Task = z.object({
   id: Id,
@@ -9,6 +9,7 @@ export const Task = z.object({
   title: z.string().min(1),
   prompt: z.string(),
   status: TaskStatus,
+  waitingReason: WaitingReason.nullable(),
   engine: Engine,
   workspaceMode: WorkspaceMode,
   branch: z.string().nullable(),

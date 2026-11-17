@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { FakeAdapter } from '@baton/adapters'
 import type { TestApp } from './helpers/app.js'
 import type { TestRuntimeHandle } from './helpers/runtime.js'
+import { createAdapterFactory } from '../src/runtime/adapter-factory.js'
 import { createTaskPayload, createWsTestApp, type WsTestApp } from './helpers/ws.js'
 import type { WsClient } from './helpers/ws-client.js'
 
@@ -81,5 +83,64 @@ describe('M1-5 runtime e2e', () => {
     await nextStatus(ws, taskId, 'done')
     expect(handle.runtime.getTask(taskId)?.status).toBe('done')
     expect(handle.runtime.getReviewByTask(taskId)?.verdict).toBe('approved')
+  })
+
+  it('runs question → reply → verify → review → done over WS', async () => {
+    const created = await createWsTestApp({
+      useSessionRunner: true,
+      useVerifyRunner: true,
+      adapters: createAdapterFactory({
+        fake: new FakeAdapter({
+          script: [
+            { kind: 'text', text: 'need a decision' },
+            { kind: 'pause', outcome: 'blocked' },
+            { kind: 'finish' },
+          ],
+        }),
+      }),
+    })
+    apps.push(created)
+    clients.push(created.ws)
+    const { handle, ws } = created
+
+    ws.send({
+      v: 1,
+      type: 'task.create',
+      id: 'q1',
+      ts: 1,
+      payload: createPayload(handle, 'node -e "process.exit(0)"'),
+    })
+    const createdAck = await ws.next('ack')
+    const taskId = (createdAck.payload as { data: { taskId: string } }).data.taskId
+
+    ws.send({ v: 1, type: 'task.enqueue', id: 'q2', ts: 1, payload: { taskId } })
+    await ws.next('ack')
+
+    await nextStatus(ws, taskId, 'waiting_input')
+    expect(handle.runtime.getTask(taskId)?.waitingReason).toBe('question')
+
+    ws.send({
+      v: 1,
+      type: 'session.reply',
+      id: 'q3',
+      ts: 1,
+      payload: { taskId, text: 'use option B' },
+    })
+    await ws.next('ack')
+
+    const verify = await ws.next('verify.result', 10_000)
+    const verifyPayload = verify.payload as { reviewId: string; exitCode: number }
+    expect(verifyPayload.exitCode).toBe(0)
+
+    ws.send({
+      v: 1,
+      type: 'review.decide',
+      id: 'q4',
+      ts: 1,
+      payload: { reviewId: verifyPayload.reviewId, decision: 'approve' },
+    })
+    await ws.next('ack')
+    await nextStatus(ws, taskId, 'done')
+    expect(handle.runtime.getTask(taskId)?.status).toBe('done')
   })
 })

@@ -34,6 +34,7 @@ function queueRuntime(
         status: 'running',
         previousStatus: 'queued',
         retryCount: 0,
+        waitingReason: null,
         events: [],
       }
     },

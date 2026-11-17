@@ -53,6 +53,7 @@ describe('FakeAdapter', () => {
       'TEXT_MESSAGE_START',
       'TEXT_MESSAGE_CONTENT',
       'TEXT_MESSAGE_END',
+      'CUSTOM',
       'RUN_FINISHED',
     ])
     for (const event of events) expect(() => EventSchemas.parse(event)).not.toThrow()
@@ -224,7 +225,12 @@ describe('FakeAdapter', () => {
     })
     const run = await adapter.start(startInput())
     const events = await collect(run.events)
-    expect(events.some((event) => event.type === 'CUSTOM')).toBe(false)
+    expect(
+      events.some((event) => event.type === 'CUSTOM' && event.name === 'approval.request'),
+    ).toBe(false)
+    expect(
+      events.some((event) => event.type === 'CUSTOM' && event.name === 'session.outcome'),
+    ).toBe(true)
     expect(events.at(-1)?.type).toBe('RUN_FINISHED')
   })
 })

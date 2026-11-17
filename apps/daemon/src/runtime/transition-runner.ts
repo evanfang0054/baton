@@ -1,5 +1,5 @@
 import { transition } from '@baton/core'
-import type { Policy, TaskTransitionEvent } from '@baton/protocol'
+import { PolicySchema, type TaskTransitionEvent } from '@baton/protocol'
 import type { Config } from '../config.js'
 import type { EventStore } from '../db/event-store.js'
 import {
@@ -31,6 +31,8 @@ function fail(code: string, message: string, details?: unknown): TransitionOutco
   return { ok: false, error: appError(code, message, details) }
 }
 
+const DEFAULT_POLICY = PolicySchema.parse({})
+
 export function createTransitionRunner(deps: TransitionRunnerDeps) {
   function applyTransition(taskId: string, event: TaskTransitionEvent): TransitionOutcome {
     const task = getTask(deps.db, taskId)
@@ -38,18 +40,29 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
       return fail('task_not_found', 'task not found', { taskId })
     }
 
+    // 只有 start 需要 workspace/policy；verify_fail 需要 policy 的 autopilot。
+    // error/cancel/enqueue 等不应因 workspace 缺失而无法收敛。
+    let workspacePath = ''
+    let policy = DEFAULT_POLICY
     const workspace = getWorkspace(deps.db, task.workspaceId)
-    if (!workspace) {
-      return fail('workspace_not_found', 'workspace not found', { workspaceId: task.workspaceId })
-    }
-
-    let workspacePath: string
-    let policy: Policy
-    try {
-      workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
-      policy = loadPolicy(workspacePath)
-    } catch (error) {
-      return { ok: false, error: toAppError(error) }
+    if (event.type === 'start') {
+      if (!workspace) {
+        return fail('workspace_not_found', 'workspace not found', {
+          workspaceId: task.workspaceId,
+        })
+      }
+      try {
+        workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+        policy = loadPolicy(workspacePath)
+      } catch (error) {
+        return { ok: false, error: toAppError(error) }
+      }
+    } else if (event.type === 'verify_fail' && workspace) {
+      try {
+        policy = loadPolicy(resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath))
+      } catch {
+        policy = DEFAULT_POLICY
+      }
     }
 
     const result = transition(
@@ -59,6 +72,7 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
         runningCount: countActiveTasks(deps.db),
         maxConcurrency: deps.config.maxConcurrency,
         autopilot: policy.autopilot,
+        waitingReason: task.waitingReason,
       },
       event,
     )
@@ -78,7 +92,7 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
     let plan: EffectPlan
     try {
       plan = deps.db.transaction((tx) => {
-        updateTaskState(tx, task.id, result.status, result.retryCount, now)
+        updateTaskState(tx, task.id, result.status, result.retryCount, result.waitingReason, now)
         return planAndApplyEffects(
           tx,
           {
@@ -117,6 +131,7 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
       status: result.status,
       previousStatus: task.status,
       retryCount: result.retryCount,
+      waitingReason: result.waitingReason,
       events: plan.events,
     }
   }
