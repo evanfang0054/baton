@@ -3,8 +3,10 @@ import type { AgentAdapter } from '@baton/protocol'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { Config } from '../src/config.js'
 import { listApprovalsByTask, getApproval } from '../src/db/repositories.js'
 import { createAdapterFactory } from '../src/runtime/adapter-factory.js'
+import { waitFor } from './helpers/async.js'
 import type { TestRuntimeHandle } from './helpers/runtime.js'
 import { createTestRuntime } from './helpers/runtime.js'
 
@@ -13,10 +15,12 @@ const handles: TestRuntimeHandle[] = []
 function setup(options?: {
   policy?: unknown
   adapters?: ReturnType<typeof createAdapterFactory>
+  config?: Partial<Config>
 }): TestRuntimeHandle {
   const handle = createTestRuntime({
     useSessionRunner: true,
     adapters: options?.adapters ?? createAdapterFactory(),
+    ...(options?.config ? { config: options.config } : {}),
   })
   handles.push(handle)
   if (options?.policy) {
@@ -27,14 +31,6 @@ function setup(options?: {
     )
   }
   return handle
-}
-
-async function waitFor(predicate: () => boolean, timeoutMs = 3000): Promise<void> {
-  const started = Date.now()
-  while (!predicate()) {
-    if (Date.now() - started > timeoutMs) throw new Error('waitFor timeout')
-    await new Promise((resolve) => setTimeout(resolve, 10))
-  }
 }
 
 afterEach(async () => {
@@ -79,6 +75,39 @@ describe('session runner', () => {
     const approval = listApprovalsByTask(handle.database.db, taskId)[0]
     expect(approval?.decision).toBe('allow')
     expect(approval?.decidedBy).toBe('auto')
+  })
+
+  it('keeps the approval pending when the global kill switch is on', async () => {
+    const handle = setup({
+      policy: {
+        autopilot: { enabled: true, retryMax: 1 },
+        approval: { autoApproveMaxRisk: 'medium' },
+      },
+      config: { killSwitch: true },
+    })
+    const taskId = handle.createTask()
+    handle.runtime.applyTransition(taskId, { type: 'enqueue' })
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'waiting_input')
+
+    const approval = listApprovalsByTask(handle.database.db, taskId)[0]
+    expect(approval?.decision).toBeNull()
+  })
+
+  it('does not start queued tasks after close', async () => {
+    const handle = setup()
+    const first = handle.createTask({ title: 'first' })
+    const second = handle.createTask({ title: 'second' })
+    handle.runtime.applyTransition(first, { type: 'enqueue' })
+    handle.runtime.applyTransition(second, { type: 'enqueue' })
+    await waitFor(() => handle.runtime.getTask(first)?.status === 'waiting_input')
+
+    await handle.runtime.close()
+
+    expect(handle.runtime.getTask(second)?.status).toBe('queued')
+    const sessions = handle.database.raw
+      .prepare('select count(*) as count from session where task_id = ?')
+      .get(second) as { count: number }
+    expect(sessions.count).toBe(0)
   })
 
   it('auto-denies a matching deny rule and lets the engine finish', async () => {

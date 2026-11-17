@@ -1,34 +1,21 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { TestApp } from './helpers/app.js'
-import { buildTestApp } from './helpers/app.js'
-import { WsClient } from './helpers/ws-client.js'
+import type { TestRuntimeHandle } from './helpers/runtime.js'
+import { createTaskPayload, createWsTestApp, type WsTestApp } from './helpers/ws.js'
+import type { WsClient } from './helpers/ws-client.js'
 
 const apps: TestApp[] = []
 const clients: WsClient[] = []
 
-async function setup(): Promise<{ app: TestApp; ws: WsClient }> {
-  const app = await buildTestApp({ useSessionRunner: true, useVerifyRunner: true })
-  apps.push(app)
-  await app.app.listen({ host: '127.0.0.1', port: 0 })
-  const address = app.app.server.address()
-  if (!address || typeof address === 'string') throw new Error('no port')
-  const ws = new WsClient(`ws://127.0.0.1:${address.port}/ws`)
-  clients.push(ws)
-  await ws.open()
-  return { app, ws }
+async function setup(): Promise<WsTestApp> {
+  const created = await createWsTestApp({ useSessionRunner: true, useVerifyRunner: true })
+  apps.push(created)
+  clients.push(created.ws)
+  return created
 }
 
-function createPayload(app: TestApp, verifyCommand: string) {
-  return {
-    workspaceId: app.handle.seeded.workspaceId,
-    nodeId: app.handle.seeded.nodeId,
-    title: 'demo',
-    prompt: '把登录页改成暗黑模式',
-    contextNodeIds: ['text-1'],
-    engine: 'fake',
-    workspaceMode: 'main',
-    verifyCommand,
-  }
+function createPayload(handle: TestRuntimeHandle, verifyCommand: string) {
+  return createTaskPayload(handle, { verifyCommand })
 }
 
 async function nextStatus(
@@ -54,13 +41,13 @@ afterEach(async () => {
 
 describe('M1-5 runtime e2e', () => {
   it('runs create → approval → verify → review → done over WS', async () => {
-    const { app, ws } = await setup()
+    const { handle, ws } = await setup()
     ws.send({
       v: 1,
       type: 'task.create',
       id: 'c1',
       ts: 1,
-      payload: createPayload(app, 'node -e "process.exit(0)"'),
+      payload: createPayload(handle, 'node -e "process.exit(0)"'),
     })
     const created = await ws.next('ack')
     const taskId = (created.payload as { data: { taskId: string } }).data.taskId
@@ -92,7 +79,7 @@ describe('M1-5 runtime e2e', () => {
     await ws.next('ack')
 
     await nextStatus(ws, taskId, 'done')
-    expect(app.handle.runtime.getTask(taskId)?.status).toBe('done')
-    expect(app.handle.runtime.getReviewByTask(taskId)?.verdict).toBe('approved')
+    expect(handle.runtime.getTask(taskId)?.status).toBe('done')
+    expect(handle.runtime.getReviewByTask(taskId)?.verdict).toBe('approved')
   })
 })

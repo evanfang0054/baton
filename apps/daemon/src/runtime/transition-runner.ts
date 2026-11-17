@@ -2,8 +2,8 @@ import { transition } from '@baton/core'
 import type { Policy, TaskTransitionEvent } from '@baton/protocol'
 import type { Config } from '../config.js'
 import type { EventStore } from '../db/event-store.js'
-import type { ApprovalRecord } from '../db/repositories.js'
 import {
+  type ApprovalRecord,
   countActiveTasks,
   getApproval,
   getTask,
@@ -34,7 +34,9 @@ function fail(code: string, message: string, details?: unknown): TransitionOutco
 export function createTransitionRunner(deps: TransitionRunnerDeps) {
   function applyTransition(taskId: string, event: TaskTransitionEvent): TransitionOutcome {
     const task = getTask(deps.db, taskId)
-    if (!task) return fail('task_not_found', 'task not found', { taskId })
+    if (!task) {
+      return fail('task_not_found', 'task not found', { taskId })
+    }
 
     const workspace = getWorkspace(deps.db, task.workspaceId)
     if (!workspace) {
@@ -60,7 +62,9 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
       },
       event,
     )
-    if (!result.ok) return { ok: false, error: result.error }
+    if (!result.ok) {
+      return { ok: false, error: result.error }
+    }
 
     let approval: ApprovalRecord | null = null
     if ('approvalId' in event) {
@@ -97,9 +101,15 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
       return { ok: false, error: toAppError(error) }
     }
 
-    for (const wsEvent of plan.events) deps.hooks.broadcast(wsEvent)
-    for (const action of plan.afterCommit) deps.hooks.track(action)
-    if (!isActiveStatus(result.status)) deps.hooks.kick()
+    for (const wsEvent of plan.events) {
+      deps.hooks.broadcast(wsEvent)
+    }
+    for (const action of plan.afterCommit) {
+      deps.hooks.track(action)
+    }
+    if (!isActiveStatus(result.status)) {
+      deps.hooks.kick()
+    }
 
     return {
       ok: true,

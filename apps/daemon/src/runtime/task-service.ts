@@ -38,7 +38,7 @@ export function createTaskService(deps: TaskServiceDeps) {
       if (input.workspaceMode !== 'main') {
         return {
           ok: false,
-          error: appError('unsupported', 'worktree mode is not available', {
+          error: appError('unsupported_workspace_mode', 'worktree mode is not available', {
             workspaceMode: input.workspaceMode,
           }),
         }

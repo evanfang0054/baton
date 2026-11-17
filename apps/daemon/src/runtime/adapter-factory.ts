@@ -9,8 +9,12 @@ export function createAdapterFactory(
 ): AdapterFactory {
   return (engine) => {
     const adapter = overrides[engine]
-    if (adapter) return adapter
-    if (engine === 'fake') return new FakeAdapter()
+    if (adapter) {
+      return adapter
+    }
+    if (engine === 'fake') {
+      return new FakeAdapter()
+    }
     throw appError('unsupported_engine', `engine ${engine} is not available in M1-5`, { engine })
   }
 }

@@ -5,10 +5,18 @@
 export function sanitizeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const safe: NodeJS.ProcessEnv = {}
   for (const [key, value] of Object.entries(env)) {
-    if (value === undefined) continue
-    if (key.startsWith('BATON_')) continue
-    if (key === 'ANTHROPIC_API_KEY') continue
-    if (/token|secret|authorization|api[_-]?key/i.test(key)) continue
+    if (value === undefined) {
+      continue
+    }
+    if (key.startsWith('BATON_')) {
+      continue
+    }
+    if (key === 'ANTHROPIC_API_KEY') {
+      continue
+    }
+    if (/token|secret|authorization|api[_-]?key/i.test(key)) {
+      continue
+    }
     safe[key] = value
   }
   return safe

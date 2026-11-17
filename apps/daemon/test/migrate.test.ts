@@ -3,8 +3,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
+import { EventSchemas, EventType } from '@baton/protocol'
 import { afterEach, describe, expect, it } from 'vitest'
-import { migrateDb, openDb } from '../src/db/index.js'
+import { createOrm, migrateDb, openDb } from '../src/db/index.js'
+import { createEventStore } from '../src/db/event-store.js'
 
 const dirs: string[] = []
 const migrationsDir = fileURLToPath(new URL('../migrations', import.meta.url))
@@ -128,10 +130,28 @@ describe('migrateDb', () => {
       `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
        values (?, ?, 'agent', 0, 0, 320, 200, null, '{}', 1, 1)`,
     ).run(nodeId, canvasId)
-    db.prepare(
-      `insert into task (id, workspace_id, node_id, title, prompt, status, engine, workspace_mode, branch, worktree_path, verify_command, retry_count, created_at, updated_at)
-       values (?, ?, ?, 'demo', 'demo', 'todo', 'fake', 'main', null, null, null, 0, 1, 1)`,
-    ).run(taskId, workspaceId, nodeId)
+    const insertTask = [
+      'insert into task (',
+      'id, workspace_id, node_id, title, prompt, status, engine, workspace_mode,',
+      'branch, worktree_path, verify_command, retry_count, created_at, updated_at',
+      ') values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ].join(' ')
+    db.prepare(insertTask).run(
+      taskId,
+      workspaceId,
+      nodeId,
+      'demo',
+      'demo',
+      'todo',
+      'fake',
+      'main',
+      null,
+      null,
+      null,
+      0,
+      1,
+      1,
+    )
     db.prepare(
       `insert into session (id, task_id, adapter, engine_session_id, status, started_at, ended_at)
        values (?, ?, 'fake', null, 'ended', 1, 2)`,
@@ -157,6 +177,31 @@ describe('migrateDb', () => {
     expect(
       db.prepare("select name from sqlite_master where type = 'table' and name = 'ws_event'").get(),
     ).toBeDefined()
+
+    const replay = db.prepare('select id, type, payload_json from ws_event').all() as Array<{
+      id: string
+      type: string
+      payload_json: string
+    }>
+    expect(replay).toHaveLength(1)
+    expect(replay[0]?.id).toBe(eventId)
+    expect(replay[0]?.type).toBe('session.event')
+    expect(JSON.parse(replay[0]!.payload_json)).toEqual({ sessionId, event: {} })
+
+    // 升级库的 ws_event 序列必须接在回填值之后，否则后续写入会撞 event.ordinal 唯一索引。
+    const store = createEventStore(createOrm(db), { now: () => 4, newId: () => randomUUID() })
+    const appended = store.appendSessionEvent({
+      sessionId,
+      seq: 2,
+      event: EventSchemas.parse({
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'm1',
+        delta: 'hi',
+      }),
+      ts: 4,
+    })
+    expect(appended.ordinal).toBe(2)
+    expect(store.replay(0).rows).toHaveLength(2)
     db.close()
   })
 })

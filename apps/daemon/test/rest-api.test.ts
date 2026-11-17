@@ -79,6 +79,18 @@ describe('REST API', () => {
     expect(escaped.statusCode).toBe(400)
   })
 
+  it('returns 400 for malformed JSON instead of 500', async () => {
+    const { app } = await setup()
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/workspaces',
+      headers: { ...auth, 'content-type': 'application/json' },
+      payload: '{"name":',
+    })
+    expect(response.statusCode).toBe(400)
+    expect((response.json() as { code: string }).code).toBe('invalid_payload')
+  })
+
   it('reads canvas, tasks and task detail', async () => {
     const { app, handle } = await setup()
     const canvas = await app.inject({

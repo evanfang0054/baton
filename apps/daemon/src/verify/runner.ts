@@ -41,8 +41,12 @@ function readPackageJson(workspacePath: string): PackageJson | undefined {
 function packageManagerOf(pkg: PackageJson | undefined): 'pnpm' | 'npm' | 'yarn' {
   const value = pkg?.packageManager
   if (typeof value === 'string') {
-    if (value.startsWith('npm@')) return 'npm'
-    if (value.startsWith('yarn@')) return 'yarn'
+    if (value.startsWith('npm@')) {
+      return 'npm'
+    }
+    if (value.startsWith('yarn@')) {
+      return 'yarn'
+    }
   }
   return 'pnpm'
 }
@@ -61,7 +65,9 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
 
   async function execute(taskId: string, signal: AbortSignal): Promise<void> {
     const task = getTask(deps.db, taskId)
-    if (!task || task.status !== 'verifying') return
+    if (!task || task.status !== 'verifying') {
+      return
+    }
 
     let result: VerifyCommandRunResult
     const workspace = getWorkspace(deps.db, task.workspaceId)
@@ -95,7 +101,9 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
     }
 
     const current = getTask(deps.db, taskId)
-    if (!current || current.status !== 'verifying') return
+    if (!current || current.status !== 'verifying') {
+      return
+    }
 
     const reviewId = deps.newId()
     deps.verifyMeta.set(reviewId, result.durationMs)
@@ -116,11 +124,15 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
             diffStat: result.diffStat,
           }
     const outcome = deps.applyTransition(taskId, event)
-    if (!outcome.ok) deps.verifyMeta.delete(reviewId)
+    if (!outcome.ok) {
+      deps.verifyMeta.delete(reviewId)
+    }
   }
 
   async function run(taskId: string): Promise<void> {
-    if (active.has(taskId)) return
+    if (active.has(taskId)) {
+      return
+    }
     const controller = new AbortController()
     const promise = execute(taskId, controller.signal).finally(() => {
       active.delete(taskId)
@@ -135,7 +147,9 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
 
   async function close(): Promise<void> {
     const entries = [...active.values()]
-    for (const entry of entries) entry.controller.abort()
+    for (const entry of entries) {
+      entry.controller.abort()
+    }
     await Promise.all(entries.map((entry) => entry.promise.catch(() => {})))
   }
 

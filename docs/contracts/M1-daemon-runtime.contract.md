@@ -106,7 +106,8 @@ git diff --name-only main...HEAD -- apps/web   # 输出必须为空
 - 24/25 条已通过；`pnpm verify`、`pnpm verify:full`、`pnpm pack:check`、`pnpm check:boundaries`、`pnpm check:protocol`、`pnpm format:check` 全绿。
 - 第 24 条的 `docker:smoke` 未在本机执行：`node:24-bookworm-slim` 基础镜像未缓存，按“不下载大镜像”的约定延后；CI `docker.yml` 已构建镜像并通过（`1043abb`）。
 - CI（`1043abb`）：`verify (22)`、`verify (24)`、`pack-check`、`e2e`、`build` 全部通过，PR #5 可合并。
-- daemon 81 tests；protocol 72 tests；core 90 tests；adapters 13 tests；`git diff main...HEAD -- apps/web` 为空。
+- 合并前深度 review 修复了 4 个 P1（迁移 `event.ordinal` 冲突、调度队头阻塞、审批转移失败未通知适配器、WS 重放绕过背压）与 P2/P3（自动批准审计同事务、关闭期 draining、WS Origin 校验、kill switch 接线、旧 review 采纳、Fastify 400、路径 TOCTOU、日志脱敏、协议 payload 类型派生、approval 契约上移 protocol、diffStat 含 staged）。
+- 最终 daemon 92 tests；protocol 73 tests；core 90 tests；adapters 13 tests；`git diff main...HEAD -- apps/web` 为空。
 
 ## Out of Scope（本 contract 不验收）
 

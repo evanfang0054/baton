@@ -21,9 +21,13 @@ export function registerTaskRoutes(app: FastifyInstance, deps: { db: Db }): void
 
   app.get('/api/tasks/:id', async (req) => {
     const params = req.params as { id?: string }
-    if (!params.id) throw appError('invalid_payload', 'task id is required')
+    if (!params.id) {
+      throw appError('invalid_payload', 'task id is required')
+    }
     const task = getTask(deps.db, params.id)
-    if (!task) throw appError('task_not_found', 'task not found', { taskId: params.id })
+    if (!task) {
+      throw appError('task_not_found', 'task not found', { taskId: params.id })
+    }
     return TaskDetailResponse.parse({
       task,
       sessions: listSessionsByTask(deps.db, task.id),

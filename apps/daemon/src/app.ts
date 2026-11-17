@@ -39,7 +39,9 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
 
   const hasWeb = existsSync(config.webRoot)
   registerAuth(app, config, hasWeb)
-  if (hasWeb) await registerStatic(app, config.webRoot)
+  if (hasWeb) {
+    await registerStatic(app, config.webRoot)
+  }
 
   app.get('/api/health', async () => {
     return HealthResponse.parse({

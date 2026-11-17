@@ -1,5 +1,5 @@
 import { isSensitivePath } from '@baton/core'
-import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { readFileSync, realpathSync, statSync } from 'node:fs'
 import { extname, isAbsolute, normalize, resolve, sep } from 'node:path'
 import { appError } from '../errors.js'
 
@@ -51,7 +51,7 @@ const TEXT_EXTENSIONS = new Set([
 
 /**
  * 所有文件访问的唯一入口：拒绝绝对路径、`..` 与软链逃逸。
- * 目标存在时用 realpath 校验；目标不存在时只做前缀校验，读取失败由调用方处理。
+ * 目标存在时返回 realpath，保证“校验的路径”与“读取的路径”一致。
  */
 export function resolveWithin(root: string, relPath: string): string {
   if (!relPath || relPath.trim().length === 0) {
@@ -67,19 +67,28 @@ export function resolveWithin(root: string, relPath: string): string {
 
   const realRoot = realpathSync(root)
   const abs = resolve(realRoot, normalized)
-  const target = existsSync(abs) ? realpathSync(abs) : abs
+  let target = abs
+  try {
+    target = realpathSync(abs)
+  } catch {
+    // 目标不存在时保留 abs；调用方会在读取时按失败处理。
+  }
   if (target !== realRoot && !target.startsWith(`${realRoot}${sep}`)) {
     throw appError('invalid_path', 'path escapes workspace')
   }
-  return abs
+  return target
 }
 
 export function resolveWorkspaceDir(root: string, relPath: string): string {
-  const abs = resolveWithin(root, relPath)
-  if (!existsSync(abs) || !statSync(abs).isDirectory()) {
+  const target = resolveWithin(root, relPath)
+  try {
+    if (!statSync(target).isDirectory()) {
+      throw new Error('not a directory')
+    }
+  } catch {
     throw appError('invalid_path', 'workspace directory not found')
   }
-  return abs
+  return target
 }
 
 /**
@@ -91,19 +100,24 @@ export function readWorkspaceText(
   relPath: string,
   maxBytes = MAX_TEXT_BYTES,
 ): string | null {
-  if (isSensitivePath(relPath)) return null
-  let abs: string
+  if (isSensitivePath(relPath)) {
+    return null
+  }
+  let target: string
   try {
-    abs = resolveWithin(workspacePath, relPath)
+    target = resolveWithin(workspacePath, relPath)
   } catch {
     return null
   }
-  if (!existsSync(abs)) return null
-  const stat = statSync(abs)
-  if (!stat.isFile() || stat.size > maxBytes) return null
-  if (!TEXT_EXTENSIONS.has(extname(abs).toLowerCase())) return null
+  if (!TEXT_EXTENSIONS.has(extname(target).toLowerCase())) {
+    return null
+  }
   try {
-    return readFileSync(abs, 'utf8')
+    const stat = statSync(target)
+    if (!stat.isFile() || stat.size > maxBytes) {
+      return null
+    }
+    return readFileSync(target, 'utf8')
   } catch {
     return null
   }

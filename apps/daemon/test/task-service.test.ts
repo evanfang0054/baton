@@ -41,6 +41,7 @@ function setup(): Setup {
     webRoot: root,
     workspacesRoot: root,
     maxConcurrency: 1,
+    killSwitch: false,
   }
   const service = createTaskService({
     db: database.db,
@@ -85,25 +86,33 @@ describe('createTask', () => {
     const { seeded, service } = setup()
     const worktree = service.createTask({ ...input(seeded), workspaceMode: 'worktree' })
     expect(worktree.ok).toBe(false)
-    if (!worktree.ok) expect(worktree.error.code).toBe('unsupported')
+    if (!worktree.ok) {
+      expect(worktree.error.code).toBe('unsupported_workspace_mode')
+    }
 
     const claude = service.createTask({ ...input(seeded), engine: 'claude-sdk' })
     expect(claude.ok).toBe(false)
-    if (!claude.ok) expect(claude.error.code).toBe('unsupported_engine')
+    if (!claude.ok) {
+      expect(claude.error.code).toBe('unsupported_engine')
+    }
   })
 
   it('requires an agent target and existing context nodes', () => {
     const { seeded, service } = setup()
     const textTarget = service.createTask({ ...input(seeded), nodeId: 'text-1' })
     expect(textTarget.ok).toBe(false)
-    if (!textTarget.ok) expect(textTarget.error.code).toBe('invalid_payload')
+    if (!textTarget.ok) {
+      expect(textTarget.error.code).toBe('invalid_payload')
+    }
 
     const missing = service.createTask({
       ...input(seeded),
       contextNodeIds: ['missing-node'],
     })
     expect(missing.ok).toBe(false)
-    if (!missing.ok) expect(missing.error.code).toBe('node_not_found')
+    if (!missing.ok) {
+      expect(missing.error.code).toBe('node_not_found')
+    }
   })
 
   it('rejects an invalid policy file', () => {
@@ -112,6 +121,8 @@ describe('createTask', () => {
     writeFileSync(join(workspacePath, '.baton', 'policy.json'), '{')
     const result = service.createTask(input(seeded))
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('invalid_policy')
+    if (!result.ok) {
+      expect(result.error.code).toBe('invalid_policy')
+    }
   })
 })

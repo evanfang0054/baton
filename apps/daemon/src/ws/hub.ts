@@ -1,13 +1,12 @@
-import { WebSocket } from 'ws'
+import type { WebSocket } from 'ws'
 import type { BroadcastEvent } from '../db/event-store.js'
+import { sendSafely } from './send.js'
 
 export interface WsHub {
   register(socket: WebSocket): void
   broadcast(event: BroadcastEvent): void
   close(): void
 }
-
-const MAX_BUFFERED = 8 * 1024 * 1024
 
 export function createWsHub(): WsHub {
   const sockets = new Set<WebSocket>()
@@ -27,16 +26,13 @@ export function createWsHub(): WsHub {
         payload: event.payload,
       })
       for (const socket of sockets) {
-        if (socket.readyState !== WebSocket.OPEN) continue
-        if (socket.bufferedAmount > MAX_BUFFERED) {
-          socket.close(1013, 'slow client')
-          continue
-        }
-        socket.send(frame)
+        sendSafely(socket, frame)
       }
     },
     close() {
-      for (const socket of sockets) socket.close(1001, 'server closing')
+      for (const socket of sockets) {
+        socket.close(1001, 'server closing')
+      }
       sockets.clear()
     },
   }

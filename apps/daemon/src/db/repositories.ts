@@ -235,7 +235,9 @@ export function appendTaskFeedback(
   updatedAt: number,
 ): void {
   const row = tx.select({ prompt: task.prompt }).from(task).where(eq(task.id, id)).get()
-  if (!row) return
+  if (!row) {
+    return
+  }
   const clipped =
     feedback.length > maxChars ? `${feedback.slice(0, maxChars)}\n…[truncated]` : feedback
   tx.update(task)
@@ -275,7 +277,7 @@ export function getSession(db: Db, id: string): Session | null {
   return row ? toSession(row) : null
 }
 
-export function listSessionsByTask(db: Db, taskId: string): Session[] {
+export function listSessionsByTask(db: Pick<Db, 'select'>, taskId: string): Session[] {
   return db
     .select()
     .from(session)
@@ -295,11 +297,13 @@ export function listSessionsByStatus(db: Db, statuses: SessionStatus[]): Session
     .map(toSession)
 }
 
-export function getActiveSession(db: Db, taskId: string): Session | null {
+export function getActiveSession(db: Pick<Db, 'select'>, taskId: string): Session | null {
   const sessions = listSessionsByTask(db, taskId)
   for (let index = sessions.length - 1; index >= 0; index -= 1) {
     const current = sessions[index]!
-    if (current.status === 'running' || current.status === 'waiting_input') return current
+    if (current.status === 'running' || current.status === 'waiting_input') {
+      return current
+    }
   }
   return null
 }

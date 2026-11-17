@@ -1,4 +1,4 @@
-import type { AgentEvent, ServerMessage, TaskStatus } from '@baton/protocol'
+import type { AgentEvent, ServerMessage } from '@baton/protocol'
 import { asc, desc, gt } from 'drizzle-orm'
 import { event, wsEvent } from './schema.js'
 import type { Db, Tx } from './types.js'
@@ -8,11 +8,12 @@ export interface EventStoreDeps {
   newId: () => string
 }
 
-export interface WsEventDraft {
-  type: ServerMessage['type']
-  payload: unknown
-  ts: number
-}
+type PayloadOf<K extends ServerMessage['type']> = Extract<ServerMessage, { type: K }>['payload']
+
+/** 从协议联合类型派生，避免手写 payload 镜像类型。 */
+export type WsEventDraft = {
+  [K in ServerMessage['type']]: { type: K; payload: PayloadOf<K>; ts: number }
+}[ServerMessage['type']]
 
 export interface BroadcastEvent {
   ordinal: number
@@ -94,37 +95,17 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
     })
   }
 
-  function appendTaskStatus(
-    tx: Tx,
-    input: {
-      taskId: string
-      status: TaskStatus
-      previousStatus: TaskStatus
-      retryCount: number
-      updatedAt: number
-    },
-  ): BroadcastEvent {
+  function appendTaskStatus(tx: Tx, input: PayloadOf<'task.status'>): BroadcastEvent {
     return appendWs(tx, {
       type: 'task.status',
-      payload: {
-        taskId: input.taskId,
-        status: input.status,
-        previousStatus: input.previousStatus,
-        retryCount: input.retryCount,
-        updatedAt: input.updatedAt,
-      },
+      payload: input,
       ts: input.updatedAt,
     })
   }
 
   function appendApprovalRequest(
     tx: Tx,
-    input: {
-      approvalId: string
-      sessionId: string
-      request: unknown
-      ts: number
-    },
+    input: PayloadOf<'approval.request'> & { ts: number },
   ): BroadcastEvent {
     return appendWs(tx, {
       type: 'approval.request',
@@ -139,15 +120,7 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
 
   function appendVerifyResult(
     tx: Tx,
-    input: {
-      taskId: string
-      reviewId: string
-      exitCode: number
-      output: string
-      diffStat: unknown
-      durationMs: number
-      ts: number
-    },
+    input: PayloadOf<'verify.result'> & { ts: number },
   ): BroadcastEvent {
     return appendWs(tx, {
       type: 'verify.result',

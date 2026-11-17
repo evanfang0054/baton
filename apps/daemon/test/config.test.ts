@@ -49,6 +49,12 @@ describe('loadConfig', () => {
     expect(() => loadConfig([], { BATON_MAX_CONCURRENCY: 'abc' })).toThrow()
   })
 
+  it('reads the global kill switch from BATON_KILL_SWITCH', () => {
+    expect(loadConfig([], {}).killSwitch).toBe(false)
+    expect(loadConfig([], { BATON_KILL_SWITCH: '1' }).killSwitch).toBe(true)
+    expect(loadConfig([], { BATON_KILL_SWITCH: 'true' }).killSwitch).toBe(true)
+  })
+
   it('fails clearly when the token file is missing', () => {
     expect(() => loadConfig([], { BATON_TOKEN_FILE: '/definitely/missing' })).toThrow(
       /BATON_TOKEN_FILE/,

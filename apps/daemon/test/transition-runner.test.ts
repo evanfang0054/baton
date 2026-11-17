@@ -23,7 +23,9 @@ describe('transition runner', () => {
     const taskId = handle.createTask()
     const outcome = handle.runtime.applyTransition(taskId, { type: 'enqueue' })
     expect(outcome.ok).toBe(true)
-    if (!outcome.ok) return
+    if (!outcome.ok) {
+      return
+    }
     expect(outcome.status).toBe('queued')
     expect(outcome.events.at(-1)?.type).toBe('task.status')
 
@@ -46,7 +48,9 @@ describe('transition runner', () => {
 
     const outcome = handle.runtime.applyTransition(second, { type: 'start' })
     expect(outcome.ok).toBe(false)
-    if (!outcome.ok) expect(outcome.error.code).toBe('guard_failed')
+    if (!outcome.ok) {
+      expect(outcome.error.code).toBe('guard_failed')
+    }
     expect(handle.runtime.getTask(second)?.status).toBe('queued')
   })
 
@@ -73,7 +77,9 @@ describe('transition runner', () => {
       diffStat: { filesChanged: 1, insertions: 1, deletions: 0 },
     })
     expect(outcome.ok).toBe(true)
-    if (!outcome.ok) return
+    if (!outcome.ok) {
+      return
+    }
     expect(outcome.status).toBe('queued')
     expect(outcome.retryCount).toBe(1)
     expect(outcome.events.map((event) => event.type)).toEqual(['verify.result', 'task.status'])
@@ -101,14 +107,47 @@ describe('transition runner', () => {
       diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
     })
     expect(verified.ok).toBe(true)
-    if (verified.ok) expect(verified.status).toBe('review')
+    if (verified.ok) {
+      expect(verified.status).toBe('review')
+    }
     const review = handle.runtime.getReviewByTask(taskId)
     expect(review?.verifyExitCode).toBe(0)
 
     const decided = handle.runtime.decideReview({ reviewId: 'review-1', decision: 'approve' })
     expect(decided.ok).toBe(true)
-    if (decided.ok) expect(decided.status).toBe('done')
+    if (decided.ok) {
+      expect(decided.status).toBe('done')
+    }
     expect(handle.runtime.getReviewByTask(taskId)?.verdict).toBe('approved')
+  })
+
+  it('rejects a review that has been superseded by a newer attempt', async () => {
+    const handle = setup()
+    const taskId = handle.createTask()
+    handle.runtime.applyTransition(taskId, { type: 'enqueue' })
+    await handle.runtime.settle()
+    handle.runtime.applyTransition(taskId, { type: 'completed' })
+    await handle.runtime.settle()
+    handle.runtime.applyTransition(taskId, {
+      type: 'verify_ok',
+      reviewId: 'review-1',
+      exitCode: 0,
+      output: 'ok',
+      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+    })
+    handle.database.raw
+      .prepare(
+        `insert into review (id, task_id, verdict, verify_exit_code, verify_output, diff_stat_json, decided_at)
+         values ('review-2', ?, null, 1, 'fail', '{"filesChanged":0,"insertions":0,"deletions":0}', null)`,
+      )
+      .run(taskId)
+
+    const outcome = handle.runtime.decideReview({ reviewId: 'review-1', decision: 'approve' })
+
+    expect(outcome.ok).toBe(false)
+    if (!outcome.ok) {
+      expect(outcome.error.code).toBe('review_expired')
+    }
   })
 
   it('asks for approval and resumes after allow', async () => {
@@ -131,7 +170,9 @@ describe('transition runner', () => {
       approvalId: 'approval-1',
     })
     expect(requested.ok).toBe(true)
-    if (!requested.ok) return
+    if (!requested.ok) {
+      return
+    }
     expect(requested.status).toBe('waiting_input')
     expect(requested.events.map((event) => event.type)).toEqual(['approval.request', 'task.status'])
     expect(handle.runtime.getSession(sessionId)?.status).toBe('waiting_input')
@@ -141,7 +182,9 @@ describe('transition runner', () => {
       decision: 'allow',
     })
     expect(decided.ok).toBe(true)
-    if (!decided.ok) return
+    if (!decided.ok) {
+      return
+    }
     expect(decided.status).toBe('running')
     await handle.runtime.settle()
     expect(handle.approvals).toEqual([{ approvalId: 'approval-1', decision: 'allow' }])
@@ -211,7 +254,9 @@ describe('transition runner', () => {
 
     const outcome = handle.runtime.cancel(taskId, 'user cancelled')
     expect(outcome.ok).toBe(true)
-    if (outcome.ok) expect(outcome.status).toBe('cancelled')
+    if (outcome.ok) {
+      expect(outcome.status).toBe('cancelled')
+    }
     await handle.runtime.settle()
     expect(handle.runtime.getTask(taskId)?.status).toBe('cancelled')
     expect(handle.interrupts).toEqual([taskId])
@@ -238,7 +283,9 @@ describe('transition runner', () => {
       feedback: '请修复登录页',
     })
     expect(outcome.ok).toBe(true)
-    if (!outcome.ok) return
+    if (!outcome.ok) {
+      return
+    }
     expect(outcome.status).toBe('queued')
     expect(handle.runtime.getTask(taskId)?.prompt).toContain('<feedback>')
     expect(handle.runtime.getTask(taskId)?.prompt).toContain('请修复登录页')

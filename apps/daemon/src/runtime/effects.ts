@@ -1,9 +1,9 @@
 import type { TaskEffect } from '@baton/core'
 import type { Policy, Task, TaskStatus } from '@baton/protocol'
-import { asc, eq } from 'drizzle-orm'
-import type { ApprovalRecord } from '../db/repositories.js'
 import {
+  type ApprovalRecord,
   appendTaskFeedback,
+  getActiveSession,
   insertAudit,
   insertReview,
   insertSession,
@@ -12,7 +12,6 @@ import {
   updateSessionStatus,
 } from '../db/repositories.js'
 import type { BroadcastEvent, EventStore } from '../db/event-store.js'
-import { session } from '../db/schema.js'
 import type { Tx } from '../db/types.js'
 import type { RuntimeHooks } from './types.js'
 
@@ -52,7 +51,9 @@ export function planAndApplyEffects(tx: Tx, ctx: EffectContext, effects: TaskEff
   for (const effect of effects) {
     switch (effect.type) {
       case 'requestApproval': {
-        if (!ctx.approval) throw new Error('approval row missing for requestApproval')
+        if (!ctx.approval) {
+          throw new Error('approval row missing for requestApproval')
+        }
         updateSessionStatus(tx, ctx.approval.sessionId, 'waiting_input')
         plan.events.push(
           ctx.eventStore.appendApprovalRequest(tx, {
@@ -65,7 +66,9 @@ export function planAndApplyEffects(tx: Tx, ctx: EffectContext, effects: TaskEff
         break
       }
       case 'resolveApproval': {
-        if (!ctx.approval) throw new Error('approval row missing for resolveApproval')
+        if (!ctx.approval) {
+          throw new Error('approval row missing for resolveApproval')
+        }
         updateApprovalDecision(tx, effect.approvalId, effect.decision, 'user', ctx.now)
         updateSessionStatus(tx, ctx.approval.sessionId, 'running')
         plan.afterCommit.push(() =>
@@ -143,21 +146,10 @@ export function planAndApplyEffects(tx: Tx, ctx: EffectContext, effects: TaskEff
         break
       }
       case 'interruptSession': {
-        const rows = tx
-          .select()
-          .from(session)
-          .where(eq(session.taskId, ctx.task.id))
-          .orderBy(asc(session.startedAt))
-          .all()
-        let active: (typeof rows)[number] | undefined
-        for (let index = rows.length - 1; index >= 0; index -= 1) {
-          const current = rows[index]!
-          if (current.status === 'running' || current.status === 'waiting_input') {
-            active = current
-            break
-          }
+        const active = getActiveSession(tx, ctx.task.id)
+        if (active) {
+          updateSessionStatus(tx, active.id, 'ended', ctx.now)
         }
-        if (active) updateSessionStatus(tx, active.id, 'ended', ctx.now)
         plan.afterCommit.push(() => ctx.hooks.interruptSession(ctx.task.id))
         break
       }

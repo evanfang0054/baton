@@ -21,6 +21,8 @@ export async function start(argv = process.argv.slice(2), env = process.env): Pr
 export function reportStartupError(err: unknown): void {
   const message = err instanceof Error ? err.message : 'startup failed'
   console.error(`baton failed to start: ${message}`)
-  if (process.env.BATON_DEBUG === '1' && err instanceof Error) console.error(err.stack)
+  if (process.env.BATON_DEBUG === '1' && err instanceof Error) {
+    console.error(err.stack)
+  }
   process.exit(1)
 }

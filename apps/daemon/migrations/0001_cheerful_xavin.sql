@@ -43,4 +43,5 @@ DROP TABLE `event`;--> statement-breakpoint
 ALTER TABLE `__new_event` RENAME TO `event`;--> statement-breakpoint
 CREATE UNIQUE INDEX `event_session_seq_idx` ON `event` (`session_id`,`seq`);--> statement-breakpoint
 CREATE UNIQUE INDEX `event_ordinal_idx` ON `event` (`ordinal`);--> statement-breakpoint
+INSERT INTO `ws_event` ("ordinal", "id", "type", "payload_json", "ts") SELECT "ordinal", "id", 'session.event', json_object('sessionId', "session_id", 'event', json("payload_json")), "ts" FROM `event`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;

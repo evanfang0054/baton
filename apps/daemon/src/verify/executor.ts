@@ -34,20 +34,24 @@ function isTimedOut(error: unknown): boolean {
   )
 }
 
-/** 只统计 tracked 改动与 untracked 文件数；untracked 行数不在 M1 统计。 */
+/** 统计相对 HEAD 的 tracked 改动（含 staged）与 untracked 文件数；untracked 行数不在 M1 统计。 */
 export async function readDiffStat(cwd: string): Promise<DiffStat> {
   const empty: DiffStat = { filesChanged: 0, insertions: 0, deletions: 0 }
   try {
-    const numstat = await execa('git', ['-C', cwd, 'diff', '--numstat'], {
+    const numstat = await execa('git', ['-C', cwd, 'diff', '--numstat', 'HEAD'], {
       reject: false,
     })
-    if (numstat.exitCode !== 0) return empty
+    if (numstat.exitCode !== 0) {
+      return empty
+    }
 
     let filesChanged = 0
     let insertions = 0
     let deletions = 0
     for (const line of numstat.stdout.split('\n')) {
-      if (!line.trim()) continue
+      if (!line.trim()) {
+        continue
+      }
       const [added, deleted] = line.split('\t')
       filesChanged += 1
       insertions += Number(added) || 0
@@ -79,7 +83,9 @@ export async function runVerifyCommand(
   const controller = new AbortController()
   let subprocess: ReturnType<typeof execa> | undefined
   const killGroup = (signal: NodeJS.Signals): void => {
-    if (!subprocess?.pid) return
+    if (!subprocess?.pid) {
+      return
+    }
     try {
       process.kill(-subprocess.pid, signal)
     } catch {

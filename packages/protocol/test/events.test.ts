@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ServerMessage } from '../src/events.js'
+import { ApprovalRequestValue, ServerMessage } from '../src/events.js'
 
 const aguiEvent = { type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'hi' }
 
@@ -79,5 +79,16 @@ describe('ServerMessage', () => {
     for (const [type, payload] of replayable) {
       expect(() => ServerMessage.parse({ v: 1, ts: 1, type, payload })).toThrow()
     }
+  })
+
+  it('parses the shared approval request value', () => {
+    const parsed = ApprovalRequestValue.parse({
+      requestId: 'req-1',
+      request: { toolName: 'Bash', input: {}, risk: 'low' },
+    })
+    expect(parsed.requestId).toBe('req-1')
+    expect(() =>
+      ApprovalRequestValue.parse({ requestId: '', request: { toolName: 'Bash', input: {} } }),
+    ).toThrow()
   })
 })

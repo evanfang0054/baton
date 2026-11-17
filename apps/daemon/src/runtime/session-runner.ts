@@ -1,12 +1,12 @@
 import { evaluateApproval } from '@baton/core'
 import {
-  ApprovalRequest,
+  APPROVAL_REQUEST_EVENT,
+  ApprovalRequestValue,
   EventType,
   type AgentRun,
   type Policy,
   type TaskTransitionEvent,
 } from '@baton/protocol'
-import { z } from 'zod'
 import type { BroadcastEvent, EventStore } from '../db/event-store.js'
 import {
   getTask,
@@ -21,12 +21,6 @@ import { appError, toAppError } from '../errors.js'
 import type { AdapterFactory } from './adapter-factory.js'
 import type { StartSessionInput, TransitionOutcome } from './types.js'
 
-const APPROVAL_REQUEST = 'approval.request'
-const ApprovalValue = z.object({
-  requestId: z.string().min(1),
-  request: ApprovalRequest,
-})
-
 export interface SessionRunnerDeps {
   db: Db
   adapters: AdapterFactory
@@ -35,6 +29,7 @@ export interface SessionRunnerDeps {
   applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
   now: () => number
   newId: () => string
+  killSwitch?: boolean
 }
 
 export interface ActiveRun {
@@ -48,24 +43,25 @@ export interface SessionRunner {
   start(input: StartSessionInput): Promise<void>
   interrupt(taskId: string): Promise<void>
   approve(approvalId: string, decision: 'allow' | 'deny', note?: string): Promise<void>
-  dispose(): Promise<void>
+  close(): Promise<void>
 }
 
 export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
   const activeRuns = new Map<string, ActiveRun>()
+  const running = new Set<Promise<void>>()
 
   function endSession(sessionId: string, status: 'ended' | 'failed'): void {
     deps.db.transaction((tx) => updateSessionStatus(tx, sessionId, status, deps.now()))
   }
 
   function failTask(taskId: string, sessionId: string, error: unknown): void {
-    const appError = toAppError(error)
-    deps.applyTransition(taskId, { type: 'error', message: appError.message })
+    const failure = toAppError(error)
+    deps.applyTransition(taskId, { type: 'error', message: failure.message })
     endSession(sessionId, 'failed')
   }
 
   async function handleApproval(active: ActiveRun, policy: Policy, value: unknown): Promise<void> {
-    const parsed = ApprovalValue.safeParse(value)
+    const parsed = ApprovalRequestValue.safeParse(value)
     if (!parsed.success) {
       deps.applyTransition(active.taskId, {
         type: 'error',
@@ -85,13 +81,12 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       }),
     )
 
-    const decision = evaluateApproval(policy, request, { killSwitch: false })
+    const decision = evaluateApproval(policy, request, { killSwitch: deps.killSwitch ?? false })
     const autoDecision = decision.decision
     if (autoDecision === 'allow' || autoDecision === 'deny') {
-      deps.db.transaction((tx) =>
-        updateApprovalDecision(tx, approvalId, autoDecision, 'auto', deps.now()),
-      )
-      deps.db.transaction((tx) =>
+      // 决策与审计必须同事务提交，否则崩溃窗口会出现“已放行但无审计”。
+      deps.db.transaction((tx) => {
+        updateApprovalDecision(tx, approvalId, autoDecision, 'auto', deps.now())
         insertAudit(tx, {
           id: deps.newId(),
           ts: deps.now(),
@@ -103,8 +98,8 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
             risk: decision.risk,
             matchedRule: decision.matchedRule,
           },
-        }),
-      )
+        })
+      })
       await active.run.approve(requestId, autoDecision)
       return
     }
@@ -116,18 +111,25 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     })
     if (!outcome.ok) {
       active.requestIdByApprovalId.delete(approvalId)
-      deps.db.transaction((tx) =>
-        updateApprovalDecision(tx, approvalId, 'deny', 'system', deps.now()),
-      )
-      deps.db.transaction((tx) =>
+      deps.db.transaction((tx) => {
+        updateApprovalDecision(tx, approvalId, 'deny', 'system', deps.now())
         insertAudit(tx, {
           id: deps.newId(),
           ts: deps.now(),
           actor: 'system',
           action: 'approval.expired',
           detail: { approvalId, taskId: active.taskId },
-        }),
-      )
+        })
+      })
+      // 转移失败时适配器仍挂在 pending approval 上；必须回传 deny 让它继续或结束。
+      try {
+        await active.run.approve(requestId, 'deny')
+      } catch {
+        deps.applyTransition(active.taskId, {
+          type: 'error',
+          message: 'approval resolution failed',
+        })
+      }
     }
   }
 
@@ -157,7 +159,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
 
         if (event.type === EventType.RUN_STARTED) {
           deps.db.transaction((tx) => updateSessionEngineId(tx, active.sessionId, event.threadId))
-        } else if (event.type === EventType.CUSTOM && event.name === APPROVAL_REQUEST) {
+        } else if (event.type === EventType.CUSTOM && event.name === APPROVAL_REQUEST_EVENT) {
           await handleApproval(active, policy, event.value)
         } else if (event.type === EventType.RUN_FINISHED) {
           finished = true
@@ -204,7 +206,9 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
 
   async function start(input: StartSessionInput): Promise<void> {
     const task = getTask(deps.db, input.taskId)
-    if (!task) return
+    if (!task) {
+      return
+    }
 
     let run: AgentRun
     try {
@@ -227,7 +231,9 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       requestIdByApprovalId: new Map(),
     }
     activeRuns.set(input.sessionId, active)
-    void consume(active, input.policy)
+    const promise = consume(active, input.policy)
+    running.add(promise)
+    void promise.finally(() => running.delete(promise))
   }
 
   async function approve(
@@ -237,7 +243,9 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
   ): Promise<void> {
     for (const active of activeRuns.values()) {
       const requestId = active.requestIdByApprovalId.get(approvalId)
-      if (!requestId) continue
+      if (!requestId) {
+        continue
+      }
       active.requestIdByApprovalId.delete(approvalId)
       await active.run.approve(requestId, decision, note)
       return
@@ -247,19 +255,23 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
 
   async function interrupt(taskId: string): Promise<void> {
     for (const active of activeRuns.values()) {
-      if (active.taskId !== taskId) continue
+      if (active.taskId !== taskId) {
+        continue
+      }
       await active.run.interrupt().catch(() => {})
       return
     }
   }
 
-  async function dispose(): Promise<void> {
+  async function close(): Promise<void> {
     const runs = [...activeRuns.values()]
     activeRuns.clear()
     for (const active of runs) {
       await active.run.dispose().catch(() => {})
     }
+    // 等 consume 收敛，避免 close 返回后仍有事件写库。
+    await Promise.all([...running])
   }
 
-  return { start, interrupt, approve, dispose }
+  return { start, interrupt, approve, close }
 }

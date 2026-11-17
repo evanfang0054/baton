@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { waitFor } from './helpers/async.js'
 import type { TestRuntimeHandle } from './helpers/runtime.js'
 import { createTestRuntime } from './helpers/runtime.js'
 
@@ -10,14 +11,6 @@ function setup(): TestRuntimeHandle {
   return handle
 }
 
-async function waitFor(predicate: () => boolean, timeoutMs = 5000): Promise<void> {
-  const started = Date.now()
-  while (!predicate()) {
-    if (Date.now() - started > timeoutMs) throw new Error('waitFor timeout')
-    await new Promise((resolve) => setTimeout(resolve, 10))
-  }
-}
-
 afterEach(async () => {
   await Promise.all(handles.splice(0).map((handle) => handle.cleanup()))
 })
@@ -27,7 +20,7 @@ describe('verify runner', () => {
     const handle = setup()
     const taskId = handle.createTask({ verifyCommand: 'node -e "process.exit(0)"' })
     handle.runtime.applyTransition(taskId, { type: 'enqueue' })
-    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'waiting_input')
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'waiting_input', 5000)
     const approval = handle.database.raw
       .prepare('select id from approval where session_id = ?')
       .get(
@@ -38,7 +31,7 @@ describe('verify runner', () => {
         ).id,
       ) as { id: string }
     handle.runtime.decideApproval({ approvalId: approval.id, decision: 'allow' })
-    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'review')
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'review', 5000)
 
     const review = handle.runtime.getReviewByTask(taskId)
     expect(review?.verifyExitCode).toBe(0)
@@ -49,7 +42,7 @@ describe('verify runner', () => {
     const handle = setup()
     const taskId = handle.createTask({ verifyCommand: 'node -e "process.exit(3)"' })
     handle.runtime.applyTransition(taskId, { type: 'enqueue' })
-    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'waiting_input')
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'waiting_input', 5000)
     const session = handle.database.raw
       .prepare('select id from session where task_id = ?')
       .get(taskId) as { id: string }
@@ -57,7 +50,7 @@ describe('verify runner', () => {
       .prepare('select id from approval where session_id = ?')
       .get(session.id) as { id: string }
     handle.runtime.decideApproval({ approvalId: approval.id, decision: 'allow' })
-    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'review')
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'review', 5000)
 
     const review = handle.runtime.getReviewByTask(taskId)
     expect(review?.verifyExitCode).toBe(3)

@@ -41,17 +41,15 @@ export function reconcileOnBoot(deps: BootReconcilerDeps): void {
   }
 
   for (const approval of listPendingApprovals(deps.db)) {
-    deps.db.transaction((tx) =>
-      updateApprovalDecision(tx, approval.id, 'deny', 'system', deps.now()),
-    )
-    deps.db.transaction((tx) =>
+    deps.db.transaction((tx) => {
+      updateApprovalDecision(tx, approval.id, 'deny', 'system', deps.now())
       insertAudit(tx, {
         id: deps.newId(),
         ts: deps.now(),
         actor: 'system',
         action: 'approval.expired',
         detail: { approvalId: approval.id },
-      }),
-    )
+      })
+    })
   }
 }

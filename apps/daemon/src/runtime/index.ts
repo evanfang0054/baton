@@ -18,7 +18,7 @@ import {
   listTasksByStatus,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
-import { appError } from '../errors.js'
+import { appError, toAppError } from '../errors.js'
 import type { Logger } from '../log.js'
 import { createVerifyRunner, type VerifyRunner } from '../verify/runner.js'
 import type { AdapterFactory } from './adapter-factory.js'
@@ -50,7 +50,9 @@ export type CommandOutcome =
   { ok: true; ack: Record<string, unknown>; replay?: WsEventRow[] } | { ok: false; error: AppError }
 
 function ackFromOutcome(outcome: TransitionOutcome): CommandOutcome {
-  if (!outcome.ok) return { ok: false, error: outcome.error }
+  if (!outcome.ok) {
+    return { ok: false, error: outcome.error }
+  }
   return {
     ok: true,
     ack: {
@@ -70,12 +72,18 @@ export function createRuntime(deps: RuntimeDeps) {
   const schedulerHolder: { value?: Scheduler } = {}
   const sessionHolder: { value?: SessionRunner } = {}
   const verifyHolder: { value?: VerifyRunner } = {}
+  let closing = false
 
   const hooks: RuntimeHooks = {
     broadcast: deps.broadcast,
     startSession:
       deps.startSession ??
-      ((input) => (sessionHolder.value ? sessionHolder.value.start(input) : undefined)),
+      ((input) => {
+        if (closing) {
+          return
+        }
+        return sessionHolder.value ? sessionHolder.value.start(input) : undefined
+      }),
     interruptSession:
       deps.interruptSession ??
       ((taskId) => (sessionHolder.value ? sessionHolder.value.interrupt(taskId) : undefined)),
@@ -84,13 +92,22 @@ export function createRuntime(deps: RuntimeDeps) {
       ((approvalId, decision, note) =>
         sessionHolder.value ? sessionHolder.value.approve(approvalId, decision, note) : undefined),
     runVerify: deps.runVerify ?? ((taskId) => verifyHolder.value?.run(taskId) ?? Promise.resolve()),
-    kick: () => schedulerHolder.value?.kick(),
+    kick: () => {
+      if (closing) {
+        return
+      }
+      schedulerHolder.value?.kick()
+    },
     track: (action) => {
       const promise = Promise.resolve()
         .then(action)
-        .catch(() => {
-          // 异步动作失败由各 runner 自己收敛任务状态；这里只保证 settle 不被卡住。
-          deps.logger?.error({ action: 'runtime' }, 'runtime action failed')
+        .catch((error: unknown) => {
+          // 异步动作失败由各 runner 自己收敛任务状态；这里保留错误码用于排障。
+          const failure = toAppError(error)
+          deps.logger?.error(
+            { action: 'runtime', code: failure.code, message: failure.message },
+            'runtime action failed',
+          )
         })
         .finally(() => pending.delete(promise))
       pending.add(promise)
@@ -151,7 +168,8 @@ export function createRuntime(deps: RuntimeDeps) {
     if (approval.decision !== null) {
       return {
         ok: false,
-        error: appError('approval_expired', 'approval already decided', {
+        error: appError('already_decided', 'approval already decided', {
+          kind: 'approval',
           approvalId: input.approvalId,
         }),
       }
@@ -191,7 +209,17 @@ export function createRuntime(deps: RuntimeDeps) {
     if (review.verdict !== null) {
       return {
         ok: false,
-        error: appError('review_already_decided', 'review already decided', {
+        error: appError('already_decided', 'review already decided', {
+          kind: 'review',
+          reviewId: input.reviewId,
+        }),
+      }
+    }
+    const current = getReviewByTask(deps.db, review.taskId)
+    if (!current || current.id !== review.id) {
+      return {
+        ok: false,
+        error: appError('review_expired', 'review is superseded by a newer attempt', {
           reviewId: input.reviewId,
         }),
       }
@@ -238,8 +266,8 @@ export function createRuntime(deps: RuntimeDeps) {
     }
   }
 
-  function findNextQueued(): { id: string } | null {
-    const next = listTasksByStatus(deps.db, ['queued'])[0]
+  function findNextQueued(exclude?: ReadonlySet<string>): { id: string } | null {
+    const next = listTasksByStatus(deps.db, ['queued']).find((task) => !exclude?.has(task.id))
     return next ? { id: next.id } : null
   }
 
@@ -260,10 +288,19 @@ export function createRuntime(deps: RuntimeDeps) {
     replay,
     maxOrdinal: eventStore.maxOrdinal,
     settle,
-    start: () => schedulerHolder.value?.kick(),
+    start: () => {
+      if (closing) {
+        return
+      }
+      schedulerHolder.value?.kick()
+    },
     close: async () => {
+      if (closing) {
+        return
+      }
+      closing = true
       await verifyHolder.value?.close()
-      await sessionHolder.value?.dispose()
+      await sessionHolder.value?.close()
       await settle()
     },
     getTask: (id: string) => getTask(deps.db, id),
@@ -286,6 +323,7 @@ export function createRuntime(deps: RuntimeDeps) {
       applyTransition,
       now,
       newId,
+      killSwitch: deps.config.killSwitch,
     })
   }
 

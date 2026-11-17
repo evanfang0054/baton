@@ -14,6 +14,8 @@ export function isAppError(value: unknown): value is AppError {
 }
 
 export function toAppError(error: unknown, fallback = 'internal'): AppError {
-  if (isAppError(error)) return error
+  if (isAppError(error)) {
+    return error
+  }
   return appError(fallback, 'unexpected error')
 }

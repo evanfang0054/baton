@@ -23,7 +23,9 @@ export function registerAuth(app: FastifyInstance, config: Config, hasWeb: boole
     if (token && config.token && token === config.token) {
       return setSessionCookie(reply, token).redirect('/')
     }
-    if (hasWeb) return reply.sendFile('index.html')
+    if (hasWeb) {
+      return reply.sendFile('index.html')
+    }
     return reply.type('text/html').send('<h1>baton</h1>')
   })
 }

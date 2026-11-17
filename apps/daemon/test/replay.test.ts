@@ -1,22 +1,16 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { TestApp } from './helpers/app.js'
-import { buildTestApp } from './helpers/app.js'
+import { createTaskPayload, createWsTestApp, type WsTestApp } from './helpers/ws.js'
 import { WsClient } from './helpers/ws-client.js'
 
 const apps: TestApp[] = []
 const clients: WsClient[] = []
 
-async function setup(): Promise<{ app: TestApp; ws: WsClient; url: string }> {
-  const app = await buildTestApp()
-  apps.push(app)
-  await app.app.listen({ host: '127.0.0.1', port: 0 })
-  const address = app.app.server.address()
-  if (!address || typeof address === 'string') throw new Error('no port')
-  const url = `ws://127.0.0.1:${address.port}/ws`
-  const ws = new WsClient(url)
-  clients.push(ws)
-  await ws.open()
-  return { app, ws, url }
+async function setup(): Promise<WsTestApp> {
+  const created = await createWsTestApp()
+  apps.push(created)
+  clients.push(created.ws)
+  return created
 }
 
 afterEach(async () => {
@@ -34,15 +28,7 @@ describe('resume replay', () => {
       type: 'task.create',
       id: 'c1',
       ts: 1,
-      payload: {
-        workspaceId: first.app.handle.seeded.workspaceId,
-        nodeId: first.app.handle.seeded.nodeId,
-        title: 'demo',
-        prompt: 'demo',
-        contextNodeIds: ['text-1'],
-        engine: 'fake',
-        workspaceMode: 'main',
-      },
+      payload: createTaskPayload(first.handle, { prompt: 'demo' }),
     })
     const created = await first.ws.next('ack')
     const taskId = (created.payload as { data: { taskId: string } }).data.taskId

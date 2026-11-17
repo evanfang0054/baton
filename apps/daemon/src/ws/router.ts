@@ -1,10 +1,12 @@
 import { AckEvent, ClientMessage, ErrorEvent, WsEnvelope, WsPong } from '@baton/protocol'
 import type { WebSocket } from 'ws'
 import type { Runtime } from '../runtime/index.js'
+import { sendSafely } from './send.js'
 
-function send(socket: WebSocket, message: unknown): void {
-  if (socket.readyState !== socket.OPEN) return
-  socket.send(JSON.stringify(message))
+const REPLAY_BATCH = 200
+
+function send(socket: WebSocket, message: unknown): boolean {
+  return sendSafely(socket, JSON.stringify(message))
 }
 
 export function createWsRouter(runtime: Runtime) {
@@ -29,7 +31,7 @@ export function createWsRouter(runtime: Runtime) {
     send(socket, event)
   }
 
-  function handle(socket: WebSocket, raw: string): void {
+  async function handle(socket: WebSocket, raw: string): Promise<void> {
     let parsed: unknown
     try {
       parsed = JSON.parse(raw)
@@ -82,8 +84,9 @@ export function createWsRouter(runtime: Runtime) {
     }
 
     if (outcome.replay) {
-      for (const event of outcome.replay) {
-        send(socket, {
+      for (let index = 0; index < outcome.replay.length; index += 1) {
+        const event = outcome.replay[index]!
+        const sent = send(socket, {
           v: 1,
           id: event.id,
           type: event.type,
@@ -91,6 +94,12 @@ export function createWsRouter(runtime: Runtime) {
           seq: event.ordinal,
           payload: event.payload,
         })
+        if (!sent) {
+          return
+        }
+        if (index % REPLAY_BATCH === REPLAY_BATCH - 1) {
+          await new Promise<void>((resolve) => setImmediate(resolve))
+        }
       }
     }
 

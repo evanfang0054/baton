@@ -89,6 +89,7 @@ describe('runVerifyCommand', () => {
     execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
     writeFileSync(join(dir, 'a.txt'), 'one\ntwo\n')
     writeFileSync(join(dir, 'b.txt'), 'new\n')
+    execFileSync('git', ['add', 'a.txt'], { cwd: dir })
 
     const stat = await readDiffStat(dir)
     expect(stat.filesChanged).toBe(2)

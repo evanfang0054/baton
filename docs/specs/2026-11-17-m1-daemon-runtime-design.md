@@ -286,13 +286,13 @@ apps/daemon
 
 ### 5.4 调度器
 
-- `maxConcurrency` 来自 `BATON_MAX_CONCURRENCY`，默认 1，正整数。
+- `maxConcurrency` 来自 `BATON_MAX_CONCURRENCY`，默认 1，正整数；`killSwitch` 来自 `BATON_KILL_SWITCH`。
 - `pump()`：
   1. 防重入（`pumping` 标志）。
   2. 查 `runningCount = count(status IN ('running','waiting_input','verifying'))`。
   3. 若 `>= maxConcurrency` 返回。
   4. 取 `queued` 任务，按 `updated_at ASC, id ASC` 排序，取第一个。
-  5. `applyTransition(taskId, { type:'start' })`；`guard_failed` 则停止；其他错误记录并停止。
+  5. `applyTransition(taskId, { type:'start' })`；`guard_failed` 或其他错误时记录该任务并在本轮跳过，继续尝试下一个候选，避免单条坏任务永久占住队首。
   6. 循环直到没有 queued 或达到上限。
 - 触发 `pump()` 的时机：`enqueue` 后、`startSession` 完成后、任务进入 `review`/`done`/`failed`/`cancelled` 后、daemon 启动后。
 - `start` 守卫失败返回 `guard_failed`，不改变任务状态。
@@ -467,11 +467,13 @@ export const TaskDetailResponse = z.object({
 export const ConfigSchema = z.object({
   // ...
   maxConcurrency: z.number().int().positive().default(1),
+  killSwitch: z.boolean().default(false),
 })
 ```
 
 - `loadConfig` 解析 `BATON_MAX_CONCURRENCY`，非正整数直接启动失败。
-- 测试配置对象需要显式带 `maxConcurrency`（`Config` 是输出类型）。
+- `loadConfig` 解析 `BATON_KILL_SWITCH`（`1`/`true`）；开启时自动批准一律降级为人工审批。
+- 测试配置对象需要显式带 `maxConcurrency` / `killSwitch`（`Config` 是输出类型）。
 
 ### 6.4 不变的部分
 

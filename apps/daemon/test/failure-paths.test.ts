@@ -1,42 +1,22 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { TestApp } from './helpers/app.js'
-import { buildTestApp } from './helpers/app.js'
-import { WsClient } from './helpers/ws-client.js'
+import type { TestRuntimeHandle } from './helpers/runtime.js'
+import { waitFor } from './helpers/async.js'
+import { createTaskPayload, createWsTestApp, type WsTestApp } from './helpers/ws.js'
+import type { WsClient } from './helpers/ws-client.js'
 
 const apps: TestApp[] = []
 const clients: WsClient[] = []
 
-async function setup(): Promise<{ app: TestApp; ws: WsClient }> {
-  const app = await buildTestApp({ useSessionRunner: true, useVerifyRunner: true })
-  apps.push(app)
-  await app.app.listen({ host: '127.0.0.1', port: 0 })
-  const address = app.app.server.address()
-  if (!address || typeof address === 'string') throw new Error('no port')
-  const ws = new WsClient(`ws://127.0.0.1:${address.port}/ws`)
-  clients.push(ws)
-  await ws.open()
-  return { app, ws }
+async function setup(): Promise<WsTestApp> {
+  const created = await createWsTestApp({ useSessionRunner: true, useVerifyRunner: true })
+  apps.push(created)
+  clients.push(created.ws)
+  return created
 }
 
-function createPayload(app: TestApp, verifyCommand: string) {
-  return {
-    workspaceId: app.handle.seeded.workspaceId,
-    nodeId: app.handle.seeded.nodeId,
-    title: 'demo',
-    prompt: '把登录页改成暗黑模式',
-    contextNodeIds: ['text-1'],
-    engine: 'fake',
-    workspaceMode: 'main',
-    verifyCommand,
-  }
-}
-
-async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<void> {
-  const started = Date.now()
-  while (!predicate()) {
-    if (Date.now() - started > timeoutMs) throw new Error('waitFor timeout')
-    await new Promise((resolve) => setTimeout(resolve, 10))
-  }
+function createPayload(handle: TestRuntimeHandle, verifyCommand: string) {
+  return createTaskPayload(handle, { verifyCommand })
 }
 
 afterEach(async () => {
@@ -48,13 +28,13 @@ afterEach(async () => {
 
 describe('failure paths', () => {
   it('records a failed verify and re-enqueues after reject', async () => {
-    const { app, ws } = await setup()
+    const { handle, ws } = await setup()
     ws.send({
       v: 1,
       type: 'task.create',
       id: 'c1',
       ts: 1,
-      payload: createPayload(app, 'node -e "process.exit(3)"'),
+      payload: createPayload(handle, 'node -e "process.exit(3)"'),
     })
     const created = await ws.next('ack')
     const taskId = (created.payload as { data: { taskId: string } }).data.taskId
@@ -84,22 +64,22 @@ describe('failure paths', () => {
       payload: { reviewId: payload.reviewId, decision: 'reject', feedback: '请修复' },
     })
     await ws.next('ack')
-    await waitFor(() => app.handle.runtime.getReviewByTask(taskId)?.verdict === 'rejected')
-    expect(app.handle.runtime.getTask(taskId)?.prompt).toContain('<feedback>')
-    expect(app.handle.runtime.getTask(taskId)?.prompt).toContain('请修复')
+    await waitFor(() => handle.runtime.getReviewByTask(taskId)?.verdict === 'rejected', 10_000)
+    expect(handle.runtime.getTask(taskId)?.prompt).toContain('<feedback>')
+    expect(handle.runtime.getTask(taskId)?.prompt).toContain('请修复')
 
-    app.handle.runtime.cancel(taskId)
-    await waitFor(() => app.handle.runtime.getTask(taskId)?.status === 'cancelled')
+    handle.runtime.cancel(taskId)
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'cancelled', 10_000)
   })
 
   it('cancels a task while verify is running', async () => {
-    const { app, ws } = await setup()
+    const { handle, ws } = await setup()
     ws.send({
       v: 1,
       type: 'task.create',
       id: 'c1',
       ts: 1,
-      payload: createPayload(app, 'node -e "setTimeout(() => {}, 60000)"'),
+      payload: createPayload(handle, 'node -e "setTimeout(() => {}, 60000)"'),
     })
     const created = await ws.next('ack')
     const taskId = (created.payload as { data: { taskId: string } }).data.taskId
@@ -117,7 +97,7 @@ describe('failure paths', () => {
     })
     await ws.next('ack')
 
-    await waitFor(() => app.handle.runtime.getTask(taskId)?.status === 'verifying')
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'verifying', 10_000)
     ws.send({
       v: 1,
       type: 'task.cancel',
@@ -126,6 +106,6 @@ describe('failure paths', () => {
       payload: { taskId, reason: 'user cancelled' },
     })
     await ws.next('ack')
-    await waitFor(() => app.handle.runtime.getTask(taskId)?.status === 'cancelled')
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'cancelled', 10_000)
   })
 })

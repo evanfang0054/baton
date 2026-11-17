@@ -16,7 +16,9 @@ export function buildContextContent(input: ContextContentInput): {
 } {
   const contentByNodeId: Record<string, string | null> = {}
   for (const node of input.nodes) {
-    if (node.type !== 'file') continue
+    if (node.type !== 'file') {
+      continue
+    }
     contentByNodeId[node.id] = isSensitivePath(node.data.path)
       ? null
       : readWorkspaceText(input.workspacePath, node.data.path)

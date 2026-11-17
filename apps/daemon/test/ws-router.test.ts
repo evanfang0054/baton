@@ -1,34 +1,21 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { TestApp } from './helpers/app.js'
-import { buildTestApp } from './helpers/app.js'
-import { WsClient } from './helpers/ws-client.js'
+import type { TestRuntimeHandle } from './helpers/runtime.js'
+import { createTaskPayload, createWsTestApp, type WsTestApp } from './helpers/ws.js'
+import type { WsClient } from './helpers/ws-client.js'
 
 const apps: TestApp[] = []
 const clients: WsClient[] = []
 
-async function setup(): Promise<{ app: TestApp; ws: WsClient; url: string }> {
-  const app = await buildTestApp()
-  apps.push(app)
-  await app.app.listen({ host: '127.0.0.1', port: 0 })
-  const address = app.app.server.address()
-  if (!address || typeof address === 'string') throw new Error('no port')
-  const url = `ws://127.0.0.1:${address.port}/ws`
-  const ws = new WsClient(url)
-  clients.push(ws)
-  await ws.open()
-  return { app, ws, url }
+async function setup(): Promise<WsTestApp> {
+  const created = await createWsTestApp()
+  apps.push(created)
+  clients.push(created.ws)
+  return created
 }
 
-function createPayload(app: TestApp) {
-  return {
-    workspaceId: app.handle.seeded.workspaceId,
-    nodeId: app.handle.seeded.nodeId,
-    title: 'demo',
-    prompt: '把登录页改成暗黑模式',
-    contextNodeIds: ['text-1'],
-    engine: 'fake',
-    workspaceMode: 'main',
-  }
+function taskPayload(handle: TestRuntimeHandle) {
+  return createTaskPayload(handle)
 }
 
 afterEach(async () => {
@@ -40,13 +27,13 @@ afterEach(async () => {
 
 describe('ws router', () => {
   it('acks task.create and task.enqueue with data', async () => {
-    const { app, ws } = await setup()
+    const { handle, ws } = await setup()
     ws.send({
       v: 1,
       type: 'task.create',
       id: 'c1',
       ts: 1,
-      payload: createPayload(app),
+      payload: taskPayload(handle),
     })
     const created = await ws.next('ack')
     expect(created.payload).toMatchObject({ commandId: 'c1', ok: true })
@@ -65,13 +52,13 @@ describe('ws router', () => {
   })
 
   it('replays events for resume and returns a cursor', async () => {
-    const { app, ws } = await setup()
+    const { handle, ws } = await setup()
     ws.send({
       v: 1,
       type: 'task.create',
       id: 'c1',
       ts: 1,
-      payload: createPayload(app),
+      payload: taskPayload(handle),
     })
     await ws.next('ack')
 

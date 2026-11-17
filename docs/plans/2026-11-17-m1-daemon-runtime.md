@@ -1559,3 +1559,8 @@ git commit -m "test(daemon): 增加 M1-5 闭环验收并完成全量校验"
 - CI 首次运行暴露：`.gitignore` 的 `workspace/` 误伤 `apps/daemon/src/workspace/`，且 daemon 未声明 `zod`；已修复（`a9e19fb`）。
 - CI verify 在 Linux 上取消 verifying 时子进程组未及时回收，导致 `afterEach` 超时；`runVerifyCommand` 现在在外部 abort 时也杀进程组，5 秒后 SIGKILL。
 - CI 最终状态（`1043abb`）：`verify (22)`、`verify (24)`、`pack-check`、`e2e`、`build`（含 docker）全部通过；PR #5 可合并。
+- 合并前深度 review 的修复：
+  - P1：0001 迁移回填 `ws_event`，避免升级库首次写入撞 `event.ordinal` 唯一索引；调度器 start 失败后跳过该任务；审批转移失败时回传 `deny` 给适配器；WS 发送统一走 `sendSafely`，replay 每 200 帧让出事件循环。
+  - P2：自动批准决策与审计同事务；`close()` 增加 draining 门闩并等待 consume；`BATON_KILL_SWITCH` 接入 `evaluateApproval`；WS 校验 Origin；session 事件仍逐条持久化（按帧合并属 contract Out of Scope）。
+  - P3：旧 review 不可再被采纳；Fastify 4xx 不再降级为 500；路径校验返回 realpath；日志补脱敏；协议 payload 由 `ServerMessage` 派生；`approval.request` 契约上移 protocol；`diffStat` 统计含 staged；错误码统一 `already_decided`/`review_expired`/`unsupported_workspace_mode`。
+  - 风格：修复 diff 内控制语句花括号与超长 SQL 模板行；测试脚手架抽取 `waitFor`/`createWsTestApp`/`createTaskPayload`；SessionRunner 生命周期方法统一为 `close()`。

@@ -9,7 +9,9 @@ import { appError } from '../errors.js'
  */
 export function loadPolicy(workspacePath: string): Policy {
   const file = join(workspacePath, '.baton', 'policy.json')
-  if (!existsSync(file)) return PolicySchema.parse({})
+  if (!existsSync(file)) {
+    return PolicySchema.parse({})
+  }
 
   try {
     const realRoot = realpathSync(workspacePath)

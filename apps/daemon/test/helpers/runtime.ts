@@ -55,6 +55,7 @@ export function createTestRuntime(
     webRoot: root,
     workspacesRoot: root,
     maxConcurrency: options.maxConcurrency ?? 1,
+    killSwitch: false,
     ...options.config,
   }
 
@@ -117,7 +118,9 @@ export function createTestRuntime(
       ...overrides,
     }
     const result = runtime.createTask(input)
-    if (!result.ok) throw new Error(`createTask failed: ${result.error.code}`)
+    if (!result.ok) {
+      throw new Error(`createTask failed: ${result.error.code}`)
+    }
     return result.taskId
   }
 

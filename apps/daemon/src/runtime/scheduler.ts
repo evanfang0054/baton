@@ -4,7 +4,7 @@ import type { TransitionOutcome } from './types.js'
 export interface SchedulerRuntime {
   readonly maxConcurrency: number
   countActiveTasks(): number
-  findNextQueued(): { id: string } | null
+  findNextQueued(exclude?: ReadonlySet<string>): { id: string } | null
   applyTransition(taskId: string, event: TaskTransitionEvent): TransitionOutcome
 }
 
@@ -16,15 +16,25 @@ export function createScheduler(runtime: SchedulerRuntime) {
   let pumping = false
 
   function pump(): void {
-    if (pumping) return
+    if (pumping) {
+      return
+    }
     pumping = true
     try {
+      const skipped = new Set<string>()
       while (true) {
-        if (runtime.countActiveTasks() >= runtime.maxConcurrency) break
-        const next = runtime.findNextQueued()
-        if (!next) break
+        if (runtime.countActiveTasks() >= runtime.maxConcurrency) {
+          break
+        }
+        const next = runtime.findNextQueued(skipped)
+        if (!next) {
+          break
+        }
         const outcome = runtime.applyTransition(next.id, { type: 'start' })
-        if (!outcome.ok) break
+        if (!outcome.ok) {
+          // 单条坏任务（workspace 被删、policy 非法）不能永久占住队首。
+          skipped.add(next.id)
+        }
       }
     } finally {
       pumping = false

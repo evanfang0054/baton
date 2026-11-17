@@ -28,8 +28,7 @@
     "execa": "^10.2.1",
     "fastify": "^5.12.8",
     "pino": "^10.4.0",
-    "ws": "^8.23.0",
-    "zod": "^4.6.7"
+    "ws": "^8.23.0"
   },
   "devDependencies": {
     "@baton/adapters": "workspace:*",

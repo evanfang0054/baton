@@ -32,7 +32,9 @@ function resolveMigrationsDir(): string {
   const dir = migrationCandidates().find((candidate) =>
     existsSync(join(candidate, 'meta', '_journal.json')),
   )
-  if (!dir) throw new Error('migrations not found; set BATON_MIGRATIONS_DIR')
+  if (!dir) {
+    throw new Error('migrations not found; set BATON_MIGRATIONS_DIR')
+  }
   return dir
 }
 

@@ -14,7 +14,9 @@ async function listen(token: string | null): Promise<string> {
   handles.push(handle)
   await app.listen({ host: '127.0.0.1', port: 0 })
   const address = app.server.address()
-  if (!address || typeof address === 'string') throw new Error('no port')
+  if (!address || typeof address === 'string') {
+    throw new Error('no port')
+  }
   return `ws://127.0.0.1:${address.port}/ws`
 }
 
@@ -54,4 +56,11 @@ describe('ws', () => {
     await expect(pong).resolves.toMatchObject({ type: 'pong' })
     ws.close()
   })
+
+  it('rejects cross-origin browser handshakes', async () => {
+    const url = await listen(null)
+    const ws = new WebSocket(url, { headers: { origin: 'http://evil.example' } })
+    const code = await new Promise<number>((resolve) => ws.on('close', (c) => resolve(c)))
+    expect(code).toBe(4403)
+  }, 8000)
 })

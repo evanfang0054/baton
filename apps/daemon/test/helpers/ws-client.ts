@@ -50,7 +50,9 @@ export class WsClient {
         : this.messages.length > 0
           ? 0
           : -1
-      if (index >= 0) return this.messages.splice(index, 1)[0]!
+      if (index >= 0) {
+        return this.messages.splice(index, 1)[0]!
+      }
       await new Promise<void>((resolve, reject) => {
         const timer = setTimeout(() => {
           this.emitter.off('message', onMessage)
