@@ -10,7 +10,7 @@ const fixtures = [
     'task.status',
     { taskId: 't1', status: 'running', previousStatus: 'queued', retryCount: 0, updatedAt: 2 },
   ],
-  ['session.event', { sessionId: 's1', event: aguiEvent }],
+  ['session.event', { sessionId: 's1', seq: 1, event: aguiEvent }],
   [
     'approval.request',
     {
@@ -79,6 +79,21 @@ describe('ServerMessage', () => {
     for (const [type, payload] of replayable) {
       expect(() => ServerMessage.parse({ v: 1, ts: 1, type, payload })).toThrow()
     }
+  })
+
+  it('accepts session.event replay rows without seq', () => {
+    const parsed = ServerMessage.parse({
+      v: 1,
+      ts: 1,
+      seq: 1,
+      type: 'session.event',
+      payload: {
+        sessionId: 's1',
+        event: { type: 'RUN_STARTED', threadId: 't1', runId: 'r1' },
+      },
+    })
+    expect(parsed.type).toBe('session.event')
+    if (parsed.type === 'session.event') expect(parsed.payload.seq).toBeUndefined()
   })
 
   it('parses the shared approval request value', () => {

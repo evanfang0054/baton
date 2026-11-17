@@ -66,6 +66,11 @@ describe('event store', () => {
       .get(appended.ordinal) as { ordinal: number; type: string }
     expect(eventRow).toEqual({ ordinal: appended.ordinal, seq: 1, type: 'TEXT_MESSAGE_CONTENT' })
     expect(wsRow).toEqual({ ordinal: appended.ordinal, type: 'session.event' })
+    expect(appended.payload).toMatchObject({
+      sessionId: seeded.sessionId,
+      seq: 1,
+      event: { type: 'TEXT_MESSAGE_CONTENT' },
+    })
   })
 
   it('replays after the cursor in ascending order with hasMore', () => {

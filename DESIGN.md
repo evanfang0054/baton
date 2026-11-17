@@ -193,7 +193,8 @@ When this file and the current package disagree, follow the installed HeroUI ver
 | attention | 表达 | 说明 |
 |---|---|---|
 | `needs_approval` | `Chip color="warning"` + 盾牌图标 + 「待审批」 | `waitingReason=approval` |
-| `needs_reply` | `Chip color="warning"` + 对话图标 + 「待回复」 | `question/stalled/dropped` |
+| `needs_reply` | `Chip color="warning"` + 对话图标 + 「待回复」 | `question/dropped` |
+| `needs_attention` | `Chip color="warning"` + 警示图标 + 「需关注」 | `waitingReason=stalled` |
 | `needs_review` | `Chip color="accent"` + check 图标 + 「待验收」 | `review` |
 | `none` | 不渲染 | 其他状态 |
 

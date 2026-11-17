@@ -77,7 +77,7 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
       const ts = input.ts ?? deps.now()
       const ws = appendWs(tx, {
         type: 'session.event',
-        payload: { sessionId: input.sessionId, event: input.event },
+        payload: { sessionId: input.sessionId, seq: input.seq, event: input.event },
         ts,
       })
       tx.insert(event)
