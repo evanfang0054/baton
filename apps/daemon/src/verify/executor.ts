@@ -77,9 +77,6 @@ export async function runVerifyCommand(
 ): Promise<VerifyCommandRunResult> {
   const started = Date.now()
   const controller = new AbortController()
-  const forwardAbort = (): void => controller.abort()
-  input.signal?.addEventListener('abort', forwardAbort, { once: true })
-
   let subprocess: ReturnType<typeof execa> | undefined
   const killGroup = (signal: NodeJS.Signals): void => {
     if (!subprocess?.pid) return
@@ -89,13 +86,21 @@ export async function runVerifyCommand(
       // 进程已退出或没有权限；忽略。
     }
   }
+  const killTree = (): void => {
+    killGroup('SIGTERM')
+    const force = setTimeout(() => killGroup('SIGKILL'), 5000)
+    force.unref()
+  }
+  const forwardAbort = (): void => {
+    controller.abort()
+    killTree()
+  }
+  input.signal?.addEventListener('abort', forwardAbort, { once: true })
 
   const timer = setTimeout(
     () => {
       controller.abort()
-      killGroup('SIGTERM')
-      const force = setTimeout(() => killGroup('SIGKILL'), 5000)
-      force.unref()
+      killTree()
     },
     Math.max(0, input.timeoutSec) * 1000,
   )

@@ -1556,3 +1556,5 @@ git commit -m "test(daemon): 增加 M1-5 闭环验收并完成全量校验"
 - verify 超时/取消同时检查 `result.isCanceled`、`result.timedOut` 与 `controller.signal.aborted`，统一映射退出码 124。
 - 测试 helper 区分 `useSessionRunner` 与 `useVerifyRunner`；默认 session 模式用 `runVerify` stub，避免测试意外执行 `pnpm test`。
 - `apps/daemon` 新增 `execa@10.2.1`、`pino@10.4.0`（均 MIT），已更新 notices。
+- CI 首次运行暴露：`.gitignore` 的 `workspace/` 误伤 `apps/daemon/src/workspace/`，且 daemon 未声明 `zod`；已修复（`a9e19fb`）。
+- CI verify 在 Linux 上取消 verifying 时子进程组未及时回收，导致 `afterEach` 超时；`runVerifyCommand` 现在在外部 abort 时也杀进程组，5 秒后 SIGKILL。
