@@ -295,7 +295,7 @@ verify 命令解析优先级：任务级配置 > 项目 `.baton/policy.json` > `
 | 交互 | `react-resizable-panels`、`@dnd-kit/core` + `sortable`、`@tanstack/react-virtual`、`html-to-image`、`@uiw/react-codemirror` | MIT |
 | Diff | `react-diff-view` + `diff` | MIT / BSD-3 |
 | 状态 | `zustand`、`@tanstack/react-query` | MIT |
-| UI | Tailwind 4、shadcn/ui、`lucide-react`、`sonner`、`cmdk` | MIT / ISC |
+| UI | Tailwind 4、HeroUI v3（`@heroui/react` + `@heroui/styles`）、`lucide-react`、`sonner`、`cmdk` | MIT / Apache-2.0 / ISC |
 | 系统 | `execa`、`p-queue`、`simple-git`、`chokidar`、`croner`、`node-notifier`、`picomatch` | MIT |
 | 工程 | `vitest`、`@playwright/test`、`tsup`、Vite、`changesets`、`dependency-cruiser`、ESLint 10、Prettier、husky、lint-staged、commitlint | MIT / Apache-2.0 |
 
@@ -598,6 +598,7 @@ volumes:
 | 22 | 会话结局 | `session.outcome` 的 `blocked/dropped` 是暂停，不是会话结束 | 用户需要能直接回复活跃 run |
 | 23 | 看板投影 | 内部 9 态对外压成 7 列；`waitingSince` 由 `updatedAt` 推导 | 保持状态机细粒度，同时符合"任务等人"的心智模型 |
 | 24 | 总管边界 | Router 只调度，不替人过闸门；工具白名单在 M2 spec 锁定 | 防止总管幻觉与越权 |
+| 25 | web 组件库 | HeroUI v3（React Aria + Tailwind 4），替代 shadcn/ui | React 19 / Tailwind 4 原生、无障碍、Apache-2.0；详见 `docs/adr/0002-heroui-component-library.md` |
 
 ---
 
