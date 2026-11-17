@@ -23,6 +23,10 @@ interface Rendered {
 
 type ContentNode = Extract<Node, { type: 'text' | 'file' | 'image' }>
 
+function isContentNode(node: Node): node is ContentNode {
+  return node.type === 'text' || node.type === 'file' || node.type === 'image'
+}
+
 function compareNode(a: Node, b: Node): number {
   if (a.y !== b.y) return a.y - b.y
   if (a.x !== b.x) return a.x - b.x
@@ -70,7 +74,10 @@ function renderContent(
     case 'text':
       return node.data.content
     case 'file': {
-      const content = contentByNodeId?.[node.id]
+      const content =
+        contentByNodeId && Object.hasOwn(contentByNodeId, node.id)
+          ? contentByNodeId[node.id]
+          : undefined
       return content === undefined || content === null ? node.data.path : content
     }
     case 'image': {
@@ -117,11 +124,17 @@ export function assembleContext(input: AssembleContextInput): AssembleContextRes
     }
     if (node.type === 'group') {
       for (const child of input.nodes) {
-        if (child.groupId === node.id) seedIds.add(child.id)
+        if (child.groupId !== node.id) continue
+        if (child.id === input.targetNodeId) {
+          drop(dropped, child.id, 'target')
+          continue
+        }
+        // group 只展开内容节点；agent/review/嵌套 group 不是内容源。
+        if (isContentNode(child)) seedIds.add(child.id)
       }
       return
     }
-    if (node.type === 'review' || node.type === 'agent') return
+    if (!isContentNode(node)) return
     seedIds.add(id)
   }
 
@@ -134,7 +147,7 @@ export function assembleContext(input: AssembleContextInput): AssembleContextRes
       drop(dropped, id, 'not_found')
       continue
     }
-    if (node.type === 'review' || node.type === 'agent' || node.type === 'group') continue
+    if (!isContentNode(node)) continue
     seedIds.add(id)
   }
 
@@ -156,12 +169,7 @@ export function assembleContext(input: AssembleContextInput): AssembleContextRes
         drop(dropped, predecessor, 'not_found')
         continue
       }
-      if (
-        predecessorNode.id === input.targetNodeId ||
-        predecessorNode.type === 'review' ||
-        predecessorNode.type === 'agent' ||
-        predecessorNode.type === 'group'
-      ) {
+      if (predecessorNode.id === input.targetNodeId || !isContentNode(predecessorNode)) {
         continue
       }
       depth.set(predecessor, currentDepth + 1)
@@ -180,6 +188,7 @@ export function assembleContext(input: AssembleContextInput): AssembleContextRes
     drop(dropped, extra.node.id, 'limit')
   }
 
+  const truncatedIds = new Set<string>()
   const rendered: Rendered[] = []
   for (const { node, depth: nodeDepth } of candidates.slice(0, MAX_NODES)) {
     if (node.type === 'file' && isSensitivePath(node.data.path)) {
@@ -198,6 +207,11 @@ export function assembleContext(input: AssembleContextInput): AssembleContextRes
 
     const wasTruncated = raw.length > maxNodeChars
     const content = wasTruncated ? raw.slice(0, maxNodeChars) : raw
+    if (content.length === 0) {
+      drop(dropped, node.id, 'empty')
+      if (wasTruncated) truncatedIds.add(node.id)
+      continue
+    }
     rendered.push({
       node,
       depth: nodeDepth,
@@ -208,7 +222,6 @@ export function assembleContext(input: AssembleContextInput): AssembleContextRes
     })
   }
 
-  const truncatedIds = new Set<string>()
   let total = rendered.reduce((sum, item) => sum + item.chars, 0)
 
   if (total > maxChars) {

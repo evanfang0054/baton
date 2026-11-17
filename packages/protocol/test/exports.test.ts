@@ -18,6 +18,7 @@ const schemaNames = [
   'ReviewVerdict',
   'Engine',
   'WorkspaceMode',
+  'PermissionMode',
   'Id',
   'Timestamp',
   'DiffStat',

@@ -4,6 +4,7 @@ import {
   PolicySchema,
   type AgentAdapter,
   type AgentRun,
+  type ApprovalDecision,
   type PolicySnapshot,
   type StartInput,
 } from '@baton/protocol'
@@ -44,8 +45,8 @@ const edge = Edge.parse({
   type: 'context',
 })
 
-describe('M1-5 consumption shape', () => {
-  it('feeds assembled prompt into StartInput and policy decisions into approve', async () => {
+describe('context -> policy -> adapter wiring', () => {
+  it('feeds assembled prompt into StartInput and keeps ask as a human decision', async () => {
     const assembled = assembleContext({
       taskPrompt: '把登录页改成暗黑模式',
       targetNodeId: 'n2',
@@ -57,9 +58,9 @@ describe('M1-5 consumption shape', () => {
     const policy = PolicySchema.parse({})
     const snapshot: PolicySnapshot = policy
     const verify = resolveVerifyCommand({ packageScripts: { verify: 'vitest run' } })
-    expect(verify.ok).toBe(true)
-    if (verify.ok) expect(typeof verify.command).toBe('string')
+    expect(verify).toEqual({ ok: true, command: 'pnpm run verify', source: 'package' })
 
+    const approvals: Array<[string, ApprovalDecision]> = []
     const adapter: AgentAdapter = {
       name: 'fake',
       async start(input: StartInput): Promise<AgentRun> {
@@ -67,9 +68,8 @@ describe('M1-5 consumption shape', () => {
         expect(input.policy.approval.default).toBe('ask')
         return {
           events: (async function* () {})(),
-          approve: async (_requestId, decision) => {
-            const allowed: 'allow' | 'deny' = decision
-            expect(['allow', 'deny']).toContain(allowed)
+          approve: async (requestId, decision) => {
+            approvals.push([requestId, decision])
           },
           send: async () => {},
           interrupt: async () => {},
@@ -91,6 +91,10 @@ describe('M1-5 consumption shape', () => {
       { killSwitch: false },
     )
     expect(decision.decision).toBe('ask')
-    await run.approve('req-1', decision.decision === 'deny' ? 'deny' : 'allow')
+    expect(approvals).toEqual([])
+
+    // ask 不是自动批准；这里模拟用户在 UI 上点了 allow。
+    await run.approve('req-1', 'allow')
+    expect(approvals).toEqual([['req-1', 'allow']])
   })
 })

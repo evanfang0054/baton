@@ -74,6 +74,14 @@ describe('assembleContext', () => {
     expect(isSensitivePath('config/.env.local')).toBe(true)
     expect(isSensitivePath('certs/server.pem')).toBe(true)
     expect(isSensitivePath('secrets/api-key.txt')).toBe(true)
+    expect(isSensitivePath('.npmrc')).toBe(true)
+    expect(isSensitivePath('.netrc')).toBe(true)
+    expect(isSensitivePath('.git-credentials')).toBe(true)
+    expect(isSensitivePath('credentials.json')).toBe(true)
+    expect(isSensitivePath('certs/client.p12')).toBe(true)
+    expect(isSensitivePath('id_ed25519')).toBe(true)
+    expect(isSensitivePath('id_rsa.pub')).toBe(false)
+    expect(isSensitivePath('id_ed25519.pub')).toBe(false)
     expect(isSensitivePath('src/index.ts')).toBe(false)
     expect(isSensitivePath('README.md')).toBe(false)
   })
@@ -106,7 +114,9 @@ describe('assembleContext', () => {
     })
     expect(result.truncated).toBe(true)
     expect(result.prompt).toContain('<truncated nodes="')
-    expect(result.included.length + result.dropped.length).toBeGreaterThan(0)
+    expect(result.included.reduce((sum, item) => sum + item.chars, 0)).toBeLessThanOrEqual(60)
+    expect(result.dropped).toContainEqual({ id: 'n11', reason: 'budget' })
+    expect(result.prompt).toContain('truncated="true"')
   })
 
   it('drops missing and empty nodes with reasons', () => {
@@ -210,5 +220,83 @@ describe('assembleContext', () => {
     })
     expect(result.included).toHaveLength(40)
     expect(result.dropped.some((item) => item.reason === 'limit')).toBe(true)
+  })
+
+  it('ignores non-content children of a selected group', () => {
+    const group2 = node('g2', 'group', { label: 'G2', collapsed: false }, 0, 200)
+    const agentChild = node(
+      'ga',
+      'agent',
+      { title: 'A', engine: 'fake', taskId: null },
+      1,
+      201,
+      'g2',
+    )
+    const reviewChild = node('gr', 'review', { taskId: 't3' }, 2, 202, 'g2')
+    const nestedGroup = node('gg', 'group', { label: 'nested', collapsed: false }, 3, 203, 'g2')
+    const textChild = node('gt', 'text', { content: 'group text' }, 4, 204, 'g2')
+    const result = assembleContext({
+      taskPrompt: 'demo',
+      targetNodeId: 'n4',
+      selectedNodeIds: ['g2'],
+      nodes: [...nodes, group2, agentChild, reviewChild, nestedGroup, textChild],
+      edges: [],
+    })
+    expect(result.included.map((item) => item.id)).toEqual(['gt'])
+    expect(result.prompt).toContain('group text')
+    expect(result.prompt).not.toContain('"ga"')
+    expect(result.prompt).not.toContain('"gr"')
+    expect(result.prompt).not.toContain('"gg"')
+  })
+
+  it('does not read inherited content map keys', () => {
+    const file = node('toString', 'file', { path: 'docs/a.md', name: 'a.md' }, 0, 210)
+    const result = assembleContext({
+      taskPrompt: 'demo',
+      targetNodeId: 'n4',
+      selectedNodeIds: ['toString'],
+      nodes: [...nodes, file],
+      edges: [],
+      contentByNodeId: {},
+    })
+    expect(result.prompt).toContain('docs/a.md')
+  })
+
+  it('drops nodes truncated to zero length', () => {
+    const long = node('n30', 'text', { content: 'abc' }, 0, 220)
+    const result = assembleContext({
+      taskPrompt: 'demo',
+      targetNodeId: 'n4',
+      selectedNodeIds: ['n30'],
+      nodes: [...nodes, long],
+      edges: [],
+      maxNodeChars: 0,
+    })
+    expect(result.dropped).toContainEqual({ id: 'n30', reason: 'empty' })
+    expect(result.truncated).toBe(true)
+  })
+
+  it('deduplicates a node selected both explicitly and via an edge', () => {
+    const result = assembleContext({
+      taskPrompt: 'demo',
+      targetNodeId: 'n4',
+      selectedNodeIds: ['n1', 'n2'],
+      nodes,
+      edges: [edge('e2', 'n2', 'n1')],
+    })
+    expect(result.included.filter((item) => item.id === 'n1')).toHaveLength(1)
+    expect(result.included.find((item) => item.id === 'n1')?.depth).toBe(0)
+    expect(result.included.find((item) => item.id === 'n2')?.depth).toBe(0)
+  })
+
+  it('does not expand an unselected group', () => {
+    const result = assembleContext({
+      taskPrompt: 'demo',
+      targetNodeId: 'n4',
+      selectedNodeIds: [],
+      nodes,
+      edges: [],
+    })
+    expect(result.included).toEqual([])
   })
 })
