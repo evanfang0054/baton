@@ -9,7 +9,7 @@ depends_on: docs/specs/2026-11-17-m1-protocol-state-machine-design.md
 
 # M1-3 + M1-4 上下文、策略与适配器实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use agent-harness:subagent-driven-development (recommended) or agent-harness:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use agent-harness:subagent-driven-development (recommended) or agent-harness:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 在不改 daemon/web/DB 的前提下，交付 M1-5 可直接调用的三个 core 纯函数、`AgentAdapter` 契约与可确定性测试的 `agent-fake`。
 
@@ -89,7 +89,7 @@ packages/
 - Produces: `AgentAdapter`、`StartInput`、`AgentRun`、`PolicySnapshot`
 - Consumes: `AgentEvent`（`./agui.js`）、`Policy`（`./policy.js`）、`Engine`（`./enums.js`）
 
-- [ ] **Step 1: 写失败测试（adapter 导出）**
+- [x] **Step 1: 写失败测试（adapter 导出）**
 
 在 `packages/protocol/test/exports.test.ts` 追加：
 
@@ -124,7 +124,7 @@ it('exports the AgentAdapter contract', async () => {
 })
 ```
 
-- [ ] **Step 2: 写失败测试（默认 policy glob）**
+- [x] **Step 2: 写失败测试（默认 policy glob）**
 
 新建 `packages/protocol/test/policy-defaults.test.ts`：
 
@@ -156,7 +156,7 @@ describe('policy defaults', () => {
 })
 ```
 
-- [ ] **Step 3: 运行测试确认失败**
+- [x] **Step 3: 运行测试确认失败**
 
 ```bash
 pnpm --filter @baton/protocol test
@@ -164,7 +164,7 @@ pnpm --filter @baton/protocol test
 
 Expected: FAIL，`../src/adapter.js` 不存在；默认 allow 数组仍含 `(test|lint|...)`。
 
-- [ ] **Step 4: 创建 `packages/protocol/src/adapter.ts`**
+- [x] **Step 4: 创建 `packages/protocol/src/adapter.ts`**
 
 ```ts
 import type { AgentEvent } from './agui.js'
@@ -197,7 +197,7 @@ export interface AgentAdapter {
 }
 ```
 
-- [ ] **Step 5: 导出 adapter**
+- [x] **Step 5: 导出 adapter**
 
 在 `packages/protocol/src/index.ts` 的 `agui.js` 导出旁增加：
 
@@ -205,7 +205,7 @@ export interface AgentAdapter {
 export * from './adapter.js'
 ```
 
-- [ ] **Step 6: 修改默认 policy 规则**
+- [x] **Step 6: 修改默认 policy 规则**
 
 在 `packages/protocol/src/policy.ts` 的 `DEFAULT_ALLOW` 中把：
 
@@ -219,7 +219,7 @@ export * from './adapter.js'
 'Bash:pnpm {test,lint,typecheck,build,install --frozen-lockfile}',
 ```
 
-- [ ] **Step 7: 运行测试确认通过**
+- [x] **Step 7: 运行测试确认通过**
 
 ```bash
 pnpm --filter @baton/protocol test
@@ -228,7 +228,7 @@ pnpm --filter @baton/protocol typecheck
 
 Expected: PASS；typecheck 退出码 0。
 
-- [ ] **Step 8: 提交**
+- [x] **Step 8: 提交**
 
 ```bash
 git add packages/protocol/src/adapter.ts packages/protocol/src/index.ts packages/protocol/src/policy.ts packages/protocol/test/exports.test.ts packages/protocol/test/policy-defaults.test.ts
@@ -259,7 +259,7 @@ git commit -m "feat(protocol): 增加 AgentAdapter 契约并统一 policy glob �
   ```
 - Consumes: `Node`、`Edge`、`NodeType` from `@baton/protocol`
 
-- [ ] **Step 1: 写失败测试（fixture + 基础渲染）**
+- [x] **Step 1: 写失败测试（fixture + 基础渲染）**
 
 新建 `packages/core/test/context.test.ts`：
 
@@ -338,7 +338,7 @@ describe('assembleContext', () => {
 
 Expected `included` 顺序说明：depth 0 的 `n1`（目标 Agent 直接前驱）、`n3`（显式）、`n7`/`n8`（group 展开）按 `(y,x,id)`；depth 1 的 `n2`（n1 的上游）最后。
 
-- [ ] **Step 2: 写失败测试（敏感路径、预算、边界）**
+- [x] **Step 2: 写失败测试（敏感路径、预算、边界）**
 
 追加：
 
@@ -397,7 +397,7 @@ it('drops missing and empty nodes with reasons', () => {
 })
 ```
 
-- [ ] **Step 3: 运行测试确认失败**
+- [x] **Step 3: 运行测试确认失败**
 
 ```bash
 pnpm --filter @baton/core test
@@ -405,7 +405,7 @@ pnpm --filter @baton/core test
 
 Expected: FAIL，`../src/context/index.js` 不存在。
 
-- [ ] **Step 4: 实现类型与敏感路径**
+- [x] **Step 4: 实现类型与敏感路径**
 
 `packages/core/src/context/types.ts`：
 
@@ -453,7 +453,7 @@ export function isSensitivePath(path: string): boolean {
 }
 ```
 
-- [ ] **Step 5: 实现装配算法**
+- [x] **Step 5: 实现装配算法**
 
 `packages/core/src/context/assemble.ts` 按以下顺序实现：
 
@@ -489,7 +489,7 @@ function renderNode(node: Node, content: string | null): string | null {
 
 注意：`text` 节点可能含 XML 特殊字符，正文不转义（保留 Markdown/代码原文）；属性值必须转义 `& < > "`。
 
-- [ ] **Step 6: 导出**
+- [x] **Step 6: 导出**
 
 `packages/core/src/context/index.ts`：
 
@@ -505,7 +505,7 @@ export { assembleContext } from './assemble.js'
 export * from './context/index.js'
 ```
 
-- [ ] **Step 7: 运行测试与快照**
+- [x] **Step 7: 运行测试与快照**
 
 ```bash
 pnpm --filter @baton/core test
@@ -514,7 +514,7 @@ pnpm --filter @baton/core typecheck
 
 Expected: context 测试全部 PASS；如果新增快照，确认快照内容不含本机路径。
 
-- [ ] **Step 8: 提交**
+- [x] **Step 8: 提交**
 
 ```bash
 git add packages/core/src/context packages/core/src/index.ts packages/core/test/context.test.ts
@@ -553,7 +553,7 @@ git commit -m "feat(core): 增加确定性上下文装配与敏感路径过滤"
   ```
 - Consumes: `Policy`、`ApprovalRequest`、`RiskLevel`、`AppError` from `@baton/protocol`
 
-- [ ] **Step 1: 安装 picomatch 与类型**
+- [x] **Step 1: 安装 picomatch 与类型**
 
 ```bash
 pnpm --filter @baton/core add picomatch@^4.0.7
@@ -562,7 +562,7 @@ pnpm --filter @baton/core add -D @types/picomatch@^4.0.3
 
 Expected: `packages/core/package.json` 出现 `picomatch` 依赖与 `@types/picomatch` 开发依赖；lockfile 更新。
 
-- [ ] **Step 2: 写失败测试（policy 判定表）**
+- [x] **Step 2: 写失败测试（policy 判定表）**
 
 新建 `packages/core/test/policy.test.ts`：
 
@@ -678,7 +678,7 @@ describe('evaluateApproval', () => {
 })
 ```
 
-- [ ] **Step 3: 写失败测试（verify 解析）**
+- [x] **Step 3: 写失败测试（verify 解析）**
 
 新建 `packages/core/test/verify.test.ts`：
 
@@ -724,7 +724,7 @@ describe('resolveVerifyCommand', () => {
 })
 ```
 
-- [ ] **Step 4: 运行测试确认失败**
+- [x] **Step 4: 运行测试确认失败**
 
 ```bash
 pnpm --filter @baton/core test
@@ -732,7 +732,7 @@ pnpm --filter @baton/core test
 
 Expected: FAIL，`../src/policy/index.js` 与 `../src/verify/index.js` 不存在。
 
-- [ ] **Step 5: 实现 policy 类型与匹配**
+- [x] **Step 5: 实现 policy 类型与匹配**
 
 `packages/core/src/policy/types.ts`：
 
@@ -794,7 +794,7 @@ export function matchRule(rule: string, request: ApprovalRequest): boolean {
 }
 ```
 
-- [ ] **Step 6: 实现风险分级与求值**
+- [x] **Step 6: 实现风险分级与求值**
 
 `packages/core/src/policy/risk.ts`：
 
@@ -915,7 +915,7 @@ export * from './risk.js'
 export * from './evaluate.js'
 ```
 
-- [ ] **Step 7: 实现 verify 解析**
+- [x] **Step 7: 实现 verify 解析**
 
 `packages/core/src/verify/types.ts`：
 
@@ -975,7 +975,7 @@ export * from './types.js'
 export * from './resolve.js'
 ```
 
-- [ ] **Step 8: 导出并更新 notices**
+- [x] **Step 8: 导出并更新 notices**
 
 `packages/core/src/index.ts` 追加：
 
@@ -991,7 +991,7 @@ export * from './verify/index.js'
 - `@types/picomatch@4.0.3` — MIT — picomatch 类型声明（开发依赖）
 ```
 
-- [ ] **Step 9: 运行测试与类型检查**
+- [x] **Step 9: 运行测试与类型检查**
 
 ```bash
 pnpm --filter @baton/core test
@@ -1000,7 +1000,7 @@ pnpm --filter @baton/core typecheck
 
 Expected: policy/verify 测试全部 PASS；typecheck 退出码 0。
 
-- [ ] **Step 10: 提交**
+- [x] **Step 10: 提交**
 
 ```bash
 git add packages/core/src/policy packages/core/src/verify packages/core/src/index.ts packages/core/package.json packages/core/test/policy.test.ts packages/core/test/verify.test.ts THIRD_PARTY_NOTICES.md pnpm-lock.yaml
@@ -1026,7 +1026,7 @@ git commit -m "feat(core): 增加 policy 求值、风险分级与 verify 命令�
 - Produces: `FakeAdapter`、`FakeStep`
 - Consumes: `AgentAdapter`、`AgentRun`、`StartInput`、`AgentEvent`、`EventSchemas`、`ApprovalRequest`
 
-- [ ] **Step 1: 创建 package 骨架**
+- [x] **Step 1: 创建 package 骨架**
 
 `packages/adapters/package.json`：
 
@@ -1065,7 +1065,7 @@ git commit -m "feat(core): 增加 policy 求值、风险分级与 verify 命令�
 }
 ```
 
-- [ ] **Step 2: 写失败测试（默认脚本 + approve allow）**
+- [x] **Step 2: 写失败测试（默认脚本 + approve allow）**
 
 新建 `packages/adapters/test/fake.test.ts`：
 
@@ -1133,7 +1133,7 @@ describe('FakeAdapter', () => {
 
 注意：测试里的 `setTimeout` 只用于等待事件，不在适配器实现里使用定时器。
 
-- [ ] **Step 3: 写失败测试（deny / interrupt / send / 自定义脚本）**
+- [x] **Step 3: 写失败测试（deny / interrupt / send / 自定义脚本）**
 
 追加：
 
@@ -1177,7 +1177,7 @@ it('send appends a text event', async () => {
 
 补一个 `startInput()` helper 与 `waitFor` helper（`waitFor` 轮询 `events`，用 `setTimeout(0)`）。
 
-- [ ] **Step 4: 运行测试确认失败**
+- [x] **Step 4: 运行测试确认失败**
 
 ```bash
 pnpm install
@@ -1186,7 +1186,7 @@ pnpm --filter @baton/adapters test
 
 Expected: FAIL，`../src/index.js` 不存在。
 
-- [ ] **Step 5: 实现 `FakeAdapter`**
+- [x] **Step 5: 实现 `FakeAdapter`**
 
 `packages/adapters/src/fake.ts` 的核心结构：
 
@@ -1321,7 +1321,7 @@ export class FakeAdapter implements AgentAdapter {
 export * from './fake.js'
 ```
 
-- [ ] **Step 6: 运行测试与类型检查**
+- [x] **Step 6: 运行测试与类型检查**
 
 ```bash
 pnpm install
@@ -1331,7 +1331,7 @@ pnpm --filter @baton/adapters typecheck
 
 Expected: PASS；typecheck 退出码 0。
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git add packages/adapters pnpm-lock.yaml
@@ -1357,7 +1357,7 @@ git commit -m "feat(adapters): 增加可确定性测试的 agent-fake"
 **Interfaces:**
 - Consumes: `assembleContext`、`evaluateApproval`、`resolveVerifyCommand`、`AgentAdapter`、`StartInput`、`PolicySnapshot`
 
-- [ ] **Step 1: 写消费形态测试**
+- [x] **Step 1: 写消费形态测试**
 
 新建 `packages/core/test/consumption.test.ts`：
 
@@ -1460,7 +1460,7 @@ describe('M1-5 consumption shape', () => {
 })
 ```
 
-- [ ] **Step 2: 运行消费 fixture**
+- [x] **Step 2: 运行消费 fixture**
 
 ```bash
 pnpm --filter @baton/core test
@@ -1468,7 +1468,7 @@ pnpm --filter @baton/core test
 
 Expected: PASS；如果类型不匹配，先修类型而不是断言。
 
-- [ ] **Step 3: 运行全量校验**
+- [x] **Step 3: 运行全量校验**
 
 ```bash
 pnpm verify
@@ -1483,11 +1483,11 @@ git diff --name-only main...HEAD -- apps
 
 Expected: 前 7 条退出码 0；最后一条输出为空。
 
-- [ ] **Step 4: 更新执行记录**
+- [x] **Step 4: 更新执行记录**
 
 在 plan 的“执行记录”表追加每个 Task 的 commit 与测试结果；在 contract 的 25 条核对表逐条填证据。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add packages/core/test/consumption.test.ts docs THIRD_PARTY_NOTICES.md pnpm-lock.yaml
@@ -1531,7 +1531,13 @@ git commit -m "test(core): 增加 M1-5 消费形态验收并完成全量校验"
 | 2026-11-17 | Task 2 | core 71 tests（含 context）；coverage 89%+ branches | `1757b21` | context 快照；敏感路径；深度/预算/40 节点边界 |
 | 2026-11-17 | Task 3 | core 71 tests；typecheck 通过；picomatch 接入 | `62dedea` | policy 快照；风险表；verify 解析；notices |
 | 2026-11-17 | Task 4 | adapters 5 tests；typecheck 通过 | `cc99e0f` | fake 默认脚本 / allow / deny / interrupt / send / error |
-| 2026-11-17 | Task 5 | `pnpm verify`、`check:boundaries`、`check:protocol`、`format:check`、`pack:check` 全绿；`apps` 空 diff | 待提交 | 消费 fixture；快照；执行记录 |
+| 2026-11-17 | Task 5 | `pnpm verify`、`check:boundaries`、`check:protocol`、`format:check`、`pack:check` 全绿；`apps` 空 diff | `ba5a03f` | 消费 fixture；快照；执行记录 |
+
+**实现偏离（已同步 spec）**：
+
+- `picomatch` 使用 `{ dot: true, bash: true }`：`*` 需跨 `/` 才能让 `Bash:rm -rf *` 命中 `rm -rf /tmp/demo`。
+- `FakeAdapter` 的 deny 分支以 `RUN_FINISHED` 收尾；interrupt 直接结束事件流。
+- context 的 `title` 规则：text 取首个非空行（截断 60 字符），file 取 `name`，image 取 `alt`。
 
 ### Contract 25 条核对
 
