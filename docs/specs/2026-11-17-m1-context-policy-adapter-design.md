@@ -1,9 +1,9 @@
 ---
 spec_topic: m1-context-policy-adapter
 decision_summary: "M1-3 + M1-4：core 上下文装配/policy 求值/verify 解析，protocol AgentAdapter 契约，agent-fake；daemon/DB/WS 留给 M1-5"
-design_approved: false
-user_approved_at: null
-gates: [user-review-pending]
+design_approved: true
+user_approved_at: 2026-11-17T08:06:49+08:00
+gates: [user-review-passed]
 spec_ref: 2026-11-16-baton-architecture-design.md
 ---
 
