@@ -5,12 +5,14 @@ export type WsStatus = 'connecting' | 'online' | 'reconnecting' | 'offline'
 interface AppState {
   activeWorkspaceId: string | null
   activeTaskId: string | null
+  selectedNodeId: string | null
   boardExpanded: boolean
   boardPinned: boolean
   wsStatus: WsStatus
   lastSeq: number
   setWorkspace: (id: string | null) => void
   setTask: (id: string | null) => void
+  setSelectedNode: (id: string | null) => void
   setBoardExpanded: (value: boolean) => void
   setBoardPinned: (value: boolean) => void
   setWsStatus: (value: WsStatus) => void
@@ -20,12 +22,15 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   activeWorkspaceId: null,
   activeTaskId: null,
+  selectedNodeId: null,
   boardExpanded: false,
   boardPinned: false,
   wsStatus: 'offline',
   lastSeq: 0,
-  setWorkspace: (activeWorkspaceId) => set({ activeWorkspaceId, activeTaskId: null }),
+  setWorkspace: (activeWorkspaceId) =>
+    set({ activeWorkspaceId, activeTaskId: null, selectedNodeId: null }),
   setTask: (activeTaskId) => set({ activeTaskId }),
+  setSelectedNode: (selectedNodeId) => set({ selectedNodeId }),
   setBoardExpanded: (boardExpanded) => set({ boardExpanded }),
   setBoardPinned: (boardPinned) => set({ boardPinned }),
   setWsStatus: (wsStatus) => set({ wsStatus }),

@@ -1,7 +1,9 @@
+import { Button } from '@heroui/react/button'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { ConnectionStatus } from './features/shared/ConnectionStatus'
-import { CanvasPanel } from './features/canvas/CanvasPanel'
+import { CanvasPanel, type CanvasPanelHandle } from './features/canvas/CanvasPanel'
+import { NodePanel } from './features/canvas/NodePanel'
 import { RealtimeProvider } from './features/realtime/RealtimeProvider'
 import { BoardRail } from './features/tasks/BoardRail'
 import { TaskBoard } from './features/tasks/TaskBoard'
@@ -26,12 +28,15 @@ function isEditableTarget(target: EventTarget | null) {
 export function App() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId)
   const activeTaskId = useAppStore((state) => state.activeTaskId)
+  const selectedNodeId = useAppStore((state) => state.selectedNodeId)
   const boardExpanded = useAppStore((state) => state.boardExpanded)
   const boardPinned = useAppStore((state) => state.boardPinned)
   const setWorkspace = useAppStore((state) => state.setWorkspace)
   const setTask = useAppStore((state) => state.setTask)
+  const setSelectedNode = useAppStore((state) => state.setSelectedNode)
   const setBoardExpanded = useAppStore((state) => state.setBoardExpanded)
   const setBoardPinned = useAppStore((state) => state.setBoardPinned)
+  const canvasRef = useRef<CanvasPanelHandle>(null)
 
   const workspaces = useQuery({ queryKey: queryKeys.workspaces, queryFn: listWorkspaces })
   const tasks = useQuery({
@@ -53,6 +58,9 @@ export function App() {
       total: list.length,
     }
   }, [tasks.data])
+
+  const selectedNode = canvas.data?.nodes.find((node) => node.id === selectedNodeId) ?? null
+  const nodeTask = selectedNode && tasks.data?.find((task) => task.nodeId === selectedNode.id)
 
   useEffect(() => {
     if (activeWorkspaceId) return
@@ -108,6 +116,13 @@ export function App() {
           />
           <ConnectionStatus />
           <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="secondary"
+              isDisabled={!canvas.data}
+              onPress={() => canvasRef.current?.addNode('agent')}
+            >
+              新建 Agent 节点
+            </Button>
             <CreateWorkspaceDialog
               onCreated={(id) => {
                 setWorkspace(id)
@@ -139,6 +154,7 @@ export function App() {
             expanded={boardExpanded}
             pinned={boardPinned}
             onSelectTask={(id) => {
+              setSelectedNode(null)
               setTask(id)
               setBoardExpanded(false)
               writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
@@ -149,9 +165,33 @@ export function App() {
             }}
           />
           <main className="relative min-w-0 flex-1">
-            <CanvasPanel />
+            <CanvasPanel
+              ref={canvasRef}
+              canvas={canvas.data ?? null}
+              tasks={tasks.data ?? []}
+              selectedNodeId={selectedNodeId}
+              onSelectNode={(id) => {
+                setSelectedNode(id)
+                if (id) setTask(null)
+              }}
+            />
           </main>
-          <TaskDetailPanel />
+          {selectedNode && activeWorkspaceId ? (
+            <NodePanel
+              node={selectedNode}
+              task={nodeTask ?? null}
+              workspaceId={activeWorkspaceId}
+              onOpenTask={(id) => {
+                setSelectedNode(null)
+                setTask(id)
+                writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
+              }}
+              onDeleted={() => setSelectedNode(null)}
+              onClose={() => setSelectedNode(null)}
+            />
+          ) : (
+            <TaskDetailPanel />
+          )}
         </div>
       </div>
     </RealtimeProvider>

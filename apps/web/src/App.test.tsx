@@ -132,7 +132,7 @@ describe('App shell', () => {
     expect(await screen.findByTestId('board-rail')).toBeInTheDocument()
     expect(screen.getByTestId('canvas')).toBeInTheDocument()
     expect(screen.getByTestId('task-detail')).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByText('尚未选择工作区')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText('尚未选择工作区').length).toBeGreaterThan(0))
   })
 
   it('opens the create-workspace dialog', async () => {
