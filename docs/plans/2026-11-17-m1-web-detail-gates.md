@@ -580,7 +580,7 @@ Seam: ego-lite 会话 + 截图
 - Produces: 一个可复用的 gate 场景 seed 脚本
 - Produces: ego-lite 截图/快照证据
 
-- [ ] **Step 1: 写 seed 脚本**
+- [x] **Step 1: 写 seed 脚本**
 
 `scripts/e2e-seed-gates.mjs`：
 
@@ -594,7 +594,7 @@ Seam: ego-lite 会话 + 截图
 - 输出 `{ workspaceId, taskId }` JSON，供 ego-lite 打开 `http://127.0.0.1:5173/?workspace=...&task=...`。
 - 脚本只用于本地/CI e2e，不进入 web runtime；不复用生产启动逻辑。
 
-- [ ] **Step 2: 启动服务**
+- [x] **Step 2: 启动服务**
 
 ```bash
 export BATON_DATA_DIR=$(mktemp -d)
@@ -606,7 +606,7 @@ pnpm --filter @baton/web dev
 
 > 具体启动命令以根 `pnpm dev` 为准；确保 daemon 监听 7317、Vite 5173 代理 `/api` 与 `/ws`。
 
-- [ ] **Step 3: 用 ego-lite 走真实流程**
+- [x] **Step 3: 用 ego-lite 走真实流程**
 
 加载 `ego-browser` skill，按以下步骤操作并保留截图：
 
@@ -620,7 +620,7 @@ pnpm --filter @baton/web dev
 
 不允许用静态截图或纯 HTTP 断言替代交互；关键步骤截图附在 PR 或执行记录。
 
-- [ ] **Step 4: 全量命令**
+- [x] **Step 4: 全量命令**
 
 ```bash
 pnpm verify
@@ -634,11 +634,11 @@ grep -RIn "TODO\|FIXME" apps/web/src packages/protocol/src apps/daemon/src
 
 Expected: 全部 exit 0；grep 输出为空。
 
-- [ ] **Step 5: 更新执行记录**
+- [x] **Step 5: 更新执行记录**
 
 在本文档末尾写：commit 列表、真实命令输出摘要、ego-lite 截图路径、偏离与已知问题。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add scripts/e2e-seed-gates.mjs THIRD_PARTY_NOTICES.md docs/plans/2026-11-17-m1-web-detail-gates.md
@@ -649,4 +649,66 @@ git commit -m "test(web): 增加人闸门 ego-lite 验收场景"
 
 ## 执行记录
 
-（执行后填写真实命令输出、commit、ego-lite 截图与偏离。不要预填。）
+执行日期：2026-11-17
+分支：`feat/m1-6a-web-ui`（Plan 2 HEAD `04af864`）
+
+### 提交
+
+| 任务 | Commit | 说明 |
+|---|---|---|
+| Task 1 | `51e69eb` | feat(protocol): session.event 携带会话内 seq |
+| Task 2 | `b0c031e` | feat(web): 增加 WS 命令客户端与实时事件提供者 |
+| Task 3 | `96e1182` | feat(web): 增加 transcript 投影与虚拟列表 |
+| Task 4 | `b9eb494` | feat(web): 增加任务详情、transcript 与人闸门 |
+| Task 5 | `7f680f1` | test(web): 增加人闸门 ego-lite 验收场景 |
+| E2E 修复 | `675ac6b` | fix(web): 修复 Toast.Provider 吞掉 App 导致白屏 |
+| Review 修复 | `322a190` | fix(web): 收紧详情状态、实时事件与命令发送 |
+
+### 验证
+
+- `pnpm verify:full`：exit 0；Playwright `apps/web/e2e/shell.spec.ts` 1 passed
+- web 单测：46 passed（含 WS 命令 ack/超时、session cache、五类闸门卡、Root provider 组合）
+- protocol 98、daemon 113、core/adapters 维持原测试数
+- `pnpm pack:check`：`pack-check ok`
+- `pnpm check:protocol`：`protocol single-source ok`
+- `pnpm check:boundaries`：`✔ no dependency violations found (224 modules, 611 dependencies cruised)`
+- `pnpm format:check`：`All matched files use Prettier code style.`
+- `grep -RIn "TODO\|FIXME" apps/web/src packages/protocol/src apps/daemon/src`：无输出
+- `git diff --name-only 04af864...HEAD`：仅 `packages/protocol/**`、`apps/daemon/**`、`apps/web/**`、`docs/**`、`scripts/**`；无 `packages/core`
+
+### ego-lite 验收
+
+启动（临时数据目录）：
+
+```bash
+BATON_DATA_DIR=/tmp/baton-e2e-data \
+BATON_WORKSPACES_ROOT=/tmp/baton-e2e-workspaces \
+BATON_PORT=7317 pnpm dev
+
+BATON_WORKSPACES_ROOT=/tmp/baton-e2e-workspaces \
+BATON_WEB_URL=http://localhost:5173 \
+node scripts/e2e-seed-gates.mjs
+```
+
+真实浏览器流程与截图：
+
+1. 审批卡：`docs/evidence/2026-11-17-m1-6a-gates/01-approval.png`
+2. 点「允许」后验收卡：`docs/evidence/2026-11-17-m1-6a-gates/02-review.png`
+3. 点「通过」后完成态：`docs/evidence/2026-11-17-m1-6a-gates/03-done.png`
+4. 刷新后 transcript 与状态保留：`docs/evidence/2026-11-17-m1-6a-gates/04-refresh.png`
+5. todo 任务「立即开工」前：`docs/evidence/2026-11-17-m1-6a-gates/05-todo.png`
+6. 开工后进入审批：`docs/evidence/2026-11-17-m1-6a-gates/06-started.png`
+
+种子脚本创建 2 个 agent 节点与 2 个任务：一个直接 enqueue 到 `waiting_input(approval)`，一个保留 `todo` 用于「立即开工」。验收确认了真浏览器中的命令发送、WS 实时刷新、状态流转、transcript 渲染与刷新持久化。
+
+### 偏离与已知问题
+
+1. **Toast.Provider 白屏**：HeroUI 的 `Toast.Provider` 只渲染 toast region，不渲染 children；最初包住 `<App />` 导致整页空白，ego-lite 首轮发现。已改为与 App 平级，新增 `Root.test.tsx` 断言 provider 组合。
+2. **session.event seq 可选**：为兼容旧 `ws_event` 回放行，`payload.seq` 可选；缺失时 web 回退 REST 重新拉取，不阻塞新事件。
+3. **文件命名**：`transcript.ts` 重命名为 `transcript-model.ts`，避免 macOS 大小写不敏感文件系统把 `./Transcript` 解析到纯函数模块。
+4. **seed 脚本位置**：`scripts/e2e-seed-gates.mjs` 使用 Node 内置模块，放在 `apps/web` 会触发 `web-no-node-builtins`；因此作为仓库级 e2e 脚本。
+5. **Review 后修复**：任务切换时 `DetailContent` 以 taskId 作 key，避免回复草稿/验收反馈/取消确认串任务；实时事件按 32ms 合批写入缓存；命令 `send` 异常清理 pending；transcript 加 `role="log"`、按 session 重置滚动、流式文本增长继续跟随；高风险审批的「允许」降为 secondary；seed 命令加 10s 超时。
+6. **ego-lite 未覆盖回复闸门**：默认 `agent-fake` 只产生 approval，不产生 `user.message`/pause；回复框与打回反馈必填由组件测试覆盖。审批→验收→通过→刷新→立即开工已由 ego-lite 覆盖。
+7. **长会话**：仍只加载前 500 条，`hasMore` 仅提示；最新事件在超长会话刷新后不可见，后续用 `nextSeq` 做尾部翻页。
+8. **旧迁移回填**：`0001` 迁移回填的 `session.event` payload 无 `seq`，保留不改历史；客户端回退 REST 处理。
+9. **构建告警**：web 产物约 616 KB（gzip 186 KB），Vite 提示超出 500 KB；不作为本次验收失败项。
