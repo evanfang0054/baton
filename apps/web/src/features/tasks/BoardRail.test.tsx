@@ -8,6 +8,7 @@ describe('BoardRail', () => {
     render(
       <BoardRail
         counts={{ needs_approval: 2, needs_reply: 1, needs_review: 3 }}
+        total={6}
         expanded={false}
         onToggle={onToggle}
         pinned={false}
@@ -17,6 +18,7 @@ describe('BoardRail', () => {
     expect(screen.getByText('2')).toBeInTheDocument()
     expect(screen.getByText('1')).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
+    expect(screen.getByText('6')).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('展开看板'))
     expect(onToggle).toHaveBeenCalled()
   })

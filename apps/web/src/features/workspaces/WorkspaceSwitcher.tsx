@@ -18,7 +18,7 @@ export function WorkspaceSwitcher({
       onChange={(event) => onSelect(event.target.value || null)}
       className="h-8 rounded-lg border border-separator bg-surface px-2 text-sm text-foreground"
     >
-      <option value="">选择工作区</option>
+      {workspaces.length === 0 ? <option value="">选择工作区</option> : null}
       {workspaces.map((workspace) => (
         <option key={workspace.id} value={workspace.id}>
           {workspace.name}

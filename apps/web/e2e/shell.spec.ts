@@ -1,5 +1,10 @@
 import { expect, test } from '@playwright/test'
 
+test.beforeEach(async ({ page }) => {
+  // e2e 不依赖本机 daemon：固定空工作区，保证 CI 与本地一致。
+  await page.route('**/api/**', (route) => route.fulfill({ json: { workspaces: [] } }))
+})
+
 test('renders the three-pane shell without console errors', async ({ page }) => {
   const errors: string[] = []
   page.on('console', (message) => {

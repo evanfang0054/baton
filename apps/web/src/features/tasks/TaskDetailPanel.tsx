@@ -37,7 +37,7 @@ export function TaskDetailPanel() {
             <StatusChip status={detail.data.task.status} />
             <span>{detail.data.task.engine}</span>
           </div>
-          <p className="text-sm text-muted">详情、transcript 与人闸门将在 Plan 3 接入。</p>
+          <p className="text-sm text-muted">暂无更多详情。</p>
         </div>
       ) : null}
     </aside>

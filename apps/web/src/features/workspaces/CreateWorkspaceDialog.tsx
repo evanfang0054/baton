@@ -42,18 +42,24 @@ export function CreateWorkspaceDialog({ onCreated }: CreateWorkspaceDialogProps)
             <Modal.Body>
               <div className="flex flex-col gap-3">
                 <Input
+                  aria-label="工作区名称"
                   placeholder="名称，如 baton"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   fullWidth
                 />
                 <Input
+                  aria-label="工作区相对路径"
                   placeholder="相对路径，如 baton"
                   value={relPath}
                   onChange={(event) => setRelPath(event.target.value)}
                   fullWidth
                 />
-                {error ? <p className="text-sm text-danger">{error}</p> : null}
+                {error ? (
+                  <p role="alert" className="text-sm text-danger">
+                    {error}
+                  </p>
+                ) : null}
               </div>
             </Modal.Body>
             <Modal.Footer>

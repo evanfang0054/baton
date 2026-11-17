@@ -29,10 +29,10 @@ export function TaskBoard({
   const unplanned = agentNodes.filter((node) => node.type === 'agent' && !taskNodeIds.has(node.id))
 
   const board = (
-    <section className="flex h-full min-h-0 flex-col bg-background">
+    <section id="task-board" className="flex h-full min-h-0 flex-col bg-background">
       <header className="flex h-11 shrink-0 items-center justify-between border-b border-separator px-3">
         <span className="text-sm font-medium">任务看板</span>
-        <Button variant="ghost" aria-label="收起看板" onPress={onClose} className="h-8 w-8 p-0">
+        <Button variant="ghost" aria-label="关闭看板" onPress={onClose} className="h-8 w-8 p-0">
           <X size={16} />
         </Button>
       </header>
@@ -79,7 +79,7 @@ function BoardColumn({
   onSelectTask: (taskId: string) => void
 }) {
   return (
-    <div className="flex w-40 shrink-0 flex-col gap-2" data-column={column}>
+    <div className="flex w-70 shrink-0 flex-col gap-2" data-column={column}>
       <div className="flex items-center justify-between text-xs text-muted">
         <span className="font-medium text-foreground">{label}</span>
         <span>{tasks.length + unplanned.length}</span>

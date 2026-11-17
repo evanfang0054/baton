@@ -1,4 +1,5 @@
 import type { TaskSummary } from '@baton/protocol'
+import { Chip } from '@heroui/react/chip'
 import { AttentionBadge } from './AttentionBadge'
 import { StatusChip } from './StatusChip'
 import { WaitingTime } from './WaitingTime'
@@ -25,7 +26,9 @@ export function TaskCard({ task, selected = false, onSelect }: TaskCardProps) {
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
         <StatusChip status={task.status} />
-        <span>{task.engine}</span>
+        <Chip size="sm" variant="soft" color="default">
+          {task.engine}
+        </Chip>
         {task.retryCount > 0 ? <span>重试 {task.retryCount}</span> : null}
       </div>
       {task.waitingSince ? (

@@ -23,6 +23,8 @@ function isEditableTarget(target: EventTarget | null) {
   )
 }
 
+const INVALIDATING_EVENTS = new Set(['task.status', 'approval.request', 'verify.result'])
+
 export function App() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId)
   const activeTaskId = useAppStore((state) => state.activeTaskId)
@@ -52,6 +54,7 @@ export function App() {
       needs_approval: list.filter((task) => task.attention === 'needs_approval').length,
       needs_reply: list.filter((task) => task.attention === 'needs_reply').length,
       needs_review: list.filter((task) => task.attention === 'needs_review').length,
+      total: list.length,
     }
   }, [tasks.data])
 
@@ -60,13 +63,18 @@ export function App() {
     const url = readUrlState()
     if (url.workspaceId) {
       setWorkspace(url.workspaceId)
+      if (url.taskId) setTask(url.taskId)
     } else if (workspaces.data?.[0]) {
       setWorkspace(workspaces.data[0].id)
     }
-  }, [activeWorkspaceId, setWorkspace, workspaces.data])
+  }, [activeWorkspaceId, setTask, setWorkspace, workspaces.data])
 
   useEffect(() => {
-    if (activeWorkspaceId) writeUrlState({ workspaceId: activeWorkspaceId })
+    if (!activeWorkspaceId) return
+    writeUrlState({
+      workspaceId: activeWorkspaceId,
+      taskId: useAppStore.getState().activeTaskId,
+    })
   }, [activeWorkspaceId])
 
   useEffect(() => {
@@ -74,26 +82,48 @@ export function App() {
       setWsStatus('offline')
       return
     }
+    let invalidateTimer: number | undefined
+    const invalidate = () => {
+      if (invalidateTimer) return
+      invalidateTimer = window.setTimeout(() => {
+        invalidateTimer = undefined
+        void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(activeWorkspaceId) })
+        const taskId = useAppStore.getState().activeTaskId
+        if (taskId) void queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+      }, 100)
+    }
     const client = createWsClient({
       onStatus: setWsStatus,
-      onEvent: () => {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(activeWorkspaceId) })
-        void queryClient.invalidateQueries({ queryKey: ['task'] })
+      onEvent: (event) => {
+        if (!INVALIDATING_EVENTS.has(event.type)) return
+        invalidate()
       },
     })
-    return () => client.close()
+    return () => {
+      client.close()
+      if (invalidateTimer) window.clearTimeout(invalidateTimer)
+    }
   }, [activeWorkspaceId, queryClient, setWsStatus])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() === 'b' && !isEditableTarget(event.target)) {
-        setBoardExpanded(!useAppStore.getState().boardExpanded)
+        const state = useAppStore.getState()
+        if (state.boardPinned) {
+          setBoardPinned(false)
+          setBoardExpanded(false)
+        } else {
+          setBoardExpanded(!state.boardExpanded)
+        }
       }
-      if (event.key === 'Escape') setBoardExpanded(false)
+      if (event.key === 'Escape') {
+        setBoardExpanded(false)
+        setBoardPinned(false)
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [setBoardExpanded])
+  }, [setBoardExpanded, setBoardPinned])
 
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
@@ -120,8 +150,16 @@ export function App() {
       <div className="flex min-h-0 flex-1">
         <BoardRail
           counts={counts}
+          total={counts.total}
           expanded={boardExpanded}
-          onToggle={() => setBoardExpanded(!boardExpanded)}
+          onToggle={() => {
+            if (boardPinned) {
+              setBoardPinned(false)
+              setBoardExpanded(false)
+            } else {
+              setBoardExpanded(!boardExpanded)
+            }
+          }}
           pinned={boardPinned}
           onTogglePin={() => setBoardPinned(!boardPinned)}
         />
@@ -136,7 +174,10 @@ export function App() {
             setBoardExpanded(false)
             writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
           }}
-          onClose={() => setBoardExpanded(false)}
+          onClose={() => {
+            setBoardExpanded(false)
+            setBoardPinned(false)
+          }}
         />
         <main className="relative min-w-0 flex-1">
           <CanvasPanel />
