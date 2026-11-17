@@ -1,5 +1,5 @@
 import { FakeAdapter, type FakeStep } from '@baton/adapters'
-import type { AgentAdapter } from '@baton/protocol'
+import { EventSchemas, type AgentAdapter } from '@baton/protocol'
 import { afterEach, describe, expect, it } from 'vitest'
 import { listSessionsByTask } from '../src/db/repositories.js'
 import { createAdapterFactory } from '../src/runtime/adapter-factory.js'
@@ -122,6 +122,33 @@ describe('session runner attention', () => {
     if (!repeated.ok) {
       expect(repeated.error.code).toBe('reply_not_allowed')
     }
+  })
+
+  it('RUN_FINISHED without outcome -> waiting_input(stalled)', async () => {
+    const finishedOnly: AgentAdapter = {
+      name: 'fake',
+      async start() {
+        return {
+          events: (async function* () {
+            yield EventSchemas.parse({ type: 'RUN_STARTED', threadId: 't', runId: 'r' })
+            yield EventSchemas.parse({ type: 'RUN_FINISHED', threadId: 't', runId: 'r' })
+          })(),
+          approve: async () => {},
+          send: async () => {},
+          interrupt: async () => {},
+          dispose: async () => {},
+        }
+      },
+    }
+    const handle = setupAdapter(finishedOnly)
+    const taskId = handle.createTask()
+    handle.runtime.applyTransition(taskId, { type: 'enqueue' })
+
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'waiting_input')
+    expect(handle.runtime.getTask(taskId)?.waitingReason).toBe('stalled')
+    const session = listSessionsByTask(handle.database.db, taskId)[0]
+    expect(session?.status).toBe('ended')
+    expect(session?.outcome).toBe('unreported')
   })
 
   it('RUN_ERROR -> failed', async () => {
