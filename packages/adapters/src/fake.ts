@@ -1,8 +1,10 @@
 import {
   EventSchemas,
+  EventType,
   type AgentAdapter,
   type AgentEvent,
   type AgentRun,
+  type ApprovalDecision,
   type ApprovalRequest,
   type StartInput,
 } from '@baton/protocol'
@@ -41,6 +43,8 @@ const DEFAULT_SCRIPT: FakeStep[] = [
   { kind: 'finish' },
 ]
 
+const APPROVAL_REQUEST = 'approval.request'
+
 function event(value: unknown): AgentEvent {
   return EventSchemas.parse(value)
 }
@@ -64,16 +68,21 @@ export class FakeAdapter implements AgentAdapter {
     const script = this.script
     const runId = 'fake-run'
     const queue: string[] = []
-    let pending: Deferred<'allow' | 'deny'> | null = null
+    let pending: { requestId: string; deferred: Deferred<ApprovalDecision> } | null = null
     let interrupted = false
+    let closed = false
     let messageSeq = 0
     let approvalSeq = 0
 
     const text = function* (delta: string): Generator<AgentEvent> {
       const messageId = `fake-msg-${++messageSeq}`
-      yield event({ type: 'TEXT_MESSAGE_START', messageId, role: 'assistant' })
-      yield event({ type: 'TEXT_MESSAGE_CONTENT', messageId, delta })
-      yield event({ type: 'TEXT_MESSAGE_END', messageId })
+      yield event({
+        type: EventType.TEXT_MESSAGE_START,
+        messageId,
+        role: 'assistant',
+      })
+      yield event({ type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta })
+      yield event({ type: EventType.TEXT_MESSAGE_END, messageId })
     }
 
     const drain = function* (): Generator<AgentEvent> {
@@ -83,58 +92,75 @@ export class FakeAdapter implements AgentAdapter {
     }
 
     const events = (async function* (): AsyncGenerator<AgentEvent> {
-      yield event({ type: 'RUN_STARTED', threadId, runId })
+      try {
+        yield event({ type: EventType.RUN_STARTED, threadId, runId })
 
-      for (const step of script) {
+        for (const step of script) {
+          if (interrupted) return
+          yield* drain()
+
+          if (step.kind === 'text') {
+            yield* text(step.text)
+          } else if (step.kind === 'approval') {
+            approvalSeq += 1
+            const requestId = `req-${approvalSeq}`
+            const wait = deferred<ApprovalDecision>()
+            pending = { requestId, deferred: wait }
+            yield event({
+              type: EventType.CUSTOM,
+              name: APPROVAL_REQUEST,
+              value: { requestId, request: step.request },
+            })
+
+            const decision = await wait.promise
+            if (pending?.requestId === requestId) pending = null
+            if (interrupted) return
+            if (decision === 'deny') {
+              yield* text('fake: denied')
+              yield event({ type: EventType.RUN_FINISHED, threadId, runId })
+              return
+            }
+          } else if (step.kind === 'error') {
+            yield event({ type: EventType.RUN_ERROR, message: step.message })
+            return
+          } else if (step.kind === 'finish') {
+            break
+          }
+        }
+
         if (interrupted) return
         yield* drain()
-
-        if (step.kind === 'text') {
-          yield* text(step.text)
-        } else if (step.kind === 'approval') {
-          approvalSeq += 1
-          const wait = deferred<'allow' | 'deny'>()
-          pending = wait
-          yield event({
-            type: 'CUSTOM',
-            name: 'approval.request',
-            value: { requestId: `req-${approvalSeq}`, request: step.request },
-          })
-          const decision = await wait.promise
-          pending = null
-          if (interrupted) return
-          if (decision === 'deny') {
-            yield* text('fake: denied')
-            yield event({ type: 'RUN_FINISHED', threadId, runId })
-            return
-          }
-        } else if (step.kind === 'error') {
-          yield event({ type: 'RUN_ERROR', message: step.message })
-          return
-        }
+        yield event({ type: EventType.RUN_FINISHED, threadId, runId })
+      } finally {
+        closed = true
+        pending?.deferred.resolve('deny')
+        pending = null
       }
-
-      if (interrupted) return
-      yield* drain()
-      yield event({ type: 'RUN_FINISHED', threadId, runId })
     })()
 
     return {
       events,
-      approve: async (_requestId, decision) => {
-        pending?.resolve(decision)
+      approve: async (requestId, decision) => {
+        if (closed) throw new Error('fake adapter run is closed')
+        if (!pending || pending.requestId !== requestId) {
+          throw new Error(`no pending approval ${requestId}`)
+        }
+        pending.deferred.resolve(decision)
       },
       send: async (delta) => {
+        if (closed) throw new Error('fake adapter run is closed')
         queue.push(delta)
       },
       interrupt: async () => {
         interrupted = true
-        pending?.resolve('deny')
+        closed = true
+        pending?.deferred.resolve('deny')
         pending = null
       },
       dispose: async () => {
         interrupted = true
-        pending?.resolve('deny')
+        closed = true
+        pending?.deferred.resolve('deny')
         pending = null
       },
     }
