@@ -38,6 +38,25 @@ describe('ServerMessage', () => {
     expect(parsed.type).toBe(type)
   })
 
+  it('allows optional ack data', () => {
+    const withData = ServerMessage.parse({
+      v: 1,
+      ts: 1,
+      type: 'ack',
+      payload: { commandId: 'c1', ok: true, data: { taskId: 't1' } },
+    })
+    expect(withData.type).toBe('ack')
+    if (withData.type === 'ack') expect(withData.payload.data).toEqual({ taskId: 't1' })
+
+    const withoutData = ServerMessage.parse({
+      v: 1,
+      ts: 1,
+      type: 'ack',
+      payload: { commandId: 'c1', ok: true },
+    })
+    if (withoutData.type === 'ack') expect(withoutData.payload.data).toBeUndefined()
+  })
+
   it('requires seq on replayable events and allows it to be omitted on ack/error', () => {
     expect(
       ServerMessage.parse({

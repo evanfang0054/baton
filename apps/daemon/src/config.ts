@@ -29,6 +29,7 @@ export function loadConfig(argv: string[], env: NodeJS.ProcessEnv): Config {
     dataDir: env.BATON_DATA_DIR ?? join(home, '.baton'),
     webRoot: env.BATON_WEB_ROOT ?? join(process.cwd(), 'apps/web/dist'),
     workspacesRoot: env.BATON_WORKSPACES_ROOT ?? home,
+    maxConcurrency: Number(env.BATON_MAX_CONCURRENCY ?? 1),
   })
   if (config.host !== '127.0.0.1' && !config.token) {
     throw new Error('BATON_TOKEN is required when binding a non-loopback host')

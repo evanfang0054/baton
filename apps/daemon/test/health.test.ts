@@ -11,6 +11,7 @@ describe('GET /api/health', () => {
       dataDir: '/tmp',
       webRoot: '/tmp',
       workspacesRoot: '/tmp',
+      maxConcurrency: 1,
     })
     const res = await app.inject({ method: 'GET', url: '/api/health' })
     expect(res.statusCode).toBe(200)

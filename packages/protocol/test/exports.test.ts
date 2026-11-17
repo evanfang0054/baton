@@ -53,6 +53,13 @@ const schemaNames = [
   'VerifyResultEvent',
   'ServerMessage',
   'EventSchemas',
+  'WorkspaceCreateInput',
+  'WorkspaceListResponse',
+  'WorkspaceCreateResponse',
+  'CanvasResponse',
+  'TaskListQuery',
+  'TaskListResponse',
+  'TaskDetailResponse',
 ] as const
 
 describe('protocol exports', () => {

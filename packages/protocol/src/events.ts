@@ -17,7 +17,12 @@ const ReplayableBase = EventBase.extend({
 export const AckEvent = EventBase.extend({
   type: z.literal('ack'),
   seq: z.number().int().nonnegative().optional(),
-  payload: z.object({ commandId: Id, ok: z.literal(true) }),
+  payload: z.object({
+    commandId: Id,
+    ok: z.literal(true),
+    /** 命令结果的最小附加数据；形状由命令约定（taskId/cursor 等）。 */
+    data: z.unknown().optional(),
+  }),
 })
 export type AckEvent = z.infer<typeof AckEvent>
 

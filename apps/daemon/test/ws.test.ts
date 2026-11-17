@@ -16,6 +16,7 @@ async function listen(token: string | null): Promise<string> {
     dataDir: '/tmp',
     webRoot: '/tmp',
     workspacesRoot: '/tmp',
+    maxConcurrency: 1,
   })
   apps.push(app)
   await app.listen({ host: '127.0.0.1', port: 0 })

@@ -21,6 +21,7 @@ async function appWithWeb(token: string | null) {
     dataDir: '/tmp',
     webRoot: dir,
     workspacesRoot: '/tmp',
+    maxConcurrency: 1,
   })
 }
 
