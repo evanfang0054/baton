@@ -27,6 +27,7 @@ baton 以 MIT 许可发布。运行时会依赖下列第三方组件，其许可
 | `picomatch` | MIT | core 的 policy glob 匹配（直接依赖） |
 | `react` / `react-dom` | MIT | 前端运行时 |
 | `@tanstack/react-query` | MIT | 服务端状态与缓存 |
+| `@tanstack/react-virtual` | MIT | transcript 长列表虚拟滚动 |
 | `zustand` | MIT | 客户端 UI 状态 |
 | `lucide-react` | ISC | 图标 |
 | `tailwindcss` / `@tailwindcss/vite` | MIT | Tailwind 4 样式与 Vite 插件 |
