@@ -38,6 +38,7 @@
 - [M1-5 daemon 运行时闭环实施计划](plans/2026-11-17-m1-daemon-runtime.md)
 - [M1-5a 任务注意力语义实施计划](plans/2026-11-17-m1-attention-semantics.md)
 - [M1-6a 契约层实施计划](plans/2026-11-17-m1-web-console-contracts.md)
+- [M1-6a Web 壳与看板实施计划](plans/2026-11-17-m1-web-ui.md)
 
 ## 约定
 
