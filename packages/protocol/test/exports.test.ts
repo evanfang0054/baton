@@ -44,6 +44,10 @@ const schemaNames = [
   'TaskCancelInput',
   'ApprovalDecideInput',
   'ReviewDecideInput',
+  'NodeCreateValue',
+  'NodeCreateInput',
+  'NodeUpdateInput',
+  'NodeDeleteInput',
   'ClientMessage',
   'AckEvent',
   'ErrorEvent',
@@ -58,8 +62,12 @@ const schemaNames = [
   'WorkspaceCreateResponse',
   'CanvasResponse',
   'TaskListQuery',
+  'TaskSummary',
   'TaskListResponse',
   'TaskDetailResponse',
+  'SessionEventsQuery',
+  'SessionEventRecord',
+  'SessionEventsResponse',
 ] as const
 
 describe('protocol exports', () => {

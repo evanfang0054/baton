@@ -10,6 +10,7 @@ import { registerAuth } from './http/auth.js'
 import { registerCanvasRoutes } from './http/canvas.js'
 import { registerErrorHandler } from './http/errors.js'
 import { registerStatic } from './http/static.js'
+import { registerSessionRoutes } from './http/sessions.js'
 import { registerTaskRoutes } from './http/tasks.js'
 import { registerWorkspaceRoutes } from './http/workspaces.js'
 import type { Logger } from './log.js'
@@ -59,6 +60,7 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
   })
   registerCanvasRoutes(app, { db: deps.db })
   registerTaskRoutes(app, { db: deps.db })
+  registerSessionRoutes(app, { db: deps.db })
 
   await attachWs(app, config, deps.runtime, deps.hub)
 

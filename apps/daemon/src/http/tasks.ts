@@ -1,3 +1,4 @@
+import { attentionFor } from '@baton/core'
 import { TaskDetailResponse, TaskListQuery, TaskListResponse } from '@baton/protocol'
 import type { FastifyInstance } from 'fastify'
 import {
@@ -16,7 +17,13 @@ export function registerTaskRoutes(app: FastifyInstance, deps: { db: Db }): void
     if (!parsed.success) {
       throw appError('invalid_payload', 'invalid task query', parsed.error.issues)
     }
-    return TaskListResponse.parse({ tasks: listTasks(deps.db, parsed.data) })
+    const tasks = listTasks(deps.db, parsed.data).map((task) => ({
+      ...task,
+      attention: attentionFor(task.status, task.waitingReason),
+      waitingSince:
+        task.status === 'waiting_input' || task.status === 'review' ? task.updatedAt : null,
+    }))
+    return TaskListResponse.parse({ tasks })
   })
 
   app.get('/api/tasks/:id', async (req) => {

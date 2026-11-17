@@ -101,6 +101,115 @@ describe('ws router', () => {
     expect(error.payload).toMatchObject({ commandId: 'c2', code: 'reply_not_allowed' })
   })
 
+  it('creates, updates and deletes text nodes', async () => {
+    const { handle, ws } = await setup()
+
+    ws.send({
+      v: 1,
+      type: 'node.create',
+      id: 'n1',
+      ts: 1,
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        node: {
+          type: 'text',
+          x: 1,
+          y: 2,
+          w: 320,
+          h: 200,
+          groupId: null,
+          data: { content: 'hello' },
+        },
+      },
+    })
+    const created = await ws.next('ack')
+    const nodeId = (created.payload as { data: { nodeId: string } }).data.nodeId
+    expect(nodeId).toBeTruthy()
+
+    ws.send({
+      v: 1,
+      type: 'node.update',
+      id: 'n2',
+      ts: 1,
+      payload: { nodeId, patch: { x: 50, y: 60, data: { content: 'updated' } } },
+    })
+    await ws.next('ack')
+
+    ws.send({ v: 1, type: 'node.delete', id: 'n3', ts: 1, payload: { nodeId } })
+    await ws.next('ack')
+  })
+
+  it('rejects deleting a node referenced by a task', async () => {
+    const { handle, ws } = await setup()
+    ws.send({
+      v: 1,
+      type: 'node.delete',
+      id: 'n1',
+      ts: 1,
+      payload: { nodeId: handle.seeded.nodeId },
+    })
+    const error = await ws.next('error')
+    expect(error.payload).toMatchObject({ code: 'node_in_use' })
+  })
+
+  it('rejects unsupported node types in 6a', async () => {
+    const { handle, ws } = await setup()
+    ws.send({
+      v: 1,
+      type: 'node.create',
+      id: 'n1',
+      ts: 1,
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        node: {
+          type: 'image',
+          x: 0,
+          y: 0,
+          w: 320,
+          h: 200,
+          groupId: null,
+          data: { src: 'https://example.com/a.png' },
+        },
+      },
+    })
+    const error = await ws.next('error')
+    expect(error.payload).toMatchObject({ code: 'unsupported_node_type' })
+  })
+
+  it('rejects file node data updates', async () => {
+    const { handle, ws } = await setup()
+    ws.send({
+      v: 1,
+      type: 'node.create',
+      id: 'n1',
+      ts: 1,
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        node: {
+          type: 'file',
+          x: 0,
+          y: 0,
+          w: 320,
+          h: 200,
+          groupId: null,
+          data: { path: 'docs/spec.md', name: 'spec.md' },
+        },
+      },
+    })
+    const created = await ws.next('ack')
+    const nodeId = (created.payload as { data: { nodeId: string } }).data.nodeId
+
+    ws.send({
+      v: 1,
+      type: 'node.update',
+      id: 'n2',
+      ts: 1,
+      payload: { nodeId, patch: { data: { path: 'other.md' } } },
+    })
+    const error = await ws.next('error')
+    expect(error.payload).toMatchObject({ code: 'invalid_payload' })
+  })
+
   it('closes malformed envelopes with 4400', async () => {
     const { ws } = await setup()
     ws.sendRaw('{')

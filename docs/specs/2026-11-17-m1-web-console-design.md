@@ -142,19 +142,21 @@ export const NodeCreateInput = z.object({
 
 export const NodeUpdateInput = z.object({
   nodeId: Id,
-  patch: z.object({
-    x: z.number().optional(),
-    y: z.number().optional(),
-    w: z.number().positive().optional(),
-    h: z.number().positive().optional(),
-    data: z.unknown().optional(),
-  }),
+  patch: z
+    .object({
+      x: z.number().optional(),
+      y: z.number().optional(),
+      w: z.number().positive().optional(),
+      h: z.number().positive().optional(),
+      data: z.unknown().optional(),
+    })
+    .strict(),
 })
 
 export const NodeDeleteInput = z.object({ nodeId: Id })
 ```
 
-`NodeCreateValue` 是 6a 允许的三种节点的判别联合：
+`NodeCreateValue` 在 protocol 层接受全部六种节点，以便 handler 能返回 `unsupported_node_type`；6a handler 只处理 text/file/agent。下面是 6a 允许的三种；image/review/group 复用实体 data shape，但 handler 会拒绝：
 
 ```ts
 const NodeCreateBase = z.object({
