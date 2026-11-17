@@ -1544,7 +1544,7 @@ git commit -m "test(daemon): 增加 M1-5 闭环验收并完成全量校验"
 | 2026-11-17 | Task 5 | daemon 59 tests；session runner/审批/重启收敛；`pnpm verify` 全绿 | `45bb8bc` | `createAdapterFactory` + `createSessionRunner`；approval ask/auto allow/auto deny |
 | 2026-11-17 | Task 6 | daemon 67 tests；verify executor/runner；`pnpm verify` 全绿 | `f41f4ce` | execa 10.2.1；超时/取消统一映射 124；env 脱敏与 diff stat |
 | 2026-11-17 | Task 7 | daemon 74 tests；WS/REST/鉴权/pino；`pnpm verify` 全绿 | `2aed4c1` | `buildApp(config, deps)`；`/api/*` 鉴权；`resume` 重放 |
-| 2026-11-17 | Task 8 | daemon 81 tests；`pnpm verify:full`、`pnpm pack:check` 全绿 | `本提交` | `apps/web` 空 diff；docker smoke 因基础镜像未缓存而延后（遵守不下载大镜像约定） |
+| 2026-11-17 | Task 8 | daemon 81 tests；`pnpm verify:full`、`pnpm pack:check` 全绿 | `b0d1ac9` | `apps/web` 空 diff；docker smoke 因基础镜像未缓存而延后（遵守不下载大镜像约定），由 CI `docker.yml` 覆盖 |
 
 **已记录偏离**：
 
@@ -1558,3 +1558,4 @@ git commit -m "test(daemon): 增加 M1-5 闭环验收并完成全量校验"
 - `apps/daemon` 新增 `execa@10.2.1`、`pino@10.4.0`（均 MIT），已更新 notices。
 - CI 首次运行暴露：`.gitignore` 的 `workspace/` 误伤 `apps/daemon/src/workspace/`，且 daemon 未声明 `zod`；已修复（`a9e19fb`）。
 - CI verify 在 Linux 上取消 verifying 时子进程组未及时回收，导致 `afterEach` 超时；`runVerifyCommand` 现在在外部 abort 时也杀进程组，5 秒后 SIGKILL。
+- CI 最终状态（`1043abb`）：`verify (22)`、`verify (24)`、`pack-check`、`e2e`、`build`（含 docker）全部通过；PR #5 可合并。

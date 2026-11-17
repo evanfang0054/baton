@@ -104,7 +104,8 @@ git diff --name-only main...HEAD -- apps/web   # 输出必须为空
 ## 执行记录（2026-11-17）
 
 - 24/25 条已通过；`pnpm verify`、`pnpm verify:full`、`pnpm pack:check`、`pnpm check:boundaries`、`pnpm check:protocol`、`pnpm format:check` 全绿。
-- 第 24 条的 `docker:smoke` 未执行：本机 `node:24-bookworm-slim` 基础镜像未缓存，按“不下载大镜像”的约定延后，由 CI 的 docker job 覆盖。
+- 第 24 条的 `docker:smoke` 未在本机执行：`node:24-bookworm-slim` 基础镜像未缓存，按“不下载大镜像”的约定延后；CI `docker.yml` 已构建镜像并通过（`1043abb`）。
+- CI（`1043abb`）：`verify (22)`、`verify (24)`、`pack-check`、`e2e`、`build` 全部通过，PR #5 可合并。
 - daemon 81 tests；protocol 72 tests；core 90 tests；adapters 13 tests；`git diff main...HEAD -- apps/web` 为空。
 
 ## Out of Scope（本 contract 不验收）
