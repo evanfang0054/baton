@@ -68,7 +68,12 @@ export type TaskStatusEvent = z.infer<typeof TaskStatusEvent>
 
 export const SessionEvent = ReplayableBase.extend({
   type: z.literal('session.event'),
-  payload: z.object({ sessionId: Id, event: EventSchemas }),
+  payload: z.object({
+    sessionId: Id,
+    /** 会话内序号；旧 ws_event 行可能没有，读取端需容忍。 */
+    seq: z.number().int().nonnegative().optional(),
+    event: EventSchemas,
+  }),
 })
 export type SessionEvent = z.infer<typeof SessionEvent>
 
