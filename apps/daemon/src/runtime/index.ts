@@ -19,6 +19,7 @@ import {
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
+import { createVerifyRunner, type VerifyRunner } from '../verify/runner.js'
 import type { AdapterFactory } from './adapter-factory.js'
 import { createScheduler, type Scheduler } from './scheduler.js'
 import { createSessionRunner, type SessionRunner } from './session-runner.js'
@@ -66,6 +67,7 @@ export function createRuntime(deps: RuntimeDeps) {
   const pending = new Set<Promise<void>>()
   const schedulerHolder: { value?: Scheduler } = {}
   const sessionHolder: { value?: SessionRunner } = {}
+  const verifyHolder: { value?: VerifyRunner } = {}
 
   const hooks: RuntimeHooks = {
     broadcast: deps.broadcast,
@@ -79,7 +81,7 @@ export function createRuntime(deps: RuntimeDeps) {
       deps.resolveApproval ??
       ((approvalId, decision, note) =>
         sessionHolder.value ? sessionHolder.value.approve(approvalId, decision, note) : undefined),
-    runVerify: deps.runVerify ?? (() => {}),
+    runVerify: deps.runVerify ?? ((taskId) => verifyHolder.value?.run(taskId) ?? Promise.resolve()),
     kick: () => schedulerHolder.value?.kick(),
     track: (action) => {
       const promise = Promise.resolve()
@@ -107,12 +109,30 @@ export function createRuntime(deps: RuntimeDeps) {
     return transitionRunner.applyTransition(taskId, event)
   }
 
+  if (!deps.runVerify) {
+    verifyHolder.value = createVerifyRunner({
+      db: deps.db,
+      config: deps.config,
+      applyTransition,
+      now,
+      newId,
+      verifyMeta,
+    })
+  }
+
   function enqueue(taskId: string): TransitionOutcome {
     return applyTransition(taskId, { type: 'enqueue' })
   }
 
   function cancel(taskId: string, reason?: string): TransitionOutcome {
-    return applyTransition(taskId, { type: 'cancel', ...(reason ? { reason } : {}) })
+    const outcome = applyTransition(taskId, {
+      type: 'cancel',
+      ...(reason ? { reason } : {}),
+    })
+    if (outcome.ok && outcome.previousStatus === 'verifying') {
+      verifyHolder.value?.cancel(taskId)
+    }
+    return outcome
   }
 
   function decideApproval(input: ApprovalDecideInput): TransitionOutcome {
@@ -239,6 +259,7 @@ export function createRuntime(deps: RuntimeDeps) {
     settle,
     start: () => schedulerHolder.value?.kick(),
     close: async () => {
+      await verifyHolder.value?.close()
       await sessionHolder.value?.dispose()
       await settle()
     },

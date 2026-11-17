@@ -27,6 +27,7 @@ export function createTestRuntime(
   options: {
     maxConcurrency?: number
     useSessionRunner?: boolean
+    useVerifyRunner?: boolean
     adapters?: AdapterFactory
   } = {},
 ): TestRuntimeHandle {
@@ -66,7 +67,16 @@ export function createTestRuntime(
       events.push(event)
     },
     ...(options.useSessionRunner
-      ? { adapters: options.adapters ?? createAdapterFactory() }
+      ? {
+          adapters: options.adapters ?? createAdapterFactory(),
+          ...(options.useVerifyRunner
+            ? {}
+            : {
+                runVerify: (taskId: string) => {
+                  verifies.push(taskId)
+                },
+              }),
+        }
       : {
           startSession: (input: StartSessionInput) => {
             startSessions.push(input)
