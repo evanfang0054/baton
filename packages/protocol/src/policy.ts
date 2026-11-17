@@ -7,7 +7,7 @@ const DEFAULT_ALLOW = [
   'Glob',
   'Edit:src/**',
   'Edit:tests/**',
-  'Bash:pnpm (test|lint|typecheck|build|install --frozen-lockfile)',
+  'Bash:pnpm {test,lint,typecheck,build,install --frozen-lockfile}',
 ]
 
 const DEFAULT_DENY = [

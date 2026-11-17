@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import * as protocol from '../src/index.js'
 import type { AgentEvent } from '../src/index.js'
+import type { AgentAdapter, AgentRun, PolicySnapshot, StartInput } from '../src/adapter.js'
+import { PolicySchema } from '../src/policy.js'
 
 function acceptsAgentEvent(event: AgentEvent): AgentEvent {
   return event
@@ -61,5 +63,31 @@ describe('protocol exports', () => {
     }
     expect(protocol.EventType).toBeDefined()
     expect(acceptsAgentEvent).toBeTypeOf('function')
+  })
+
+  it('exports the AgentAdapter contract', async () => {
+    const adapter: AgentAdapter = {
+      name: 'fake',
+      async start(input: StartInput): Promise<AgentRun> {
+        const snapshot: PolicySnapshot = input.policy
+        expect(snapshot.approval.default).toBe('ask')
+        return {
+          events: (async function* () {})(),
+          approve: async () => {},
+          send: async () => {},
+          interrupt: async () => {},
+          dispose: async () => {},
+        }
+      },
+    }
+
+    const run = await adapter.start({
+      prompt: 'demo',
+      cwd: '/workspace/demo',
+      permissionMode: 'manual',
+      policy: PolicySchema.parse({}),
+    })
+    expect(adapter.name).toBe('fake')
+    await run.dispose()
   })
 })
