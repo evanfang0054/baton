@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { getNode } from '../src/db/repositories.js'
 import type { TestApp } from './helpers/app.js'
 import type { TestRuntimeHandle } from './helpers/runtime.js'
 import { createTaskPayload, createWsTestApp, type WsTestApp } from './helpers/ws.js'
@@ -125,6 +126,7 @@ describe('ws router', () => {
     const created = await ws.next('ack')
     const nodeId = (created.payload as { data: { nodeId: string } }).data.nodeId
     expect(nodeId).toBeTruthy()
+    expect(getNode(handle.database.db, nodeId)?.type).toBe('text')
 
     ws.send({
       v: 1,
@@ -134,9 +136,79 @@ describe('ws router', () => {
       payload: { nodeId, patch: { x: 50, y: 60, data: { content: 'updated' } } },
     })
     await ws.next('ack')
+    expect(getNode(handle.database.db, nodeId)).toMatchObject({
+      x: 50,
+      y: 60,
+      data: { content: 'updated' },
+    })
 
     ws.send({ v: 1, type: 'node.delete', id: 'n3', ts: 1, payload: { nodeId } })
     await ws.next('ack')
+    expect(getNode(handle.database.db, nodeId)).toBeNull()
+  })
+
+  it('renames an agent node without losing engine or taskId', async () => {
+    const { handle, ws } = await setup()
+    ws.send({
+      v: 1,
+      type: 'node.create',
+      id: 'n1',
+      ts: 1,
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        node: {
+          type: 'agent',
+          x: 0,
+          y: 0,
+          w: 320,
+          h: 200,
+          groupId: null,
+          data: { title: 'old', engine: 'fake', taskId: null },
+        },
+      },
+    })
+    const created = await ws.next('ack')
+    const nodeId = (created.payload as { data: { nodeId: string } }).data.nodeId
+
+    ws.send({
+      v: 1,
+      type: 'node.update',
+      id: 'n2',
+      ts: 1,
+      payload: { nodeId, patch: { data: { title: 'new' } } },
+    })
+    await ws.next('ack')
+    expect(getNode(handle.database.db, nodeId)?.data).toEqual({
+      title: 'new',
+      engine: 'fake',
+      taskId: null,
+    })
+  })
+
+  it('rejects deleting a node referenced by an edge', async () => {
+    const { handle, ws } = await setup()
+    handle.database.raw
+      .prepare(
+        `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
+         values ('edge-target', ?, 'text', 0, 0, 320, 200, null, ?, 1, 1)`,
+      )
+      .run(handle.seeded.canvasId, JSON.stringify({ content: 'target' }))
+    handle.database.raw
+      .prepare(
+        `insert into edge (id, canvas_id, source_id, target_id, type)
+         values ('edge-1', ?, ?, 'edge-target', 'context')`,
+      )
+      .run(handle.seeded.canvasId, handle.seeded.nodeId)
+
+    ws.send({
+      v: 1,
+      type: 'node.delete',
+      id: 'n1',
+      ts: 1,
+      payload: { nodeId: 'edge-target' },
+    })
+    const error = await ws.next('error')
+    expect(error.payload).toMatchObject({ code: 'node_in_use', details: { reference: 'edge' } })
   })
 
   it('rejects deleting a node referenced by a task', async () => {

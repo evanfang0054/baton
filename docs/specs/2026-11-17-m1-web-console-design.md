@@ -98,6 +98,7 @@ export const TaskListResponse = z.object({ tasks: z.array(TaskSummary) })
 - `waitingSince`：`status` 为 `waiting_input` 或 `review` 时取 `task.updatedAt`，否则 `null`。
 - 旧客户端不存在；直接改形状，同步更新 daemon 测试。
 - `GET /api/tasks` 查询参数不变：`workspaceId` + 可选 `status`。
+- `TaskDetailResponse` 也增加 `attention`，与 list 同规则；`waitingSince` 不变。
 
 ### 4.2 Session events 历史
 
@@ -461,7 +462,11 @@ HeroUI：`Button`、`Card`、`Chip`、`Input`、`TextArea`、`Select`、`Modal`�
 ## 12. 自审记录
 
 - **占位符扫描**：无 `TBD`/`TODO`；所有新增字段、命令、错误码都有消费者或测试。
-- **内部一致性**：7 列映射与 `DESIGN.md` 一致；attention 映射与 core 一致；`TaskSummary` 只在 list 使用，detail 仍用 `Task`。
+- **内部一致性**：7 列映射与 `DESIGN.md` 一致；attention 映射与 core 一致；`TaskSummary` 只在 list 使用；detail 用 `Task` + `attention` + `waitingSince`。
 - **范围检查**：只做 6a；6b/M1-7/M2 的内容明确排除。
 - **歧义检查**：看板默认 rail、可展开可 pin；任务创建后不自动开工；节点删除不级联；transcript 最新 session + 下拉切换。
 - **安全**：不把 token/密钥写 localStorage/仓库；transcript 不用 `dangerouslySetInnerHTML`；审批命令只展示不执行；`~/.baton/supervisor.json` 在仓库外。
+
+## 13. 变更记录
+
+- 2026-11-17：实现阶段补充 `NodeUpdateInput.patch.strict()`、`NodeCreateValue` 在 protocol 层接受全部六种节点（handler 拒绝 image/review/group）、`TaskDetailResponse.attention`、`node.delete` 的 edge 引用守卫。原因：对齐 contract DoD 11 与 Plan 1 实现；整体设计已在 2026-11-17 用户评审中确认。

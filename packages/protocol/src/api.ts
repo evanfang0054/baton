@@ -78,5 +78,6 @@ export const TaskDetailResponse = z.object({
   approvals: z.array(Approval),
   review: Review.nullable(),
   waitingSince: Timestamp.nullable(),
+  attention: Attention,
 })
 export type TaskDetailResponse = z.infer<typeof TaskDetailResponse>

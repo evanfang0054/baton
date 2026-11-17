@@ -12,10 +12,11 @@ import {
   type ReviewVerdict,
   type SessionOutcome,
   type SessionStatus,
+  type SessionEventRecord,
   type TaskStatus,
   type WaitingReason,
 } from '@baton/protocol'
-import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, or, sql } from 'drizzle-orm'
 import {
   approval,
   audit,
@@ -243,11 +244,15 @@ export function hasTaskForNode(db: Db, nodeId: string): boolean {
   )
 }
 
-export interface SessionEventRecord {
-  seq: number
-  type: string
-  payload: unknown
-  ts: number
+export function hasEdgeForNode(db: Db, nodeId: string): boolean {
+  return (
+    db
+      .select({ id: edge.id })
+      .from(edge)
+      .where(or(eq(edge.sourceId, nodeId), eq(edge.targetId, nodeId)))
+      .limit(1)
+      .get() !== undefined
+  )
 }
 
 export function listSessionEvents(

@@ -63,6 +63,9 @@ describe('REST DTO schemas', () => {
   it('validates task summary attention and waitingSince', () => {
     expect(TaskSummary.parse(task)).toEqual(task)
     expect(TaskListResponse.parse({ tasks: [task] })).toEqual({ tasks: [task] })
+    expect(
+      TaskSummary.parse({ ...task, status: 'waiting_input', waitingSince: 42 }).waitingSince,
+    ).toBe(42)
     expect(() => TaskListResponse.parse({ tasks: [{ ...task, attention: 'paused' }] })).toThrow()
   })
 
@@ -101,6 +104,7 @@ describe('REST DTO schemas', () => {
       approvals: [],
       review: null,
       waitingSince: null,
+      attention: 'none',
     })
     expect(detail.review).toBeNull()
   })

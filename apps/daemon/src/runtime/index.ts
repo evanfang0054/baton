@@ -20,6 +20,7 @@ import {
   getReviewByTask,
   getSession,
   getTask,
+  hasEdgeForNode,
   hasTaskForNode,
   insertNode,
   listTasksByStatus,
@@ -355,6 +356,14 @@ export function createRuntime(deps: RuntimeDeps) {
           }
         }
         const patch = message.payload.patch
+        if (existing.type !== 'text' && existing.type !== 'file' && existing.type !== 'agent') {
+          return {
+            ok: false,
+            error: appError('unsupported_node_type', 'node type is not supported in M1-6a', {
+              type: existing.type,
+            }),
+          }
+        }
         if (patch.data !== undefined) {
           if (typeof patch.data !== 'object' || patch.data === null || Array.isArray(patch.data)) {
             return { ok: false, error: appError('invalid_payload', 'node data must be an object') }
@@ -382,6 +391,13 @@ export function createRuntime(deps: RuntimeDeps) {
           }
         }
         let next: Node
+        const mergedData =
+          existing.type === 'agent' && patch.data !== undefined
+            ? {
+                ...(existing.data as Record<string, unknown>),
+                ...(patch.data as Record<string, unknown>),
+              }
+            : (patch.data ?? existing.data)
         try {
           next = Node.parse({
             ...existing,
@@ -389,7 +405,7 @@ export function createRuntime(deps: RuntimeDeps) {
             y: patch.y ?? existing.y,
             w: patch.w ?? existing.w,
             h: patch.h ?? existing.h,
-            data: patch.data ?? existing.data,
+            data: mergedData,
             updatedAt: now(),
           })
         } catch {
@@ -422,6 +438,16 @@ export function createRuntime(deps: RuntimeDeps) {
             ok: false,
             error: appError('node_in_use', 'node is referenced by a task', {
               nodeId: existing.id,
+              reference: 'task',
+            }),
+          }
+        }
+        if (hasEdgeForNode(deps.db, existing.id)) {
+          return {
+            ok: false,
+            error: appError('node_in_use', 'node is referenced by an edge', {
+              nodeId: existing.id,
+              reference: 'edge',
             }),
           }
         }
