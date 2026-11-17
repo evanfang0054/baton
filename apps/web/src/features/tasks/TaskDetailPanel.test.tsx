@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CommandProvider } from '../../lib/command-context'
+import { queryKeys } from '../../lib/query'
 import { useAppStore } from '../../stores/app'
 import { TaskDetailPanel } from './TaskDetailPanel'
 
@@ -82,7 +83,7 @@ function renderPanel(send = vi.fn().mockResolvedValue(undefined)) {
       </CommandProvider>
     </QueryClientProvider>,
   )
-  return send
+  return { send, client }
 }
 
 beforeEach(() => {
@@ -101,9 +102,10 @@ afterEach(() => {
 })
 
 describe('TaskDetailPanel', () => {
-  it('shows a todo task and enqueues it', async () => {
+  it('shows a todo task, enqueues it and invalidates its queries', async () => {
     stubFetch(detail())
-    const send = renderPanel()
+    const { send, client } = renderPanel()
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
 
     expect(await screen.findByText('修复登录页')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '立即开工' }))
@@ -113,6 +115,8 @@ describe('TaskDetailPanel', () => {
         payload: { taskId: 't1' },
       }),
     )
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.task('t1') }))
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.tasks('w1') })
   })
 
   it('shows the approval gate for waiting_input', async () => {
@@ -132,7 +136,7 @@ describe('TaskDetailPanel', () => {
         ],
       }),
     )
-    const send = renderPanel()
+    const { send } = renderPanel()
 
     expect(await screen.findByText('需要授权')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '允许' }))
@@ -142,5 +146,54 @@ describe('TaskDetailPanel', () => {
         payload: { approvalId: 'a1', decision: 'allow' },
       }),
     )
+  })
+
+  it('shows the reply composer for a question gate', async () => {
+    stubFetch(
+      detail({
+        task: { ...baseTask, status: 'waiting_input', waitingReason: 'question' },
+        attention: 'needs_reply',
+      }),
+    )
+    renderPanel()
+
+    expect(await screen.findByLabelText('回复内容')).toBeInTheDocument()
+    expect(screen.queryByText('需要授权')).not.toBeInTheDocument()
+  })
+
+  it('shows the review card and read-only terminal state', async () => {
+    const review = {
+      id: 'r1',
+      taskId: 't1',
+      verdict: null,
+      verifyExitCode: 0,
+      verifyOutput: 'verify ok',
+      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+      decidedAt: null,
+    } as const
+    stubFetch(
+      detail({
+        task: { ...baseTask, status: 'review' },
+        attention: 'needs_review',
+        review,
+      }),
+    )
+    const { unmount } = render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <CommandProvider send={vi.fn().mockResolvedValue(undefined)}>
+          <TaskDetailPanel />
+        </CommandProvider>
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByText('退出码 0')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '通过' })).toBeInTheDocument()
+    unmount()
+
+    stubFetch(detail({ task: { ...baseTask, status: 'done' } }))
+    renderPanel()
+    expect(await screen.findByText('任务已结束，只读。')).toBeInTheDocument()
   })
 })

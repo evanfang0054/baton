@@ -58,7 +58,7 @@ export function ApprovalCard({
           拒绝
         </Button>
         <Button
-          variant="primary"
+          variant={approval.request.risk === 'high' ? 'secondary' : 'primary'}
           isDisabled={action.pending}
           onPress={() =>
             action.run({

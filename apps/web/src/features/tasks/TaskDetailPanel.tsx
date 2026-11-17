@@ -57,6 +57,7 @@ export function TaskDetailPanel() {
         <p className="text-sm text-danger">任务加载失败</p>
       ) : detail.data ? (
         <DetailContent
+          key={detail.data.task.id}
           detail={detail.data}
           workspaceId={activeWorkspaceId}
           activeSessionId={activeSession?.id ?? null}
@@ -91,7 +92,9 @@ function DetailContent({
   onDone: () => Promise<void>
 }) {
   const task = detail.task
-  const pendingApproval = [...detail.approvals].reverse().find((item) => item.decision === null)
+  const pendingApprovals = [...detail.approvals].reverse().filter((item) => item.decision === null)
+  const pendingApproval =
+    pendingApprovals.find((item) => item.sessionId === activeSessionId) ?? pendingApprovals[0]
   const needsApproval = task.waitingReason === 'approval' || task.waitingReason === null
 
   return (
@@ -145,7 +148,7 @@ function DetailContent({
         {hasMore ? (
           <p className="mb-2 shrink-0 text-xs text-muted">仅显示前 500 条会话记录</p>
         ) : null}
-        <Transcript events={events} loading={eventsLoading} />
+        <Transcript key={activeSessionId ?? 'none'} events={events} loading={eventsLoading} />
       </div>
     </>
   )

@@ -78,7 +78,18 @@ export function createWsClient(options: WsClientOptions) {
         reject(new CommandError('ack_timeout', '命令 10 秒内未确认'))
       }, COMMAND_TIMEOUT_MS)
       pending.set(message.id, { resolve, reject, timer: commandTimer })
-      socket!.send(JSON.stringify(message))
+      try {
+        socket!.send(JSON.stringify(message))
+      } catch (cause) {
+        window.clearTimeout(commandTimer)
+        pending.delete(message.id)
+        reject(
+          new CommandError(
+            'ws_send_failed',
+            cause instanceof Error ? cause.message : '命令发送失败',
+          ),
+        )
+      }
     })
   }
 

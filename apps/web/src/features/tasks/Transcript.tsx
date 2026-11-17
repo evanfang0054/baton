@@ -57,7 +57,9 @@ export function Transcript({
   const entries = useMemo(() => buildTranscript(events), [events])
   const parentRef = useRef<HTMLDivElement>(null)
   const [atBottom, setAtBottom] = useState(true)
-  const previousCount = useRef(entries.length)
+  const last = entries.at(-1)
+  const lastSignature = last ? `${last.id}:${last.text.length}` : ''
+  const previousSignature = useRef(lastSignature)
 
   const virtualizer = useVirtualizer({
     count: entries.length,
@@ -67,12 +69,12 @@ export function Transcript({
   })
 
   useEffect(() => {
-    const grew = entries.length > previousCount.current
-    previousCount.current = entries.length
+    const grew = lastSignature !== previousSignature.current
+    previousSignature.current = lastSignature
     if (grew && atBottom && entries.length > 0) {
       virtualizer.scrollToIndex(entries.length - 1, { align: 'end' })
     }
-  }, [entries.length, atBottom, virtualizer])
+  }, [lastSignature, atBottom, entries.length, virtualizer])
 
   if (loading) {
     return <p className="p-3 text-sm text-muted">加载中…</p>
@@ -93,6 +95,7 @@ export function Transcript({
       <div
         ref={parentRef}
         onScroll={onScroll}
+        role="log"
         aria-label="会话记录"
         tabIndex={0}
         className="min-h-0 flex-1 overflow-y-auto px-3"

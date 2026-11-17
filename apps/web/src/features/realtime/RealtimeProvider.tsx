@@ -6,7 +6,7 @@ import { CommandProvider, offlineCommand, type CommandSender } from '../../lib/c
 import { queryKeys } from '../../lib/query'
 import { createWsClient } from '../../lib/ws'
 import { useAppStore } from '../../stores/app'
-import { appendSessionEvent } from './session-cache'
+import { appendSessionEvents } from './session-cache'
 
 const INVALIDATING_EVENTS = new Set(['task.status', 'approval.request', 'verify.result'])
 
@@ -37,6 +37,33 @@ export function RealtimeProvider({
         if (taskId) void queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
       }, 100)
     }
+
+    // 每个 chunk 都写缓存会触发 transcript 全量重投影；按帧合并写入。
+    const pendingEvents = new Map<string, SessionEventRecord[]>()
+    let flushTimer: number | undefined
+    const flush = () => {
+      flushTimer = undefined
+      for (const [sessionId, records] of pendingEvents) {
+        pendingEvents.delete(sessionId)
+        const key = queryKeys.sessionEvents(sessionId)
+        const cached = queryClient.getQueryData<SessionEventsResponse>(key)
+        if (!cached) {
+          // 首次历史还没回来：让 REST 重新拉取，避免丢掉这段实时事件。
+          void queryClient.invalidateQueries({ queryKey: key })
+          continue
+        }
+        queryClient.setQueryData<SessionEventsResponse>(key, (previous) =>
+          appendSessionEvents(previous, records),
+        )
+      }
+    }
+    const enqueueEvent = (sessionId: string, record: SessionEventRecord) => {
+      const list = pendingEvents.get(sessionId) ?? []
+      list.push(record)
+      pendingEvents.set(sessionId, list)
+      if (!flushTimer) flushTimer = window.setTimeout(flush, 32)
+    }
+
     const client = createWsClient({
       onStatus: setWsStatus,
       onEvent: (event) => {
@@ -56,10 +83,7 @@ export function RealtimeProvider({
               payload: event.payload.event,
               ts: event.ts,
             })
-            queryClient.setQueryData<SessionEventsResponse>(
-              queryKeys.sessionEvents(sessionId),
-              (previous) => appendSessionEvent(previous, record),
-            )
+            enqueueEvent(sessionId, record)
           } catch {
             // 非法事件不影响后续消息；可用 REST 重新拉取修复。
             void queryClient.invalidateQueries({
@@ -79,6 +103,7 @@ export function RealtimeProvider({
     return () => {
       client.close()
       if (invalidateTimer) window.clearTimeout(invalidateTimer)
+      if (flushTimer) window.clearTimeout(flushTimer)
     }
   }, [workspaceId, queryClient, setWsStatus])
 

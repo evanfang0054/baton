@@ -93,16 +93,34 @@ function connectWs() {
   const send = (type, payload) =>
     new Promise((resolve, reject) => {
       const id = randomUUID()
-      pending.set(id, { resolve, reject })
-      socket.send(
-        JSON.stringify({
-          v: 1,
-          id,
-          type,
-          ts: Date.now(),
-          payload,
-        }),
-      )
+      const timer = setTimeout(() => {
+        if (pending.delete(id)) reject(new Error(`command ${type} timed out`))
+      }, 10_000)
+      pending.set(id, {
+        resolve: (value) => {
+          clearTimeout(timer)
+          resolve(value)
+        },
+        reject: (error) => {
+          clearTimeout(timer)
+          reject(error)
+        },
+      })
+      try {
+        socket.send(
+          JSON.stringify({
+            v: 1,
+            id,
+            type,
+            ts: Date.now(),
+            payload,
+          }),
+        )
+      } catch (error) {
+        clearTimeout(timer)
+        pending.delete(id)
+        reject(error)
+      }
     })
 
   const waitFor = (match, timeoutMs = 15_000) =>
@@ -110,7 +128,7 @@ function connectWs() {
       const timer = setTimeout(() => {
         const index = waiters.indexOf(waiter)
         if (index >= 0) waiters.splice(index, 1)
-        reject(new Error('timed out waiting for task status'))
+        reject(new Error('timed out waiting for websocket event'))
       }, timeoutMs)
       const waiter = {
         match,
