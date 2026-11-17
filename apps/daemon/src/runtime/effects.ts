@@ -1,8 +1,9 @@
 import { attentionFor, type TaskEffect } from '@baton/core'
-import type { Policy, Task, TaskStatus } from '@baton/protocol'
+import type { Policy, Task, TaskStatus, TaskStatusCause } from '@baton/protocol'
 import {
   type ApprovalRecord,
   appendTaskFeedback,
+  appendTaskPromptBlock,
   getActiveSession,
   insertAudit,
   insertReview,
@@ -16,6 +17,24 @@ import type { Tx } from '../db/types.js'
 import type { RuntimeHooks } from './types.js'
 
 const MAX_FEEDBACK_CHARS = 16_384
+
+function enrichCause(
+  tx: Tx,
+  ctx: EffectContext,
+  cause: TaskStatusCause | undefined,
+): TaskStatusCause | undefined {
+  if (!cause) return undefined
+  const enriched = { ...cause }
+  if (!enriched.sessionId) {
+    if (enriched.approvalId && ctx.approval) {
+      enriched.sessionId = ctx.approval.sessionId
+    } else {
+      const active = getActiveSession(tx, ctx.task.id)
+      if (active) enriched.sessionId = active.id
+    }
+  }
+  return enriched
+}
 
 export interface EffectContext {
   eventStore: EventStore
@@ -113,6 +132,17 @@ export function planAndApplyEffects(tx: Tx, ctx: EffectContext, effects: TaskEff
         appendTaskFeedback(tx, ctx.task.id, effect.feedback, MAX_FEEDBACK_CHARS, ctx.now)
         break
       }
+      case 'appendUserReply': {
+        appendTaskPromptBlock(
+          tx,
+          ctx.task.id,
+          'user_reply',
+          effect.text,
+          MAX_FEEDBACK_CHARS,
+          ctx.now,
+        )
+        break
+      }
       case 'incrementRetry': {
         insertAudit(tx, {
           id: ctx.newId(),
@@ -159,6 +189,7 @@ export function planAndApplyEffects(tx: Tx, ctx: EffectContext, effects: TaskEff
         break
       }
       case 'emitTaskStatus': {
+        const cause = enrichCause(tx, ctx, effect.cause)
         plan.events.push(
           ctx.eventStore.appendTaskStatus(tx, {
             taskId: ctx.task.id,
@@ -166,8 +197,8 @@ export function planAndApplyEffects(tx: Tx, ctx: EffectContext, effects: TaskEff
             previousStatus: ctx.previousStatus,
             retryCount: ctx.retryCount,
             updatedAt: ctx.now,
-            ...(effect.cause ? { cause: effect.cause } : {}),
-            attention: attentionFor(effect.status, effect.cause?.waitingReason ?? null),
+            ...(cause ? { cause } : {}),
+            attention: attentionFor(effect.status, cause?.waitingReason ?? null),
           }),
         )
         break

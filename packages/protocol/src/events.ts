@@ -37,7 +37,7 @@ export const SESSION_OUTCOME_EVENT = 'session.outcome'
 export const USER_MESSAGE_EVENT = 'user.message'
 
 export const SessionOutcomeValue = z.object({
-  outcome: SessionOutcome,
+  outcome: SessionOutcome.exclude(['unreported']),
   reason: z.string().min(1).optional(),
 })
 export type SessionOutcomeValue = z.infer<typeof SessionOutcomeValue>

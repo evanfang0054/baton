@@ -5,6 +5,7 @@ import type {
   WaitingReason,
 } from '@baton/protocol'
 import { effects } from './effects.js'
+import { canAcceptUserInput } from './attention.js'
 import type { TaskEffect, TransitionContext, TransitionResult } from './types.js'
 
 const TERMINAL: ReadonlySet<TaskStatus> = new Set(['done', 'failed', 'cancelled'])
@@ -114,18 +115,34 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
 
     case 'waiting_input':
       if (event.type === 'approval_allow') {
-        return ok('running', ctx.retryCount, [effects.resolveApproval(event.approvalId, 'allow')])
+        return ok(
+          'running',
+          ctx.retryCount,
+          [effects.resolveApproval(event.approvalId, 'allow')],
+          null,
+          { approvalId: event.approvalId },
+        )
       }
       if (event.type === 'approval_deny') {
-        return ok('running', ctx.retryCount, [
-          effects.resolveApproval(event.approvalId, 'deny', event.note),
-        ])
+        return ok(
+          'running',
+          ctx.retryCount,
+          [effects.resolveApproval(event.approvalId, 'deny', event.note)],
+          null,
+          { approvalId: event.approvalId },
+        )
+      }
+      if (event.type === 'enqueue' && ctx.waitingReason === 'stalled') {
+        return ok('queued', ctx.retryCount, [effects.enqueueTask()])
       }
       if (event.type === 'user_input') {
-        if (ctx.waitingReason === null || ctx.waitingReason === 'approval') {
+        if (!canAcceptUserInput(ctx.waitingReason)) {
           return invalid(ctx, event)
         }
-        return ok('running', ctx.retryCount, [effects.sendToSession(event.text)])
+        return ok('running', ctx.retryCount, [
+          effects.sendToSession(event.text),
+          effects.appendUserReply(event.text),
+        ])
       }
       if (event.type === 'error') {
         return ok('failed', ctx.retryCount, [effects.interruptSession(event.message)], null, {
@@ -136,9 +153,20 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
 
     case 'verifying': {
       if (event.type === 'verify_ok' && event.exitCode === 0) {
-        return ok('review', ctx.retryCount, [
-          effects.persistVerifyResult(event.reviewId, event.exitCode, event.output, event.diffStat),
-        ])
+        return ok(
+          'review',
+          ctx.retryCount,
+          [
+            effects.persistVerifyResult(
+              event.reviewId,
+              event.exitCode,
+              event.output,
+              event.diffStat,
+            ),
+          ],
+          null,
+          { reviewId: event.reviewId },
+        )
       }
       if (event.type === 'verify_fail') {
         const persisted = effects.persistVerifyResult(
@@ -148,30 +176,46 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
           event.diffStat,
         )
         if (ctx.autopilot.enabled && ctx.retryCount < ctx.autopilot.retryMax) {
-          return ok('queued', ctx.retryCount + 1, [
-            persisted,
-            effects.incrementRetry(),
-            effects.appendFeedback(event.output),
-            effects.enqueueTask(),
-          ])
+          return ok(
+            'queued',
+            ctx.retryCount + 1,
+            [
+              persisted,
+              effects.incrementRetry(),
+              effects.appendFeedback(event.output),
+              effects.enqueueTask(),
+            ],
+            null,
+            { reviewId: event.reviewId },
+          )
         }
-        return ok('review', ctx.retryCount, [persisted])
+        return ok('review', ctx.retryCount, [persisted], null, { reviewId: event.reviewId })
       }
       return invalid(ctx, event)
     }
 
     case 'review':
       if (event.type === 'approve') {
-        return ok('done', ctx.retryCount, [
-          effects.persistReviewVerdict(event.reviewId, 'approved'),
-        ])
+        return ok(
+          'done',
+          ctx.retryCount,
+          [effects.persistReviewVerdict(event.reviewId, 'approved')],
+          null,
+          { reviewId: event.reviewId },
+        )
       }
       if (event.type === 'reject') {
-        return ok('queued', ctx.retryCount, [
-          effects.persistReviewVerdict(event.reviewId, 'rejected'),
-          effects.appendFeedback(event.feedback),
-          effects.enqueueTask(),
-        ])
+        return ok(
+          'queued',
+          ctx.retryCount,
+          [
+            effects.persistReviewVerdict(event.reviewId, 'rejected'),
+            effects.appendFeedback(event.feedback),
+            effects.enqueueTask(),
+          ],
+          null,
+          { reviewId: event.reviewId },
+        )
       }
       return invalid(ctx, event)
 

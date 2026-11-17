@@ -15,6 +15,7 @@ describe('attention protocol', () => {
     expect(SessionOutcome.parse('blocked')).toBe('blocked')
     expect(WaitingReason.parse('question')).toBe('question')
     expect(Attention.parse('needs_reply')).toBe('needs_reply')
+    expect(Attention.parse('needs_attention')).toBe('needs_attention')
     expect(() => SessionOutcome.parse('paused')).toThrow()
   })
 
@@ -25,6 +26,7 @@ describe('attention protocol', () => {
       reason: 'need a decision',
     })
     expect(() => SessionOutcomeValue.parse({ outcome: 'blocked', reason: '' })).toThrow()
+    expect(() => SessionOutcomeValue.parse({ outcome: 'unreported' })).toThrow()
   })
 
   it('parses session.reply', () => {

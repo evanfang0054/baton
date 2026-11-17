@@ -1,3 +1,4 @@
+import { canAcceptUserInput } from '@baton/core'
 import type {
   AppError,
   ApprovalDecideInput,
@@ -74,6 +75,7 @@ export function createRuntime(deps: RuntimeDeps) {
   const sessionHolder: { value?: SessionRunner } = {}
   const verifyHolder: { value?: VerifyRunner } = {}
   let closing = false
+  let booting = false
 
   const hooks: RuntimeHooks = {
     broadcast: deps.broadcast,
@@ -98,7 +100,7 @@ export function createRuntime(deps: RuntimeDeps) {
       ((taskId, text) =>
         sessionHolder.value ? sessionHolder.value.reply(taskId, text) : undefined),
     kick: () => {
-      if (closing) {
+      if (closing || booting) {
         return
       }
       schedulerHolder.value?.kick()
@@ -274,7 +276,7 @@ export function createRuntime(deps: RuntimeDeps) {
             }),
           }
         }
-        if (task.waitingReason === null || task.waitingReason === 'approval') {
+        if (!canAcceptUserInput(task.waitingReason)) {
           return {
             ok: false,
             error: appError('reply_not_allowed', 'approval must be decided with approval.decide', {
@@ -333,10 +335,14 @@ export function createRuntime(deps: RuntimeDeps) {
     replay,
     maxOrdinal: eventStore.maxOrdinal,
     settle,
+    beginBoot: () => {
+      booting = true
+    },
     start: () => {
       if (closing) {
         return
       }
+      booting = false
       schedulerHolder.value?.kick()
     },
     close: async () => {

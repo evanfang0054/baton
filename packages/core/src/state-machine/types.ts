@@ -36,6 +36,7 @@ export type TaskEffect =
   | { type: 'incrementRetry' }
   | { type: 'interruptSession'; reason?: string }
   | { type: 'sendToSession'; text: string }
+  | { type: 'appendUserReply'; text: string }
 
 export type TransitionResult =
   | {

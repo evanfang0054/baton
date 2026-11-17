@@ -28,7 +28,13 @@ export type SessionOutcome = z.infer<typeof SessionOutcome>
 export const WaitingReason = z.enum(['approval', 'question', 'stalled', 'dropped'])
 export type WaitingReason = z.infer<typeof WaitingReason>
 
-export const Attention = z.enum(['none', 'needs_approval', 'needs_reply', 'needs_review'])
+export const Attention = z.enum([
+  'none',
+  'needs_approval',
+  'needs_reply',
+  'needs_attention',
+  'needs_review',
+])
 export type Attention = z.infer<typeof Attention>
 
 export const ApprovalDecision = z.enum(['allow', 'deny'])

@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { TestApp } from './helpers/app.js'
 import { buildTestApp } from './helpers/app.js'
+import { updateTaskState } from '../src/db/repositories.js'
 
 const apps: TestApp[] = []
 const auth = { authorization: 'Bearer secret' }
@@ -109,11 +110,10 @@ describe('REST API', () => {
     expect(tasks.statusCode).toBe(200)
     expect((tasks.json() as { tasks: unknown[] }).tasks).toHaveLength(1)
 
-    handle.database.raw
-      .prepare(
-        "update task set status = 'waiting_input', waiting_reason = 'question', updated_at = 42 where id = ?",
-      )
-      .run(handle.seeded.taskId)
+    // fixture 造 waiting 态，走 repository 单一写入口。
+    handle.database.db.transaction((tx) =>
+      updateTaskState(tx, handle.seeded.taskId, 'waiting_input', 0, 'question', 42),
+    )
 
     const detail = await app.inject({
       method: 'GET',

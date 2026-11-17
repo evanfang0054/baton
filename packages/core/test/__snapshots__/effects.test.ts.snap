@@ -32,6 +32,9 @@ exports[`effects snapshots > approval request, allow and deny 2`] = `
       "type": "resolveApproval",
     },
     {
+      "cause": {
+        "approvalId": "a1",
+      },
       "status": "running",
       "type": "emitTaskStatus",
     },
@@ -53,6 +56,9 @@ exports[`effects snapshots > approval request, allow and deny 3`] = `
       "type": "resolveApproval",
     },
     {
+      "cause": {
+        "approvalId": "a1",
+      },
       "status": "running",
       "type": "emitTaskStatus",
     },
@@ -155,6 +161,9 @@ exports[`effects snapshots > happy path 4`] = `
       "type": "persistVerifyResult",
     },
     {
+      "cause": {
+        "reviewId": "r1",
+      },
       "status": "review",
       "type": "emitTaskStatus",
     },
@@ -175,6 +184,9 @@ exports[`effects snapshots > happy path 5`] = `
       "verdict": "approved",
     },
     {
+      "cause": {
+        "reviewId": "r1",
+      },
       "status": "done",
       "type": "emitTaskStatus",
     },
@@ -202,6 +214,9 @@ exports[`effects snapshots > reject does not increment retry 1`] = `
       "type": "enqueueTask",
     },
     {
+      "cause": {
+        "reviewId": "r1",
+      },
       "status": "queued",
       "type": "emitTaskStatus",
     },
@@ -238,6 +253,9 @@ exports[`effects snapshots > verify fail retry 1`] = `
       "type": "enqueueTask",
     },
     {
+      "cause": {
+        "reviewId": "r1",
+      },
       "status": "queued",
       "type": "emitTaskStatus",
     },
@@ -264,6 +282,9 @@ exports[`effects snapshots > verify fail without autopilot goes to review 1`] = 
       "type": "persistVerifyResult",
     },
     {
+      "cause": {
+        "reviewId": "r1",
+      },
       "status": "review",
       "type": "emitTaskStatus",
     },

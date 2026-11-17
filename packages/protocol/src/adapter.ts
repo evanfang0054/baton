@@ -15,6 +15,11 @@ export interface StartInput {
 }
 
 export interface AgentRun {
+  /**
+   * 适配器必须在本轮结束前发出 `session.outcome`：
+   * `ready` 后跟 RUN_FINISHED；`blocked`/`dropped` 保持事件流打开，等待 `send`。
+   * 禁止上报 `unreported`，该值只由 daemon 在流静默结束时合成。
+   */
   events: AsyncIterable<AgentEvent>
   approve(requestId: string, decision: ApprovalDecision, note?: string): Promise<void>
   send(text: string): Promise<void>

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { DiffStat, Id } from './common.js'
+import { SessionOutcome } from './enums.js'
 
 export const TaskTransitionEvent = z.discriminatedUnion('type', [
   z.object({ type: z.literal('enqueue') }),
@@ -14,7 +15,7 @@ export const TaskTransitionEvent = z.discriminatedUnion('type', [
   z.object({ type: z.literal('completed') }),
   z.object({
     type: z.literal('session_reported'),
-    outcome: z.enum(['blocked', 'dropped', 'unreported']),
+    outcome: SessionOutcome.exclude(['ready']),
     reason: z.string().min(1).optional(),
   }),
   z.object({

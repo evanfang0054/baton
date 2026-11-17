@@ -41,4 +41,5 @@ export const effects = {
     ...(reason ? { reason } : {}),
   }),
   sendToSession: (text: string): TaskEffect => ({ type: 'sendToSession', text }),
+  appendUserReply: (text: string): TaskEffect => ({ type: 'appendUserReply', text }),
 }

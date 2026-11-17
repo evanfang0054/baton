@@ -175,7 +175,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
           await handleApproval(active, policy, event.value)
         } else if (event.type === EventType.CUSTOM && event.name === SESSION_OUTCOME_EVENT) {
           const parsed = SessionOutcomeValue.safeParse(event.value)
-          if (!parsed.success || parsed.data.outcome === 'unreported' || active.outcome !== null) {
+          if (!parsed.success || active.outcome !== null) {
             deps.applyTransition(active.taskId, {
               type: 'error',
               message: 'invalid session outcome',
@@ -205,15 +205,25 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
           }
         } else if (event.type === EventType.RUN_FINISHED) {
           finished = true
-          if (active.outcome !== 'ready') {
+          if (active.outcome === 'ready') {
+            const outcome = deps.applyTransition(active.taskId, { type: 'completed' })
+            endSession(
+              active.sessionId,
+              outcome.ok ? 'ended' : 'failed',
+              outcome.ok ? 'ready' : null,
+            )
+          } else if (active.outcome === 'blocked' || active.outcome === 'dropped') {
             deps.applyTransition(active.taskId, {
               type: 'error',
-              message: 'RUN_FINISHED without ready outcome',
+              message: `RUN_FINISHED after ${active.outcome} outcome`,
             })
             endSession(active.sessionId, 'failed')
           } else {
-            deps.applyTransition(active.taskId, { type: 'completed' })
-            endSession(active.sessionId, 'ended', 'ready')
+            deps.applyTransition(active.taskId, {
+              type: 'session_reported',
+              outcome: 'unreported',
+            })
+            endSession(active.sessionId, 'ended', 'unreported')
           }
           break
         } else if (event.type === EventType.RUN_ERROR) {
@@ -230,11 +240,15 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       if (!finished) {
         const current = getTask(deps.db, active.taskId)
         if (current?.status === 'running') {
-          deps.applyTransition(active.taskId, {
+          const outcome = deps.applyTransition(active.taskId, {
             type: 'session_reported',
             outcome: 'unreported',
           })
-          endSession(active.sessionId, 'ended', 'unreported')
+          endSession(
+            active.sessionId,
+            outcome.ok ? 'ended' : 'failed',
+            outcome.ok ? 'unreported' : null,
+          )
         } else if (current?.status === 'waiting_input') {
           deps.applyTransition(active.taskId, {
             type: 'error',
@@ -311,18 +325,20 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     throw appError('approval_expired', 'approval is no longer active', { approvalId })
   }
 
+  function findByTask(taskId: string): ActiveRun | undefined {
+    return [...activeRuns.values()].find((run) => run.taskId === taskId)
+  }
+
   async function interrupt(taskId: string): Promise<void> {
-    for (const active of activeRuns.values()) {
-      if (active.taskId !== taskId) {
-        continue
-      }
-      await active.run.interrupt().catch(() => {})
+    const active = findByTask(taskId)
+    if (!active) {
       return
     }
+    await active.run.interrupt().catch(() => {})
   }
 
   async function reply(taskId: string, text: string): Promise<void> {
-    const active = [...activeRuns.values()].find((run) => run.taskId === taskId)
+    const active = findByTask(taskId)
     if (!active) {
       throw appError('session_not_active', 'no active session for task', { taskId })
     }
@@ -351,12 +367,14 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     } catch (error) {
       deps.applyTransition(taskId, { type: 'error', message: toAppError(error).message })
       endSession(active.sessionId, 'failed')
+      activeRuns.delete(active.sessionId)
+      await active.run.dispose().catch(() => {})
       throw error
     }
   }
 
   function has(taskId: string): boolean {
-    return [...activeRuns.values()].some((run) => run.taskId === taskId)
+    return findByTask(taskId) !== undefined
   }
 
   async function close(): Promise<void> {

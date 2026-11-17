@@ -19,8 +19,6 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { approval, audit, canvas, edge, node, review, session, task, workspace } from './schema.js'
 import type { Db, Tx } from './types.js'
 
-const ACTIVE_TASK_STATUSES: TaskStatus[] = ['running', 'waiting_input', 'verifying']
-
 export interface ApprovalRecord extends Approval {
   requestId: string | null
 }
@@ -240,15 +238,26 @@ export function appendTaskFeedback(
   maxChars: number,
   updatedAt: number,
 ): void {
+  appendTaskPromptBlock(tx, id, 'feedback', feedback, maxChars, updatedAt)
+}
+
+export function appendTaskPromptBlock(
+  tx: Tx,
+  id: string,
+  tag: 'feedback' | 'user_reply',
+  content: string,
+  maxChars: number,
+  updatedAt: number,
+): void {
   const row = tx.select({ prompt: task.prompt }).from(task).where(eq(task.id, id)).get()
   if (!row) {
     return
   }
   const clipped =
-    feedback.length > maxChars ? `${feedback.slice(0, maxChars)}\n…[truncated]` : feedback
+    content.length > maxChars ? `${content.slice(0, maxChars)}\n…[truncated]` : content
   tx.update(task)
     .set({
-      prompt: `${row.prompt}\n\n<feedback>\n${clipped}\n</feedback>`,
+      prompt: `${row.prompt}\n\n<${tag}>\n${clipped}\n</${tag}>`,
       updatedAt,
     })
     .where(eq(task.id, id))
@@ -259,7 +268,9 @@ export function countActiveTasks(db: Db): number {
   const row = db
     .select({ count: sql<number>`count(*)` })
     .from(task)
-    .where(inArray(task.status, ACTIVE_TASK_STATUSES))
+    .where(
+      sql`(${task.status} in ('running', 'verifying')) or (${task.status} = 'waiting_input' and exists (select 1 from session s where s.task_id = ${task.id} and s.status in ('running', 'waiting_input')))`,
+    )
     .get()
   return row?.count ?? 0
 }

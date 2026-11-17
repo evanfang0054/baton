@@ -1,6 +1,7 @@
 import { TaskStatus } from '@baton/protocol'
-import type { DiffStat, TaskTransitionEvent } from '@baton/protocol'
+import type { DiffStat, TaskStatusCause, TaskTransitionEvent } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
+import { effects } from '../src/state-machine/effects.js'
 import { transition } from '../src/state-machine/index.js'
 import type { TaskEffect } from '../src/state-machine/types.js'
 import { ctx, expectOk } from './helpers.js'
@@ -37,11 +38,8 @@ const EVENTS: TaskTransitionEvent[] = [
   { type: 'error', message: 'boom' },
 ]
 
-const emit = (status: TaskStatus, cause?: Record<string, unknown>): TaskEffect => ({
-  type: 'emitTaskStatus',
-  status,
-  ...(cause ? { cause } : {}),
-})
+const emit = (status: TaskStatus, cause?: TaskStatusCause): TaskEffect =>
+  effects.emitTaskStatus(status, cause)
 
 const EXPECTED: Record<string, { status: TaskStatus; effects: TaskEffect[] }> = {
   'todo:enqueue': {
@@ -79,13 +77,16 @@ const EXPECTED: Record<string, { status: TaskStatus; effects: TaskEffect[] }> = 
   },
   'waiting_input:approval_allow': {
     status: 'running',
-    effects: [{ type: 'resolveApproval', approvalId: 'a1', decision: 'allow' }, emit('running')],
+    effects: [
+      { type: 'resolveApproval', approvalId: 'a1', decision: 'allow' },
+      emit('running', { approvalId: 'a1' }),
+    ],
   },
   'waiting_input:approval_deny': {
     status: 'running',
     effects: [
       { type: 'resolveApproval', approvalId: 'a1', decision: 'deny', note: 'no' },
-      emit('running'),
+      emit('running', { approvalId: 'a1' }),
     ],
   },
   'waiting_input:error': {
@@ -102,7 +103,7 @@ const EXPECTED: Record<string, { status: TaskStatus; effects: TaskEffect[] }> = 
         output: 'ok',
         diffStat: zeroDiff,
       },
-      emit('review'),
+      emit('review', { reviewId: 'r1' }),
     ],
   },
   'verifying:verify_fail': {
@@ -115,12 +116,15 @@ const EXPECTED: Record<string, { status: TaskStatus; effects: TaskEffect[] }> = 
         output: 'bad',
         diffStat: oneDiff,
       },
-      emit('review'),
+      emit('review', { reviewId: 'r1' }),
     ],
   },
   'review:approve': {
     status: 'done',
-    effects: [{ type: 'persistReviewVerdict', reviewId: 'r1', verdict: 'approved' }, emit('done')],
+    effects: [
+      { type: 'persistReviewVerdict', reviewId: 'r1', verdict: 'approved' },
+      emit('done', { reviewId: 'r1' }),
+    ],
   },
   'review:reject': {
     status: 'queued',
@@ -128,7 +132,7 @@ const EXPECTED: Record<string, { status: TaskStatus; effects: TaskEffect[] }> = 
       { type: 'persistReviewVerdict', reviewId: 'r1', verdict: 'rejected' },
       { type: 'appendFeedback', feedback: 'fix' },
       { type: 'enqueueTask' },
-      emit('queued'),
+      emit('queued', { reviewId: 'r1' }),
     ],
   },
   'todo:cancel': { status: 'cancelled', effects: [emit('cancelled')] },

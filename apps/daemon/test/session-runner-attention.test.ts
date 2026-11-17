@@ -1,4 +1,5 @@
 import { FakeAdapter, type FakeStep } from '@baton/adapters'
+import type { AgentAdapter } from '@baton/protocol'
 import { afterEach, describe, expect, it } from 'vitest'
 import { listSessionsByTask } from '../src/db/repositories.js'
 import { createAdapterFactory } from '../src/runtime/adapter-factory.js'
@@ -7,13 +8,17 @@ import { createTestRuntime, type TestRuntimeHandle } from './helpers/runtime.js'
 
 const handles: TestRuntimeHandle[] = []
 
-function setup(script: FakeStep[]) {
+function setupAdapter(adapter: AgentAdapter) {
   const handle = createTestRuntime({
     useSessionRunner: true,
-    adapters: createAdapterFactory({ fake: new FakeAdapter({ script }) }),
+    adapters: createAdapterFactory({ fake: adapter }),
   })
   handles.push(handle)
   return handle
+}
+
+function setup(script: FakeStep[]) {
+  return setupAdapter(new FakeAdapter({ script }))
 }
 
 afterEach(async () => {
@@ -47,6 +52,7 @@ describe('session runner attention', () => {
 
     await waitFor(() => handle.runtime.getTask(taskId)?.status === 'verifying')
     expect(handle.events.some((event) => event.type === 'task.status')).toBe(true)
+    expect(handle.runtime.getTask(taskId)?.prompt).toContain('<user_reply>\nuse option B')
   })
 
   it('dropped -> waiting_input(dropped) and can be cancelled', async () => {
@@ -72,6 +78,50 @@ describe('session runner attention', () => {
     const session = listSessionsByTask(handle.database.db, taskId)[0]
     expect(session?.status).toBe('ended')
     expect(session?.outcome).toBe('unreported')
+  })
+
+  it('cleans up the active run when send fails', async () => {
+    const base = new FakeAdapter({
+      script: [{ kind: 'pause', outcome: 'blocked' }, { kind: 'finish' }],
+    })
+    const failing: AgentAdapter = {
+      name: 'fake',
+      async start(input) {
+        const run = await base.start(input)
+        return {
+          ...run,
+          send: async () => {
+            throw new Error('send failed')
+          },
+        }
+      },
+    }
+    const handle = setupAdapter(failing)
+    const taskId = handle.createTask()
+    handle.runtime.applyTransition(taskId, { type: 'enqueue' })
+
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'waiting_input')
+    const replied = handle.runtime.handleCommand({
+      v: 1,
+      id: 'reply-fail',
+      ts: 1,
+      type: 'session.reply',
+      payload: { taskId, text: 'hello' },
+    })
+    expect(replied.ok).toBe(true)
+
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'failed')
+    const repeated = handle.runtime.handleCommand({
+      v: 1,
+      id: 'reply-again',
+      ts: 1,
+      type: 'session.reply',
+      payload: { taskId, text: 'hello' },
+    })
+    expect(repeated.ok).toBe(false)
+    if (!repeated.ok) {
+      expect(repeated.error.code).toBe('reply_not_allowed')
+    }
   })
 
   it('RUN_ERROR -> failed', async () => {

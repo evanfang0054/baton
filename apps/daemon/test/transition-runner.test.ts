@@ -54,6 +54,56 @@ describe('transition runner', () => {
     expect(handle.runtime.getTask(second)?.status).toBe('queued')
   })
 
+  it('adds session and review ids to task.status cause', async () => {
+    const handle = setup()
+    const taskId = handle.createTask()
+    handle.runtime.applyTransition(taskId, { type: 'enqueue' })
+    await handle.runtime.settle()
+
+    const sessionId = handle.startSessions[0]!.sessionId
+    handle.database.db.transaction((tx) =>
+      insertApproval(tx, {
+        id: 'approval-cause',
+        sessionId,
+        requestId: 'req-cause',
+        request: { toolName: 'Bash', input: { command: 'pnpm test' }, risk: 'medium' },
+      }),
+    )
+
+    const approval = handle.runtime.applyTransition(taskId, {
+      type: 'approval_requested',
+      approvalId: 'approval-cause',
+    })
+    expect(approval.ok).toBe(true)
+    if (!approval.ok) {
+      return
+    }
+    const approvalStatus = approval.events.find((event) => event.type === 'task.status')
+    expect(approvalStatus?.payload).toMatchObject({
+      cause: { approvalId: 'approval-cause', sessionId },
+      attention: 'needs_approval',
+    })
+
+    handle.runtime.decideApproval({ approvalId: 'approval-cause', decision: 'allow' })
+    handle.runtime.applyTransition(taskId, { type: 'completed' })
+    const verify = handle.runtime.applyTransition(taskId, {
+      type: 'verify_fail',
+      reviewId: 'review-cause',
+      exitCode: 1,
+      output: 'boom',
+      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+    })
+    expect(verify.ok).toBe(true)
+    if (!verify.ok) {
+      return
+    }
+    const reviewStatus = verify.events.find((event) => event.type === 'task.status')
+    expect(reviewStatus?.payload).toMatchObject({
+      cause: { reviewId: 'review-cause' },
+      attention: 'needs_review',
+    })
+  })
+
   it('retries verify failures when autopilot is enabled', async () => {
     const handle = setup()
     const taskId = handle.createTask()
