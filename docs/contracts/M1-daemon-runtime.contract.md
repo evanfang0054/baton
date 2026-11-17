@@ -13,10 +13,10 @@
 
 ## Definition of Done
 
-- [ ] **1. Protocol `ack.data`**：`AckEvent.payload` 增加可选 `data: unknown`；`task.create` 返回 `{taskId}`、`resume` 返回 `{cursor,hasMore}`、其余命令返回 `{taskId,status,retryCount}`；既有 `ack` 测试仍通过。
-- [ ] **2. REST DTO 与 config**：`packages/protocol/src/api.ts` 导出 `WorkspaceCreateInput`、`WorkspaceListResponse`、`WorkspaceCreateResponse`、`CanvasResponse`、`TaskListQuery`、`TaskListResponse`、`TaskDetailResponse`，全部 `z.infer`；`ConfigSchema` 增加 `maxConcurrency`（默认 1，正整数）；`loadConfig` 解析 `BATON_MAX_CONCURRENCY`。
-- [ ] **3. DB migration**：`event.ordinal` 非空且唯一；新增 `ws_event` 表；`approval.request_id` 列 + 索引；`review.verdict` 可空；旧 fixture DB 能升级并保留数据；迁移可重复执行。
-- [ ] **4. Event store**：跨 session 的 `ordinal` 单调；同一 session 的 `seq` 单调；`session.event` 同事务写 `ws_event` 与 `event`，两者 `ordinal` 相同；`resume` 按 `ordinal > sinceSeq` 升序返回，最多 5000 条并给出 `hasMore`。
+- [x] **1. Protocol `ack.data`**：`AckEvent.payload` 增加可选 `data: unknown`；`task.create` 返回 `{taskId}`、`resume` 返回 `{cursor,hasMore}`、其余命令返回 `{taskId,status,retryCount}`；既有 `ack` 测试仍通过。
+- [x] **2. REST DTO 与 config**：`packages/protocol/src/api.ts` 导出 `WorkspaceCreateInput`、`WorkspaceListResponse`、`WorkspaceCreateResponse`、`CanvasResponse`、`TaskListQuery`、`TaskListResponse`、`TaskDetailResponse`，全部 `z.infer`；`ConfigSchema` 增加 `maxConcurrency`（默认 1，正整数）；`loadConfig` 解析 `BATON_MAX_CONCURRENCY`。
+- [x] **3. DB migration**：`event.ordinal` 非空且唯一；新增 `ws_event` 表；`approval.request_id` 列 + 索引；`review.verdict` 可空；旧 fixture DB 能升级并保留数据；迁移可重复执行。
+- [x] **4. Event store**：跨 session 的 `ordinal` 单调；同一 session 的 `seq` 单调；`session.event` 同事务写 `ws_event` 与 `event`，两者 `ordinal` 相同；`resume` 按 `ordinal > sinceSeq` 升序返回，最多 5000 条并给出 `hasMore`。
 - [ ] **5. `task.create`**：校验 workspace、agent 节点、`contextNodeIds`；`workspaceMode='worktree'` 返回 `unsupported`；`engine != 'fake'` 返回 `unsupported_engine`；加载 policy；预读 file 节点时敏感路径不读取；`assembleContext` 结果写入 `Task.prompt`；任务初始 `todo`；`ack.data.taskId` 正确。
 - [ ] **6. `task.enqueue`**：`todo → queued`；重复 enqueue 返回 `invalid_transition`；`enqueueTask` effect 在提交后触发 `scheduler.kick()`；`ack.data` 含新状态与 retryCount。
 - [ ] **7. 调度器**：`BATON_MAX_CONCURRENCY` 生效；`running + waiting_input + verifying` 计入占用槽；按 `updated_at,id` 启动最早 queued；满槽返回 `guard_failed` 且不改变状态；任务 settle 后自动启动下一个。
