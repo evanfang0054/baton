@@ -77,9 +77,9 @@ export function App() {
     if (!activeWorkspaceId) return
     writeUrlState({
       workspaceId: activeWorkspaceId,
-      taskId: useAppStore.getState().activeTaskId,
+      taskId: activeTaskId,
     })
-  }, [activeWorkspaceId])
+  }, [activeWorkspaceId, activeTaskId])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

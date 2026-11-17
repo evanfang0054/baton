@@ -5,7 +5,11 @@ export function readUrlState() {
 
 export function writeUrlState(next: { workspaceId?: string | null; taskId?: string | null }) {
   const params = new URLSearchParams(window.location.search)
-  for (const [key, value] of Object.entries(next)) {
+  const values: Record<string, string | null | undefined> = {
+    workspace: next.workspaceId,
+    task: next.taskId,
+  }
+  for (const [key, value] of Object.entries(values)) {
     if (value) params.set(key, value)
     else params.delete(key)
   }

@@ -72,4 +72,26 @@ describe('CanvasPanel', () => {
       ),
     )
   })
+
+  it('clears the flow selection when selectedNodeId becomes null', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const ref = createRef<CanvasPanelHandle>()
+    const renderWith = (selectedNodeId: string | null) => (
+      <QueryClientProvider client={client}>
+        <CommandProvider send={vi.fn()}>
+          <CanvasPanel
+            ref={ref}
+            canvas={canvas}
+            tasks={tasks}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={vi.fn()}
+          />
+        </CommandProvider>
+      </QueryClientProvider>
+    )
+    const { rerender } = render(renderWith('n1'))
+    await waitFor(() => expect(document.querySelector('.react-flow__node.selected')).toBeTruthy())
+    rerender(renderWith(null))
+    await waitFor(() => expect(document.querySelector('.react-flow__node.selected')).toBeNull())
+  })
 })

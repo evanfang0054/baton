@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
@@ -157,5 +157,14 @@ describe('App shell', () => {
     window.history.replaceState(null, '', '/?workspace=w1&task=t1')
     renderApp()
     await waitFor(() => expect(screen.getByTestId('task-detail')).toHaveTextContent('修复登录页'))
+  })
+
+  it('removes task from the URL when the task selection is cleared', async () => {
+    stubTaskApi()
+    window.history.replaceState(null, '', '/?workspace=w1&task=t1')
+    renderApp()
+    await waitFor(() => expect(screen.getByTestId('task-detail')).toHaveTextContent('修复登录页'))
+    act(() => useAppStore.getState().setTask(null))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).has('task')).toBe(false))
   })
 })

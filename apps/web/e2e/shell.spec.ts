@@ -16,6 +16,6 @@ test('renders the three-pane shell without console errors', async ({ page }) => 
   await expect(page.getByTestId('board-rail')).toBeVisible()
   await expect(page.getByTestId('canvas')).toBeVisible()
   await expect(page.getByTestId('task-detail')).toBeVisible()
-  await expect(page.getByText('尚未选择工作区')).toBeVisible()
+  await expect(page.getByTestId('canvas')).toContainText('尚未选择工作区')
   expect(errors).toEqual([])
 })

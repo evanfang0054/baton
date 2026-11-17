@@ -78,19 +78,27 @@ function FlowCanvas({
   const flowEdges = useMemo(() => (canvas ? toFlowEdges(canvas.edges) : []), [canvas])
 
   const [nodes, setNodes, onNodesChange] = useNodesState<CanvasFlowNode>(flowNodes)
+  // React Flow 的 setNodes 每次渲染可能换身份；用 ref 只让数据/选中变化触发同步，
+  // 否则会在“setNodes -> 重新测量 -> onNodesChange -> render”之间形成死循环。
+  const setNodesRef = useRef(setNodes)
+  setNodesRef.current = setNodes
 
   useEffect(() => {
-    setNodes(flowNodes as CanvasFlowNode[])
-  }, [flowNodes, setNodes])
+    setNodesRef.current(flowNodes as CanvasFlowNode[])
+  }, [flowNodes])
 
+  // React Flow 自己维护选中态；外部清空 selectedNodeId（如打开任务、关闭节点详情）时
+  // 同步清掉它的选中标记，避免画布上残留高亮。
   useEffect(() => {
-    setNodes((current) =>
-      current.map((node) =>
-        node.selected === (node.id === selectedNodeId)
-          ? node
-          : { ...node, selected: node.id === selectedNodeId },
-      ),
-    )
+    setNodes((current) => {
+      const target = selectedNodeId ?? null
+      const isSynced =
+        target === null
+          ? current.every((node) => !node.selected)
+          : current.length > 0 &&
+            current.every((node) => Boolean(node.selected) === (node.id === target))
+      return isSynced ? current : current.map((node) => ({ ...node, selected: node.id === target }))
+    })
   }, [selectedNodeId, setNodes])
 
   const refreshCanvas = useCallback(async () => {
@@ -120,8 +128,13 @@ function FlowCanvas({
       x: rect.left + rect.width / 2,
       y: rect.top + rect.height / 2,
     })
-    return { x: point.x - DEFAULT_SIZE.w / 2, y: point.y - DEFAULT_SIZE.h / 2 }
-  }, [screenToFlowPosition])
+    // 连续新建时错开一点，避免所有节点重叠在视口中心。
+    const offset = (canvas?.nodes.length ?? 0) % 6
+    return {
+      x: point.x - DEFAULT_SIZE.w / 2 + offset * 32,
+      y: point.y - DEFAULT_SIZE.h / 2 + offset * 32,
+    }
+  }, [canvas?.nodes.length, screenToFlowPosition])
 
   const createNode = useCallback(
     async (node: NodeCreateValue) => {
@@ -222,7 +235,9 @@ function FlowCanvas({
           onNodeDragStop={(_, node) => {
             void updateNode(node.id, { x: node.position.x, y: node.position.y })
           }}
-          onSelectionChange={({ nodes: selected }) => onSelectNode(selected[0]?.id ?? null)}
+          // 用 onNodeClick 而不是 onSelectionChange：后者会在外部清空选中后
+          // 把 React Flow 的旧选中反复推回 store，触发更新死循环。
+          onNodeClick={(_, node) => onSelectNode(node.id)}
           onPaneClick={() => onSelectNode(null)}
           nodesConnectable={false}
           edgesFocusable={false}
