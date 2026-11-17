@@ -195,6 +195,7 @@ export function classifyRisk(toolName: string, input: unknown): RiskLevel
   - `Edit` / `Write` / `Read` / `Grep` / `Glob`：匹配文件路径（`input.file_path` / `input.path`）；
   - 其他工具：匹配 `JSON.stringify(input)` 的稳定序列化结果；
   - 无目标时视为不匹配。
+  - picomatch 使用 `{ dot: true, bash: true }`：`*` 可跨 `/`，以匹配整条 shell 命令字符串。
 - `deny` 先于 `allow`；都未命中时用 `policy.approval.default`（当前固定 `ask`）。
 - 风险：core 计算 `classifyRisk`，最终风险取 `max(request.risk, computed)`；`high` 永不自动批准。
 - 自动批准条件（全部满足）：命中 `allow`、`risk <= autoApproveMaxRisk`、`policy.autopilot.enabled`、`ctx.killSwitch === false`。
