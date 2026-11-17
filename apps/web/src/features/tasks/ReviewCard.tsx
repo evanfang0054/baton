@@ -4,6 +4,7 @@ import { Chip } from '@heroui/react/chip'
 import { TextArea } from '@heroui/react/textarea'
 import { useState } from 'react'
 import { useCommandAction } from './useCommandAction'
+import { verifyOutputClass } from './styles'
 
 export function ReviewCard({
   review,
@@ -30,11 +31,7 @@ export function ReviewCard({
         <span className="text-success">+{review.diffStat.insertions}</span>
         <span className="text-danger">-{review.diffStat.deletions}</span>
       </div>
-      {review.verifyOutput ? (
-        <pre className="mt-2 max-h-48 overflow-auto rounded-lg border border-separator bg-background p-3 font-mono text-xs whitespace-pre-wrap text-foreground">
-          {review.verifyOutput}
-        </pre>
-      ) : null}
+      {review.verifyOutput ? <pre className={verifyOutputClass}>{review.verifyOutput}</pre> : null}
 
       {decided ? (
         <p className="mt-3 text-sm text-muted">

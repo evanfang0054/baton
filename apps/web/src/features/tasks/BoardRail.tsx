@@ -46,7 +46,7 @@ export function BoardRail({
       >
         {pinned ? <PinOff size={18} /> : <Pin size={18} />}
       </Button>
-      {open ? <span className="text-[10px] text-muted">B 收起</span> : null}
+      {open ? <span className="text-xs text-muted">B 收起</span> : null}
     </aside>
   )
 }
@@ -65,7 +65,7 @@ function RailCount({
   return (
     <div className="flex flex-col items-center gap-1" title={label}>
       <span className={`text-sm font-semibold ${toneClass}`}>{value}</span>
-      <span className="text-[10px] text-muted">{label}</span>
+      <span className="text-xs text-muted">{label}</span>
     </div>
   )
 }

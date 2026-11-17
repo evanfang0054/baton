@@ -144,6 +144,21 @@ describe('App shell', () => {
     expect(screen.getByLabelText('工作区相对路径')).toBeInTheDocument()
   })
 
+  it('shows an unauthenticated hint when the API returns 401', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ code: 'unauthorized', message: 'unauthorized' }), {
+            status: 401,
+            headers: { 'content-type': 'application/json' },
+          }),
+      ),
+    )
+    renderApp()
+    expect(await screen.findByRole('alert')).toHaveTextContent('未认证')
+  })
+
   it('selects a task and shows it in the detail panel', async () => {
     stubTaskApi()
     renderApp()

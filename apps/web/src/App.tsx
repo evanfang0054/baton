@@ -10,10 +10,15 @@ import { TaskBoard } from './features/tasks/TaskBoard'
 import { TaskDetailPanel } from './features/tasks/TaskDetailPanel'
 import { CreateWorkspaceDialog } from './features/workspaces/CreateWorkspaceDialog'
 import { WorkspaceSwitcher } from './features/workspaces/WorkspaceSwitcher'
-import { getCanvas, listTasks, listWorkspaces } from './lib/api'
+import { getCanvas, listTasks, listWorkspaces, UnauthorizedError } from './lib/api'
 import { queryKeys } from './lib/query'
 import { readUrlState, writeUrlState } from './lib/url'
 import { useAppStore } from './stores/app'
+
+const authBannerClass = [
+  'flex shrink-0 items-center gap-2 border-b border-warning bg-warning/10',
+  'px-4 py-2 text-sm text-warning',
+].join(' ')
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false
@@ -31,6 +36,7 @@ export function App() {
   const selectedNodeId = useAppStore((state) => state.selectedNodeId)
   const boardExpanded = useAppStore((state) => state.boardExpanded)
   const boardPinned = useAppStore((state) => state.boardPinned)
+  const wsStatus = useAppStore((state) => state.wsStatus)
   const setWorkspace = useAppStore((state) => state.setWorkspace)
   const setTask = useAppStore((state) => state.setTask)
   const setSelectedNode = useAppStore((state) => state.setSelectedNode)
@@ -61,6 +67,11 @@ export function App() {
 
   const selectedNode = canvas.data?.nodes.find((node) => node.id === selectedNodeId) ?? null
   const nodeTask = selectedNode && tasks.data?.find((task) => task.nodeId === selectedNode.id)
+  const unauthorized =
+    wsStatus === 'unauthorized' ||
+    [workspaces.error, tasks.error, canvas.error].some(
+      (error) => error instanceof UnauthorizedError,
+    )
 
   useEffect(() => {
     if (activeWorkspaceId) return
@@ -131,6 +142,18 @@ export function App() {
             />
           </div>
         </header>
+        {unauthorized ? (
+          <div role="alert" className={authBannerClass}>
+            未认证。请通过
+            <a
+              href="/auth"
+              className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              /auth?token=...
+            </a>
+            登录后刷新页面。
+          </div>
+        ) : null}
         <div className="flex min-h-0 flex-1">
           <BoardRail
             counts={counts}
@@ -178,6 +201,7 @@ export function App() {
           </main>
           {selectedNode && activeWorkspaceId ? (
             <NodePanel
+              key={selectedNode.id}
               node={selectedNode}
               task={nodeTask ?? null}
               workspaceId={activeWorkspaceId}

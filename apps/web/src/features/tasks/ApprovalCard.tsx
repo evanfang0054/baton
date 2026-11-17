@@ -2,6 +2,7 @@ import type { Approval, RiskLevel } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
 import { useCommandAction } from './useCommandAction'
+import { codeBlockClass } from './styles'
 
 const riskLabel: Record<RiskLevel, string> = {
   low: '低风险',
@@ -36,11 +37,7 @@ export function ApprovalCard({
       </div>
       <p className="mt-2 text-xs text-muted">工具</p>
       <p className="font-mono text-xs text-foreground">{approval.request.toolName}</p>
-      {input ? (
-        <pre className="mt-2 max-h-40 overflow-auto rounded-lg border border-separator bg-background p-3 font-mono text-xs whitespace-pre-wrap text-foreground">
-          {input}
-        </pre>
-      ) : null}
+      {input ? <pre className={codeBlockClass}>{input}</pre> : null}
       {approval.request.reason ? (
         <p className="mt-2 text-xs text-muted">{approval.request.reason}</p>
       ) : null}

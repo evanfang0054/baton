@@ -1,6 +1,6 @@
 import type { Node as ProtocolNode, TaskSummary } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
-import { toFlowEdges, toFlowNodes } from './model'
+import { mergeFlowNodes, toFlowEdges, toFlowNodes } from './model'
 
 const textNode: ProtocolNode = {
   id: 'n1',
@@ -85,5 +85,24 @@ describe('canvas model', () => {
       focusable: false,
       deletable: false,
     })
+  })
+
+  it('keeps the local position of a node that is being dragged', () => {
+    const incoming = toFlowNodes([textNode], [])
+    const dragging = {
+      ...incoming[0]!,
+      position: { x: 99, y: 88 },
+      dragging: true,
+      selected: true,
+    }
+    const merged = mergeFlowNodes([dragging], toFlowNodes([{ ...textNode, x: 0, y: 0 }], []))
+    expect(merged[0]?.position).toEqual({ x: 99, y: 88 })
+    expect(merged[0]?.selected).toBe(true)
+  })
+
+  it('applies the server position once the drag has stopped', () => {
+    const current = toFlowNodes([textNode], [])
+    const merged = mergeFlowNodes(current, toFlowNodes([{ ...textNode, x: 5, y: 6 }], []))
+    expect(merged[0]?.position).toEqual({ x: 5, y: 6 })
   })
 })

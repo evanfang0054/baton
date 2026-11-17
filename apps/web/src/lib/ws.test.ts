@@ -77,7 +77,7 @@ afterEach(() => {
 })
 
 describe('createWsClient', () => {
-  it('validates incoming events and does not replay on first connect', () => {
+  it('validates incoming events and resumes from zero on first connect', () => {
     const onStatus = vi.fn()
     const onEvent = vi.fn()
     const client = createWsClient({ onStatus, onEvent })
@@ -86,7 +86,8 @@ describe('createWsClient', () => {
     expect(onStatus).toHaveBeenLastCalledWith('connecting')
     socket.open()
     expect(onStatus).toHaveBeenLastCalledWith('online')
-    expect(socket.sent).toHaveLength(0)
+    expect(socket.sent).toHaveLength(1)
+    expect(resumePayload(socket, 0).payload.sinceSeq).toBe(0)
 
     socket.message(taskStatus)
     expect(onEvent).toHaveBeenCalledTimes(1)
@@ -143,7 +144,7 @@ describe('createWsClient', () => {
 
     vi.advanceTimersByTime(60_000)
     expect(FakeSocket.instances).toHaveLength(1)
-    expect(onStatus).toHaveBeenLastCalledWith('offline')
+    expect(onStatus).toHaveBeenLastCalledWith('unauthorized')
     client.close()
   })
 
@@ -153,7 +154,7 @@ describe('createWsClient', () => {
     socket.open()
 
     const first = client.sendCommand({ type: 'task.enqueue', payload: { taskId: 't1' } })
-    const sent = JSON.parse(socket.sent[0]!) as { id: string; type: string }
+    const sent = JSON.parse(socket.sent[1]!) as { id: string; type: string }
     expect(sent.type).toBe('task.enqueue')
     socket.message({
       v: 1,
@@ -164,7 +165,7 @@ describe('createWsClient', () => {
     await expect(first).resolves.toEqual({ taskId: 't1' })
 
     const second = client.sendCommand({ type: 'task.cancel', payload: { taskId: 't1' } })
-    const sent2 = JSON.parse(socket.sent[1]!) as { id: string }
+    const sent2 = JSON.parse(socket.sent[2]!) as { id: string }
     socket.message({
       v: 1,
       ts: 3,

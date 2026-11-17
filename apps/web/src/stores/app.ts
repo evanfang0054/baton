@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type WsStatus = 'connecting' | 'online' | 'reconnecting' | 'offline'
+export type WsStatus = 'connecting' | 'online' | 'reconnecting' | 'offline' | 'unauthorized'
 
 interface AppState {
   activeWorkspaceId: string | null

@@ -32,3 +32,20 @@ export function toFlowEdges(edges: ProtocolEdge[]): FlowEdge[] {
     deletable: false,
   }))
 }
+
+/** 合并服务端快照；拖拽中的节点保留本地位置，避免任务刷新把节点拉回去。 */
+export function mergeFlowNodes(
+  current: FlowNode<CanvasNodeData>[],
+  incoming: FlowNode<CanvasNodeData>[],
+): FlowNode<CanvasNodeData>[] {
+  const byId = new Map(current.map((node) => [node.id, node]))
+  return incoming.map((next) => {
+    const previous = byId.get(next.id)
+    if (!previous) return next
+    return {
+      ...previous,
+      ...next,
+      position: previous.dragging ? previous.position : next.position,
+    }
+  })
+}

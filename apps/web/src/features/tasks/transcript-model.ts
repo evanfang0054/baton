@@ -1,4 +1,9 @@
-import type { SessionEventRecord } from '@baton/protocol'
+import {
+  APPROVAL_REQUEST_EVENT,
+  SESSION_OUTCOME_EVENT,
+  USER_MESSAGE_EVENT,
+  type SessionEventRecord,
+} from '@baton/protocol'
 
 export type TranscriptRole = 'user' | 'assistant' | 'tool' | 'system'
 
@@ -165,7 +170,7 @@ export function buildTranscript(events: SessionEventRecord[]): TranscriptEntry[]
       case 'CUSTOM': {
         const name = textOf(payload.name)
         const value = recordOf(payload.value) ?? {}
-        if (name === 'user.message') {
+        if (name === USER_MESSAGE_EVENT) {
           entries.push({
             id: `seq-${event.seq}`,
             role: 'user',
@@ -174,7 +179,7 @@ export function buildTranscript(events: SessionEventRecord[]): TranscriptEntry[]
             mono: false,
             ts,
           })
-        } else if (name === 'approval.request') {
+        } else if (name === APPROVAL_REQUEST_EVENT) {
           const request = recordOf(value.request) ?? {}
           const input = request.input === undefined ? '' : JSON.stringify(request.input, null, 2)
           entries.push(
@@ -186,7 +191,7 @@ export function buildTranscript(events: SessionEventRecord[]): TranscriptEntry[]
               true,
             ),
           )
-        } else if (name === 'session.outcome') {
+        } else if (name === SESSION_OUTCOME_EVENT) {
           const outcome = textOf(value.outcome)
           const reason = textOf(value.reason)
           entries.push(systemEntry(`seq-${event.seq}`, `会话 ${outcome}`, reason, ts))

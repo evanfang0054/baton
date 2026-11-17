@@ -3,7 +3,7 @@ import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
 import { useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useCommand } from '../../lib/command-context'
 import { queryKeys } from '../../lib/query'
 import { CommandError } from '../../lib/ws'
@@ -18,6 +18,13 @@ const typeLabels: Record<ProtocolNode['type'], string> = {
   review: '验收',
   group: '分组',
 }
+
+const TERMINAL_STATUSES = new Set<TaskSummary['status']>(['done', 'failed', 'cancelled'])
+
+const panelClass = [
+  'flex min-h-0 w-[380px] shrink-0 flex-col gap-3 overflow-y-auto',
+  'border-l border-separator bg-surface p-4',
+].join(' ')
 
 function titleOf(node: ProtocolNode): string {
   if (node.type === 'agent') return node.data.title
@@ -46,6 +53,13 @@ export function NodePanel({
   const [confirming, setConfirming] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const taskActive = task ? !TERMINAL_STATUSES.has(task.status) : false
+
+  // 节点切换时清掉上一个节点的删除确认，避免误删新选中的节点。
+  useEffect(() => {
+    setConfirming(false)
+    setError(null)
+  }, [node.id])
 
   const remove = async () => {
     setPending(true)
@@ -67,10 +81,7 @@ export function NodePanel({
   }
 
   return (
-    <aside
-      data-testid="node-detail"
-      className="flex min-h-0 w-[380px] shrink-0 flex-col gap-3 overflow-y-auto border-l border-separator bg-surface p-4"
-    >
+    <aside data-testid="node-detail" className={panelClass}>
       <header className="flex items-start justify-between gap-2">
         <div>
           <p className="text-xs text-muted">{typeLabels[node.type]}</p>
@@ -110,8 +121,9 @@ export function NodePanel({
         </section>
       ) : null}
 
-      {node.type === 'agent' && !task ? (
+      {node.type === 'agent' && !taskActive ? (
         <CreateTaskForm
+          key={task?.id ?? 'new-task'}
           nodeId={node.id}
           workspaceId={workspaceId}
           defaultTitle={node.data.title}

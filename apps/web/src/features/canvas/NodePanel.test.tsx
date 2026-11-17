@@ -47,7 +47,7 @@ function renderPanel(
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const onDeleted = vi.fn()
-  render(
+  const view = render(
     <QueryClientProvider client={client}>
       <CommandProvider send={send}>
         <NodePanel
@@ -61,7 +61,22 @@ function renderPanel(
       </CommandProvider>
     </QueryClientProvider>,
   )
-  return { send, onDeleted }
+  const rerender = (nextNode: ProtocolNode, nextTask: TaskSummary | null) =>
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <CommandProvider send={send}>
+          <NodePanel
+            node={nextNode}
+            task={nextTask}
+            workspaceId="w1"
+            onOpenTask={vi.fn()}
+            onDeleted={onDeleted}
+            onClose={vi.fn()}
+          />
+        </CommandProvider>
+      </QueryClientProvider>,
+    )
+  return { send, onDeleted, rerender }
 }
 
 describe('NodePanel', () => {
@@ -102,5 +117,22 @@ describe('NodePanel', () => {
       }),
     )
     await waitFor(() => expect(onDeleted).toHaveBeenCalled())
+  })
+
+  it('offers a new task form after the latest task reaches a terminal state', () => {
+    renderPanel(agent, { ...task, status: 'done' })
+    expect(screen.getByText('已创建任务')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '创建任务' })).toBeInTheDocument()
+  })
+
+  it('clears delete confirmation when selecting another node', () => {
+    const other = { ...agent, id: 'n2', data: { ...agent.data, title: 'Agent 2' } }
+    const { rerender } = renderPanel(agent, task)
+    fireEvent.click(screen.getByRole('button', { name: '删除节点' }))
+    expect(screen.getByText('确认删除这个节点？')).toBeInTheDocument()
+
+    rerender(other, { ...task, id: 't2', nodeId: 'n2' })
+    expect(screen.queryByText('确认删除这个节点？')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '删除节点' })).toBeInTheDocument()
   })
 })

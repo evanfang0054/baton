@@ -1,6 +1,11 @@
 import { Button } from '@heroui/react/button'
 import { Bot, FileText, Maximize, Type, ZoomIn, ZoomOut } from 'lucide-react'
 
+const toolbarClass = [
+  'absolute top-3 left-3 z-10 flex items-center gap-1 rounded-lg border border-separator',
+  'bg-surface p-1 shadow-surface',
+].join(' ')
+
 export function CanvasToolbar({
   onAdd,
   onFit,
@@ -13,7 +18,7 @@ export function CanvasToolbar({
   onZoomOut: () => void
 }) {
   return (
-    <div className="absolute top-3 left-3 z-10 flex items-center gap-1 rounded-lg border border-separator bg-surface p-1 shadow-surface">
+    <div className={toolbarClass}>
       <Button
         variant="ghost"
         aria-label="添加文本"

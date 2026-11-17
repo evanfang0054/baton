@@ -10,15 +10,18 @@ interface TaskCardProps {
   onSelect: (taskId: string) => void
 }
 
+const cardClass = [
+  'w-full rounded-lg border bg-surface p-3 text-left transition-colors',
+  'hover:bg-surface-secondary focus-visible:outline-2 focus-visible:outline-accent',
+].join(' ')
+
 export function TaskCard({ task, selected = false, onSelect }: TaskCardProps) {
   return (
     <button
       type="button"
       aria-current={selected ? 'true' : undefined}
       onClick={() => onSelect(task.id)}
-      className={`w-full rounded-lg border bg-surface p-3 text-left transition-colors hover:bg-surface-secondary focus-visible:outline-2 focus-visible:outline-accent ${
-        selected ? 'border-accent' : 'border-separator'
-      }`}
+      className={`${cardClass} ${selected ? 'border-accent' : 'border-separator'}`}
     >
       <div className="flex items-start justify-between gap-2">
         <span className="line-clamp-2 text-sm font-medium">{task.title}</span>

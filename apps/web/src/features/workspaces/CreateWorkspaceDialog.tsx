@@ -3,7 +3,7 @@ import { Input } from '@heroui/react/input'
 import { Modal } from '@heroui/react/modal'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { createWorkspace } from '../../lib/api'
+import { createWorkspace, ApiError } from '../../lib/api'
 import { queryKeys } from '../../lib/query'
 
 interface CreateWorkspaceDialogProps {
@@ -27,7 +27,17 @@ export function CreateWorkspaceDialog({ onCreated }: CreateWorkspaceDialogProps)
       setError(null)
       onCreated(result.workspace.id)
     },
-    onError: (cause) => setError(cause instanceof Error ? cause.message : '创建失败'),
+    onError: (cause) => {
+      if (cause instanceof ApiError && cause.code === 'invalid_path') {
+        setError('路径不存在或不在工作区根目录内')
+        return
+      }
+      if (cause instanceof ApiError && cause.code === 'conflict') {
+        setError('同名工作区已存在')
+        return
+      }
+      setError(cause instanceof Error ? cause.message : '创建失败')
+    },
   })
 
   return (

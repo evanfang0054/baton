@@ -5,6 +5,7 @@ const labels: Record<WsStatus, string> = {
   online: '在线',
   reconnecting: '重连中',
   offline: '离线',
+  unauthorized: '未认证',
 }
 
 const dot: Record<WsStatus, string> = {
@@ -12,6 +13,7 @@ const dot: Record<WsStatus, string> = {
   online: 'bg-success',
   reconnecting: 'bg-warning',
   offline: 'bg-danger',
+  unauthorized: 'bg-danger',
 }
 
 export function ConnectionStatus() {

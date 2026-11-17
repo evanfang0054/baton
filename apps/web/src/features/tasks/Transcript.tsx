@@ -1,7 +1,13 @@
 import type { SessionEventRecord } from '@baton/protocol'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { transcriptCodeClass } from './styles'
 import { buildTranscript, type TranscriptEntry, type TranscriptRole } from './transcript-model'
+
+const jumpButtonClass = [
+  'absolute right-3 bottom-3 rounded-full border border-separator bg-surface px-3 py-1',
+  'text-xs text-foreground shadow-surface',
+].join(' ')
 
 const roleLabels: Record<TranscriptRole, string> = {
   user: '你',
@@ -25,7 +31,7 @@ function EntryView({ entry }: { entry: TranscriptEntry }) {
     <div className="flex gap-3 border-b border-separator/60 py-3">
       <span className="w-12 shrink-0 pt-0.5 text-xs text-muted">{role}</span>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 text-[10px] text-muted">
+        <div className="flex items-center gap-2 text-xs text-muted">
           {entry.title && entry.title !== role ? (
             <span className="font-medium text-foreground">{entry.title}</span>
           ) : null}
@@ -33,9 +39,7 @@ function EntryView({ entry }: { entry: TranscriptEntry }) {
         </div>
         {entry.text ? (
           entry.mono ? (
-            <pre className="mt-1 overflow-x-auto rounded-lg border border-separator bg-background p-3 font-mono text-xs whitespace-pre-wrap text-foreground">
-              {entry.text}
-            </pre>
+            <pre className={transcriptCodeClass}>{entry.text}</pre>
           ) : (
             <p className="mt-1 text-sm whitespace-pre-wrap text-foreground">{entry.text}</p>
           )
@@ -134,7 +138,7 @@ export function Transcript({
             setAtBottom(true)
             virtualizer.scrollToIndex(entries.length - 1, { align: 'end' })
           }}
-          className="absolute right-3 bottom-3 rounded-full border border-separator bg-surface px-3 py-1 text-xs text-foreground shadow-surface"
+          className={jumpButtonClass}
         >
           跳到最新
         </button>

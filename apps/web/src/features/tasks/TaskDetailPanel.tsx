@@ -1,9 +1,11 @@
-import type { SessionEventRecord, TaskDetailResponse } from '@baton/protocol'
+import type { SessionEventRecord, SessionEventsResponse, TaskDetailResponse } from '@baton/protocol'
+import { Button } from '@heroui/react/button'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState } from 'react'
 import { getTask, listSessionEvents } from '../../lib/api'
 import { queryKeys } from '../../lib/query'
 import { useAppStore } from '../../stores/app'
+import { mergeSessionPage } from '../realtime/session-cache'
 import { ApprovalCard } from './ApprovalCard'
 import { ReplyComposer } from './ReplyComposer'
 import { ReviewCard } from './ReviewCard'
@@ -32,6 +34,22 @@ export function TaskDetailPanel() {
     queryFn: () => listSessionEvents(activeSession!.id, 0, 500),
     enabled: Boolean(activeSession?.id),
   })
+  const [loadMorePending, setLoadMorePending] = useState(false)
+
+  const loadMore = useCallback(async () => {
+    const sessionId = activeSession?.id
+    if (!sessionId || !events.data?.hasMore || loadMorePending) return
+    setLoadMorePending(true)
+    try {
+      const page = await listSessionEvents(sessionId, events.data.nextSeq, 500)
+      queryClient.setQueryData<SessionEventsResponse>(
+        queryKeys.sessionEvents(sessionId),
+        (previous) => mergeSessionPage(previous, page),
+      )
+    } finally {
+      setLoadMorePending(false)
+    }
+  }, [activeSession?.id, events.data, loadMorePending, queryClient])
 
   const onDone = useCallback(async () => {
     const taskId = detail.data?.task.id
@@ -65,6 +83,8 @@ export function TaskDetailPanel() {
           events={events.data?.events ?? []}
           eventsLoading={events.isLoading}
           hasMore={events.data?.hasMore ?? false}
+          loadMorePending={loadMorePending}
+          onLoadMore={loadMore}
           onDone={onDone}
         />
       ) : null}
@@ -80,6 +100,8 @@ function DetailContent({
   events,
   eventsLoading,
   hasMore,
+  loadMorePending,
+  onLoadMore,
   onDone,
 }: {
   detail: TaskDetailResponse
@@ -89,13 +111,15 @@ function DetailContent({
   events: SessionEventRecord[]
   eventsLoading: boolean
   hasMore: boolean
+  loadMorePending: boolean
+  onLoadMore: () => void
   onDone: () => Promise<void>
 }) {
   const task = detail.task
   const pendingApprovals = [...detail.approvals].reverse().filter((item) => item.decision === null)
   const pendingApproval =
     pendingApprovals.find((item) => item.sessionId === activeSessionId) ?? pendingApprovals[0]
-  const needsApproval = task.waitingReason === 'approval' || task.waitingReason === null
+  const needsApproval = detail.attention === 'needs_approval'
 
   return (
     <>
@@ -146,7 +170,17 @@ function DetailContent({
           </select>
         </div>
         {hasMore ? (
-          <p className="mb-2 shrink-0 text-xs text-muted">仅显示前 500 条会话记录</p>
+          <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
+            <p className="text-xs text-muted">还有更多会话记录未加载</p>
+            <Button
+              variant="tertiary"
+              isDisabled={loadMorePending}
+              onPress={onLoadMore}
+              className="shrink-0"
+            >
+              加载更多
+            </Button>
+          </div>
         ) : null}
         <Transcript key={activeSessionId ?? 'none'} events={events} loading={eventsLoading} />
       </div>

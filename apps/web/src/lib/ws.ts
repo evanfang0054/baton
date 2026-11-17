@@ -33,7 +33,6 @@ function createId() {
 export function createWsClient(options: WsClientOptions) {
   let socket: WebSocket | null = null
   let closed = false
-  let hasOpened = false
   let retry = 0
   let timer: number | undefined
   let lastSeq = 0
@@ -57,7 +56,7 @@ export function createWsClient(options: WsClientOptions) {
       id: createId(),
       type: 'resume',
       ts: Date.now(),
-      payload: lastSeq > 0 ? { sinceSeq: lastSeq } : {},
+      payload: { sinceSeq: lastSeq },
     })
     socket.send(JSON.stringify(message))
   }
@@ -111,12 +110,10 @@ export function createWsClient(options: WsClientOptions) {
     options.onStatus(retry === 0 ? 'connecting' : 'reconnecting')
     socket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`)
     socket.addEventListener('open', () => {
-      const isReconnect = hasOpened
-      hasOpened = true
       retry = 0
       options.onStatus('online')
-      // 首次连接不需要回放：REST 已经给出当前快照。
-      if (isReconnect) sendResume()
+      // 首次连接也从 0 回放，补上 REST 快照到 socket open 之间的事件。
+      sendResume()
     })
     socket.addEventListener('message', (message) => {
       let parsed: unknown
@@ -162,7 +159,7 @@ export function createWsClient(options: WsClientOptions) {
     socket.addEventListener('close', (event) => {
       if (closed) return
       rejectPending(new CommandError('ws_closed', '连接已断开'))
-      options.onStatus('offline')
+      options.onStatus(event.code === 4401 ? 'unauthorized' : 'offline')
       if (FATAL_CLOSE_CODES.has(event.code)) return
       schedule()
     })

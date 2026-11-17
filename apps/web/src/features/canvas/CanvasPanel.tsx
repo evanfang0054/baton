@@ -24,7 +24,7 @@ import { queryKeys } from '../../lib/query'
 import { CanvasActionsProvider } from './actions'
 import { CanvasToolbar } from './CanvasToolbar'
 import { CreateFileNodeDialog } from './CreateFileNodeDialog'
-import { toFlowEdges, toFlowNodes } from './model'
+import { mergeFlowNodes, toFlowEdges, toFlowNodes } from './model'
 import { AgentNode } from './nodes/AgentNode'
 import { FileNode } from './nodes/FileNode'
 import { TextNode } from './nodes/TextNode'
@@ -84,7 +84,7 @@ function FlowCanvas({
   setNodesRef.current = setNodes
 
   useEffect(() => {
-    setNodesRef.current(flowNodes as CanvasFlowNode[])
+    setNodesRef.current((current) => mergeFlowNodes(current, flowNodes))
   }, [flowNodes])
 
   // React Flow 自己维护选中态；外部清空 selectedNodeId（如打开任务、关闭节点详情）时

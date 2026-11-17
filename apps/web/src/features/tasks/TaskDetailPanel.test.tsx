@@ -1,4 +1,4 @@
-import type { TaskDetailResponse } from '@baton/protocol'
+import type { SessionEventsResponse, TaskDetailResponse } from '@baton/protocol'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -159,6 +159,59 @@ describe('TaskDetailPanel', () => {
 
     expect(await screen.findByLabelText('回复内容')).toBeInTheDocument()
     expect(screen.queryByText('需要授权')).not.toBeInTheDocument()
+  })
+
+  it('loads the next page of session events', async () => {
+    const urls: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        urls.push(url)
+        if (url === '/api/tasks/t1') return Response.json(detail())
+        if (url.startsWith('/api/sessions/s1/events')) {
+          if (url.includes('sinceSeq=1')) {
+            return Response.json({
+              sessionId: 's1',
+              events: [
+                {
+                  seq: 2,
+                  ts: 11,
+                  type: 'TEXT_MESSAGE_CONTENT',
+                  payload: { type: 'TEXT_MESSAGE_CONTENT', messageId: 'm2', delta: '继续' },
+                },
+              ],
+              nextSeq: 2,
+              hasMore: false,
+            })
+          }
+          return Response.json({
+            sessionId: 's1',
+            events: [
+              {
+                seq: 1,
+                ts: 10,
+                type: 'TEXT_MESSAGE_CONTENT',
+                payload: { type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: '准备中' },
+              },
+            ],
+            nextSeq: 1,
+            hasMore: true,
+          })
+        }
+        throw new Error(`unexpected fetch ${url}`)
+      }),
+    )
+    const { client } = renderPanel()
+
+    fireEvent.click(await screen.findByRole('button', { name: '加载更多' }))
+    await waitFor(() => {
+      const cached = client.getQueryData<SessionEventsResponse>(queryKeys.sessionEvents('s1'))
+      expect(cached?.events.map((event) => event.seq)).toEqual([1, 2])
+      expect(cached?.hasMore).toBe(false)
+    })
+    expect(urls.some((url) => url.includes('sinceSeq=1'))).toBe(true)
+    expect(screen.queryByRole('button', { name: '加载更多' })).not.toBeInTheDocument()
   })
 
   it('shows the review card and read-only terminal state', async () => {
