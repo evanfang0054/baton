@@ -1077,6 +1077,7 @@ Expected: 只包含 `packages/protocol/**`、`apps/daemon/**`、`docs/**`；没�
 |---|---|---|---|---|
 | 2026-11-17 | Task 1-4 | protocol 97 tests、daemon 110 tests；`pnpm typecheck`、`pnpm verify`、`pnpm verify:full`、`pnpm pack:check` 全绿 | `33e9497` | Task 1 单独提交无法通过 `pnpm verify`（daemon 穷尽性错误 + tasks route 旧形状），经用户确认合并为一个契约 slice；同时补了 Task 3 的 sessions route 与 `tasks.ts` summary 映射 |
 | 2026-11-17 | Task 5 | `pnpm verify`、`pnpm verify:full`、`pnpm pack:check`、`check:boundaries`、`check:protocol`、`format:check` 全绿；`apps/web` 无代码改动 | 见上 | 只改 protocol/daemon/docs；未改 core 状态机语义 |
+| 2026-11-17 | Review 修复 | agent 节点改名合并 data、edge 引用守卫、`TaskDetailResponse.attention`、repo 复用协议类型、补 review/edge/分页测试；`pnpm verify`、`pnpm pack:check`、Playwright e2e 全绿 | `b8dae29` | 处理第二轮 code review 的 Critical/Important；spec 增加 §13 变更记录 |
 
 **已记录偏离**：
 
