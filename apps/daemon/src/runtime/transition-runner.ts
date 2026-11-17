@@ -59,6 +59,7 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
         runningCount: countActiveTasks(deps.db),
         maxConcurrency: deps.config.maxConcurrency,
         autopilot: policy.autopilot,
+        waitingReason: task.waitingReason,
       },
       event,
     )
@@ -78,7 +79,7 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
     let plan: EffectPlan
     try {
       plan = deps.db.transaction((tx) => {
-        updateTaskState(tx, task.id, result.status, result.retryCount, now)
+        updateTaskState(tx, task.id, result.status, result.retryCount, result.waitingReason, now)
         return planAndApplyEffects(
           tx,
           {
@@ -117,6 +118,7 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
       status: result.status,
       previousStatus: task.status,
       retryCount: result.retryCount,
+      waitingReason: result.waitingReason,
       events: plan.events,
     }
   }

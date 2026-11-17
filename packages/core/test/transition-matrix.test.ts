@@ -27,6 +27,8 @@ const EVENTS: TaskTransitionEvent[] = [
   { type: 'approval_allow', approvalId: 'a1' },
   { type: 'approval_deny', approvalId: 'a1', note: 'no' },
   { type: 'completed' },
+  { type: 'session_reported', outcome: 'blocked', reason: 'need a decision' },
+  { type: 'user_input', text: 'use option B' },
   { type: 'verify_ok', reviewId: 'r1', exitCode: 0, output: 'ok', diffStat: zeroDiff },
   { type: 'verify_fail', reviewId: 'r1', exitCode: 1, output: 'bad', diffStat: oneDiff },
   { type: 'approve', reviewId: 'r1' },
@@ -35,7 +37,11 @@ const EVENTS: TaskTransitionEvent[] = [
   { type: 'error', message: 'boom' },
 ]
 
-const emit = (status: TaskStatus): TaskEffect => ({ type: 'emitTaskStatus', status })
+const emit = (status: TaskStatus, cause?: Record<string, unknown>): TaskEffect => ({
+  type: 'emitTaskStatus',
+  status,
+  ...(cause ? { cause } : {}),
+})
 
 const EXPECTED: Record<string, { status: TaskStatus; effects: TaskEffect[] }> = {
   'todo:enqueue': {
@@ -48,7 +54,20 @@ const EXPECTED: Record<string, { status: TaskStatus; effects: TaskEffect[] }> = 
   },
   'running:approval_requested': {
     status: 'waiting_input',
-    effects: [{ type: 'requestApproval', approvalId: 'a1' }, emit('waiting_input')],
+    effects: [
+      { type: 'requestApproval', approvalId: 'a1' },
+      emit('waiting_input', { waitingReason: 'approval', approvalId: 'a1' }),
+    ],
+  },
+  'running:session_reported': {
+    status: 'waiting_input',
+    effects: [
+      emit('waiting_input', {
+        waitingReason: 'question',
+        outcome: 'blocked',
+        reason: 'need a decision',
+      }),
+    ],
   },
   'running:completed': {
     status: 'verifying',
@@ -56,7 +75,7 @@ const EXPECTED: Record<string, { status: TaskStatus; effects: TaskEffect[] }> = 
   },
   'running:error': {
     status: 'failed',
-    effects: [{ type: 'interruptSession', reason: 'boom' }, emit('failed')],
+    effects: [{ type: 'interruptSession', reason: 'boom' }, emit('failed', { reason: 'boom' })],
   },
   'waiting_input:approval_allow': {
     status: 'running',
@@ -71,7 +90,7 @@ const EXPECTED: Record<string, { status: TaskStatus; effects: TaskEffect[] }> = 
   },
   'waiting_input:error': {
     status: 'failed',
-    effects: [{ type: 'interruptSession', reason: 'boom' }, emit('failed')],
+    effects: [{ type: 'interruptSession', reason: 'boom' }, emit('failed', { reason: 'boom' })],
   },
   'verifying:verify_ok': {
     status: 'review',
@@ -131,8 +150,8 @@ describe('transition matrix', () => {
     expect(STATUSES).toEqual([...TaskStatus.options])
   })
 
-  it('covers 9 statuses x 12 events with exact target and effects', () => {
-    expect(STATUSES.length * EVENTS.length).toBe(108)
+  it('covers 9 statuses x 14 events with exact target and effects', () => {
+    expect(STATUSES.length * EVENTS.length).toBe(126)
     for (const status of STATUSES) {
       for (const event of EVENTS) {
         const key = `${status}:${event.type}`

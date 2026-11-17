@@ -63,6 +63,7 @@ describe('session runner approval failures', () => {
           status: 'running',
           previousStatus: 'running',
           retryCount: 0,
+          waitingReason: null,
           events: [],
         }
       },

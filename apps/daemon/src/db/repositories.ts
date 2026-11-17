@@ -10,8 +10,10 @@ import {
   type ApprovalDecision,
   type ApprovalRequest,
   type ReviewVerdict,
+  type SessionOutcome,
   type SessionStatus,
   type TaskStatus,
+  type WaitingReason,
 } from '@baton/protocol'
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { approval, audit, canvas, edge, node, review, session, task, workspace } from './schema.js'
@@ -74,6 +76,7 @@ function toTask(row: typeof task.$inferSelect): Task {
     title: row.title,
     prompt: row.prompt,
     status: row.status,
+    waitingReason: row.waitingReason as WaitingReason | null,
     engine: row.engine,
     workspaceMode: row.workspaceMode,
     branch: row.branch,
@@ -92,6 +95,7 @@ function toSession(row: typeof session.$inferSelect): Session {
     adapter: row.adapter,
     engineSessionId: row.engineSessionId,
     status: row.status,
+    outcome: row.outcome as SessionOutcome | null,
     startedAt: row.startedAt,
     endedAt: row.endedAt,
   })
@@ -205,6 +209,7 @@ export function insertTask(tx: Tx, input: Task): void {
       title: input.title,
       prompt: input.prompt,
       status: input.status,
+      waitingReason: input.waitingReason,
       engine: input.engine,
       workspaceMode: input.workspaceMode,
       branch: input.branch,
@@ -222,9 +227,10 @@ export function updateTaskState(
   id: string,
   status: TaskStatus,
   retryCount: number,
+  waitingReason: WaitingReason | null,
   updatedAt: number,
 ): void {
-  tx.update(task).set({ status, retryCount, updatedAt }).where(eq(task.id, id)).run()
+  tx.update(task).set({ status, retryCount, waitingReason, updatedAt }).where(eq(task.id, id)).run()
 }
 
 export function appendTaskFeedback(
@@ -266,6 +272,7 @@ export function insertSession(tx: Tx, input: Session): void {
       adapter: input.adapter,
       engineSessionId: input.engineSessionId,
       status: input.status,
+      outcome: input.outcome,
       startedAt: input.startedAt,
       endedAt: input.endedAt,
     })
@@ -313,8 +320,9 @@ export function updateSessionStatus(
   id: string,
   status: SessionStatus,
   endedAt: number | null = null,
+  outcome: SessionOutcome | null = null,
 ): void {
-  tx.update(session).set({ status, endedAt }).where(eq(session.id, id)).run()
+  tx.update(session).set({ status, endedAt, outcome }).where(eq(session.id, id)).run()
 }
 
 export function updateSessionEngineId(tx: Tx, id: string, engineSessionId: string): void {

@@ -1,3 +1,4 @@
+import type { TaskTransitionEvent } from '@baton/protocol'
 import type { Db } from '../db/types.js'
 import {
   insertAudit,
@@ -11,10 +12,7 @@ import type { TransitionOutcome } from './types.js'
 
 export interface BootReconcilerDeps {
   db: Db
-  applyTransition: (
-    taskId: string,
-    event: { type: 'error'; message: string } | { type: 'cancel'; reason?: string },
-  ) => TransitionOutcome
+  applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
   now: () => number
   newId: () => string
 }
@@ -35,8 +33,11 @@ export function reconcileOnBoot(deps: BootReconcilerDeps): void {
 
   for (const task of listTasksByStatus(deps.db, ['verifying'])) {
     deps.applyTransition(task.id, {
-      type: 'cancel',
-      reason: 'daemon restarted during verify',
+      type: 'verify_fail',
+      reviewId: deps.newId(),
+      exitCode: 124,
+      output: 'daemon restarted during verify',
+      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
     })
   }
 

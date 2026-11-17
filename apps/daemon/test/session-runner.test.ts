@@ -170,7 +170,7 @@ describe('session runner', () => {
     expect(session.status).toBe('failed')
   })
 
-  it('fails the task when the adapter stream ends unexpectedly', async () => {
+  it('marks a silent stream end as waiting for input instead of failed', async () => {
     const emptyAdapter: AgentAdapter = {
       name: 'fake',
       async start() {
@@ -186,6 +186,7 @@ describe('session runner', () => {
     const handle = setup({ adapters: createAdapterFactory({ fake: emptyAdapter }) })
     const taskId = handle.createTask()
     handle.runtime.applyTransition(taskId, { type: 'enqueue' })
-    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'failed')
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'waiting_input')
+    expect(handle.runtime.getTask(taskId)?.waitingReason).toBe('stalled')
   })
 })

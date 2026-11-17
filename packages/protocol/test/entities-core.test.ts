@@ -96,6 +96,7 @@ describe('core entities', () => {
       title: 't',
       prompt: 'p',
       status: 'todo',
+      waitingReason: null,
       engine: 'fake',
       workspaceMode: 'main',
       branch: null,
@@ -116,6 +117,7 @@ describe('core entities', () => {
       adapter: 'fake',
       engineSessionId: null,
       status: 'running',
+      outcome: null,
       startedAt: 1,
       endedAt: null,
     }

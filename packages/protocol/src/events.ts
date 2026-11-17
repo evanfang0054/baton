@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { EventSchemas } from './agui.js'
 import { DiffStat, Id, Timestamp } from './common.js'
 import { ApprovalRequest } from './entities/approval.js'
-import { TaskStatus } from './enums.js'
+import { Attention, SessionOutcome, TaskStatus, WaitingReason } from './enums.js'
 import { AppError } from './errors.js'
 
 const EventBase = z.object({
@@ -33,6 +33,25 @@ export const ErrorEvent = EventBase.extend({
 })
 export type ErrorEvent = z.infer<typeof ErrorEvent>
 
+export const SESSION_OUTCOME_EVENT = 'session.outcome'
+export const USER_MESSAGE_EVENT = 'user.message'
+
+export const SessionOutcomeValue = z.object({
+  outcome: SessionOutcome,
+  reason: z.string().min(1).optional(),
+})
+export type SessionOutcomeValue = z.infer<typeof SessionOutcomeValue>
+
+export const TaskStatusCause = z.object({
+  waitingReason: WaitingReason.optional(),
+  outcome: SessionOutcome.optional(),
+  sessionId: Id.optional(),
+  approvalId: Id.optional(),
+  reviewId: Id.optional(),
+  reason: z.string().min(1).optional(),
+})
+export type TaskStatusCause = z.infer<typeof TaskStatusCause>
+
 export const TaskStatusEvent = ReplayableBase.extend({
   type: z.literal('task.status'),
   payload: z.object({
@@ -41,6 +60,8 @@ export const TaskStatusEvent = ReplayableBase.extend({
     previousStatus: TaskStatus,
     retryCount: z.number().int().nonnegative(),
     updatedAt: Timestamp,
+    cause: TaskStatusCause.optional(),
+    attention: Attention.optional(),
   }),
 })
 export type TaskStatusEvent = z.infer<typeof TaskStatusEvent>

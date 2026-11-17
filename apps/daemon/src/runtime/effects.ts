@@ -1,4 +1,4 @@
-import type { TaskEffect } from '@baton/core'
+import { attentionFor, type TaskEffect } from '@baton/core'
 import type { Policy, Task, TaskStatus } from '@baton/protocol'
 import {
   type ApprovalRecord,
@@ -131,6 +131,7 @@ export function planAndApplyEffects(tx: Tx, ctx: EffectContext, effects: TaskEff
           adapter: ctx.task.engine,
           engineSessionId: null,
           status: 'running',
+          outcome: null,
           startedAt: ctx.now,
           endedAt: null,
         })
@@ -165,8 +166,14 @@ export function planAndApplyEffects(tx: Tx, ctx: EffectContext, effects: TaskEff
             previousStatus: ctx.previousStatus,
             retryCount: ctx.retryCount,
             updatedAt: ctx.now,
+            ...(effect.cause ? { cause: effect.cause } : {}),
+            attention: attentionFor(effect.status, effect.cause?.waitingReason ?? null),
           }),
         )
+        break
+      }
+      case 'sendToSession': {
+        plan.afterCommit.push(() => ctx.hooks.sendToSession(ctx.task.id, effect.text))
         break
       }
       default:

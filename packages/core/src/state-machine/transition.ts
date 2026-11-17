@@ -1,4 +1,9 @@
-import type { TaskStatus, TaskTransitionEvent } from '@baton/protocol'
+import type {
+  TaskStatus,
+  TaskStatusCause,
+  TaskTransitionEvent,
+  WaitingReason,
+} from '@baton/protocol'
 import { effects } from './effects.js'
 import type { TaskEffect, TransitionContext, TransitionResult } from './types.js'
 
@@ -6,8 +11,20 @@ const TERMINAL: ReadonlySet<TaskStatus> = new Set(['done', 'failed', 'cancelled'
 // verifying 是 verify 子进程阶段，agent session 已结束；取消 verify 由 M1-5 的 verify executor 处理。
 const ACTIVE_SESSION: ReadonlySet<TaskStatus> = new Set(['running', 'waiting_input'])
 
-function ok(status: TaskStatus, retryCount: number, extra: TaskEffect[]): TransitionResult {
-  return { ok: true, status, retryCount, effects: [...extra, effects.emitTaskStatus(status)] }
+function ok(
+  status: TaskStatus,
+  retryCount: number,
+  extra: TaskEffect[],
+  waitingReason: WaitingReason | null = null,
+  cause?: TaskStatusCause,
+): TransitionResult {
+  return {
+    ok: true,
+    status,
+    retryCount,
+    waitingReason,
+    effects: [...extra, effects.emitTaskStatus(status, cause)],
+  }
 }
 
 function assertNever(value: never): never {
@@ -20,7 +37,11 @@ function invalid(ctx: TransitionContext, event: TaskTransitionEvent): Transition
     error: {
       code: 'invalid_transition',
       message: `cannot apply ${event.type} from ${ctx.status}`,
-      details: { from: ctx.status, event: event.type },
+      details: {
+        from: ctx.status,
+        event: event.type,
+        ...(event.type === 'user_input' ? { waitingReason: ctx.waitingReason } : {}),
+      },
     },
   }
 }
@@ -62,11 +83,32 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
 
     case 'running':
       if (event.type === 'approval_requested') {
-        return ok('waiting_input', ctx.retryCount, [effects.requestApproval(event.approvalId)])
+        return ok(
+          'waiting_input',
+          ctx.retryCount,
+          [effects.requestApproval(event.approvalId)],
+          'approval',
+          { waitingReason: 'approval', approvalId: event.approvalId },
+        )
+      }
+      if (event.type === 'session_reported') {
+        const waitingReason: WaitingReason =
+          event.outcome === 'blocked'
+            ? 'question'
+            : event.outcome === 'dropped'
+              ? 'dropped'
+              : 'stalled'
+        return ok('waiting_input', ctx.retryCount, [], waitingReason, {
+          waitingReason,
+          outcome: event.outcome,
+          ...(event.reason ? { reason: event.reason } : {}),
+        })
       }
       if (event.type === 'completed') return ok('verifying', ctx.retryCount, [effects.runVerify()])
       if (event.type === 'error') {
-        return ok('failed', ctx.retryCount, [effects.interruptSession(event.message)])
+        return ok('failed', ctx.retryCount, [effects.interruptSession(event.message)], null, {
+          reason: event.message,
+        })
       }
       return invalid(ctx, event)
 
@@ -79,8 +121,16 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
           effects.resolveApproval(event.approvalId, 'deny', event.note),
         ])
       }
+      if (event.type === 'user_input') {
+        if (ctx.waitingReason === null || ctx.waitingReason === 'approval') {
+          return invalid(ctx, event)
+        }
+        return ok('running', ctx.retryCount, [effects.sendToSession(event.text)])
+      }
       if (event.type === 'error') {
-        return ok('failed', ctx.retryCount, [effects.interruptSession(event.message)])
+        return ok('failed', ctx.retryCount, [effects.interruptSession(event.message)], null, {
+          reason: event.message,
+        })
       }
       return invalid(ctx, event)
 

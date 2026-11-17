@@ -109,13 +109,26 @@ describe('REST API', () => {
     expect(tasks.statusCode).toBe(200)
     expect((tasks.json() as { tasks: unknown[] }).tasks).toHaveLength(1)
 
+    handle.database.raw
+      .prepare(
+        "update task set status = 'waiting_input', waiting_reason = 'question', updated_at = 42 where id = ?",
+      )
+      .run(handle.seeded.taskId)
+
     const detail = await app.inject({
       method: 'GET',
       url: `/api/tasks/${handle.seeded.taskId}`,
       headers: auth,
     })
     expect(detail.statusCode).toBe(200)
-    expect((detail.json() as { review: unknown }).review).toBeNull()
+    const detailBody = detail.json() as {
+      review: unknown
+      waitingSince: unknown
+      task: { waitingReason: unknown }
+    }
+    expect(detailBody.review).toBeNull()
+    expect(detailBody.waitingSince).toBe(42)
+    expect(detailBody.task.waitingReason).toBe('question')
 
     const missing = await app.inject({
       method: 'GET',

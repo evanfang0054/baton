@@ -22,6 +22,15 @@ export type EdgeType = z.infer<typeof EdgeType>
 export const SessionStatus = z.enum(['running', 'waiting_input', 'ended', 'failed'])
 export type SessionStatus = z.infer<typeof SessionStatus>
 
+export const SessionOutcome = z.enum(['ready', 'blocked', 'dropped', 'unreported'])
+export type SessionOutcome = z.infer<typeof SessionOutcome>
+
+export const WaitingReason = z.enum(['approval', 'question', 'stalled', 'dropped'])
+export type WaitingReason = z.infer<typeof WaitingReason>
+
+export const Attention = z.enum(['none', 'needs_approval', 'needs_reply', 'needs_review'])
+export type Attention = z.infer<typeof Attention>
+
 export const ApprovalDecision = z.enum(['allow', 'deny'])
 export type ApprovalDecision = z.infer<typeof ApprovalDecision>
 

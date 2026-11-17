@@ -60,6 +60,7 @@ export const task = sqliteTable(
     title: text('title').notNull(),
     prompt: text('prompt').notNull(),
     status: text('status').notNull(),
+    waitingReason: text('waiting_reason'),
     engine: text('engine').notNull(),
     workspaceMode: text('workspace_mode').notNull().default('main'),
     branch: text('branch'),
@@ -80,6 +81,7 @@ export const session = sqliteTable('session', {
   adapter: text('adapter').notNull(),
   engineSessionId: text('engine_session_id'),
   status: text('status').notNull(),
+  outcome: text('outcome'),
   startedAt: integer('started_at').notNull(),
   endedAt: integer('ended_at'),
 })

@@ -78,6 +78,29 @@ describe('ws router', () => {
     expect(pong.type).toBe('pong')
   })
 
+  it('routes session.reply and rejects a task that is not waiting', async () => {
+    const { handle, ws } = await setup()
+    ws.send({
+      v: 1,
+      type: 'task.create',
+      id: 'c1',
+      ts: 1,
+      payload: taskPayload(handle),
+    })
+    const created = await ws.next('ack')
+    const taskId = (created.payload as { data: { taskId: string } }).data.taskId
+
+    ws.send({
+      v: 1,
+      type: 'session.reply',
+      id: 'c2',
+      ts: 1,
+      payload: { taskId, text: 'hello' },
+    })
+    const error = await ws.next('error')
+    expect(error.payload).toMatchObject({ commandId: 'c2', code: 'reply_not_allowed' })
+  })
+
   it('closes malformed envelopes with 4400', async () => {
     const { ws } = await setup()
     ws.sendRaw('{')

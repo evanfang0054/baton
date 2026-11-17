@@ -28,6 +28,12 @@ export const TaskCancelInput = z.object({
 })
 export type TaskCancelInput = z.infer<typeof TaskCancelInput>
 
+export const SessionReplyInput = z.object({
+  taskId: Id,
+  text: z.string().min(1).max(16_384),
+})
+export type SessionReplyInput = z.infer<typeof SessionReplyInput>
+
 export const ApprovalDecideInput = z.object({
   approvalId: Id,
   decision: ApprovalDecision,
@@ -56,6 +62,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   CommandBase.extend({ type: z.literal('task.create'), payload: TaskCreateInput }),
   CommandBase.extend({ type: z.literal('task.enqueue'), payload: TaskEnqueueInput }),
   CommandBase.extend({ type: z.literal('task.cancel'), payload: TaskCancelInput }),
+  CommandBase.extend({ type: z.literal('session.reply'), payload: SessionReplyInput }),
   CommandBase.extend({ type: z.literal('approval.decide'), payload: ApprovalDecideInput }),
   CommandBase.extend({ type: z.literal('review.decide'), payload: ReviewDecideInput }),
 ])

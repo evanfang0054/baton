@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { getApproval, insertApproval, listSessionsByTask } from '../src/db/repositories.js'
+import {
+  getApproval,
+  getReviewByTask,
+  insertApproval,
+  listSessionsByTask,
+} from '../src/db/repositories.js'
 import { reconcileOnBoot } from '../src/runtime/boot.js'
 import type { TestRuntimeHandle } from './helpers/runtime.js'
 import { createTestRuntime } from './helpers/runtime.js'
@@ -17,7 +22,7 @@ afterEach(async () => {
 })
 
 describe('reconcileOnBoot', () => {
-  it('fails active tasks, cancels verifying tasks and expires approvals', async () => {
+  it('fails active tasks, keeps verify evidence and expires approvals', async () => {
     const handle = setup()
     const first = handle.createTask({ title: 'one' })
     const second = handle.createTask({ title: 'two' })
@@ -49,7 +54,10 @@ describe('reconcileOnBoot', () => {
 
     expect(handle.runtime.getTask(first)?.status).toBe('failed')
     expect(handle.runtime.getTask(second)?.status).toBe('failed')
-    expect(handle.runtime.getTask(verifying)?.status).toBe('cancelled')
+    expect(handle.runtime.getTask(verifying)?.status).toBe('review')
+    const review = getReviewByTask(handle.database.db, verifying)
+    expect(review?.verifyExitCode).toBe(124)
+    expect(review?.verifyOutput).toContain('daemon restarted during verify')
     expect(listSessionsByTask(handle.database.db, first)[0]?.status).toBe('failed')
     expect(getApproval(handle.database.db, 'approval-boot')?.decision).toBe('deny')
     expect(getApproval(handle.database.db, 'approval-boot')?.decidedBy).toBe('system')

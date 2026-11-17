@@ -13,6 +13,15 @@ export const TaskTransitionEvent = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('completed') }),
   z.object({
+    type: z.literal('session_reported'),
+    outcome: z.enum(['blocked', 'dropped', 'unreported']),
+    reason: z.string().min(1).optional(),
+  }),
+  z.object({
+    type: z.literal('user_input'),
+    text: z.string().min(1).max(16_384),
+  }),
+  z.object({
     type: z.literal('verify_ok'),
     reviewId: Id,
     exitCode: z.literal(0),

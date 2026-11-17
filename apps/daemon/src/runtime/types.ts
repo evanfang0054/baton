@@ -1,4 +1,4 @@
-import type { AppError, Policy, TaskStatus } from '@baton/protocol'
+import type { AppError, Policy, TaskStatus, WaitingReason } from '@baton/protocol'
 import type { BroadcastEvent } from '../db/event-store.js'
 
 export interface StartSessionInput {
@@ -18,6 +18,7 @@ export interface RuntimeHooks {
     note?: string,
   ): void | Promise<void>
   runVerify(taskId: string): void | Promise<void>
+  sendToSession(taskId: string, text: string): void | Promise<void>
   kick(): void
   track(action: () => void | Promise<void>): void
 }
@@ -29,6 +30,7 @@ export type TransitionOutcome =
       status: TaskStatus
       previousStatus: TaskStatus
       retryCount: number
+      waitingReason: WaitingReason | null
       events: BroadcastEvent[]
     }
   | { ok: false; error: AppError }

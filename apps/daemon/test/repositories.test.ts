@@ -37,7 +37,7 @@ describe('repositories', () => {
   it('updates task state and counts active tasks', () => {
     const database = db()
     const seeded = seedTask(database.raw)
-    database.db.transaction((tx) => repo.updateTaskState(tx, seeded.taskId, 'running', 0, 2))
+    database.db.transaction((tx) => repo.updateTaskState(tx, seeded.taskId, 'running', 0, null, 2))
     expect(repo.getTask(database.db, seeded.taskId)?.status).toBe('running')
     expect(repo.countActiveTasks(database.db)).toBe(1)
     expect(repo.listTasksByStatus(database.db, ['running'])).toHaveLength(1)
@@ -53,6 +53,7 @@ describe('repositories', () => {
       title: 'repo task',
       prompt: '<task>repo</task>',
       status: 'todo',
+      waitingReason: null,
       engine: 'fake',
       workspaceMode: 'main',
       branch: null,
