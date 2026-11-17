@@ -14,6 +14,7 @@
 - [2026-11-17 M1-3/M1-4 上下文、策略与适配器契约设计](specs/2026-11-17-m1-context-policy-adapter-design.md)
 - [2026-11-17 M1-5 daemon 运行时闭环设计](specs/2026-11-17-m1-daemon-runtime-design.md)
 - [2026-11-17 M1-5a 任务注意力语义设计](specs/2026-11-17-m1-attention-semantics-design.md)
+- [2026-11-17 M1-6a 任务控制台设计](specs/2026-11-17-m1-web-console-design.md)
 
 ## 现行 ADR
 
