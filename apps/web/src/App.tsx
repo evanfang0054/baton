@@ -1,20 +1,57 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { ConnectionStatus } from './features/shared/ConnectionStatus'
+import { BoardRail } from './features/tasks/BoardRail'
+import { TaskBoard } from './features/tasks/TaskBoard'
 import { CreateWorkspaceDialog } from './features/workspaces/CreateWorkspaceDialog'
 import { WorkspaceSwitcher } from './features/workspaces/WorkspaceSwitcher'
-import { listWorkspaces } from './lib/api'
+import { getCanvas, listTasks, listWorkspaces } from './lib/api'
 import { queryKeys } from './lib/query'
 import { readUrlState, writeUrlState } from './lib/url'
 import { createWsClient } from './lib/ws'
 import { useAppStore } from './stores/app'
 
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false
+  return (
+    target.isContentEditable ||
+    target.tagName === 'INPUT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.tagName === 'SELECT'
+  )
+}
+
 export function App() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId)
+  const activeTaskId = useAppStore((state) => state.activeTaskId)
+  const boardExpanded = useAppStore((state) => state.boardExpanded)
+  const boardPinned = useAppStore((state) => state.boardPinned)
   const setWorkspace = useAppStore((state) => state.setWorkspace)
+  const setTask = useAppStore((state) => state.setTask)
+  const setBoardExpanded = useAppStore((state) => state.setBoardExpanded)
+  const setBoardPinned = useAppStore((state) => state.setBoardPinned)
   const setWsStatus = useAppStore((state) => state.setWsStatus)
   const queryClient = useQueryClient()
+
   const workspaces = useQuery({ queryKey: queryKeys.workspaces, queryFn: listWorkspaces })
+  const tasks = useQuery({
+    queryKey: queryKeys.tasks(activeWorkspaceId ?? ''),
+    queryFn: () => listTasks(activeWorkspaceId!),
+    enabled: Boolean(activeWorkspaceId),
+  })
+  const canvas = useQuery({
+    queryKey: queryKeys.canvas(activeWorkspaceId ?? ''),
+    queryFn: () => getCanvas(activeWorkspaceId!),
+    enabled: Boolean(activeWorkspaceId),
+  })
+  const counts = useMemo(() => {
+    const list = tasks.data ?? []
+    return {
+      needs_approval: list.filter((task) => task.attention === 'needs_approval').length,
+      needs_reply: list.filter((task) => task.attention === 'needs_reply').length,
+      needs_review: list.filter((task) => task.attention === 'needs_review').length,
+    }
+  }, [tasks.data])
 
   useEffect(() => {
     if (activeWorkspaceId) return
@@ -45,6 +82,17 @@ export function App() {
     return () => client.close()
   }, [activeWorkspaceId, queryClient, setWsStatus])
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() === 'b' && !isEditableTarget(event.target)) {
+        setBoardExpanded(!useAppStore.getState().boardExpanded)
+      }
+      if (event.key === 'Escape') setBoardExpanded(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [setBoardExpanded])
+
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-separator px-4">
@@ -68,12 +116,26 @@ export function App() {
         </div>
       </header>
       <div className="flex min-h-0 flex-1">
-        <aside
-          data-testid="board-rail"
-          className="flex w-16 shrink-0 flex-col items-center gap-3 border-r border-separator py-3"
-        >
-          <span className="text-[10px] text-muted">任务</span>
-        </aside>
+        <BoardRail
+          counts={counts}
+          expanded={boardExpanded}
+          onToggle={() => setBoardExpanded(!boardExpanded)}
+          pinned={boardPinned}
+          onTogglePin={() => setBoardPinned(!boardPinned)}
+        />
+        <TaskBoard
+          tasks={tasks.data ?? []}
+          agentNodes={canvas.data?.nodes ?? []}
+          selectedTaskId={activeTaskId}
+          expanded={boardExpanded}
+          pinned={boardPinned}
+          onSelectTask={(id) => {
+            setTask(id)
+            setBoardExpanded(false)
+            writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
+          }}
+          onClose={() => setBoardExpanded(false)}
+        />
         <main className="relative min-w-0 flex-1">
           <section
             data-testid="canvas"
