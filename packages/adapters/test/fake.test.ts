@@ -81,10 +81,29 @@ describe('FakeAdapter', () => {
   it('ends the stream on interrupt', async () => {
     const adapter = new FakeAdapter()
     const run = await adapter.start(startInput())
-    const consumed = collect(run.events)
     await run.interrupt()
-    const events = await consumed
-    expect(events.at(-1)?.type).toBe('RUN_STARTED')
+    const events = await collect(run.events)
+    expect(events).toEqual([])
+  })
+
+  it('emits no events when disposed before consumption', async () => {
+    const adapter = new FakeAdapter()
+    const run = await adapter.start(startInput())
+    await run.dispose()
+    expect(await collect(run.events)).toEqual([])
+  })
+
+  it('stops between text events when disposed', async () => {
+    const adapter = new FakeAdapter({ script: [{ kind: 'text', text: 'abc' }] })
+    const run = await adapter.start(startInput())
+    const events: AgentEvent[] = []
+
+    for await (const event of run.events) {
+      events.push(event)
+      if (event.type === 'TEXT_MESSAGE_START') await run.dispose()
+    }
+
+    expect(events.map((event) => event.type)).toEqual(['RUN_STARTED', 'TEXT_MESSAGE_START'])
   })
 
   it('send appends a text event', async () => {
@@ -175,6 +194,21 @@ describe('FakeAdapter', () => {
 
     expect(events.at(-1)?.type).toBe('CUSTOM')
     expect(events.some((event) => event.type === 'RUN_FINISHED')).toBe(false)
+  })
+
+  it('rejects send after RUN_FINISHED before finalization', async () => {
+    const adapter = new FakeAdapter({ script: [{ kind: 'finish' }] })
+    const run = await adapter.start(startInput())
+    const events: AgentEvent[] = []
+
+    for await (const event of run.events) {
+      events.push(event)
+      if (event.type === 'RUN_FINISHED') {
+        await expect(run.send('late')).rejects.toThrow(/closed/)
+      }
+    }
+
+    expect(events.at(-1)?.type).toBe('RUN_FINISHED')
   })
 
   it('finish stops the script instead of continuing to the next step', async () => {

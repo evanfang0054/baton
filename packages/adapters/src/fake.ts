@@ -52,6 +52,11 @@ function event(value: unknown): AgentEvent {
 /**
  * 脚本化适配器：只产生 AG-UI 事件并接受控制调用，不读 DB、不发 WS、不使用定时器。
  * 用于 M1-5 的确定性集成测试；真实引擎接入见 M1-7。
+ *
+ * 生命周期约定：
+ * - interrupt/dispose 后不再产生事件，send/approve 抛错；
+ * - RUN_FINISHED/RUN_ERROR 一旦产出，send/approve 也视为关闭；
+ * - approve 必须匹配当前 pending 的 requestId，避免串审批。
  */
 export class FakeAdapter implements AgentAdapter {
   readonly name = 'fake' as const
@@ -71,17 +76,23 @@ export class FakeAdapter implements AgentAdapter {
     let pending: { requestId: string; deferred: Deferred<ApprovalDecision> } | null = null
     let interrupted = false
     let closed = false
+    let finished = false
     let messageSeq = 0
     let approvalSeq = 0
 
+    const isClosed = (): boolean => closed || finished
+
     const text = function* (delta: string): Generator<AgentEvent> {
+      if (isClosed() || interrupted) return
       const messageId = `fake-msg-${++messageSeq}`
       yield event({
         type: EventType.TEXT_MESSAGE_START,
         messageId,
         role: 'assistant',
       })
+      if (isClosed() || interrupted) return
       yield event({ type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta })
+      if (isClosed() || interrupted) return
       yield event({ type: EventType.TEXT_MESSAGE_END, messageId })
     }
 
@@ -93,10 +104,11 @@ export class FakeAdapter implements AgentAdapter {
 
     const events = (async function* (): AsyncGenerator<AgentEvent> {
       try {
+        if (isClosed() || interrupted) return
         yield event({ type: EventType.RUN_STARTED, threadId, runId })
 
         for (const step of script) {
-          if (interrupted) return
+          if (isClosed() || interrupted) return
           yield* drain()
 
           if (step.kind === 'text') {
@@ -112,15 +124,19 @@ export class FakeAdapter implements AgentAdapter {
               value: { requestId, request: step.request },
             })
 
+            if (isClosed() || interrupted) return
             const decision = await wait.promise
             if (pending?.requestId === requestId) pending = null
-            if (interrupted) return
+            if (isClosed() || interrupted) return
             if (decision === 'deny') {
               yield* text('fake: denied')
+              if (isClosed() || interrupted) return
+              finished = true
               yield event({ type: EventType.RUN_FINISHED, threadId, runId })
               return
             }
           } else if (step.kind === 'error') {
+            finished = true
             yield event({ type: EventType.RUN_ERROR, message: step.message })
             return
           } else if (step.kind === 'finish') {
@@ -128,8 +144,10 @@ export class FakeAdapter implements AgentAdapter {
           }
         }
 
-        if (interrupted) return
+        if (isClosed() || interrupted) return
         yield* drain()
+        if (isClosed() || interrupted) return
+        finished = true
         yield event({ type: EventType.RUN_FINISHED, threadId, runId })
       } finally {
         closed = true
@@ -141,14 +159,16 @@ export class FakeAdapter implements AgentAdapter {
     return {
       events,
       approve: async (requestId, decision) => {
-        if (closed) throw new Error('fake adapter run is closed')
-        if (!pending || pending.requestId !== requestId) {
+        if (isClosed()) throw new Error('fake adapter run is closed')
+        const current = pending
+        if (!current || current.requestId !== requestId) {
           throw new Error(`no pending approval ${requestId}`)
         }
-        pending.deferred.resolve(decision)
+        pending = null
+        current.deferred.resolve(decision)
       },
       send: async (delta) => {
-        if (closed) throw new Error('fake adapter run is closed')
+        if (isClosed()) throw new Error('fake adapter run is closed')
         queue.push(delta)
       },
       interrupt: async () => {
