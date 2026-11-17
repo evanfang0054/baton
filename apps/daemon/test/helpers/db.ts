@@ -17,6 +17,7 @@ export function createTestDb(): TestDb {
 
 export interface SeededTask {
   workspaceId: string
+  relPath: string
   canvasId: string
   nodeId: string
   taskId: string
@@ -34,6 +35,7 @@ export function seedTask(
 ): SeededTask {
   const now = options.now ?? 1
   const workspaceId = randomUUID()
+  const relPath = `demo-${workspaceId}`
   const canvasId = randomUUID()
   const nodeId = randomUUID()
   const taskId = randomUUID()
@@ -42,7 +44,7 @@ export function seedTask(
   db.prepare('insert into workspace (id, name, rel_path, created_at) values (?, ?, ?, ?)').run(
     workspaceId,
     'demo',
-    `demo-${workspaceId}`,
+    relPath,
     now,
   )
   db.prepare('insert into canvas (id, workspace_id, viewport_json) values (?, ?, ?)').run(
@@ -83,5 +85,5 @@ export function seedTask(
     ).run(sessionId, taskId, options.sessionStatus ?? 'running', now)
   }
 
-  return { workspaceId, canvasId, nodeId, taskId, sessionId }
+  return { workspaceId, relPath, canvasId, nodeId, taskId, sessionId }
 }
