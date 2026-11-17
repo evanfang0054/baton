@@ -18,6 +18,7 @@
 ## 现行 ADR
 
 - [0001 不做完整事件溯源，task.status 作为投影](adr/0001-no-full-event-sourcing.md)
+- [0002 web 组件库选择 HeroUI v3](adr/0002-heroui-component-library.md)
 
 ## 现行 contract
 

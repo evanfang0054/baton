@@ -17,6 +17,9 @@ baton 以 MIT 许可发布。运行时会依赖下列第三方组件，其许可
 | `@ag-ui/core` | MIT | Agent 事件模型 |
 | `@assistant-ui/react` | MIT | 总管聊天界面 |
 | `@xyflow/react` | MIT | 画布引擎 |
+| `@heroui/react` / `@heroui/styles` | Apache-2.0 | React 19 组件库、Tailwind 4 主题与样式 |
+| `react-aria` / `react-aria-components` / `@react-aria/*` / `@internationalized/date` | Apache-2.0 | HeroUI 的无障碍交互与日期基础（传递依赖） |
+| `@radix-ui/react-avatar` / `input-otp` / `tailwind-variants` / `tw-animate-css` | MIT | HeroUI 的传递依赖 |
 | `fastify` / `@fastify/*` | MIT | HTTP 与 WebSocket 服务 |
 | `pino` | MIT | 结构化日志与字段脱敏 |
 | `better-sqlite3` | MIT | 本地存储 |
@@ -31,10 +34,15 @@ baton 以 MIT 许可发布。运行时会依赖下列第三方组件，其许可
 |---|---|---|
 | `@anthropic-ai/claude-agent-sdk` | 见包内 LICENSE.md（非 OSI） | 仅作为运行时依赖使用，不 fork、不再分发其源码；其平台二进制包随 npm 依赖安装 |
 
+## 文档与设计资产
+
+| 资产 | 许可 | 说明 |
+|---|---|---|
+| HeroUI 官方 `DESIGN.md` | Apache-2.0 | 根目录 `DESIGN.md` 的官方部分来自 HeroUI v3 DESIGN.md；baton addendum 为自研 |
+
 ## 仅参考、未复制代码
 
 - `BloopAI/vibe-kanban`（Apache-2.0）：参考其 executor、worktree 隔离与 review 流程的设计。项目已进入停服期，不引入依赖、不复制代码。
 - `answertsundere/dsh-canvas-plugin`（MIT）、`ljcoder2015/dsh-canvas-flow`（MIT）：参考其会话状态判定、流式渲染与卡片产物组织。
-- `VoltAgent/awesome-design-md`（MIT）：参考并改写其 `design-md/linear.app/DESIGN.md` 的色板、排版与表面层级，生成根目录 `DESIGN.md`；未使用 Linear 品牌资产，不代表与 Linear 存在关联或背书。
 
 如后续确实需要复制上述项目的代码片段，必须在提交中标注来源与许可，并更新本文件。

@@ -34,8 +34,8 @@
 
 ## 技术栈
 
-- 前端：React 19 + Vite + `@xyflow/react` 13（画布）+ Zustand + TanStack Query + Tailwind 4 + shadcn/ui
-- 设计系统：根目录 `DESIGN.md`（暗色任务驾驶舱；单一薰衣草蓝主色 + 语义状态色）
+- 前端：React 19 + Vite + `@xyflow/react` 13（画布）+ Zustand + TanStack Query + Tailwind 4 + HeroUI v3
+- 设计系统：根目录 `DESIGN.md`（HeroUI 官方默认主题 + baton addendum；v1 暗色）
 - 后端：Node 22 + TypeScript ESM + Fastify 5 + `ws` + pino + zod 4
 - 存储：SQLite（better-sqlite3）+ Drizzle ORM / drizzle-kit
 - Agent：`@anthropic-ai/claude-agent-sdk`（执行器）、`@ag-ui/core`（事件模型）
@@ -162,7 +162,10 @@ baton/
 - **视觉先读根目录 `DESIGN.md`**：颜色、字体、间距、圆角、状态色一律用其中的 token；禁止在组件里硬编码 hex。
 - v1 只做暗色主题；主色只用于主操作、焦点、选中和链接；语义色只用于任务状态/attention，不做装饰。
 - 状态不能只靠颜色表达：必须有文字或图标；对比度达到 WCAG AA，焦点可见，键盘可达。
-- 组件优先 shadcn/ui，按 `DESIGN.md` 覆盖主题；不引入第二套 UI 库。
+- 组件优先 HeroUI v3（`@heroui/react` + `@heroui/styles`，React Aria 无障碍），按 `DESIGN.md` 覆盖主题；不引入第二套 UI 库。
+- HeroUI 导入顺序：`tailwindcss` → `@heroui/styles`；暗色固定 `<html class="dark" data-theme="dark">`；不需要 Provider。
+- HeroUI 按组件子路径导入（如 `@heroui/react/button`、`@heroui/react/card`），不要整包引入。
+- v1 使用 HeroUI 默认主题：不覆盖 `--background`/`--accent` 等基础色；需要品牌化时先改 `DESIGN.md` 的 baton addendum。
 - 新增颜色/状态色/字体/圆角前，先改 `DESIGN.md`，再改代码。
 
 ### 后端
