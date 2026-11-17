@@ -19,6 +19,7 @@ import {
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
+import type { Logger } from '../log.js'
 import { createVerifyRunner, type VerifyRunner } from '../verify/runner.js'
 import type { AdapterFactory } from './adapter-factory.js'
 import { createScheduler, type Scheduler } from './scheduler.js'
@@ -42,6 +43,7 @@ export interface RuntimeDeps {
   runVerify?: (taskId: string) => void | Promise<void>
   now?: () => number
   newId?: () => string
+  logger?: Logger
 }
 
 export type CommandOutcome =
@@ -88,6 +90,7 @@ export function createRuntime(deps: RuntimeDeps) {
         .then(action)
         .catch(() => {
           // 异步动作失败由各 runner 自己收敛任务状态；这里只保证 settle 不被卡住。
+          deps.logger?.error({ action: 'runtime' }, 'runtime action failed')
         })
         .finally(() => pending.delete(promise))
       pending.add(promise)

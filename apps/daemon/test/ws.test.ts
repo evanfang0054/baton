@@ -1,24 +1,17 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import WebSocket from 'ws'
-import { buildApp } from '../src/app.js'
+import { buildTestApp } from './helpers/app.js'
+import type { TestRuntimeHandle } from './helpers/runtime.js'
 
-const apps: Array<{ close: () => Promise<void> }> = []
+const handles: TestRuntimeHandle[] = []
 
 afterEach(async () => {
-  await Promise.all(apps.splice(0).map((app) => app.close()))
+  await Promise.all(handles.splice(0).map((handle) => handle.cleanup()))
 })
 
 async function listen(token: string | null): Promise<string> {
-  const app = await buildApp({
-    host: '127.0.0.1',
-    port: 0,
-    token,
-    dataDir: '/tmp',
-    webRoot: '/tmp',
-    workspacesRoot: '/tmp',
-    maxConcurrency: 1,
-  })
-  apps.push(app)
+  const { app, handle } = await buildTestApp({ config: { token } })
+  handles.push(handle)
   await app.listen({ host: '127.0.0.1', port: 0 })
   const address = app.server.address()
   if (!address || typeof address === 'string') throw new Error('no port')

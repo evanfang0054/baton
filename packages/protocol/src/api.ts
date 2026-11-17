@@ -15,6 +15,9 @@ export type WorkspaceListResponse = z.infer<typeof WorkspaceListResponse>
 export const WorkspaceCreateResponse = z.object({ workspace: Workspace, canvas: Canvas })
 export type WorkspaceCreateResponse = z.infer<typeof WorkspaceCreateResponse>
 
+export const CanvasQuery = z.object({ workspaceId: Id })
+export type CanvasQuery = z.infer<typeof CanvasQuery>
+
 export const CanvasResponse = z.object({
   canvas: Canvas,
   nodes: z.array(Node),

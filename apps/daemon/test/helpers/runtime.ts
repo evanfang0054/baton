@@ -14,6 +14,9 @@ export interface TestRuntimeHandle {
   database: TestDb
   seeded: SeededTask
   root: string
+  config: Config
+  now: () => number
+  newId: () => string
   events: BroadcastEvent[]
   startSessions: StartSessionInput[]
   interrupts: string[]
@@ -29,6 +32,8 @@ export function createTestRuntime(
     useSessionRunner?: boolean
     useVerifyRunner?: boolean
     adapters?: AdapterFactory
+    config?: Partial<Config>
+    broadcast?: (event: BroadcastEvent) => void
   } = {},
 ): TestRuntimeHandle {
   const root = mkdtempSync(join(tmpdir(), 'baton-runtime-'))
@@ -50,6 +55,7 @@ export function createTestRuntime(
     webRoot: root,
     workspacesRoot: root,
     maxConcurrency: options.maxConcurrency ?? 1,
+    ...options.config,
   }
 
   const events: BroadcastEvent[] = []
@@ -59,13 +65,17 @@ export function createTestRuntime(
   const verifies: string[] = []
   let tick = 1
   let id = 0
+  const now = (): number => tick++
+  const newId = (): string => `id-${++id}`
 
   const runtime = createRuntime({
     db: database.db,
     config,
-    broadcast: (event) => {
-      events.push(event)
-    },
+    broadcast:
+      options.broadcast ??
+      ((event) => {
+        events.push(event)
+      }),
     ...(options.useSessionRunner
       ? {
           adapters: options.adapters ?? createAdapterFactory(),
@@ -91,8 +101,8 @@ export function createTestRuntime(
             verifies.push(taskId)
           },
         }),
-    now: () => tick++,
-    newId: () => `id-${++id}`,
+    now,
+    newId,
   })
 
   function createTask(overrides: Partial<TaskCreateInput> = {}): string {
@@ -116,6 +126,9 @@ export function createTestRuntime(
     database,
     seeded,
     root,
+    config,
+    now,
+    newId,
     events,
     startSessions,
     interrupts,

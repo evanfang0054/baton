@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CanvasQuery,
   CanvasResponse,
   TaskDetailResponse,
   TaskListQuery,
@@ -43,6 +44,7 @@ describe('REST DTO schemas', () => {
   })
 
   it('validates canvas response with nodes and edges', () => {
+    expect(CanvasQuery.parse({ workspaceId: 'w1' }).workspaceId).toBe('w1')
     expect(CanvasResponse.parse({ canvas, nodes: [], edges: [] }).canvas.id).toBe('c1')
   })
 
