@@ -46,7 +46,7 @@ Seam: zod schema round-trip tests
 - Produces: `ClientMessage` 增加 `node.create/update/delete`
 - Consumes: `Task`、`Attention`、`Timestamp`、`Id`、`Engine`、`Node` 的数据形状
 
-- [ ] **Step 1: 写失败测试（api）**
+- [x] **Step 1: 写失败测试（api）**
 
 在 `packages/protocol/test/api.test.ts` 顶部 imports 增加：
 
@@ -112,7 +112,7 @@ it('validates session events query and response', () => {
 })
 ```
 
-- [ ] **Step 2: 写失败测试（commands）**
+- [x] **Step 2: 写失败测试（commands）**
 
 在 `packages/protocol/test/commands.test.ts` 的 `fixtures` 数组增加：
 
@@ -174,7 +174,7 @@ it('rejects node.update without nodeId', () => {
 })
 ```
 
-- [ ] **Step 3: 运行测试确认失败**
+- [x] **Step 3: 运行测试确认失败**
 
 ```bash
 pnpm --filter @baton/protocol test -- api.test.ts commands.test.ts
@@ -182,7 +182,7 @@ pnpm --filter @baton/protocol test -- api.test.ts commands.test.ts
 
 Expected: FAIL，`TaskSummary`/`SessionEventsQuery`/`SessionEventsResponse` 未导出，`node.create` 不在 union。
 
-- [ ] **Step 4: 实现 `TaskSummary` 与 session events schema**
+- [x] **Step 4: 实现 `TaskSummary` 与 session events schema**
 
 在 `packages/protocol/src/api.ts`：
 
@@ -227,7 +227,7 @@ export type SessionEventsResponse = z.infer<typeof SessionEventsResponse>
 
 删除旧的 `TaskListResponse = z.object({ tasks: z.array(Task) })` 行。
 
-- [ ] **Step 5: 实现 node 命令 schema**
+- [x] **Step 5: 实现 node 命令 schema**
 
 在 `packages/protocol/src/commands.ts` 的 `ReviewDecideInput` 后增加：
 
@@ -310,7 +310,7 @@ CommandBase.extend({ type: z.literal('node.update'), payload: NodeUpdateInput })
 CommandBase.extend({ type: z.literal('node.delete'), payload: NodeDeleteInput }),
 ```
 
-- [ ] **Step 6: 运行测试确认通过**
+- [x] **Step 6: 运行测试确认通过**
 
 ```bash
 pnpm --filter @baton/protocol test -- api.test.ts commands.test.ts
@@ -318,7 +318,7 @@ pnpm --filter @baton/protocol test -- api.test.ts commands.test.ts
 
 Expected: PASS。
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git add packages/protocol/src/api.ts packages/protocol/src/commands.ts packages/protocol/test/api.test.ts packages/protocol/test/commands.test.ts
@@ -342,7 +342,7 @@ Seam: `apps/daemon/test/repositories.test.ts`
 - Produces: `getCanvas(db, id)`, `getNode(db, id)`, `insertNode(tx, node)`, `updateNode(tx, id, patch)`, `deleteNode(tx, id)`, `hasTaskForNode(db, nodeId)`
 - Produces: `listSessionEvents(db, sessionId, sinceSeq, limit) => { rows, hasMore }`
 
-- [ ] **Step 1: 写失败测试（node CRUD + session events）**
+- [x] **Step 1: 写失败测试（node CRUD + session events）**
 
 在 `apps/daemon/test/repositories.test.ts` 顶部 imports 增加：
 
@@ -427,7 +427,7 @@ it('lists session events with pagination', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 ```bash
 pnpm --filter @evanfang0054/baton test -- repositories.test.ts
@@ -435,7 +435,7 @@ pnpm --filter @evanfang0054/baton test -- repositories.test.ts
 
 Expected: FAIL，`insertNode` / `getNode` / `updateNode` / `deleteNode` / `hasTaskForNode` / `listSessionEvents` 未导出。
 
-- [ ] **Step 3: 实现 node repository**
+- [x] **Step 3: 实现 node repository**
 
 在 `apps/daemon/src/db/repositories.ts` 的 `listNodes` 后增加：
 
@@ -501,7 +501,7 @@ export function hasTaskForNode(db: Db, nodeId: string): boolean {
 }
 ```
 
-- [ ] **Step 4: 实现 `listSessionEvents`**
+- [x] **Step 4: 实现 `listSessionEvents`**
 
 在 `repositories.ts` 顶部 schema import 增加 `event`：
 
@@ -547,7 +547,7 @@ export function listSessionEvents(
 
 > `gt` 需要加到现有 drizzle imports：`import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm'`。
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 ```bash
 pnpm --filter @evanfang0054/baton test -- repositories.test.ts
@@ -555,7 +555,7 @@ pnpm --filter @evanfang0054/baton test -- repositories.test.ts
 
 Expected: PASS。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add apps/daemon/src/db/repositories.ts apps/daemon/test/repositories.test.ts
@@ -582,7 +582,7 @@ Seam: `apps/daemon/test/rest-api.test.ts`
 - Produces: `GET /api/tasks` 返回 `TaskSummary[]`
 - Produces: `GET /api/sessions/:id/events`
 
-- [ ] **Step 1: 写失败测试（tasks list + session events）**
+- [x] **Step 1: 写失败测试（tasks list + session events）**
 
 在 `apps/daemon/test/rest-api.test.ts` 的 `it('reads canvas, tasks and task detail', ...)` 内，`tasks` 响应断言改为：
 
@@ -659,7 +659,7 @@ it('returns session events history', async () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 ```bash
 pnpm --filter @evanfang0054/baton test -- rest-api.test.ts
@@ -667,7 +667,7 @@ pnpm --filter @evanfang0054/baton test -- rest-api.test.ts
 
 Expected: FAIL，tasks 没有 `attention/waitingSince`，`/api/sessions/:id/events` 404。
 
-- [ ] **Step 3: 改 tasks 路由**
+- [x] **Step 3: 改 tasks 路由**
 
 在 `apps/daemon/src/http/tasks.ts` 顶部增加：
 
@@ -687,7 +687,7 @@ const tasks = listTasks(deps.db, parsed.data).map((task) => ({
 return TaskListResponse.parse({ tasks })
 ```
 
-- [ ] **Step 4: 新增 sessions 路由**
+- [x] **Step 4: 新增 sessions 路由**
 
 创建 `apps/daemon/src/http/sessions.ts`：
 
@@ -724,7 +724,7 @@ export function registerSessionRoutes(app: FastifyInstance, deps: { db: Db }): v
 }
 ```
 
-- [ ] **Step 5: 注册路由**
+- [x] **Step 5: 注册路由**
 
 在 `apps/daemon/src/app.ts` 顶部增加：
 
@@ -738,7 +738,7 @@ import { registerSessionRoutes } from './http/sessions.js'
 registerSessionRoutes(app, { db: deps.db })
 ```
 
-- [ ] **Step 6: 运行测试确认通过**
+- [x] **Step 6: 运行测试确认通过**
 
 ```bash
 pnpm --filter @evanfang0054/baton test -- rest-api.test.ts
@@ -746,7 +746,7 @@ pnpm --filter @evanfang0054/baton test -- rest-api.test.ts
 
 Expected: PASS。
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git add apps/daemon/src/http/tasks.ts apps/daemon/src/http/sessions.ts apps/daemon/src/app.ts apps/daemon/test/rest-api.test.ts
@@ -770,7 +770,7 @@ Seam: `apps/daemon/test/ws-router.test.ts`
 - Consumes: `getCanvas`、`getNode`、`insertNode`、`updateNode`、`deleteNode`、`hasTaskForNode`（Task 2）
 - Produces: WS `node.create/update/delete` 命令与 `ack.data = { nodeId }`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 在 `apps/daemon/test/ws-router.test.ts` 内增加：
 
@@ -851,7 +851,7 @@ it('rejects unsupported node types in 6a', async () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 ```bash
 pnpm --filter @evanfang0054/baton test -- ws-router.test.ts
@@ -859,7 +859,7 @@ pnpm --filter @evanfang0054/baton test -- ws-router.test.ts
 
 Expected: FAIL，`node.create` 命令未处理，返回 `invalid_payload`。
 
-- [ ] **Step 3: 增加 runtime imports**
+- [x] **Step 3: 增加 runtime imports**
 
 在 `apps/daemon/src/runtime/index.ts` 顶部：
 
@@ -888,7 +888,7 @@ import {
 } from '../db/repositories.js'
 ```
 
-- [ ] **Step 4: 实现 node 命令分支**
+- [x] **Step 4: 实现 node 命令分支**
 
 在 `handleCommand` 的 `case 'resume'` 前增加：
 
@@ -1009,7 +1009,7 @@ case 'node.delete': {
 }
 ```
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 ```bash
 pnpm --filter @evanfang0054/baton test -- ws-router.test.ts
@@ -1017,7 +1017,7 @@ pnpm --filter @evanfang0054/baton test -- ws-router.test.ts
 
 Expected: PASS。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add apps/daemon/src/runtime/index.ts apps/daemon/test/ws-router.test.ts
@@ -1035,7 +1035,7 @@ Seam: 全量命令
 **Files:**
 - Verify: `packages/protocol`, `apps/daemon`
 
-- [ ] **Step 1: 跑 protocol/daemon 测试**
+- [x] **Step 1: 跑 protocol/daemon 测试**
 
 ```bash
 pnpm --filter @baton/protocol test
@@ -1044,7 +1044,7 @@ pnpm --filter @evanfang0054/baton test
 
 Expected: PASS；新增测试全部通过，旧测试不回归。
 
-- [ ] **Step 2: 跑全量质量门**
+- [x] **Step 2: 跑全量质量门**
 
 ```bash
 pnpm verify
@@ -1057,7 +1057,7 @@ pnpm format:check
 
 Expected: 全部 exit 0。
 
-- [ ] **Step 3: 检查范围**
+- [x] **Step 3: 检查范围**
 
 ```bash
 git diff --name-only main...HEAD
@@ -1065,6 +1065,21 @@ git diff --name-only main...HEAD
 
 Expected: 只包含 `packages/protocol/**`、`apps/daemon/**`、`docs/**`；没有 `apps/web` 改动，没有 `packages/core` 语义改动。
 
-- [ ] **Step 4: 记录结果**
+- [x] **Step 4: 记录结果**
 
 在 PR 或任务记录里贴真实命令输出；如果任一命令失败，先修复再继续。本 Task 不改代码，因此不产生 commit。
+
+---
+
+## 执行记录
+
+| 日期 | Task | 结果 | Commit | 备注 |
+|---|---|---|---|---|
+| 2026-11-17 | Task 1-4 | protocol 97 tests、daemon 110 tests；`pnpm typecheck`、`pnpm verify`、`pnpm verify:full`、`pnpm pack:check` 全绿 | `33e9497` | Task 1 单独提交无法通过 `pnpm verify`（daemon 穷尽性错误 + tasks route 旧形状），经用户确认合并为一个契约 slice；同时补了 Task 3 的 sessions route 与 `tasks.ts` summary 映射 |
+| 2026-11-17 | Task 5 | `pnpm verify`、`pnpm verify:full`、`pnpm pack:check`、`check:boundaries`、`check:protocol`、`format:check` 全绿；`apps/web` 无代码改动 | 见上 | 只改 protocol/daemon/docs；未改 core 状态机语义 |
+
+**已记录偏离**：
+
+- 原计划按 Task 逐个提交；但 `ClientMessage` 新增 node 命令会让 daemon `handleCommand` 出现 TS 穷尽性错误，`TaskListResponse` 形状变更会让 `tasks.ts` 运行时 500。经用户确认，Task 1+2+3+4 合并为一个契约 slice commit，避免临时 stub。
+- `NodeCreateValue` 在 protocol 层接受全部六种节点，以便 handler 返回 `unsupported_node_type`；6a handler 只处理 text/file/agent。spec §4.3 已同步说明。
+- `NodeUpdateInput.patch` 使用 `.strict()`，未知字段在 protocol 层被拒绝；daemon 只允许 text.content / agent.title，file 的 data 不可改。
