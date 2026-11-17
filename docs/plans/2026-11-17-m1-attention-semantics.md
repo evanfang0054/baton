@@ -1585,11 +1585,13 @@ git commit -m "docs: 同步 M1-5a 注意力语义与架构状态"
 |---|---|---|---|---|
 | 2026-11-17 | Task 1-4 | `pnpm verify` 全绿；protocol 78、core 95、adapters 13、daemon 98 tests | `d746f5c` | 跨层契约改动合并为一个 code commit，避免中间 commit 全量 typecheck 失败 |
 | 2026-11-17 | Task 5 | `pnpm verify:full`、`pnpm pack:check` 全绿；`apps/web` 无 diff | 见 docs commit | 架构 spec 只做事实同步与回链，未改写锁定语义 |
+| 2026-11-17 | Review fixes | `pnpm verify`、`pnpm verify:full`、`pnpm pack:check` 全绿；protocol 78、core 96、adapters 13、daemon 101 tests | `e2f32c8` | 修复阻塞项与 P2/P3：花括号、cause 上下文、stalled 恢复/attention、reply 清理、user_reply 入 prompt、boot 容错、协议枚举复用 |
 
 **已记录偏离**：
 
 - `blocked`/`dropped` 实现为**暂停而非结束**：适配器不发 `RUN_FINISHED`，run 保持活跃，`session.reply` 通过 `AgentRun.send` 继续；`session.outcome` 仅在会话真正结束时写入。
-- fake 的 `finish { outcome: 'unreported' }` 直接结束事件流、不发 `RUN_FINISHED`，用于验证「静默停止」；`RUN_FINISHED` 缺少 ready 视为协议违约。
+- fake 的 `finish { outcome: 'unreported' }` 直接结束事件流、不发 `RUN_FINISHED`，用于验证「静默停止」；`RUN_FINISHED` 缺失 outcome 按 `unreported` 收敛，显式 `blocked/dropped` 后再 `RUN_FINISHED` 才判协议违约。
+- `stalled` 不占并发槽，并允许 `waiting_input + enqueue` 重新排队；其 attention 为 `needs_attention`，不提供直接回复。
 - `task_event` 未新增；`ws_event` 继续承担任务状态历史。
 - `task.retry/reopen` 未实现，按 spec 留到 M2。
 

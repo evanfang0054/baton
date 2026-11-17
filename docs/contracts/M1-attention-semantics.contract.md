@@ -9,26 +9,26 @@
 
 ## Definition of Done
 
-- [ ] **1. Protocol 枚举**：`packages/protocol` 导出 `SessionOutcome`（`ready|blocked|dropped|unreported`）、`WaitingReason`（`approval|question|stalled|dropped`）、`Attention`（`none|needs_approval|needs_reply|needs_review`），并有合法/非法值测试。
+- [ ] **1. Protocol 枚举**：`packages/protocol` 导出 `SessionOutcome`（`ready|blocked|dropped|unreported`）、`WaitingReason`（`approval|question|stalled|dropped`）、`Attention`（`none|needs_approval|needs_reply|needs_attention|needs_review`），并有合法/非法值测试。
 - [ ] **2. 实体增量**：`Task.waitingReason` 与 `Session.outcome` 为可空字段；合法 `null` 与合法枚举值 round-trip，非法值被拒绝。
-- [ ] **3. 会话结局事件**：导出 `SESSION_OUTCOME_EVENT='session.outcome'` 与 `SessionOutcomeValue`；`ready/blocked/dropped/unreported` 均可 parse，空 `reason` 被拒绝。
+- [ ] **3. 会话结局事件**：导出 `SESSION_OUTCOME_EVENT='session.outcome'` 与 `SessionOutcomeValue`；`ready/blocked/dropped` 可 parse，`unreported` 与空 `reason` 被拒绝。
 - [ ] **4. 转移事件**：`TaskTransitionEvent` 增加 `session_reported`（只接受 `blocked|dropped|unreported`）与 `user_input`（`text` 1..16384）；`session_reported.ready` 被拒绝。
 - [ ] **5. WS 命令**：`ClientMessage` 增加 `session.reply { taskId, text }`；round-trip 通过；空文本与超长文本被拒绝。
 - [ ] **6. 服务端事件**：`TaskStatusEvent.payload` 增加可选 `cause` 与 `attention`；带/不带两者都能 parse；旧 `ws_event` fixture 重放不失败。
 - [ ] **7. REST DTO**：`TaskDetailResponse` 增加 `waitingSince: Timestamp | null`；`Task` 响应包含 `waitingReason`；schema round-trip 通过。
 - [ ] **8. Core 状态机**：9 状态 × 14 事件矩阵更新；`running + session_reported(blocked|dropped|unreported)` 分别得到 `waiting_input` 与 `question|dropped|stalled`。
-- [ ] **9. 回复守卫**：`waiting_input + user_input` 在 `waitingReason='approval'` 或 `null` 时返回 `invalid_transition`；在 `question|stalled|dropped` 时返回 `running` + `sendToSession`。
-- [ ] **10. attention**：`attentionFor` 覆盖 `approval→needs_approval`、`question/stalled/dropped→needs_reply`、`review→needs_review`、其余 `none`。
+- [ ] **9. 回复守卫**：`waiting_input + user_input` 在 `waitingReason='approval'` 或 `null` 时返回 `invalid_transition`；在 `question|dropped` 时返回 `running` + `sendToSession` + `appendUserReply`；`stalled` 只允许 `enqueue` 重新排队。
+- [ ] **10. attention**：`attentionFor` 覆盖 `approval→needs_approval`、`question/dropped→needs_reply`、`stalled→needs_attention`、`review→needs_review`、其余 `none`。
 - [ ] **11. Effects 顺序**：新增转移的 effects 以 `emitTaskStatus` 结尾；`sendToSession` 在它之前；effects 快照更新。
 - [ ] **12. DB migration**：`task.waiting_reason TEXT NULL` 与 `session.outcome TEXT NULL` 可升级旧 fixture DB；旧数据保留；迁移可重复执行。
 - [ ] **13. 状态写入口**：`waitingReason` 只由 transition runner 写入；daemon 没有直接 `UPDATE task SET waiting_reason` 的旁路；非法状态组合被测试拒绝。
 - [ ] **14. fake 适配器**：默认 `finish` 自动发 `session.outcome { outcome:'ready' }`；新增 `pause` 步骤发出 `blocked|dropped` 并等待 `send`；`finish` 支持 `unreported`；既有 M1-5 脚本测试保持通过。
 - [ ] **15. Session runner（ready）**：`ready` 仍 `RUN_FINISHED → completed → verifying`；happy path 端到端测试通过。
-- [ ] **16. Session runner（等待）**：`blocked → waiting_input(question)`、`dropped → waiting_input(dropped)`，两者 session 仍 `waiting_input`、`outcome=null`、run 活跃；缺失 outcome → `waiting_input(stalled)`，session `ended/unreported`。
-- [ ] **17. 静默停止与崩溃**：`running` 的流正常结束但无 `RUN_FINISHED` → `waiting_input(stalled)`；`blocked/dropped` 的 `waiting_input` 下流结束或 `RUN_ERROR` → `failed`；`RUN_FINISHED` 出现在非 `ready` 后 → `failed`；session `failed` 且 `outcome=null`。
-- [ ] **18. `session.reply`**：`blocked/dropped` 的任务可 `session.reply` → 任务与 session 都回 `running`；用户消息写入 transcript 并可 replay；审批等待、终态、`stalled` 无活跃 run 分别返回 `reply_not_allowed`、`reply_not_allowed`、`session_not_active`。
-- [ ] **19. 重启收敛**：`verifying` 重启后存在 review 行，`verifyExitCode=124`、输出含 `daemon restarted during verify`；autopilot 关闭时任务 `review`，开启时 `queued`；不再直接 `cancelled`。
-- [ ] **20. REST/WS 可观察**：`GET /api/tasks/:id` 的 `waitingSince` 在 `waiting_input/review` 时非空、其余为 `null`；`task.status` 事件带 `cause/attention`；`session.reply` 的 `ack.data` 正确。
+- [ ] **16. Session runner（等待）**：`blocked → waiting_input(question)`、`dropped → waiting_input(dropped)`，两者 session 仍 `waiting_input`、`outcome=null`、run 活跃；缺失 outcome → `waiting_input(stalled)`，session `ended/unreported`；`stalled` 不占并发槽且可 `enqueue` 重新排队。
+- [ ] **17. 静默停止与崩溃**：`running` 的流正常结束但无 `RUN_FINISHED` → `waiting_input(stalled)`；`blocked/dropped` 的 `waiting_input` 下流结束或 `RUN_ERROR` → `failed`；`RUN_FINISHED` 出现在显式 `blocked/dropped` 后 → `failed`；`RUN_FINISHED` 缺失 outcome → `waiting_input(stalled)`；session 与实际终态一致。
+- [ ] **18. `session.reply`**：`blocked/dropped` 的任务可 `session.reply` → 任务与 session 都回 `running`；用户消息写入 transcript 并可 replay，同时追加 `<user_reply>` 到 `task.prompt`；审批等待、终态、`stalled` 无活跃 run 分别返回 `reply_not_allowed`、`reply_not_allowed`、`session_not_active`；`send` 失败时清理 active run。
+- [ ] **19. 重启收敛**：`verifying` 重启后存在 review 行，`verifyExitCode=124`、输出含 `daemon restarted during verify`；autopilot 关闭时任务 `review`，开启时 `queued`；workspace/policy 缺失不阻塞 `error/cancel/verify_fail` 收敛；reconcile 失败写日志。
+- [ ] **20. REST/WS 可观察**：`GET /api/tasks/:id` 的 `waitingSince` 在 `waiting_input/review` 时非空、其余为 `null`；`task.status` 事件的 `cause` 带 `sessionId`（审批/会话报告）与 `reviewId`（verify/验收）；`session.reply` 的 `ack.data` 正确。
 - [ ] **21. 全量质量**：`pnpm verify`、`pnpm verify:full`、`pnpm pack:check`、`pnpm check:boundaries`、`pnpm check:protocol`、`pnpm format:check` 全绿；`git diff main...HEAD -- apps/web` 为空；源码无 `TODO`/`FIXME`。
 - [ ] **22. 文档**：新 spec/contract/plan 落库并互链；`docs/README.md` 索引更新；不做完整事件溯源的 ADR 落库；架构 spec 完成事实同步（`event.ordinal`、`ws_event`、`approval.request_id`、里程碑、spike 截止）。
 

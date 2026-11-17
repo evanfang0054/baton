@@ -87,7 +87,13 @@ export type SessionOutcome = z.infer<typeof SessionOutcome>
 export const WaitingReason = z.enum(['approval', 'question', 'stalled', 'dropped'])
 export type WaitingReason = z.infer<typeof WaitingReason>
 
-export const Attention = z.enum(['none', 'needs_approval', 'needs_reply', 'needs_review'])
+export const Attention = z.enum([
+  'none',
+  'needs_approval',
+  'needs_reply',
+  'needs_attention',
+  'needs_review',
+])
 export type Attention = z.infer<typeof Attention>
 ```
 
@@ -113,7 +119,7 @@ outcome: SessionOutcome.nullable()
 export const SESSION_OUTCOME_EVENT = 'session.outcome'
 
 export const SessionOutcomeValue = z.object({
-  outcome: SessionOutcome,
+  outcome: SessionOutcome.exclude(['unreported']),
   reason: z.string().min(1).optional(),
 })
 export type SessionOutcomeValue = z.infer<typeof SessionOutcomeValue>
@@ -230,7 +236,8 @@ export interface TransitionContext {
 | `running` | `session_reported(blocked)` | — | `waiting_input` | `question` | `emitTaskStatus(waiting_input, cause)` |
 | `running` | `session_reported(dropped)` | — | `waiting_input` | `dropped` | `emitTaskStatus(waiting_input, cause)` |
 | `running` | `session_reported(unreported)` | — | `waiting_input` | `stalled` | `emitTaskStatus(waiting_input, cause)` |
-| `waiting_input` | `user_input` | `waitingReason !== 'approval'` | `running` | `null` | `sendToSession(text)` + `emitTaskStatus(running)` |
+| `waiting_input` | `enqueue` | `waitingReason === 'stalled'` | `queued` | `null` | `enqueueTask` + `emitTaskStatus(queued)` |
+| `waiting_input` | `user_input` | `canAcceptUserInput(waitingReason)` | `running` | `null` | `sendToSession(text)` + `appendUserReply(text)` + `emitTaskStatus(running)` |
 
 现有转移的 `waitingReason`：
 
@@ -246,13 +253,14 @@ export interface TransitionContext {
 
 ### 5.3 守卫与边界
 
-- `user_input` 在 `waitingReason === 'approval'` 时返回 `invalid_transition`，错误 details 带 `waitingReason`。
-- `waitingReason === null` 且 `status === 'waiting_input'` 视为旧数据，按 `approval` 拒绝 `user_input`。
+- `user_input` 在 `waitingReason === 'approval'` 或 `null` 时返回 `invalid_transition`，错误 details 带 `waitingReason`。
+- `waitingReason === 'stalled'` 允许 `enqueue` 重新排队，作为静默停止后的恢复路径。
 - `session_reported` 从 `running` 之外的状态进入一律 `invalid_transition`。
 - `completed` 仍只从 `running` 进入；session runner 只在 `ready` 时发它。
 - `attention` 由 `status + waitingReason` 计算：
   - `waiting_input + approval` → `needs_approval`
-  - `waiting_input + question/stalled/dropped` → `needs_reply`
+  - `waiting_input + question/dropped` → `needs_reply`
+  - `waiting_input + stalled` → `needs_attention`（可取消或重新 enqueue，不提供直接回复）
   - `review` → `needs_review`
   - 其他 → `none`
 - 每个成功转移仍以 `emitTaskStatus` 结尾；`sendToSession` 在它之前。
@@ -263,13 +271,13 @@ export interface TransitionContext {
 
 1. `ActiveRun` 增加 `seq: number`、`outcome: SessionOutcome | null` 与 `outcomeReason?: string`。
 2. 收到 `CUSTOM session.outcome`：
-   - 解析 `SessionOutcomeValue`；非法、`unreported` 或重复报告时按 `RUN_ERROR` 处理；
+   - 解析 `SessionOutcomeValue`；非法或重复报告时按 `RUN_ERROR` 处理（`unreported` 已被 schema 拒绝）；
    - `ready`：只记录 `active.outcome`，等待 `RUN_FINISHED`；
    - `blocked` / `dropped`：记录 outcome，立即 `session_reported` 把任务转 `waiting_input`，session 状态写 `waiting_input`（不是 `ended`），**保持 active run 与事件流打开**，继续消费后续事件。
 3. 收到 `RUN_FINISHED`：
-   - 仅当 `active.outcome === 'ready'` 时合法 → `completed` → `verifying`；
-   - session 写 `ended` / `outcome='ready'`；
-   - 其他情况（缺失、blocked、dropped、unreported）视为协议违约 → `error → failed`，session `failed` / `outcome=null`。
+   - `active.outcome === 'ready'` → `completed` → `verifying`，session `ended` / `outcome='ready'`；
+   - `active.outcome` 为 `blocked` / `dropped`（显式暂停后又结束）→ 协议违约 → `error → failed`；
+   - 没有收到 outcome → 按 `unreported` 处理，`session_reported(unreported)`，session `ended` / `outcome='unreported'`。
 4. 流自然结束但没有 `RUN_FINISHED`：
    - 任务 `running` → `session_reported(unreported)`，session `ended` / `outcome='unreported'`；
    - 任务 `waiting_input`（blocked/dropped 的活跃 run 死亡）→ `error`，session `failed`（等待中的会话已无法回复）。
@@ -278,7 +286,8 @@ export interface TransitionContext {
    - 通过 `activeRuns` 找 `taskId` 对应的 run；找不到返回 `session_not_active`（`unreported/stalled` 没有活跃 run）；
    - 增加 `seq`，写入 `CUSTOM{ name: 'user.message', value: { text } }` 到 transcript 并广播；
    - session 状态写回 `running`，清空 `active.outcome` 与 `outcomeReason`；
-   - 调 `run.send(text)`；失败时由 session runner 把任务转 `error`、session 转 `failed`。
+   - 调 `run.send(text)`；失败时由 session runner 把任务转 `error`、session 转 `failed`，并清理 `activeRuns` / dispose run。
+7. 用户回复同时通过 `appendUserReply` effect 追加到 `task.prompt` 的 `<user_reply>` 块，保证 autopilot 重跑或新 session 能看到答案。
 
 ### 6.2 持久化
 
@@ -286,7 +295,8 @@ export interface TransitionContext {
 - `session.outcome` 只在该 session 真正结束时写入（`ready` / `unreported`）；`blocked`/`dropped` 的等待态保持 `NULL`。
 - `updateTaskState` 增加 `waitingReason` 参数；只允许 transition runner 调用。
 - `updateSessionStatus` 增加可选 `outcome` 参数；结束与等待态都通过它写 session 状态。
-- `TaskStatusEvent` 的 `attention` 在 event store 写入前由 core 的 `attentionFor()` 计算；`cause` 由 transition runner 合并上下文 id。
+- `TaskStatusEvent` 的 `attention` 在 event store 写入前由 core 的 `attentionFor()` 计算；`cause` 由 effect 层合并上下文 id：审批补 `sessionId`，验证/验收补 `reviewId`，会话报告补活跃 `sessionId`。
+- `countActiveTasks` 只统计 `running`、`verifying`，以及仍有活跃 session 的 `waiting_input`；`stalled` 不再占并发槽。
 - 不新增 `task_event`；任务状态历史继续从 `ws_event` 读取。
 
 ### 6.3 重启收敛
@@ -306,6 +316,8 @@ export interface TransitionContext {
    ```
    有 autopilot 时进入 `queued`，否则进入 `review`；两种情况都保留 review 证据。
 3. pending approval 继续 `deny/system` + audit。
+4. `reconcileOnBoot` 记录 `applyTransition` 失败（taskId + error code）；`error`/`cancel`/`verify_fail` 不再依赖 workspace/policy 加载，避免 workspace 缺失导致僵尸任务。
+5. `bootstrap` 在 reconcile 期间设置 `beginBoot()` 抑制 scheduler kick，`runtime.start()` 在 listen 成功后恢复；`buildApp` 失败时关闭 runtime 与 DB。
 
 ### 6.4 WS / REST
 
@@ -328,29 +340,32 @@ export interface TransitionContext {
 - `SessionOutcome` / `WaitingReason` / `Attention` 合法值与非法值。
 - `Task` 与 `Session` 新字段 round-trip；`null` 合法。
 - `session.reply` round-trip；空文本、超长文本被拒绝。
+- `SessionOutcomeValue` 拒绝 `unreported`。
 - `session_reported` 只接受三种非 ready outcome；`ready` 被拒绝。
 - `TaskStatusEvent` 带 `cause/attention` 可 parse；不带也可 parse。
 - `TaskDetailResponse.waitingSince` 为 `Timestamp | null`。
 
 ### 8.2 Core
 
-- 9 状态 × 14 事件矩阵更新；新增两条转移与一条守卫。
+- 9 状态 × 14 事件矩阵更新；新增转移与守卫。
 - `running + blocked/dropped/unreported` 分别得到 `waiting_input` 与对应 `waitingReason`。
-- `waiting_input + user_input` 在 `approval` 下返回 `invalid_transition`，在 `question/stalled/dropped` 下返回 `running` + `sendToSession`。
-- `attentionFor` 覆盖 four 种 attention。
-- 所有成功转移仍以 `emitTaskStatus` 结尾；`sendToSession` 在它之前。
+- `waiting_input + enqueue` 仅在 `stalled` 下回到 `queued`。
+- `waiting_input + user_input` 在 `approval`/`null` 下返回 `invalid_transition`，在 `question/dropped` 下返回 `running` + `sendToSession` + `appendUserReply`。
+- `attentionFor` 覆盖五种 attention；`stalled → needs_attention`。
+- 所有成功转移仍以 `emitTaskStatus` 结尾；`sendToSession` / `appendUserReply` 在它之前。
 - effects 快照更新。
 
 ### 8.3 Daemon
 
 - fake `finish` 默认 ready：happy path 不变，仍到 `review`。
-- fake `pause: blocked`：任务 `waiting_input(question)`，session 仍 `waiting_input` 且 run 活跃；`session.reply` 后任务与 session 都回 `running`，再 `ready` → verify → review。
+- fake `pause: blocked`：任务 `waiting_input(question)`，session 仍 `waiting_input` 且 run 活跃；`session.reply` 后任务与 session 都回 `running`，再 `ready` → verify → review；`task.prompt` 追加 `<user_reply>`。
 - fake `pause: dropped`：任务 `waiting_input(dropped)`；`session.reply` 可继续，`cancel` 可结束。
-- fake 不发 outcome：任务 `waiting_input(stalled)`，session `ended/unreported`，不是 `failed`。
+- fake 不发 outcome：任务 `waiting_input(stalled)`，session `ended/unreported`，不是 `failed`；`stalled` 可通过 `enqueue` 重新排队，且不占并发槽。
 - `RUN_ERROR`：任务 `failed`，session `failed`。
 - 流自然结束且任务 `running`：`waiting_input(stalled)`；任务 `waiting_input`：`failed`。
-- `session.reply` 在审批等待、终态、无活跃 run 下分别返回正确错误码。
-- 重启 `verifying`：review 行存在，`verifyExitCode=124`，输出包含 `daemon restarted`；autopilot 开时进入 `queued`。
+- `session.reply` 在审批等待、终态、无活跃 run 下分别返回正确错误码；`send` 失败时清理 active run。
+- `task.status` 的 `cause` 带 `sessionId`（审批/会话报告）与 `reviewId`（verify/验收）。
+- 重启 `verifying`：review 行存在，`verifyExitCode=124`，输出包含 `daemon restarted`；autopilot 开时进入 `queued`；workspace 缺失也能收敛。
 - REST `GET /api/tasks/:id` 返回 `waitingSince`；`GET /api/tasks` 返回 `waitingReason`。
 - WS replay 旧 `task.status` 事件仍可解析。
 
