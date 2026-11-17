@@ -92,6 +92,25 @@ describe('session runner', () => {
     expect(approval?.decidedBy).toBe('auto')
   })
 
+  it('resumes after a user deny and lets the engine finish', async () => {
+    const handle = setup()
+    const taskId = handle.createTask()
+    handle.runtime.applyTransition(taskId, { type: 'enqueue' })
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'waiting_input')
+
+    const approval = listApprovalsByTask(handle.database.db, taskId)[0]
+    const decided = handle.runtime.decideApproval({
+      approvalId: approval!.id,
+      decision: 'deny',
+    })
+    expect(decided.ok).toBe(true)
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'verifying')
+
+    const stored = getApproval(handle.database.db, approval!.id)
+    expect(stored?.decision).toBe('deny')
+    expect(stored?.decidedBy).toBe('user')
+  })
+
   it('interrupts the adapter when the task is cancelled', async () => {
     const handle = setup()
     const taskId = handle.createTask()

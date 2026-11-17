@@ -1540,11 +1540,11 @@ git commit -m "test(daemon): 增加 M1-5 闭环验收并完成全量校验"
 | 2026-11-17 | Task 1 | protocol 72 tests；daemon typecheck；`pnpm verify` 全绿 | `5a2652f` | `ack.data`、`api.ts`、`maxConcurrency`；daemon 测试配置同步补字段 |
 | 2026-11-17 | Task 2 | daemon 30 tests；迁移/event store/repositories；`pnpm verify` 全绿 | `afd78cf` | 手写 `event` table rebuild + `ROW_NUMBER` 回填；`drizzle-kit` 生成的 `ALTER ... NOT NULL` 在旧数据上不可用 |
 | 2026-11-17 | Task 3 | daemon 44 tests；workspace/policy/context/task.create；`pnpm verify` 全绿 | `fa7c68b` | 新增 `db/types.ts`、`errors.ts`、`repositories.test.ts`；提前引入 `@baton/core`/`@baton/adapters` 与 `tsup noExternal` |
-| 2026-11-17 | Task 4 | 待执行 | - | - |
-| 2026-11-17 | Task 5 | 待执行 | - | - |
-| 2026-11-17 | Task 6 | 待执行 | - | - |
-| 2026-11-17 | Task 7 | 待执行 | - | - |
-| 2026-11-17 | Task 8 | 待执行 | - | - |
+| 2026-11-17 | Task 4 | daemon 52 tests；两阶段 effect + scheduler；`pnpm verify` 全绿 | `2ae6038` | `RuntimeDeps` 可注入 session/verify 钩子；`emitTaskStatus` 最后 |
+| 2026-11-17 | Task 5 | daemon 59 tests；session runner/审批/重启收敛；`pnpm verify` 全绿 | `45bb8bc` | `createAdapterFactory` + `createSessionRunner`；approval ask/auto allow/auto deny |
+| 2026-11-17 | Task 6 | daemon 67 tests；verify executor/runner；`pnpm verify` 全绿 | `f41f4ce` | execa 10.2.1；超时/取消统一映射 124；env 脱敏与 diff stat |
+| 2026-11-17 | Task 7 | daemon 74 tests；WS/REST/鉴权/pino；`pnpm verify` 全绿 | `2aed4c1` | `buildApp(config, deps)`；`/api/*` 鉴权；`resume` 重放 |
+| 2026-11-17 | Task 8 | daemon 81 tests；`pnpm verify:full`、`pnpm pack:check` 全绿 | `本提交` | `apps/web` 空 diff；docker smoke 因基础镜像未缓存而延后（遵守不下载大镜像约定） |
 
 **已记录偏离**：
 
@@ -1552,3 +1552,7 @@ git commit -m "test(daemon): 增加 M1-5 闭环验收并完成全量校验"
 - `createOrm` 把 better-sqlite3 实例包成 Drizzle；`bootstrap` 同时返回 `db`（raw，关闭用）与 `orm`。
 - `ws_event` 的 `id` 唯一索引名为 `ws_event_id_unique`，迁移测试按实际 schema 断言。
 - Task 1 一并更新了 daemon 的测试配置与 `BATON_MAX_CONCURRENCY` 解析，避免 `Config` 类型增量破坏 `pnpm verify`。
+- pino 的泛型类型与 Fastify `loggerInstance` 不兼容，Fastify 保持 `logger: false`；pino 由 runtime/start 使用，请求日志默认关闭以避免 query token 落日志。
+- verify 超时/取消同时检查 `result.isCanceled`、`result.timedOut` 与 `controller.signal.aborted`，统一映射退出码 124。
+- 测试 helper 区分 `useSessionRunner` 与 `useVerifyRunner`；默认 session 模式用 `runVerify` stub，避免测试意外执行 `pnpm test`。
+- `apps/daemon` 新增 `execa@10.2.1`、`pino@10.4.0`（均 MIT），已更新 notices。

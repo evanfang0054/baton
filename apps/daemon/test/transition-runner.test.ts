@@ -148,6 +148,46 @@ describe('transition runner', () => {
     expect(getApproval(handle.database.db, 'approval-1')?.decision).toBe('allow')
   })
 
+  it('starts the next queued task after the first enters review', async () => {
+    const handle = setup({ maxConcurrency: 1 })
+    const first = handle.createTask({ title: 'one' })
+    const second = handle.createTask({ title: 'two' })
+    handle.runtime.applyTransition(first, { type: 'enqueue' })
+    handle.runtime.applyTransition(second, { type: 'enqueue' })
+    await handle.runtime.settle()
+    expect(handle.runtime.getTask(first)?.status).toBe('running')
+    expect(handle.runtime.getTask(second)?.status).toBe('queued')
+
+    handle.runtime.applyTransition(first, { type: 'completed' })
+    await handle.runtime.settle()
+    handle.runtime.applyTransition(first, {
+      type: 'verify_ok',
+      reviewId: 'review-1',
+      exitCode: 0,
+      output: 'ok',
+      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+    })
+    await handle.runtime.settle()
+    expect(handle.runtime.getTask(first)?.status).toBe('review')
+    expect(handle.runtime.getTask(second)?.status).toBe('running')
+  })
+
+  it('starts the next queued task after the first settles', async () => {
+    const handle = setup({ maxConcurrency: 1 })
+    const first = handle.createTask({ title: 'one' })
+    const second = handle.createTask({ title: 'two' })
+    handle.runtime.applyTransition(first, { type: 'enqueue' })
+    handle.runtime.applyTransition(second, { type: 'enqueue' })
+    await handle.runtime.settle()
+    expect(handle.runtime.getTask(first)?.status).toBe('running')
+    expect(handle.runtime.getTask(second)?.status).toBe('queued')
+
+    handle.runtime.cancel(first, 'done with first')
+    await handle.runtime.settle()
+    expect(handle.runtime.getTask(first)?.status).toBe('cancelled')
+    expect(handle.runtime.getTask(second)?.status).toBe('running')
+  })
+
   it('counts verifying as an active slot', async () => {
     const handle = setup({ maxConcurrency: 1 })
     const first = handle.createTask({ title: 'one' })
