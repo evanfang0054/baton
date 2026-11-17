@@ -4,11 +4,13 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { buildApp } from './app.js'
 import type { Config } from './config.js'
-import { migrateDb, openDb } from './db/index.js'
+import { createOrm, migrateDb, openDb } from './db/index.js'
+import type { Db } from './db/types.js'
 
 export interface BootstrapResult {
   app: FastifyInstance
   db: Database.Database
+  orm: Db
 }
 
 export async function bootstrap(config: Config): Promise<BootstrapResult> {
@@ -16,5 +18,5 @@ export async function bootstrap(config: Config): Promise<BootstrapResult> {
   const db = openDb(join(config.dataDir, 'baton.db'))
   migrateDb(db)
   const app = await buildApp(config)
-  return { app, db }
+  return { app, db, orm: createOrm(db) }
 }
