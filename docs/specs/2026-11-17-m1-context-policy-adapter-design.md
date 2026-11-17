@@ -79,7 +79,7 @@ import type { AgentEvent } from './agui.js'
 import type { ApprovalDecision, Engine, PermissionMode } from './enums.js'
 import type { Policy } from './policy.js'
 
-export type PolicySnapshot = Policy
+export type PolicySnapshot = Readonly<Policy>
 
 export interface StartInput {
   prompt: string
@@ -110,7 +110,7 @@ export interface AgentAdapter {
 - `CUSTOM` 事件的 name 约定：`approval.request`；`value` 形状为 `{ requestId: string; request: ApprovalRequest }`。
 - `AgentRun.events` 结束表示本次执行结束；`interrupt` 后事件流必须在有限时间内结束。
 - `send` 在 M1 仅保留接口，用于后续打回/追加指令；本切片的 fake 会把它映射为一条文本事件。
-- `PolicySnapshot` 不接受外部可变对象语义；调用方传入的是只读快照（`Policy` 的只读视图）。
+- `PolicySnapshot` 是 `Readonly<Policy>` 的浅层只读别名；调用方不得修改顶层字段，执行期被视为不可变。
 
 ### 4.2 上下文装配（packages/core/src/context）
 
@@ -159,7 +159,7 @@ export function assembleContext(input: AssembleContextInput): AssembleContextRes
 9. **输出**：`<task>...</task>` + `<context>...</context>` + 可选 `<truncated nodes="..."/>`；v1 不输出空的 `<constraints>`。
 10. **确定性**：同一输入必须逐字节相同；测试用快照锁定。
 
-`isSensitivePath(path)` 由 core 导出，规则固定为：路径任一段匹配 `.env*`、`*.pem`、`*.key`、`id_rsa*`、`id_ed25519*`、`*secret*`（大小写不敏感）。它只做字符串判断，不读文件。
+`isSensitivePath(path)` 由 core 导出，规则固定为：路径任一段匹配 `.env*`、`.npmrc`、`.netrc`、`.git-credentials`、`credentials.json`、`*.pem`、`*.key`、`*.p12`、`*.pfx`、`*.keystore`、`id_rsa*` / `id_ed25519*`（排除 `.pub`）与 `*secret*`（大小写不敏感）。它只做字符串判断，不读文件。
 
 **去重规则**：同一节点被显式选中、又通过边/group 到达时，保留最低 depth；同一 depth 保留排序最靠前的一次。`included` 按最终渲染顺序输出。
 
@@ -194,11 +194,12 @@ export function classifyRisk(toolName: string, input: unknown): RiskLevel
   - `Bash` / `Shell`：匹配 command 字符串；
   - `Edit` / `Write` / `Read` / `Grep` / `Glob`：匹配文件路径（`input.file_path` / `input.path`）；
   - 其他工具：匹配 `JSON.stringify(input)` 的稳定序列化结果；
-  - 无目标时视为不匹配。
+  - 无目标时：deny 规则视为 `unextractable`（fail-closed）；allow 规则视为不匹配。
+  - 路径工具若 `input.cwd` 存在且路径在 cwd 内，先转成相对路径再匹配，保证默认 `Edit:src/**` 能命中绝对路径。
   - picomatch：Bash/Shell 规则使用 `{ dot: true, bash: true }`（`*` 可跨 `/`）；路径工具只用 `{ dot: true }`。
 - `deny` 先于 `allow`；都未命中时用 `policy.approval.default`（当前固定 `ask`）。
 - 风险：core 计算 `classifyRisk`，最终风险取 `max(request.risk, computed)`；`high` 永不自动批准。
-- 自动批准条件（全部满足）：命中 `allow`、`risk <= autoApproveMaxRisk`、`policy.autopilot.enabled`、`ctx.killSwitch === false`。
+- 自动批准条件（全部满足）：命中 `allow`、`risk !== 'high'`、`risk <= autoApproveMaxRisk`、`policy.autopilot.enabled`、`ctx.killSwitch === false`。
 - `decision` 表示**当前可执行动作**：`allow` 只在自动批准条件全部满足时返回；命中 allow 但条件不满足时返回 `ask`，并在 `matchedRule` 中保留规则；`deny` 永远返回 `deny`。
 - 返回值：`autoApproved` 仅在自动批准时为 true；`reason` 用于审计，不得包含敏感输入全文。
 - 纯函数，无 IO；audit 写入由 M1-5 负责。
@@ -211,7 +212,7 @@ export function classifyRisk(toolName: string, input: unknown): RiskLevel
 | `medium` | `Edit` / `Write` / `NotebookEdit` 且路径在工作区内；`Bash` 中的 test/lint/typecheck/build/status/diff 等本地命令 |
 | `high` | `WebFetch` / 网络命令；`sudo`、`rm -rf`、`curl ... | sh`、`git push`、包安装；工作区外写入；未知工具或无法判定的输入 |
 
-未知工具默认 `high`，确保不会被自动批准。工作区边界：写入工具先按 `cwd` 将绝对路径转相对；路径含 `..`、缺少 `cwd`、或不在 `cwd + '/'` 下时一律 `high`。Bash 命令含 `;`、`&&`、`||`、`|`、反引号、`$()`、重定向等复合 shell 元字符时按 `high`。
+未知工具默认 `high`，确保不会被自动批准。工作区边界：写入工具先按 `cwd` 将绝对路径转相对；路径含 `..`、缺少 `cwd`、或不在 `cwd + '/'` 下时一律 `high`。Bash 命令含 `;`、`&&`、`||`、`|`、反引号、`$()`、重定向、`\n`/`\r` 等复合 shell 元字符时按 `high`。
 
 ### 4.4 Verify 命令解析（packages/core/src/verify）
 
@@ -255,7 +256,7 @@ export function resolveVerifyCommand(input: VerifyCommandInput): VerifyCommandRe
     | { kind: 'finish' }
     | { kind: 'error'; message: string }
   ```
-- `approve(allow)` 后继续；`approve(deny)` 输出 `fake: denied` 后结束；`interrupt` 结束事件流；`send` 追加一条文本事件；`dispose` 清理。
+- `approve` 必须匹配当前 pending 的 `requestId`；`RUN_FINISHED` / `RUN_ERROR` / `interrupt` / `dispose` 之后 `send` / `approve` 抛错，且不再产生事件；`finish` 立即停止后续步骤；`send` 追加一条文本事件。
 - 事件用 `@baton/protocol` 的 `EventType` 常量构造；测试中用 `EventSchemas` 校验每个事件。
 - 适配器不读 DB、不发 WS、不读文件系统；不使用定时器/随机数，保证确定性。
 

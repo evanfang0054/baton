@@ -133,3 +133,4 @@ git diff --name-only main...HEAD -- apps   # 输出必须为空
 - `FakeAdapter` 校验 `requestId`、关闭后拒绝 `send/approve`、显式处理 `finish`、补 `dispose`/interrupt/错误 ID 测试。
 - `AgentRun.approve` 使用 `ApprovalDecision`，新增 `PermissionMode`；`TaskEffect` 复用协议类型。
 - 补预算/去重/敏感路径/消费 fixture 断言；Dockerfile 复制 `packages/adapters/package.json`。
+- 消费 fixture 保持在 core 做类型级验证（避免 core→adapters 依赖）；FakeAdapter 运行时 allow/deny 由 `packages/adapters/test/fake.test.ts` 覆盖，契约 Round 2 的运行时要求以此替代并在此记录。
