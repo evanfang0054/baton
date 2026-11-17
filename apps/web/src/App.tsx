@@ -1,8 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo } from 'react'
 import { ConnectionStatus } from './features/shared/ConnectionStatus'
+import { CanvasPanel } from './features/canvas/CanvasPanel'
 import { BoardRail } from './features/tasks/BoardRail'
 import { TaskBoard } from './features/tasks/TaskBoard'
+import { TaskDetailPanel } from './features/tasks/TaskDetailPanel'
 import { CreateWorkspaceDialog } from './features/workspaces/CreateWorkspaceDialog'
 import { WorkspaceSwitcher } from './features/workspaces/WorkspaceSwitcher'
 import { getCanvas, listTasks, listWorkspaces } from './lib/api'
@@ -137,21 +139,9 @@ export function App() {
           onClose={() => setBoardExpanded(false)}
         />
         <main className="relative min-w-0 flex-1">
-          <section
-            data-testid="canvas"
-            className="flex h-full items-center justify-center bg-background text-sm text-muted"
-          >
-            画布将在 Plan 4 接入
-          </section>
+          <CanvasPanel />
         </main>
-        <aside
-          data-testid="task-detail"
-          className="w-[380px] shrink-0 border-l border-separator bg-surface p-4"
-        >
-          <p className="text-sm text-muted">
-            {activeWorkspaceId ? '选择一个任务' : '尚未选择工作区'}
-          </p>
-        </aside>
+        <TaskDetailPanel />
       </div>
     </div>
   )
