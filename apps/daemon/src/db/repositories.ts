@@ -227,6 +227,26 @@ export function updateTaskState(
   tx.update(task).set({ status, retryCount, updatedAt }).where(eq(task.id, id)).run()
 }
 
+export function appendTaskFeedback(
+  tx: Tx,
+  id: string,
+  feedback: string,
+  maxChars: number,
+  updatedAt: number,
+): void {
+  const row = tx.select({ prompt: task.prompt }).from(task).where(eq(task.id, id)).get()
+  if (!row) return
+  const clipped =
+    feedback.length > maxChars ? `${feedback.slice(0, maxChars)}\n…[truncated]` : feedback
+  tx.update(task)
+    .set({
+      prompt: `${row.prompt}\n\n<feedback>\n${clipped}\n</feedback>`,
+      updatedAt,
+    })
+    .where(eq(task.id, id))
+    .run()
+}
+
 export function countActiveTasks(db: Db): number {
   const row = db
     .select({ count: sql<number>`count(*)` })
@@ -273,6 +293,15 @@ export function listSessionsByStatus(db: Db, statuses: SessionStatus[]): Session
     .orderBy(asc(session.startedAt))
     .all()
     .map(toSession)
+}
+
+export function getActiveSession(db: Db, taskId: string): Session | null {
+  const sessions = listSessionsByTask(db, taskId)
+  for (let index = sessions.length - 1; index >= 0; index -= 1) {
+    const current = sessions[index]!
+    if (current.status === 'running' || current.status === 'waiting_input') return current
+  }
+  return null
 }
 
 export function updateSessionStatus(
@@ -368,6 +397,11 @@ export function getReviewByTask(db: Db, taskId: string): Review | null {
     .orderBy(desc(sql`rowid`))
     .limit(1)
     .get()
+  return row ? toReview(row) : null
+}
+
+export function getReview(db: Db, id: string): Review | null {
+  const row = db.select().from(review).where(eq(review.id, id)).get()
   return row ? toReview(row) : null
 }
 

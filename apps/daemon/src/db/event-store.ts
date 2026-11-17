@@ -14,13 +14,15 @@ export interface WsEventDraft {
   ts: number
 }
 
-export interface WsEventRow {
+export interface BroadcastEvent {
   ordinal: number
   id: string
   type: ServerMessage['type']
   payload: unknown
   ts: number
 }
+
+export type WsEventRow = BroadcastEvent
 
 export interface ReplayResult {
   rows: WsEventRow[]
@@ -44,7 +46,7 @@ function toRow(row: typeof wsEvent.$inferSelect): WsEventRow {
  * appendWs 必须在调用方的事务里使用；appendSessionEvent 自己开事务。
  */
 export function createEventStore(db: Db, deps: EventStoreDeps) {
-  function appendWs(tx: Tx, input: WsEventDraft): { id: string; ordinal: number } {
+  function appendWs(tx: Tx, input: WsEventDraft): BroadcastEvent {
     const id = deps.newId()
     const result = tx
       .insert(wsEvent)
@@ -55,7 +57,13 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
         ts: input.ts,
       })
       .run()
-    return { id, ordinal: Number(result.lastInsertRowid) }
+    return {
+      id,
+      ordinal: Number(result.lastInsertRowid),
+      type: input.type,
+      payload: input.payload,
+      ts: input.ts,
+    }
   }
 
   function appendSessionEvent(input: {
@@ -63,7 +71,7 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
     seq: number
     event: AgentEvent
     ts?: number
-  }): { id: string; ordinal: number } {
+  }): BroadcastEvent {
     return db.transaction((tx) => {
       const ts = input.ts ?? deps.now()
       const ws = appendWs(tx, {
@@ -95,7 +103,7 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
       retryCount: number
       updatedAt: number
     },
-  ): { id: string; ordinal: number } {
+  ): BroadcastEvent {
     return appendWs(tx, {
       type: 'task.status',
       payload: {
@@ -117,7 +125,7 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
       request: unknown
       ts: number
     },
-  ): { id: string; ordinal: number } {
+  ): BroadcastEvent {
     return appendWs(tx, {
       type: 'approval.request',
       payload: {
@@ -140,7 +148,7 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
       durationMs: number
       ts: number
     },
-  ): { id: string; ordinal: number } {
+  ): BroadcastEvent {
     return appendWs(tx, {
       type: 'verify.result',
       payload: {
