@@ -36,7 +36,7 @@ Seam: `apps/web/src/features/canvas/model.test.ts`
 - Produces: `CanvasActionsContext`、`useCanvasActions()`
 - Produces: `<CanvasPanel canvas tasks selectedNodeId onSelectNode />`
 
-- [ ] **Step 1: 写失败测试（模型转换）**
+- [x] **Step 1: 写失败测试（模型转换）**
 
 `model.test.ts` 覆盖：
 
@@ -58,13 +58,13 @@ expect(flow[0]).toMatchObject({
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 ```bash
 pnpm --filter @baton/web test
 ```
 
-- [ ] **Step 3: 实现模型**
+- [x] **Step 3: 实现模型**
 
 `model.ts`：
 
@@ -102,7 +102,7 @@ export function toFlowEdges(edges: ProtocolEdge[]): FlowEdge[] {
 }
 ```
 
-- [ ] **Step 4: 实现 actions context 与节点壳**
+- [x] **Step 4: 实现 actions context 与节点壳**
 
 `actions.tsx`：
 
@@ -126,7 +126,7 @@ export function useCanvasActions()
 `FileNode`：文件名 + 路径，mono 小字。
 `AgentNode`：标题 + engine Chip + 有 task 时 `StatusChip`；标题用 `text-sm font-medium`。
 
-- [ ] **Step 5: 实现 CanvasPanel**
+- [x] **Step 5: 实现 CanvasPanel**
 
 - 外层 `ReactFlowProvider`；内层 `FlowCanvas` 使用 `useNodesState`、`useReactFlow`。
 - props：`canvas: CanvasResponse | null`、`tasks: TaskSummary[]`、`selectedNodeId`、`onSelectNode`。
@@ -137,11 +137,11 @@ export function useCanvasActions()
 - 底部 `<Background gap={16} />`。
 - `data-testid="canvas"` 保持在最外层。
 
-- [ ] **Step 6: 测试 CanvasPanel 渲染**
+- [x] **Step 6: 测试 CanvasPanel 渲染**
 
 用 `ReactFlowProvider` + QueryClient + CommandProvider 渲染 2 个节点，断言标题可见；点击节点触发 `onSelectNode`。jsdom 下 React Flow 需要 `ResizeObserver`，若缺失在 `src/test/setup.ts` 加 polyfill。
 
-- [ ] **Step 7: 验证并提交**
+- [x] **Step 7: 验证并提交**
 
 ```bash
 pnpm --filter @baton/web test
@@ -168,7 +168,7 @@ Seam: `apps/web/src/features/canvas/CanvasPanel.test.tsx`
 - Produces: `CanvasPanelHandle.addNode(type)`
 - Consumes: `node.create` / `node.update` / `node.delete` ack `{ nodeId }`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `CanvasToolbar.test.tsx`：三个添加按钮 + fit view/zoom 按钮可见；点击「添加文本」调用 `onAdd('text')`。
 
@@ -182,7 +182,7 @@ it('rolls back by refetching when node.update fails')
 
 发送命令用 `CommandProvider send={vi.fn()}`；断言 payload。
 
-- [ ] **Step 2: 实现工具条**
+- [x] **Step 2: 实现工具条**
 
 `CanvasToolbar.tsx`：
 
@@ -190,7 +190,7 @@ it('rolls back by refetching when node.update fails')
 - 每个按钮 `aria-label` 中文；ghost 变体；`pointer-events-auto`。
 - 点击 fit/zoom 调 `useReactFlow().fitView/zoomIn/zoomOut`。
 
-- [ ] **Step 3: 创建节点**
+- [x] **Step 3: 创建节点**
 
 `CanvasPanel` 增加 `forwardRef<CanvasPanelHandle>` + `useImperativeHandle`，暴露 `addNode(type)`：
 
@@ -205,19 +205,19 @@ it('rolls back by refetching when node.update fails')
 
 顶栏的「新建 Agent 节点」也调用同一个 handle（Task 4 接入）。
 
-- [ ] **Step 4: 拖动与缩放**
+- [x] **Step 4: 拖动与缩放**
 
 - `onNodeDragStop(_, node)` → `updatePosition(node.id, node.position.x, node.position.y)`。
 - `NodeShell` 的 `onResizeEnd` → `updateSize(id, width, height)`。
 - 两者都：`sendCommand('node.update', {nodeId, patch})` → `invalidateQueries(canvas)`；失败时同样 invalidate（回滚）并 `toast.danger`。
 - 不做乐观持久化标记；本地 React Flow 视觉即时更新，ack 后以服务端为准。
 
-- [ ] **Step 5: 删除**
+- [x] **Step 5: 删除**
 
 - `CanvasActions` 增加 `requestDelete(id)` → 选中节点并打开 NodePanel 的删除确认；实际删除在 NodePanel（Task 3）。
 - CanvasPanel 不监听 Delete 键，避免误删。
 
-- [ ] **Step 6: 验证并提交**
+- [x] **Step 6: 验证并提交**
 
 ```bash
 pnpm --filter @baton/web test
@@ -246,7 +246,7 @@ Seam: `apps/web/src/features/canvas/NodePanel.test.tsx`
 - Produces: `<NodePanel node task onOpenTask onDeleted />`
 - Produces: `<CreateTaskForm nodeId workspaceId defaultTitle onCreated />`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `CreateTaskForm.test.tsx`：
 
@@ -280,7 +280,7 @@ it('sends task.create with fake engine, main mode and empty context')
 - 删除确认后发送 `node.delete`；`node_in_use` 显示「节点被任务引用」。
 - 非 agent 节点不显示创建任务。
 
-- [ ] **Step 2: 实现 CreateTaskForm**
+- [x] **Step 2: 实现 CreateTaskForm**
 
 - 字段：标题（默认 agent 标题）、prompt、verifyCommand（可选）。
 - `Input` / `TextArea` 带 `aria-label`。
@@ -288,7 +288,7 @@ it('sends task.create with fake engine, main mode and empty context')
 - `useCommandAction` 发送 `task.create`；成功后 `invalidateQueries(tasks)` + `onCreated(taskId)`。
 - engine/workspaceMode 固定，不在 UI 暴露。
 
-- [ ] **Step 3: 实现 NodePanel**
+- [x] **Step 3: 实现 NodePanel**
 
 - `data-testid="node-detail"`，宽度 380。
 - 顶部节点类型 + 标题；文本显示 content，文件显示 path，Agent 显示 engine。
@@ -297,7 +297,7 @@ it('sends task.create with fake engine, main mode and empty context')
 - 删除：两步确认；`node.delete` 成功 → `invalidateQueries(canvas)` + `onDeleted()`；`node_in_use` → 文案「节点被任务引用，先处理任务」。
 - 关闭按钮清空选中。
 
-- [ ] **Step 4: 验证并提交**
+- [x] **Step 4: 验证并提交**
 
 ```bash
 pnpm --filter @baton/web test
@@ -324,7 +324,7 @@ Seam: `apps/web/src/App.test.tsx`
 - Produces: `selectedNodeId`、`setSelectedNode`
 - Produces: 顶栏「新建 Agent 节点」
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 App 测试：
 
@@ -332,7 +332,7 @@ App 测试：
 - 点击任务卡后右栏显示任务详情，节点选中被清空。
 - 点击画布 Agent 节点后右栏显示 `node-detail` 与创建任务表单。
 
-- [ ] **Step 2: Store**
+- [x] **Step 2: Store**
 
 ```ts
 selectedNodeId: string | null
@@ -340,7 +340,7 @@ setSelectedNode: (id: string | null) => void
 setWorkspace: (id) => set({ activeWorkspaceId: id, activeTaskId: null, selectedNodeId: null })
 ```
 
-- [ ] **Step 3: App 集成**
+- [x] **Step 3: App 集成**
 
 - `canvasRef = useRef<CanvasPanelHandle>(null)`。
 - 顶栏 `<Button variant="secondary" isDisabled={!activeWorkspaceId} onPress={() => canvasRef.current?.addNode('agent')}>新建 Agent 节点</Button>`。
@@ -357,7 +357,7 @@ setWorkspace: (id) => set({ activeWorkspaceId: id, activeTaskId: null, selectedN
   ```
 - CanvasPanel 的 `node.create` 成功后 `onSelectNode(newId)`。
 
-- [ ] **Step 4: 验证并提交**
+- [x] **Step 4: 验证并提交**
 
 ```bash
 pnpm --filter @baton/web test
@@ -382,7 +382,7 @@ Seam: ego-lite 会话 + 截图
 **Interfaces:**
 - Produces: 真实浏览器验收证据
 
-- [ ] **Step 1: 准备环境**
+- [x] **Step 1: 准备环境**
 
 ```bash
 rm -rf /tmp/baton-e2e-data /tmp/baton-e2e-workspaces
@@ -395,7 +395,7 @@ BATON_WORKSPACES_ROOT=/tmp/baton-e2e-workspaces \
 BATON_PORT=7317 pnpm dev
 ```
 
-- [ ] **Step 2: 按用户思路走完整流程**
+- [x] **Step 2: 按用户思路走完整流程**
 
 用 ego-lite 打开 `http://localhost:5173/`，按真实用户操作：
 
@@ -412,7 +412,7 @@ BATON_PORT=7317 pnpm dev
 
 不允许用 seed 脚本或直接 WS 命令代替这些 UI 操作；种子脚本只允许用于 Plan 3 已有的只读验收。
 
-- [ ] **Step 3: 全量命令**
+- [x] **Step 3: 全量命令**
 
 ```bash
 pnpm verify
@@ -426,11 +426,11 @@ grep -RIn "TODO\|FIXME" apps/web/src packages/protocol/src apps/daemon/src
 
 Expected: 全部 exit 0；grep 输出为空。
 
-- [ ] **Step 4: 更新执行记录**
+- [x] **Step 4: 更新执行记录**
 
 写：commit 列表、命令输出摘要、ego-lite 截图路径、偏离与已知问题。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add docs/evidence/2026-11-17-m1-6a-canvas docs/plans/2026-11-17-m1-web-canvas.md
@@ -441,4 +441,42 @@ git commit -m "docs(plans): 记录 M1-6a 可编辑画布验收结果"
 
 ## 执行记录
 
-（执行后填写真实命令输出、commit、ego-lite 截图与偏离。不要预填。）
+**状态：** 已完成（2026-11-17）
+
+**Commits:**
+- `7db40e4` feat(web): 增加可编辑画布、节点 CRUD 与任务创建
+- `d05898e` fix(web): 修复画布选中同步与 URL 任务状态
+
+**实现摘要：**
+- React Flow 画布渲染 text/file/agent 自定义节点与只读边；`NodeResizer` 缩放、`onNodeDragStop` 持久化位置，失败回滚并提示。
+- 工具条与顶栏提供添加文本/文件/Agent、fit view、缩放；新建节点按数量错开，避免重叠。
+- 选中 Agent 节点显示 NodePanel：无任务时用 `CreateTaskForm` 建任务；有任务时展示摘要并可打开；删除两步确认，`node_in_use` 映射为「节点被任务引用，先处理任务」。
+- React Flow 选中改为 `onNodeClick` 驱动；外部清空 `selectedNodeId` 时同步清除画布选中标记，避免旧选中回推。
+- URL 的 `workspace` / `task` 与 store 同步，切换/关闭任务后不残留 `task` 参数。
+
+**验证命令（均在仓库根目录执行）：**
+- `pnpm verify` → exit 0（typecheck、lint、单元测试、build；web 21 个测试文件 59 条通过）。
+- `pnpm verify:full` → exit 0（Playwright `shell.spec.ts` 1 passed）。
+- `pnpm pack:check` → exit 0（`pack-check ok`）。
+- `pnpm check:boundaries` → exit 0（241 modules，0 violations）。
+- `pnpm check:protocol` → exit 0（`protocol single-source ok`）。
+- `pnpm format:check` → exit 0（All matched files use Prettier code style）。
+- `grep -RIn "TODO\|FIXME" apps/web/src packages/protocol/src apps/daemon/src` → 无输出。
+
+**ego-lite 用户路径验收（真实浏览器，未使用 seed 或直接 WS 命令）：**
+1. UI 新建工作区 `demo`，画布为空（`docs/evidence/2026-11-17-m1-6a-canvas/01-empty-canvas.png`）。
+2. 顶栏「新建 Agent 节点」创建 Agent 1（`02-agent-node.png`）。
+3. 鼠标分段拖动四个节点成四宫格布局；刷新后四个节点 transform 与刷新前完全一致（`04-canvas-nodes.png`、`09-after-refresh.png`）。
+4. 工具条添加文本节点与文件节点 `README.md`（`04-canvas-nodes.png`）。
+5. 选中 Agent 1，创建「演示画布任务」（prompt「请完成演示」，verifyCommand `node -e "console.log('verify ok')"`），右栏显示待办摘要（`03-task-created.png`）。
+6. 打开任务 → 立即开工 → 审批卡片出现（`05-approval.png`）。
+7. 允许 → 验收卡片出现（`06-review.png`）→ 通过 → 已完成（`07-done.png`）。
+8. 重新选中 Agent 1 → 删除节点 → 确认删除，出现「节点被任务引用，先处理任务」，节点仍在（`08-delete-guard.png`）。
+9. 打开已完成任务后刷新：四个节点位置、文本/文件节点、已完成状态与 transcript 全部保留（`09-after-refresh.png`）。
+
+**偏离与已知问题：**
+- e2e 发现两个实际问题并在 `d05898e` 修复：切换任务后 URL 残留 `task` 参数；外部清空节点选中后 React Flow 旧选中回推导致「打开任务」无响应并触发 Maximum update depth。
+- ego-lite 拖动需多段 `mouse.move` 才能触发 React Flow drag；单次 move 不产生中间 mousemove。属工具操作方式，不是产品缺陷。
+- Playwright shell 用例因画布与右栏同时出现「尚未选择工作区」改为断言 `canvas` 容器文本，避免 strict mode 冲突。
+- Web 构建 bundle 约 879 KB（React Flow），仍有 500 KB 警告；M1-6a 接受，后续按需 code-split。
+
