@@ -153,6 +153,7 @@ export function assembleContext(input: AssembleContextInput): AssembleContextRes
    - `file` 取 `contentByNodeId[id]`，无内容时只输出 `path`；
    - `image` 输出 `src` 与可选 `alt`；
    - 每段包成 `<node id="..." type="..." title="...">...</node>`。
+   - `title` 规则：`text` 取首个非空行（截断 60 字符）；`file` 取 `name`；`image` 取 `alt` 或 `image`。
 7. **脱敏**：`isSensitivePath(path)` 命中 `.env*`、私钥、`*secret*` 时跳过并记入 `dropped` 与 `redactedPaths`；调用方读取前也必须再判一次。
 8. **预算**：单节点超过 `maxNodeChars` 时截断并标记 `truncated="true"`；总量超过 `maxChars` 时先丢最深上游（同深度按 `(y,x,id)` 倒序），显式节点最后才硬截断。
 9. **输出**：`<task>...</task>` + `<context>...</context>` + 可选 `<truncated nodes="..."/>`；v1 不输出空的 `<constraints>`。
