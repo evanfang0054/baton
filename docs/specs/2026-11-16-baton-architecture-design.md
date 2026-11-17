@@ -11,6 +11,8 @@ gates: [user-review-passed]
 > baton 不演奏，只定拍子。
 >
 > 一个本地优先的 Agent 调度驾驶舱：画布是共享内存，看板是状态投影，总管只负责派活与验收。
+>
+> 实现增量：M1-5a 任务注意力语义见 `docs/specs/2026-11-17-m1-attention-semantics-design.md`。
 
 ## 0. 文档信息
 
@@ -116,10 +118,11 @@ graph LR
 | `canvas` | `id, workspace_id, viewport_json` | 每个 workspace 一张画布 |
 | `node` | `id, canvas_id, type, x, y, w, h, group_id, data_json` | 多态节点：`text/image/file/agent/review/group` |
 | `edge` | `id, canvas_id, source_id, target_id, type` | v1 只有 `context`；字段预留以后加执行流 |
-| `task` | `id, workspace_id, node_id, title, prompt, status, engine, workspace_mode, branch, worktree_path, verify_command, retry_count` | 一次派活 |
-| `session` | `id, task_id, adapter, engine_session_id, status, started_at, ended_at` | 一次引擎进程 |
-| `event` | `id, session_id, seq, type, payload_json, ts` | 追加写，`UNIQUE(session_id, seq)`，用于断线重放 |
-| `approval` | `id, session_id, request_json, decision, decided_by, decided_at` | 人工与自动批准都落库 |
+| `task` | `id, workspace_id, node_id, title, prompt, status, waiting_reason, engine, workspace_mode, branch, worktree_path, verify_command, retry_count` | 一次派活 |
+| `session` | `id, task_id, adapter, engine_session_id, status, outcome, started_at, ended_at` | 一次引擎进程 |
+| `event` | `id, session_id, ordinal, seq, type, payload_json, ts` | 追加写，`ordinal` 全局重放，`UNIQUE(session_id, seq)` |
+| `ws_event` | `ordinal, id, type, payload_json, ts` | 可重放 WS 事件的全局日志；`event.ordinal` 复用它 |
+| `approval` | `id, session_id, request_id, request_json, decision, decided_by, decided_at` | 人工与自动批准都落库 |
 | `review` | `id, task_id, verdict, verify_exit_code, verify_output, diff_stat_json, decided_at` | 验收证据 |
 | `audit` | `id, ts, actor, action, detail_json` | 自动批准、策略变更、kill switch 的操作审计 |
 | `notice` | `id, ts, kind, payload_json, read_at` | 定时汇报与站内通知 |
@@ -244,8 +247,8 @@ verify 命令解析优先级：任务级配置 > 项目 `.baton/policy.json` > `
 
 信封：`{ v: 1, id?: string, type: string, ts: number, seq?: number, payload: unknown }`。
 
-- 客户端命令：`auth`、`resume`、`task.create/cancel/retry`、`review.decide`、`approval.decide`、`node.create/update/delete`、`edge.create/delete`、`context.inject`、`supervisor.send`。
-- 服务端事件：`ack`、`error`、`task.status`、`session.event`、`approval.request`、`verify.result`、`canvas.patch`、`notice`。
+- 客户端命令：`resume`、`task.create`、`task.enqueue`、`task.cancel`、`session.reply`、`review.decide`、`approval.decide` 已实现；`task.retry`、`auth`、`node.create/update/delete`、`edge.create/delete`、`context.inject`、`supervisor.send` 后置到 M1-6/M2。
+- 服务端事件：`ack`、`error`、`task.status`、`session.event`、`approval.request`、`verify.result` 已实现；`canvas.patch`、`notice` 后置到 M1-6/M2。
 - 断线重连：客户端带 `sinceSeq`，服务端从 `event` 表重放。
 - 认证：浏览器打开 `/?token=`（或 `/auth?token=`）换取 `httpOnly + SameSite=Strict` cookie，随后跳转到无参数地址；非浏览器用 `Authorization: Bearer`。WS 建立后 5 秒内未认证则关闭。
 - **不自造 Agent 事件模型**：会话流直接采用 AG-UI，自有语义走 `CUSTOM`。
@@ -526,7 +529,10 @@ volumes:
 | 里程碑 | 周期 | 交付 | 验收标准 |
 |---|---|---|---|
 | **M0 骨架** | 1 周 | monorepo、CI 三件套、daemon health、WS 回显、空画布、SQLite 迁移、Dockerfile | `npx @evanfang0054/baton` 可启动；`pnpm verify` 全绿；镜像可构建并冒烟通过 |
-| **M1 闭环** | 2-3 周 | 五类节点、框选投喂、ClaudeAdapter、状态机、看板、验收卡、verify、policy、compose + GHCR | 一个真实小任务从"框选需求"跑到"verify 通过 → 人工点通过"；`docker compose up` 可用 |
+| **M1-1~M1-5 闭环骨架** | 已完成 | 协议/状态机、上下文与 policy、adapters/fake、daemon 运行时、WS/REST、verify | `agent-fake` 从 `task.create` 跑到 `review.decide`；`pnpm verify` 全绿 |
+| **M1-5a 任务注意力** | 已完成 | `SessionOutcome`、`session.reply`、`waitingReason`、`cause/attention`、重启保留 verify 证据 | 提问 → 回复 → verify → review；静默停止进 `waiting_input(stalled)` |
+| **M1-6 web** | 1-2 周 | 画布节点、7 列看板、任务详情、验收卡、回复输入框、Playwright e2e | 浏览器里完成一次真实闭环；等待时长与 attention 可见 |
+| **M1-7 agent-claude** | 1 周 | Claude Agent SDK 适配器、outcome 映射、`canUseTool`、S2 spike | 真实 Claude 任务可从提问回复跑到 verify → 人工验收 |
 | **M2 自动化与 DSH** | 2 周 | 自动重试、白名单自动批准、定时汇报、DSH headless spike、移动端只读 | 无人值守连续跑 3 个任务并产出汇报；手机上能通过/打回 |
 | **M3 体验与分发** | 2 周 | worktree 开关、diff 视图、slim 镜像/单二进制、DSH 插件壳 | 两种分发方式均可安装；worktree 模式下并行两任务不冲突 |
 
@@ -547,6 +553,9 @@ volumes:
 | 镜像体积大 | 部署成本 | `BATON_SLIM` 变体 + 文档说明 | 拉取时间超预期 |
 | 多架构 optionalDependencies 解析错误 | arm64 镜像不可用 | buildx 逐平台构建 + 双架构冒烟 | arm64 启动即报找不到 CLI |
 | 宿主/容器 uid 不一致 | git 操作失败 | `safe.directory` + compose `user:` 覆盖 | `dubious ownership` 报错 |
+| agent 提问被误判为完成 | 把等待当交付，验收失真 | `session.outcome` + `waitingReason`；`RUN_FINISHED` 必须带 ready | 任务在 `review` 但 agent 实际在提问 |
+| 任务状态不可解释 | 看板无法回答"为什么停/等多久" | `task.status` 带 `cause/attention`；`waitingSince` 由 `updatedAt` 推导 | 用户问"它为什么停在这" |
+| 重启丢验收证据 | 无法判断 verify 是否跑过 | `verifying` 重启合成 `verify_fail(124) → review` | 重启后 verifying 任务凭空消失 |
 
 ---
 
@@ -555,8 +564,8 @@ volumes:
 | 编号 | 问题 | 完成标准 | 截止 |
 |---|---|---|---|
 | S1 | `@deepseek-ai/dsh-headless` 能否由 daemon 以子进程驱动；授权事件与产物格式 | 跑通一次真实任务，产出事件流与退出码 | M2 前 |
-| S2 | Claude Agent SDK 的 `canUseTool` 在流式模式下等待人工决策的边界；子代理事件映射 | 人工挂起 10 分钟后仍能恢复；`SUBAGENT_*` 映射正确 | M1 前 |
-| S3 | buildx 下 optionalDependencies 是否按目标架构解析 | amd64 与 arm64 镜像均能启动并执行一次任务 | M1 前 |
+| S2 | Claude Agent SDK 的 `canUseTool` 在流式模式下等待人工决策的边界；子代理事件映射 | 人工挂起 10 分钟后仍能恢复；`SUBAGENT_*` 映射正确 | M1-7 前 |
+| S3 | buildx 下 optionalDependencies 是否按目标架构解析 | amd64 与 arm64 镜像均能启动并执行一次任务 | M1-6 前 |
 | S4 | 50 节点、每节点 2k 行日志的帧率与内存 | 拖拽 ≥ 45fps，内存 < 1GB | M2 前 |
 
 ---
@@ -585,6 +594,10 @@ volumes:
 | 18 | 分发 | npm + Docker 双通道 | 本地 `npx` 即用，服务器/NAS 一键部署 |
 | 19 | npm 包名 | `@evanfang0054/baton` | `baton` 与 `baton-cli` 已被占用；内部包不发布 |
 | 20 | OSS 策略 | 组件层最大化复用，整机不 fork | 没有可 fork 的活项目；通用件买不如借 |
+| 21 | 事件溯源 | 不做完整 ES；`task.status` 作为投影，`ws_event` 存状态历史 | 单 daemon/单写者；任务历史 UI 出现前不需要 task_event |
+| 22 | 会话结局 | `session.outcome` 的 `blocked/dropped` 是暂停，不是会话结束 | 用户需要能直接回复活跃 run |
+| 23 | 看板投影 | 内部 9 态对外压成 7 列；`waitingSince` 由 `updatedAt` 推导 | 保持状态机细粒度，同时符合"任务等人"的心智模型 |
+| 24 | 总管边界 | Router 只调度，不替人过闸门；工具白名单在 M2 spec 锁定 | 防止总管幻觉与越权 |
 
 ---
 
