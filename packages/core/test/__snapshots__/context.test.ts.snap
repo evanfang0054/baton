@@ -1,0 +1,14 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`assembleContext > renders task + explicit/context nodes deterministically 1`] = `
+"<task>把登录页改成暗黑模式</task>
+<context>
+<node id="n1" type="text" title="PRD">PRD
+登录页需求：支持暗黑模式</node>
+<node id="n3" type="file" title="login.md"># 登录页规格
+使用暗色变量。</node>
+<node id="n7" type="text" title="分组内说明 A">分组内说明 A</node>
+<node id="n8" type="text" title="分组内说明 B">分组内说明 B</node>
+<node id="n2" type="image" title="设计稿"><image src="artifacts/design.png" alt="设计稿"/></node>
+</context>"
+`;

@@ -16,6 +16,13 @@ module.exports = {
       to: { path: '^apps/' },
     },
     {
+      name: 'adapters-no-core-or-apps',
+      severity: 'error',
+      comment: 'packages/adapters 只能依赖 protocol，不得反向依赖 core 或 apps',
+      from: { path: '^packages/adapters' },
+      to: { path: '^(packages/(core|ui)|apps/)' },
+    },
+    {
       name: 'web-no-daemon',
       severity: 'error',
       comment: 'web 不得依赖 daemon',

@@ -226,6 +226,8 @@ type TaskTransitionEvent =
 
 `PolicySchema` 对应项目内 `.baton/policy.json`，本 slice 只定义形状，不求值。
 
+> 默认 Bash 规则已由 `2026-11-17-m1-context-policy-adapter-design.md` §4.6 统一为 glob 写法；本节的 `(test|...)` 示例仅保留历史语义。
+
 ```json
 {
   "verify": {

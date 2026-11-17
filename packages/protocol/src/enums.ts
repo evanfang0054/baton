@@ -38,3 +38,7 @@ export type Engine = z.infer<typeof Engine>
 
 export const WorkspaceMode = z.enum(['main', 'worktree'])
 export type WorkspaceMode = z.infer<typeof WorkspaceMode>
+
+/** 执行器的权限模式；manual 为人工逐条审批。 */
+export const PermissionMode = z.enum(['manual', 'acceptEdits', 'plan'])
+export type PermissionMode = z.infer<typeof PermissionMode>

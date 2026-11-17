@@ -1,4 +1,10 @@
-import type { AppError, DiffStat, TaskStatus } from '@baton/protocol'
+import type {
+  AppError,
+  ApprovalDecision,
+  DiffStat,
+  ReviewVerdict,
+  TaskStatus,
+} from '@baton/protocol'
 
 export interface TransitionContext {
   readonly status: TaskStatus
@@ -13,7 +19,7 @@ export type TaskEffect =
   | { type: 'enqueueTask' }
   | { type: 'startSession' }
   | { type: 'requestApproval'; approvalId: string }
-  | { type: 'resolveApproval'; approvalId: string; decision: 'allow' | 'deny'; note?: string }
+  | { type: 'resolveApproval'; approvalId: string; decision: ApprovalDecision; note?: string }
   | { type: 'runVerify' }
   | {
       type: 'persistVerifyResult'
@@ -22,7 +28,7 @@ export type TaskEffect =
       output: string
       diffStat: DiffStat
     }
-  | { type: 'persistReviewVerdict'; reviewId: string; verdict: 'approved' | 'rejected' }
+  | { type: 'persistReviewVerdict'; reviewId: string; verdict: ReviewVerdict }
   | { type: 'appendFeedback'; feedback: string }
   | { type: 'incrementRetry' }
   | { type: 'interruptSession'; reason?: string }
