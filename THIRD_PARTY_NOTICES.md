@@ -26,6 +26,12 @@ baton 以 MIT 许可发布。运行时会依赖下列第三方组件，其许可
 | `execa` / `simple-git` / `chokidar` / `croner` | MIT | 进程、Git、监听、定时 |
 | `picomatch` | MIT | core 的 policy glob 匹配（直接依赖） |
 | `react` / `react-dom` | MIT | 前端运行时 |
+| `@tanstack/react-query` | MIT | 服务端状态与缓存 |
+| `zustand` | MIT | 客户端 UI 状态 |
+| `lucide-react` | ISC | 图标 |
+| `tailwindcss` / `@tailwindcss/vite` | MIT | Tailwind 4 样式与 Vite 插件 |
+| `@testing-library/react` / `@testing-library/jest-dom` / `@testing-library/user-event` | MIT | 组件测试（仅开发依赖） |
+| `jsdom` | MIT | 组件测试 DOM（仅开发依赖） |
 | `zod` | MIT | 契约校验 |
 
 ## 非 OSI 许可
