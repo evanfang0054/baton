@@ -12,6 +12,7 @@ COPY apps/daemon/package.json apps/daemon/
 COPY apps/web/package.json apps/web/
 COPY packages/protocol/package.json packages/protocol/
 COPY packages/core/package.json packages/core/
+COPY packages/adapters/package.json packages/adapters/
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 FROM deps AS build
@@ -24,6 +25,7 @@ COPY apps/daemon/package.json apps/daemon/
 COPY apps/web/package.json apps/web/
 COPY packages/protocol/package.json packages/protocol/
 COPY packages/core/package.json packages/core/
+COPY packages/adapters/package.json packages/adapters/
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile --prod
 
 FROM node:24-bookworm-slim AS runtime

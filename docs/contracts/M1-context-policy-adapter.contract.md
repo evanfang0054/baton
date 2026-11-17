@@ -15,7 +15,7 @@
 - [x] **4. Context 种子与闭包**：显式选择 + 目标 Agent 的直接 `context` 前驱为 depth 0；反向 BFS depth ≤ 2、节点 ≤ 40；去重保留最低 depth；目标 Agent、`review`、`agent` 节点排除；group 只在被显式选中时展开子节点；每条规则有测试。
 - [x] **5. Context 排序与确定性**：输出顺序为 `(depth, y, x, id)`；同一输入连续调用两次得到逐字节相同的 `prompt`；快照测试锁定；不依赖 Map 迭代顺序。
 - [x] **6. Context 渲染**：`text` 取正文、`file` 取 `contentByNodeId`（无内容只输出 path）、`image` 输出 src/alt；`<task>` + `<context>` + `<node>` 包装；v1 不输出空 `<constraints>`；空内容记 `dropped.reason='empty'`。
-- [x] **7. Context 预算与脱敏**：默认 `maxChars=48_000`、`maxNodeChars=16_384`；单节点超限截断并标记 `truncated="true"`；总量超限先丢最深上游（同深度按 `(y,x,id)` 倒序），显式节点最后硬截断；`isSensitivePath` 覆盖 `.env*`、`*.pem`、`*.key`、`id_rsa*`、`id_ed25519*`、`*secret*`；`dropped`/`redactedPaths` 有断言。
+- [x] **7. Context 预算与脱敏**：默认 `maxChars=48_000`、`maxNodeChars=16_384`；单节点超限截断并标记 `truncated="true"`；总量超限先丢最深上游（同深度按 `(y,x,id)` 倒序），显式节点最后硬截断；`isSensitivePath` 覆盖 `.env*`、`.npmrc`、`.netrc`、`.git-credentials`、`credentials.json`、`*.pem`、`*.key`、`*.p12`、`*.pfx`、`*.keystore`、`id_rsa*` / `id_ed25519*`（排除 `.pub`）、`*secret*`；`dropped`/`redactedPaths` 有断言。
 - [x] **8. Policy 匹配**：`Tool` 精确匹配；`Tool:pattern` 用 picomatch 匹配 `Bash` 命令、`Edit/Write/Read/Grep/Glob` 路径、其他工具稳定 JSON；`deny > allow > ask`；无命中用 `approval.default`；每类工具至少一个测试。
 - [x] **9. 风险分级**：`classifyRisk` 表驱动覆盖 low/medium/high；未知工具为 `high`；`evaluateApproval` 最终风险取 `max(request.risk, computed)`；`high` 永不自动批准。
 - [x] **10. 自动批准**：命中 allow + risk ≤ `autoApproveMaxRisk` + `autopilot.enabled` + `killSwitch=false` 才 `autoApproved=true`；否则 `ask`；deny 永远 deny；`reason` 不包含完整敏感输入；四条件与 kill switch 各有测试。
@@ -120,3 +120,16 @@ git diff --name-only main...HEAD -- apps   # 输出必须为空
 - verify executor（execa、超时、进程组、diff stat）与路径 jail。
 - `agent-claude` / `agent-pty`、worktree、画布命令、web UI。
 - `ack.data`、`BATON_MAX_CONCURRENCY`、重启恢复。
+
+## Review fixes（2026-11-17）
+
+首轮深度 review 发现并修复：
+
+- group 展开只收 `text/file/image`，跳过 agent/review/嵌套 group 与目标 Agent，避免 `raw.trim()` 崩溃。
+- `evaluateApproval` 对 `high` 风险硬性禁止自动批准；`autoApproveMaxRisk='high'` 也不再放行。
+- `matchRuleResult` 三态匹配：空 pattern 不再抛错；deny 规则目标不可提取时按 deny 处理（fail-closed）；`stableStringify` 保证返回 string。
+- `bash:true` 只用于 Bash/Shell；路径规则保持 `dot:true`，并把 `cwd` 内绝对路径转相对后匹配。
+- 工作区边界拒绝 `..`、prefix collision、缺少 `cwd`；复合 shell 命令按 `high`。
+- `FakeAdapter` 校验 `requestId`、关闭后拒绝 `send/approve`、显式处理 `finish`、补 `dispose`/interrupt/错误 ID 测试。
+- `AgentRun.approve` 使用 `ApprovalDecision`，新增 `PermissionMode`；`TaskEffect` 复用协议类型。
+- 补预算/去重/敏感路径/消费 fixture 断言；Dockerfile 复制 `packages/adapters/package.json`。

@@ -19,7 +19,8 @@ baton 以 MIT 许可发布。运行时会依赖下列第三方组件，其许可
 | `@xyflow/react` | MIT | 画布引擎 |
 | `fastify` / `@fastify/*` | MIT | HTTP 与 WebSocket 服务 |
 | `better-sqlite3` | MIT | 本地存储 |
-| `execa` / `simple-git` / `chokidar` / `croner` / `picomatch` | MIT | 进程、Git、监听、定时、匹配 |
+| `execa` / `simple-git` / `chokidar` / `croner` | MIT | 进程、Git、监听、定时 |
+| `picomatch` | MIT | core 的 policy glob 匹配（直接依赖） |
 | `react` / `react-dom` | MIT | 前端运行时 |
 | `zod` | MIT | 契约校验 |
 

@@ -1532,10 +1532,11 @@ git commit -m "test(core): 增加 M1-5 消费形态验收并完成全量校验"
 | 2026-11-17 | Task 3 | core 71 tests；typecheck 通过；picomatch 接入 | `62dedea` | policy 快照；风险表；verify 解析；notices |
 | 2026-11-17 | Task 4 | adapters 5 tests；typecheck 通过 | `cc99e0f` | fake 默认脚本 / allow / deny / interrupt / send / error |
 | 2026-11-17 | Task 5 | `pnpm verify`、`check:boundaries`、`check:protocol`、`format:check`、`pack:check` 全绿；`apps` 空 diff | `ba5a03f` | 消费 fixture；快照；执行记录 |
+| 2026-11-17 | Review fixes | P1/P2 修复；protocol 66、core 85、adapters 10 tests；coverage Branch 89.04；`pnpm verify`/`pack:check` 全绿 | `689fe3c` / `11615c4` | group/high-risk/matchRule/fake/boundary/docker/docs |
 
 **实现偏离（已同步 spec）**：
 
-- `picomatch` 使用 `{ dot: true, bash: true }`：`*` 需跨 `/` 才能让 `Bash:rm -rf *` 命中 `rm -rf /tmp/demo`。
+- `picomatch`：Bash/Shell 规则使用 `{ dot: true, bash: true }`（`*` 跨 `/`）；路径规则只用 `{ dot: true }`。
 - `FakeAdapter` 的 deny 分支以 `RUN_FINISHED` 收尾；interrupt 直接结束事件流。
 - context 的 `title` 规则：text 取首个非空行（截断 60 字符），file 取 `name`，image 取 `alt`。
 
@@ -1549,19 +1550,19 @@ git commit -m "test(core): 增加 M1-5 消费形态验收并完成全量校验"
 | 4 种子与闭包 | `context.test.ts` 的显式/前驱/group/深度/40 节点用例 |
 | 5 排序与确定性 | `context.test.ts` 两次调用 `toEqual` + prompt 快照 |
 | 6 渲染 | `context.test.ts` 的 text/file/image 与 title/path 断言 |
-| 7 预算与脱敏 | `context.test.ts` 的 sensitive/empty/budget/truncated 用例 |
-| 8 Policy 匹配 | `policy.test.ts` 的 matchRule/路径/命令/稳定 JSON 用例 |
-| 9 风险分级 | `policy.test.ts` 的 classifyRisk 表与 max 行为 |
+| 7 预算与脱敏 | `context.test.ts` 的 sensitive/empty/budget/truncated 用例；覆盖 `.npmrc`/`.netrc`/`.git-credentials`/`credentials.json`/`*.p12`/`*.pfx`/`*.keystore` 与 `id_* .pub` 例外 |
+| 8 Policy 匹配 | `policy.test.ts` 的 matchRule/matchRuleResult/路径/命令/稳定 JSON/空 pattern/undefined input 用例 |
+| 9 风险分级 | `policy.test.ts` 的 classifyRisk 表、`..`/prefix/无 cwd、复合 shell 命令与 max 行为 |
 | 10 自动批准 | `policy.test.ts` 的 autopilot/kill switch/medium/unknown 用例 |
 | 11 Verify 解析 | `verify.test.ts` 的优先级/回退/空命令用例 |
 | 12 Adapters 包 | `packages/adapters/package.json` + workspace 安装 + `pnpm -r test` |
 | 13 FakeAdapter 契约 | `packages/adapters/test/fake.test.ts` 默认序列 + `EventSchemas` 校验 |
-| 14 FakeAdapter 控制 | `fake.test.ts` 的 deny/interrupt/send/custom error 用例 |
-| 15 消费形态 | `packages/core/test/consumption.test.ts` |
+| 14 FakeAdapter 控制 | `fake.test.ts` 的 deny/interrupt/send/custom error/错误 requestId/dispose/finish 用例 |
+| 15 消费形态 | `packages/core/test/consumption.test.ts`；`ask` 不自动 approve，显式人工决定才调用 approve |
 | 16 变更边界 | `git diff --name-only main...HEAD -- apps` 输出为空 |
 | 17 分层 | `pnpm check:boundaries`（104 modules, 201 deps, no violations） |
 | 18 全量校验 | `pnpm verify` 退出码 0；`format:check` / `check:protocol` / 两个包测试 / `pack:check` 通过 |
-| 19 覆盖率 | core `All files`：Stmts 95.91 / Branch 89.62 / Funcs 96.15 / Lines 97.5 |
+| 19 覆盖率 | core `All files`：Stmts 94.55 / Branch 89.04 / Funcs 96.55 / Lines 96.83 |
 | 20 依赖与许可 | `packages/core/package.json` 的 picomatch；`THIRD_PARTY_NOTICES.md` 的 picomatch/types |
 | 21 文档与占位 | `docs/README.md` 三份链接；`grep -rn "TODO\|FIXME" packages/*/src` 无输出 |
 | 22 性能与确定性 | core 测试 < 1s；fake 无定时器/随机数；快照稳定 |

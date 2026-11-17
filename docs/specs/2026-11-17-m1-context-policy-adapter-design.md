@@ -15,7 +15,7 @@ spec_ref: 2026-11-16-baton-architecture-design.md
 
 ## 0. 文档信息
 
-- **状态**：设计草案，待用户评审。
+- **状态**：已确认并实施完成（M1-3/M1-4；评审修复已合入）。
 - **范围**：`packages/protocol` 的 `AgentAdapter` 契约与 policy 默认规则；`packages/core` 的上下文装配、policy 求值、verify 命令解析；新增 `packages/adapters` 的 `agent-fake`。
 - **不在范围**：`apps/daemon`、`apps/web`、SQLite migration、event store、WS 路由、verify 执行器、`agent-claude`、worktree。
 - **文档位置**：spec 落 `docs/specs/`，contract 落 `docs/contracts/`，plan 落 `docs/plans/`，与 M0/M1-1 一致。
@@ -76,8 +76,8 @@ M1-1/M1-2 已合并：协议实体、WS 命令/事件、AG-UI 包装与纯状态
 
 ```ts
 import type { AgentEvent } from './agui.js'
+import type { ApprovalDecision, Engine, PermissionMode } from './enums.js'
 import type { Policy } from './policy.js'
-import type { Engine } from './enums.js'
 
 export type PolicySnapshot = Policy
 
@@ -86,13 +86,13 @@ export interface StartInput {
   cwd: string
   systemPrompt?: string
   resumeSessionId?: string
-  permissionMode: 'manual' | 'acceptEdits' | 'plan'
+  permissionMode: PermissionMode
   policy: PolicySnapshot
 }
 
 export interface AgentRun {
   events: AsyncIterable<AgentEvent>
-  approve(requestId: string, decision: 'allow' | 'deny', note?: string): Promise<void>
+  approve(requestId: string, decision: ApprovalDecision, note?: string): Promise<void>
   send(text: string): Promise<void>
   interrupt(): Promise<void>
   dispose(): Promise<void>
@@ -146,7 +146,7 @@ export function assembleContext(input: AssembleContextInput): AssembleContextRes
 1. **种子集**：`selectedNodeIds` 与“目标 Agent 的直接 context 前驱”合并；depth 0。
 2. **闭包**：沿 `context` 边反向 BFS，depth ≤ 2，节点总数 ≤ 40；去重保留最低 depth。
 3. **排除**：目标 Agent 自身；`review` 节点；`agent` 节点不作为内容源。
-4. **group**：只有 group 被显式选中时才展开其子节点（`groupId === group.id`），子节点按 depth 0 处理；group 本身不产出内容。
+4. **group**：只有 group 被显式选中时才展开其子节点（`groupId === group.id`）；只展开 `text/file/image` 子节点，`agent/review/嵌套 group` 跳过，目标 Agent 子节点记入 `dropped reason='target'`；group 本身不产出内容。
 5. **排序**：`(depth, y, x, id)`；不依赖 Map 迭代顺序。
 6. **渲染**：
    - `text` 取 `data.content`；
@@ -154,7 +154,7 @@ export function assembleContext(input: AssembleContextInput): AssembleContextRes
    - `image` 输出 `src` 与可选 `alt`；
    - 每段包成 `<node id="..." type="..." title="...">...</node>`。
    - `title` 规则：`text` 取首个非空行（截断 60 字符）；`file` 取 `name`；`image` 取 `alt` 或 `image`。
-7. **脱敏**：`isSensitivePath(path)` 命中 `.env*`、私钥、`*secret*` 时跳过并记入 `dropped` 与 `redactedPaths`；调用方读取前也必须再判一次。
+7. **脱敏**：`isSensitivePath(path)` 覆盖 `.env*`、`.npmrc`、`.netrc`、`.git-credentials`、`credentials.json`、`*.pem`、`*.key`、`*.p12`、`*.pfx`、`*.keystore`、`id_rsa*` / `id_ed25519*`（排除 `.pub`）与 `*secret*`；命中时跳过并记入 `dropped` 与 `redactedPaths`；调用方读取前也必须再判一次。
 8. **预算**：单节点超过 `maxNodeChars` 时截断并标记 `truncated="true"`；总量超过 `maxChars` 时先丢最深上游（同深度按 `(y,x,id)` 倒序），显式节点最后才硬截断。
 9. **输出**：`<task>...</task>` + `<context>...</context>` + 可选 `<truncated nodes="..."/>`；v1 不输出空的 `<constraints>`。
 10. **确定性**：同一输入必须逐字节相同；测试用快照锁定。
@@ -195,7 +195,7 @@ export function classifyRisk(toolName: string, input: unknown): RiskLevel
   - `Edit` / `Write` / `Read` / `Grep` / `Glob`：匹配文件路径（`input.file_path` / `input.path`）；
   - 其他工具：匹配 `JSON.stringify(input)` 的稳定序列化结果；
   - 无目标时视为不匹配。
-  - picomatch 使用 `{ dot: true, bash: true }`：`*` 可跨 `/`，以匹配整条 shell 命令字符串。
+  - picomatch：Bash/Shell 规则使用 `{ dot: true, bash: true }`（`*` 可跨 `/`）；路径工具只用 `{ dot: true }`。
 - `deny` 先于 `allow`；都未命中时用 `policy.approval.default`（当前固定 `ask`）。
 - 风险：core 计算 `classifyRisk`，最终风险取 `max(request.risk, computed)`；`high` 永不自动批准。
 - 自动批准条件（全部满足）：命中 `allow`、`risk <= autoApproveMaxRisk`、`policy.autopilot.enabled`、`ctx.killSwitch === false`。
@@ -211,7 +211,7 @@ export function classifyRisk(toolName: string, input: unknown): RiskLevel
 | `medium` | `Edit` / `Write` / `NotebookEdit` 且路径在工作区内；`Bash` 中的 test/lint/typecheck/build/status/diff 等本地命令 |
 | `high` | `WebFetch` / 网络命令；`sudo`、`rm -rf`、`curl ... | sh`、`git push`、包安装；工作区外写入；未知工具或无法判定的输入 |
 
-未知工具默认 `high`，确保不会被自动批准。工作区边界由 `input.cwd` / `input.file_path` 的字符串前缀判断；本切片不读文件系统，也不做 realpath。
+未知工具默认 `high`，确保不会被自动批准。工作区边界：写入工具先按 `cwd` 将绝对路径转相对；路径含 `..`、缺少 `cwd`、或不在 `cwd + '/'` 下时一律 `high`。Bash 命令含 `;`、`&&`、`||`、`|`、反引号、`$()`、重定向等复合 shell 元字符时按 `high`。
 
 ### 4.4 Verify 命令解析（packages/core/src/verify）
 
@@ -343,7 +343,7 @@ git diff --name-only main...HEAD -- apps   # 必须为空
 
 - `packages/core` 覆盖率 ≥ 80%；新增 core 代码不得 import `node:*` 或 `apps/*`。
 - `pnpm pack:check` 仍通过（新增 workspace 包不得影响 tarball 链路）。
-- 测试在本地 10 秒内完成（纯函数 + fake adapter，无子进程）。
+- 测试在本地 5 秒内完成（纯函数 + fake adapter，无子进程）。
 
 ### 6.3 DoD 摘要
 
