@@ -146,4 +146,50 @@ describe('createWsClient', () => {
     expect(onStatus).toHaveBeenLastCalledWith('offline')
     client.close()
   })
+
+  it('resolves a command on ack and rejects on command error', async () => {
+    const client = createWsClient({ onStatus: vi.fn(), onEvent: vi.fn() })
+    const socket = FakeSocket.instances[0]!
+    socket.open()
+
+    const first = client.sendCommand({ type: 'task.enqueue', payload: { taskId: 't1' } })
+    const sent = JSON.parse(socket.sent[0]!) as { id: string; type: string }
+    expect(sent.type).toBe('task.enqueue')
+    socket.message({
+      v: 1,
+      ts: 2,
+      type: 'ack',
+      payload: { commandId: sent.id, ok: true, data: { taskId: 't1' } },
+    })
+    await expect(first).resolves.toEqual({ taskId: 't1' })
+
+    const second = client.sendCommand({ type: 'task.cancel', payload: { taskId: 't1' } })
+    const sent2 = JSON.parse(socket.sent[1]!) as { id: string }
+    socket.message({
+      v: 1,
+      ts: 3,
+      type: 'error',
+      payload: { commandId: sent2.id, code: 'task_not_found', message: 'task not found' },
+    })
+    await expect(second).rejects.toMatchObject({ code: 'task_not_found' })
+    client.close()
+  })
+
+  it('times out commands and rejects when offline', async () => {
+    const client = createWsClient({ onStatus: vi.fn(), onEvent: vi.fn() })
+    const socket = FakeSocket.instances[0]!
+    socket.open()
+
+    const pending = client.sendCommand({ type: 'task.enqueue', payload: { taskId: 't1' } })
+    vi.advanceTimersByTime(10_000)
+    await expect(pending).rejects.toMatchObject({ code: 'ack_timeout' })
+
+    const offline = client.sendCommand({ type: 'task.enqueue', payload: { taskId: 't1' } })
+    socket.serverClose(1006)
+    await expect(offline).rejects.toMatchObject({ code: 'ws_closed' })
+
+    const never = client.sendCommand({ type: 'task.enqueue', payload: { taskId: 't1' } })
+    await expect(never).rejects.toMatchObject({ code: 'ws_offline' })
+    client.close()
+  })
 })

@@ -1,7 +1,8 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo } from 'react'
 import { ConnectionStatus } from './features/shared/ConnectionStatus'
 import { CanvasPanel } from './features/canvas/CanvasPanel'
+import { RealtimeProvider } from './features/realtime/RealtimeProvider'
 import { BoardRail } from './features/tasks/BoardRail'
 import { TaskBoard } from './features/tasks/TaskBoard'
 import { TaskDetailPanel } from './features/tasks/TaskDetailPanel'
@@ -10,7 +11,6 @@ import { WorkspaceSwitcher } from './features/workspaces/WorkspaceSwitcher'
 import { getCanvas, listTasks, listWorkspaces } from './lib/api'
 import { queryKeys } from './lib/query'
 import { readUrlState, writeUrlState } from './lib/url'
-import { createWsClient } from './lib/ws'
 import { useAppStore } from './stores/app'
 
 function isEditableTarget(target: EventTarget | null) {
@@ -23,8 +23,6 @@ function isEditableTarget(target: EventTarget | null) {
   )
 }
 
-const INVALIDATING_EVENTS = new Set(['task.status', 'approval.request', 'verify.result'])
-
 export function App() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId)
   const activeTaskId = useAppStore((state) => state.activeTaskId)
@@ -34,8 +32,6 @@ export function App() {
   const setTask = useAppStore((state) => state.setTask)
   const setBoardExpanded = useAppStore((state) => state.setBoardExpanded)
   const setBoardPinned = useAppStore((state) => state.setBoardPinned)
-  const setWsStatus = useAppStore((state) => state.setWsStatus)
-  const queryClient = useQueryClient()
 
   const workspaces = useQuery({ queryKey: queryKeys.workspaces, queryFn: listWorkspaces })
   const tasks = useQuery({
@@ -78,34 +74,6 @@ export function App() {
   }, [activeWorkspaceId])
 
   useEffect(() => {
-    if (!activeWorkspaceId) {
-      setWsStatus('offline')
-      return
-    }
-    let invalidateTimer: number | undefined
-    const invalidate = () => {
-      if (invalidateTimer) return
-      invalidateTimer = window.setTimeout(() => {
-        invalidateTimer = undefined
-        void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(activeWorkspaceId) })
-        const taskId = useAppStore.getState().activeTaskId
-        if (taskId) void queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
-      }, 100)
-    }
-    const client = createWsClient({
-      onStatus: setWsStatus,
-      onEvent: (event) => {
-        if (!INVALIDATING_EVENTS.has(event.type)) return
-        invalidate()
-      },
-    })
-    return () => {
-      client.close()
-      if (invalidateTimer) window.clearTimeout(invalidateTimer)
-    }
-  }, [activeWorkspaceId, queryClient, setWsStatus])
-
-  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() === 'b' && !isEditableTarget(event.target)) {
         const state = useAppStore.getState()
@@ -126,64 +94,66 @@ export function App() {
   }, [setBoardExpanded, setBoardPinned])
 
   return (
-    <div className="flex h-screen flex-col bg-background text-foreground">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-separator px-4">
-        <span className="text-sm font-semibold">baton</span>
-        <WorkspaceSwitcher
-          workspaces={workspaces.data ?? []}
-          activeWorkspaceId={activeWorkspaceId}
-          onSelect={(id) => {
-            setWorkspace(id)
-            writeUrlState({ workspaceId: id, taskId: null })
-          }}
-        />
-        <ConnectionStatus />
-        <div className="ml-auto flex items-center gap-2">
-          <CreateWorkspaceDialog
-            onCreated={(id) => {
+    <RealtimeProvider workspaceId={activeWorkspaceId}>
+      <div className="flex h-screen flex-col bg-background text-foreground">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-separator px-4">
+          <span className="text-sm font-semibold">baton</span>
+          <WorkspaceSwitcher
+            workspaces={workspaces.data ?? []}
+            activeWorkspaceId={activeWorkspaceId}
+            onSelect={(id) => {
               setWorkspace(id)
               writeUrlState({ workspaceId: id, taskId: null })
             }}
           />
-        </div>
-      </header>
-      <div className="flex min-h-0 flex-1">
-        <BoardRail
-          counts={counts}
-          total={counts.total}
-          expanded={boardExpanded}
-          onToggle={() => {
-            if (boardPinned) {
-              setBoardPinned(false)
+          <ConnectionStatus />
+          <div className="ml-auto flex items-center gap-2">
+            <CreateWorkspaceDialog
+              onCreated={(id) => {
+                setWorkspace(id)
+                writeUrlState({ workspaceId: id, taskId: null })
+              }}
+            />
+          </div>
+        </header>
+        <div className="flex min-h-0 flex-1">
+          <BoardRail
+            counts={counts}
+            total={counts.total}
+            expanded={boardExpanded}
+            onToggle={() => {
+              if (boardPinned) {
+                setBoardPinned(false)
+                setBoardExpanded(false)
+              } else {
+                setBoardExpanded(!boardExpanded)
+              }
+            }}
+            pinned={boardPinned}
+            onTogglePin={() => setBoardPinned(!boardPinned)}
+          />
+          <TaskBoard
+            tasks={tasks.data ?? []}
+            agentNodes={canvas.data?.nodes ?? []}
+            selectedTaskId={activeTaskId}
+            expanded={boardExpanded}
+            pinned={boardPinned}
+            onSelectTask={(id) => {
+              setTask(id)
               setBoardExpanded(false)
-            } else {
-              setBoardExpanded(!boardExpanded)
-            }
-          }}
-          pinned={boardPinned}
-          onTogglePin={() => setBoardPinned(!boardPinned)}
-        />
-        <TaskBoard
-          tasks={tasks.data ?? []}
-          agentNodes={canvas.data?.nodes ?? []}
-          selectedTaskId={activeTaskId}
-          expanded={boardExpanded}
-          pinned={boardPinned}
-          onSelectTask={(id) => {
-            setTask(id)
-            setBoardExpanded(false)
-            writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
-          }}
-          onClose={() => {
-            setBoardExpanded(false)
-            setBoardPinned(false)
-          }}
-        />
-        <main className="relative min-w-0 flex-1">
-          <CanvasPanel />
-        </main>
-        <TaskDetailPanel />
+              writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
+            }}
+            onClose={() => {
+              setBoardExpanded(false)
+              setBoardPinned(false)
+            }}
+          />
+          <main className="relative min-w-0 flex-1">
+            <CanvasPanel />
+          </main>
+          <TaskDetailPanel />
+        </div>
       </div>
-    </div>
+    </RealtimeProvider>
   )
 }

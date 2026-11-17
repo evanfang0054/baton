@@ -1,5 +1,6 @@
 import {
   CanvasResponse,
+  SessionEventsResponse,
   TaskDetailResponse,
   TaskListResponse,
   WorkspaceCreateInput,
@@ -47,4 +48,11 @@ export async function getCanvas(workspaceId: string) {
 
 export async function getTask(taskId: string) {
   return TaskDetailResponse.parse(await request(`/api/tasks/${encodeURIComponent(taskId)}`))
+}
+
+export async function listSessionEvents(sessionId: string, sinceSeq = 0, limit = 500) {
+  const query = new URLSearchParams({ sinceSeq: String(sinceSeq), limit: String(limit) })
+  return SessionEventsResponse.parse(
+    await request(`/api/sessions/${encodeURIComponent(sessionId)}/events?${query}`),
+  )
 }
