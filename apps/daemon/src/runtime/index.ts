@@ -1,4 +1,5 @@
 import { canAcceptUserInput } from '@baton/core'
+import { Node } from '@baton/protocol'
 import type {
   AppError,
   ApprovalDecideInput,
@@ -11,12 +12,19 @@ import type { Config } from '../config.js'
 import { createEventStore, type BroadcastEvent, type WsEventRow } from '../db/event-store.js'
 import {
   countActiveTasks,
+  deleteNode,
   getApproval,
+  getCanvas,
+  getNode,
   getReview,
   getReviewByTask,
   getSession,
   getTask,
+  hasEdgeForNode,
+  hasTaskForNode,
+  insertNode,
   listTasksByStatus,
+  updateNode,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError, toAppError } from '../errors.js'
@@ -301,6 +309,151 @@ export function createRuntime(deps: RuntimeDeps) {
         return ackFromOutcome(decideApproval(message.payload))
       case 'review.decide':
         return ackFromOutcome(decideReview(message.payload))
+      case 'node.create': {
+        const canvas = getCanvas(deps.db, message.payload.canvasId)
+        if (!canvas) {
+          return {
+            ok: false,
+            error: appError('canvas_not_found', 'canvas not found', {
+              canvasId: message.payload.canvasId,
+            }),
+          }
+        }
+        const input = message.payload.node
+        if (input.type !== 'text' && input.type !== 'file' && input.type !== 'agent') {
+          return {
+            ok: false,
+            error: appError('unsupported_node_type', 'node type is not supported in M1-6a', {
+              type: input.type,
+            }),
+          }
+        }
+        const id = newId()
+        const ts = now()
+        let created: Node
+        try {
+          created = Node.parse({
+            id,
+            canvasId: canvas.id,
+            ...input,
+            createdAt: ts,
+            updatedAt: ts,
+          })
+        } catch {
+          return { ok: false, error: appError('invalid_payload', 'invalid node payload') }
+        }
+        deps.db.transaction((tx) => insertNode(tx, created))
+        return { ok: true, ack: { nodeId: id } }
+      }
+      case 'node.update': {
+        const existing = getNode(deps.db, message.payload.nodeId)
+        if (!existing) {
+          return {
+            ok: false,
+            error: appError('node_not_found', 'node not found', {
+              nodeId: message.payload.nodeId,
+            }),
+          }
+        }
+        const patch = message.payload.patch
+        if (existing.type !== 'text' && existing.type !== 'file' && existing.type !== 'agent') {
+          return {
+            ok: false,
+            error: appError('unsupported_node_type', 'node type is not supported in M1-6a', {
+              type: existing.type,
+            }),
+          }
+        }
+        if (patch.data !== undefined) {
+          if (typeof patch.data !== 'object' || patch.data === null || Array.isArray(patch.data)) {
+            return { ok: false, error: appError('invalid_payload', 'node data must be an object') }
+          }
+          if (existing.type === 'file') {
+            return { ok: false, error: appError('invalid_payload', 'file node data is immutable') }
+          }
+          if (existing.type === 'text') {
+            const data = patch.data as { content?: unknown }
+            if (typeof data.content !== 'string' || Object.keys(data).length !== 1) {
+              return {
+                ok: false,
+                error: appError('invalid_payload', 'text node data must be { content }'),
+              }
+            }
+          }
+          if (existing.type === 'agent') {
+            const data = patch.data as { title?: unknown }
+            if (typeof data.title !== 'string' || Object.keys(data).length !== 1) {
+              return {
+                ok: false,
+                error: appError('invalid_payload', 'agent node data must be { title }'),
+              }
+            }
+          }
+        }
+        let next: Node
+        const mergedData =
+          existing.type === 'agent' && patch.data !== undefined
+            ? {
+                ...(existing.data as Record<string, unknown>),
+                ...(patch.data as Record<string, unknown>),
+              }
+            : (patch.data ?? existing.data)
+        try {
+          next = Node.parse({
+            ...existing,
+            x: patch.x ?? existing.x,
+            y: patch.y ?? existing.y,
+            w: patch.w ?? existing.w,
+            h: patch.h ?? existing.h,
+            data: mergedData,
+            updatedAt: now(),
+          })
+        } catch {
+          return { ok: false, error: appError('invalid_payload', 'invalid node patch') }
+        }
+        deps.db.transaction((tx) =>
+          updateNode(tx, existing.id, {
+            x: next.x,
+            y: next.y,
+            w: next.w,
+            h: next.h,
+            data: next.data,
+            updatedAt: next.updatedAt,
+          }),
+        )
+        return { ok: true, ack: { nodeId: existing.id } }
+      }
+      case 'node.delete': {
+        const existing = getNode(deps.db, message.payload.nodeId)
+        if (!existing) {
+          return {
+            ok: false,
+            error: appError('node_not_found', 'node not found', {
+              nodeId: message.payload.nodeId,
+            }),
+          }
+        }
+        if (hasTaskForNode(deps.db, existing.id)) {
+          return {
+            ok: false,
+            error: appError('node_in_use', 'node is referenced by a task', {
+              nodeId: existing.id,
+              reference: 'task',
+            }),
+          }
+        }
+        if (hasEdgeForNode(deps.db, existing.id)) {
+          return {
+            ok: false,
+            error: appError('node_in_use', 'node is referenced by an edge', {
+              nodeId: existing.id,
+              reference: 'edge',
+            }),
+          }
+        }
+        deps.db.transaction((tx) => deleteNode(tx, existing.id))
+        return { ok: true, ack: { nodeId: existing.id } }
+      }
       case 'resume': {
         const result = replay(message.payload.sinceSeq)
         const cursor = result.rows.at(-1)?.ordinal ?? eventStore.maxOrdinal()

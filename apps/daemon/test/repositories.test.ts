@@ -1,4 +1,4 @@
-import { Task, type ApprovalRequest, type Review } from '@baton/protocol'
+import { Node, Task, type ApprovalRequest, type Review } from '@baton/protocol'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as repo from '../src/db/repositories.js'
 import { createTestDb, seedTask, type TestDb } from './helpers/db.js'
@@ -32,6 +32,87 @@ describe('repositories', () => {
     expect(repo.listEdges(database.db, seeded.canvasId)).toEqual([])
     expect(repo.getTask(database.db, seeded.taskId)?.status).toBe('todo')
     expect(repo.listTasks(database.db, { workspaceId: seeded.workspaceId })).toHaveLength(1)
+  })
+
+  it('creates, updates and deletes text nodes', () => {
+    const database = db()
+    const seeded = seedTask(database.raw)
+    const created = Node.parse({
+      id: 'text-2',
+      canvasId: seeded.canvasId,
+      type: 'text',
+      x: 1,
+      y: 2,
+      w: 320,
+      h: 200,
+      groupId: null,
+      data: { content: 'hello' },
+      createdAt: 1,
+      updatedAt: 1,
+    })
+
+    database.db.transaction((tx) => repo.insertNode(tx, created))
+    expect(repo.getNode(database.db, 'text-2')?.type).toBe('text')
+
+    database.db.transaction((tx) =>
+      repo.updateNode(tx, 'text-2', {
+        x: 50,
+        y: 60,
+        data: { content: 'updated' },
+        updatedAt: 2,
+      }),
+    )
+    expect(repo.getNode(database.db, 'text-2')).toMatchObject({
+      x: 50,
+      y: 60,
+      data: { content: 'updated' },
+    })
+
+    database.db.transaction((tx) => repo.deleteNode(tx, 'text-2'))
+    expect(repo.getNode(database.db, 'text-2')).toBeNull()
+  })
+
+  it('detects tasks referencing a node', () => {
+    const database = db()
+    const seeded = seedTask(database.raw)
+    expect(repo.hasTaskForNode(database.db, seeded.nodeId)).toBe(true)
+    expect(repo.hasTaskForNode(database.db, 'missing')).toBe(false)
+  })
+
+  it('lists session events with pagination', () => {
+    const database = db()
+    const seeded = seedTask(database.raw)
+    if (!seeded.sessionId) throw new Error('expected session')
+
+    database.raw
+      .prepare(
+        `insert into event (id, session_id, ordinal, seq, type, payload_json, ts)
+         values (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run('e1', seeded.sessionId, 1, 1, 'RUN_STARTED', JSON.stringify({ type: 'RUN_STARTED' }), 1)
+    database.raw
+      .prepare(
+        `insert into event (id, session_id, ordinal, seq, type, payload_json, ts)
+         values (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        'e2',
+        seeded.sessionId,
+        2,
+        2,
+        'RUN_FINISHED',
+        JSON.stringify({ type: 'RUN_FINISHED' }),
+        2,
+      )
+
+    const first = repo.listSessionEvents(database.db, seeded.sessionId, 0, 1)
+    expect(first.rows).toHaveLength(1)
+    expect(first.rows[0]?.seq).toBe(1)
+    expect(first.hasMore).toBe(true)
+
+    const second = repo.listSessionEvents(database.db, seeded.sessionId, 1, 10)
+    expect(second.rows.map((row) => row.seq)).toEqual([2])
+    expect(second.hasMore).toBe(false)
   })
 
   it('updates task state and counts active tasks', () => {

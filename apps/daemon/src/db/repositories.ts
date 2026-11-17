@@ -12,11 +12,23 @@ import {
   type ReviewVerdict,
   type SessionOutcome,
   type SessionStatus,
+  type SessionEventRecord,
   type TaskStatus,
   type WaitingReason,
 } from '@baton/protocol'
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
-import { approval, audit, canvas, edge, node, review, session, task, workspace } from './schema.js'
+import { and, asc, desc, eq, gt, inArray, or, sql } from 'drizzle-orm'
+import {
+  approval,
+  audit,
+  canvas,
+  edge,
+  event,
+  node,
+  review,
+  session,
+  task,
+  workspace,
+} from './schema.js'
 import type { Db, Tx } from './types.js'
 
 export interface ApprovalRecord extends Approval {
@@ -170,6 +182,102 @@ export function getCanvasByWorkspace(db: Db, workspaceId: string): Canvas | null
 
 export function listNodes(db: Db, canvasId: string): Node[] {
   return db.select().from(node).where(eq(node.canvasId, canvasId)).all().map(toNode)
+}
+
+export function getCanvas(db: Db, id: string): Canvas | null {
+  const row = db.select().from(canvas).where(eq(canvas.id, id)).get()
+  return row ? toCanvas(row) : null
+}
+
+export function getNode(db: Db, id: string): Node | null {
+  const row = db.select().from(node).where(eq(node.id, id)).get()
+  return row ? toNode(row) : null
+}
+
+export function insertNode(tx: Tx, input: Node): void {
+  tx.insert(node)
+    .values({
+      id: input.id,
+      canvasId: input.canvasId,
+      type: input.type,
+      x: input.x,
+      y: input.y,
+      w: input.w,
+      h: input.h,
+      groupId: input.groupId,
+      dataJson: JSON.stringify(input.data),
+      createdAt: input.createdAt,
+      updatedAt: input.updatedAt,
+    })
+    .run()
+}
+
+export function updateNode(
+  tx: Tx,
+  id: string,
+  patch: {
+    x?: number
+    y?: number
+    w?: number
+    h?: number
+    data?: unknown
+    updatedAt: number
+  },
+): void {
+  const set: Partial<typeof node.$inferInsert> = { updatedAt: patch.updatedAt }
+  if (patch.x !== undefined) set.x = patch.x
+  if (patch.y !== undefined) set.y = patch.y
+  if (patch.w !== undefined) set.w = patch.w
+  if (patch.h !== undefined) set.h = patch.h
+  if (patch.data !== undefined) set.dataJson = JSON.stringify(patch.data)
+  tx.update(node).set(set).where(eq(node.id, id)).run()
+}
+
+export function deleteNode(tx: Tx, id: string): void {
+  tx.delete(node).where(eq(node.id, id)).run()
+}
+
+export function hasTaskForNode(db: Db, nodeId: string): boolean {
+  return (
+    db.select({ id: task.id }).from(task).where(eq(task.nodeId, nodeId)).limit(1).get() !==
+    undefined
+  )
+}
+
+export function hasEdgeForNode(db: Db, nodeId: string): boolean {
+  return (
+    db
+      .select({ id: edge.id })
+      .from(edge)
+      .where(or(eq(edge.sourceId, nodeId), eq(edge.targetId, nodeId)))
+      .limit(1)
+      .get() !== undefined
+  )
+}
+
+export function listSessionEvents(
+  db: Db,
+  sessionId: string,
+  sinceSeq: number,
+  limit: number,
+): { rows: SessionEventRecord[]; hasMore: boolean } {
+  const rows = db
+    .select()
+    .from(event)
+    .where(and(eq(event.sessionId, sessionId), gt(event.seq, sinceSeq)))
+    .orderBy(asc(event.seq))
+    .limit(limit + 1)
+    .all()
+
+  return {
+    rows: rows.slice(0, limit).map((row) => ({
+      seq: row.seq,
+      type: row.type,
+      payload: JSON.parse(row.payloadJson) as unknown,
+      ts: row.ts,
+    })),
+    hasMore: rows.length > limit,
+  }
 }
 
 export function listEdges(db: Db, canvasId: string): Edge[] {

@@ -14,6 +14,7 @@
 - [2026-11-17 M1-3/M1-4 上下文、策略与适配器契约设计](specs/2026-11-17-m1-context-policy-adapter-design.md)
 - [2026-11-17 M1-5 daemon 运行时闭环设计](specs/2026-11-17-m1-daemon-runtime-design.md)
 - [2026-11-17 M1-5a 任务注意力语义设计](specs/2026-11-17-m1-attention-semantics-design.md)
+- [2026-11-17 M1-6a 任务控制台设计](specs/2026-11-17-m1-web-console-design.md)
 
 ## 现行 ADR
 
@@ -27,6 +28,7 @@
 - [M1-3/M1-4 上下文、策略与适配器](contracts/M1-context-policy-adapter.contract.md)
 - [M1-5 daemon 运行时闭环](contracts/M1-daemon-runtime.contract.md)
 - [M1-5a 任务注意力语义](contracts/M1-attention-semantics.contract.md)
+- [M1-6a 任务控制台](contracts/M1-web-console.contract.md)
 
 ## 现行 plan
 
@@ -35,6 +37,7 @@
 - [M1-3/M1-4 上下文、策略与适配器实施计划](plans/2026-11-17-m1-context-policy-adapter.md)
 - [M1-5 daemon 运行时闭环实施计划](plans/2026-11-17-m1-daemon-runtime.md)
 - [M1-5a 任务注意力语义实施计划](plans/2026-11-17-m1-attention-semantics.md)
+- [M1-6a 契约层实施计划](plans/2026-11-17-m1-web-console-contracts.md)
 
 ## 约定
 

@@ -108,12 +108,29 @@ describe('REST API', () => {
       headers: auth,
     })
     expect(tasks.statusCode).toBe(200)
-    expect((tasks.json() as { tasks: unknown[] }).tasks).toHaveLength(1)
+    const taskList = tasks.json() as {
+      tasks: Array<{ attention: string; waitingSince: number | null }>
+    }
+    expect(taskList.tasks).toHaveLength(1)
+    expect(taskList.tasks[0]?.attention).toBe('none')
+    expect(taskList.tasks[0]?.waitingSince).toBeNull()
 
     // fixture 造 waiting 态，走 repository 单一写入口。
     handle.database.db.transaction((tx) =>
       updateTaskState(tx, handle.seeded.taskId, 'waiting_input', 0, 'question', 42),
     )
+
+    const waitingTasks = await app.inject({
+      method: 'GET',
+      url: `/api/tasks?workspaceId=${handle.seeded.workspaceId}`,
+      headers: auth,
+    })
+    expect(waitingTasks.statusCode).toBe(200)
+    const waitingBody = waitingTasks.json() as {
+      tasks: Array<{ attention: string; waitingSince: number | null }>
+    }
+    expect(waitingBody.tasks[0]?.attention).toBe('needs_reply')
+    expect(waitingBody.tasks[0]?.waitingSince).toBe(42)
 
     const detail = await app.inject({
       method: 'GET',
@@ -124,10 +141,12 @@ describe('REST API', () => {
     const detailBody = detail.json() as {
       review: unknown
       waitingSince: unknown
+      attention: unknown
       task: { waitingReason: unknown }
     }
     expect(detailBody.review).toBeNull()
     expect(detailBody.waitingSince).toBe(42)
+    expect(detailBody.attention).toBe('needs_reply')
     expect(detailBody.task.waitingReason).toBe('question')
 
     const missing = await app.inject({
@@ -136,5 +155,115 @@ describe('REST API', () => {
       headers: auth,
     })
     expect(missing.statusCode).toBe(404)
+  })
+
+  it('returns needs_review for review tasks', async () => {
+    const { app, handle } = await setup()
+    handle.database.db.transaction((tx) =>
+      updateTaskState(tx, handle.seeded.taskId, 'review', 0, null, 43),
+    )
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/tasks?workspaceId=${handle.seeded.workspaceId}`,
+      headers: auth,
+    })
+    expect(response.statusCode).toBe(200)
+    const body = response.json() as {
+      tasks: Array<{ attention: string; waitingSince: number | null }>
+    }
+    expect(body.tasks[0]?.attention).toBe('needs_review')
+    expect(body.tasks[0]?.waitingSince).toBe(43)
+  })
+
+  it('returns session events history', async () => {
+    const { app, handle } = await setup()
+    if (!handle.seeded.sessionId) throw new Error('expected session')
+    handle.database.raw
+      .prepare(
+        `insert into event (id, session_id, ordinal, seq, type, payload_json, ts)
+         values (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        'event-1',
+        handle.seeded.sessionId,
+        1,
+        1,
+        'RUN_STARTED',
+        JSON.stringify({ type: 'RUN_STARTED' }),
+        1,
+      )
+    handle.database.raw
+      .prepare(
+        `insert into event (id, session_id, ordinal, seq, type, payload_json, ts)
+         values (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        'event-2',
+        handle.seeded.sessionId,
+        2,
+        2,
+        'RUN_FINISHED',
+        JSON.stringify({ type: 'RUN_FINISHED' }),
+        2,
+      )
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/sessions/${handle.seeded.sessionId}/events?sinceSeq=0&limit=10`,
+      headers: auth,
+    })
+    expect(response.statusCode).toBe(200)
+    const body = response.json() as {
+      sessionId: string
+      events: Array<{ seq: number; type: string; payload: unknown; ts: number }>
+      nextSeq: number
+      hasMore: boolean
+    }
+    expect(body.sessionId).toBe(handle.seeded.sessionId)
+    expect(body.events).toEqual([
+      { seq: 1, type: 'RUN_STARTED', payload: { type: 'RUN_STARTED' }, ts: 1 },
+      { seq: 2, type: 'RUN_FINISHED', payload: { type: 'RUN_FINISHED' }, ts: 2 },
+    ])
+    expect(body.nextSeq).toBe(2)
+    expect(body.hasMore).toBe(false)
+
+    const page = await app.inject({
+      method: 'GET',
+      url: `/api/sessions/${handle.seeded.sessionId}/events?sinceSeq=1&limit=1`,
+      headers: auth,
+    })
+    const pageBody = page.json() as {
+      events: Array<{ seq: number }>
+      nextSeq: number
+      hasMore: boolean
+    }
+    expect(pageBody.events.map((event) => event.seq)).toEqual([2])
+    expect(pageBody.nextSeq).toBe(2)
+    expect(pageBody.hasMore).toBe(false)
+
+    const empty = await app.inject({
+      method: 'GET',
+      url: `/api/sessions/${handle.seeded.sessionId}/events?sinceSeq=2&limit=1`,
+      headers: auth,
+    })
+    const emptyBody = empty.json() as { events: unknown[]; nextSeq: number; hasMore: boolean }
+    expect(emptyBody.events).toEqual([])
+    expect(emptyBody.nextSeq).toBe(2)
+    expect(emptyBody.hasMore).toBe(false)
+
+    const missing = await app.inject({
+      method: 'GET',
+      url: '/api/sessions/missing/events',
+      headers: auth,
+    })
+    expect(missing.statusCode).toBe(404)
+
+    const invalid = await app.inject({
+      method: 'GET',
+      url: `/api/sessions/${handle.seeded.sessionId}/events?limit=0`,
+      headers: auth,
+    })
+    expect(invalid.statusCode).toBe(400)
   })
 })
