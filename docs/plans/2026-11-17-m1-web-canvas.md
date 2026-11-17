@@ -446,6 +446,8 @@ git commit -m "docs(plans): 记录 M1-6a 可编辑画布验收结果"
 **Commits:**
 - `7db40e4` feat(web): 增加可编辑画布、节点 CRUD 与任务创建
 - `d05898e` fix(web): 修复画布选中同步与 URL 任务状态
+- `0ec3597` docs(plans): 记录 M1-6a 可编辑画布验收结果
+- `5b6a3a4` fix(web): 处理 PR 审查发现的交互与可靠性问题
 
 **实现摘要：**
 - React Flow 画布渲染 text/file/agent 自定义节点与只读边；`NodeResizer` 缩放、`onNodeDragStop` 持久化位置，失败回滚并提示。
@@ -455,7 +457,7 @@ git commit -m "docs(plans): 记录 M1-6a 可编辑画布验收结果"
 - URL 的 `workspace` / `task` 与 store 同步，切换/关闭任务后不残留 `task` 参数。
 
 **验证命令（均在仓库根目录执行）：**
-- `pnpm verify` → exit 0（typecheck、lint、单元测试、build；web 21 个测试文件 59 条通过）。
+- `pnpm verify` → exit 0（typecheck、lint、单元测试、build；web 22 个测试文件 68 条通过）。
 - `pnpm verify:full` → exit 0（Playwright `shell.spec.ts` 1 passed）。
 - `pnpm pack:check` → exit 0（`pack-check ok`）。
 - `pnpm check:boundaries` → exit 0（241 modules，0 violations）。
@@ -473,6 +475,13 @@ git commit -m "docs(plans): 记录 M1-6a 可编辑画布验收结果"
 7. 允许 → 验收卡片出现（`06-review.png`）→ 通过 → 已完成（`07-done.png`）。
 8. 重新选中 Agent 1 → 删除节点 → 确认删除，出现「节点被任务引用，先处理任务」，节点仍在（`08-delete-guard.png`）。
 9. 打开已完成任务后刷新：四个节点位置、文本/文件节点、已完成状态与 transcript 全部保留（`09-after-refresh.png`）。
+
+**PR Review 修复（`5b6a3a4`）：**
+- NodePanel 按节点重建并重置删除确认，避免切换节点后误删；终态任务后允许再次创建任务。
+- 画布快照按 id 合并，拖拽中的节点保留本地位置，避免任务刷新导致回跳。
+- WS 首连从 `sinceSeq: 0` 回放；4401 显示未认证状态，API 401 显示 `/auth` 引导并保留 `code/details`。
+- 会话历史支持「加载更多」分页，实时事件不再推高分页游标；复用协议事件常量与 `attention` 字段。
+- 统一代码块样式，移除 `text-[10px]`，拆分超长 className。
 
 **偏离与已知问题：**
 - e2e 发现两个实际问题并在 `d05898e` 修复：切换任务后 URL 残留 `task` 参数；外部清空节点选中后 React Flow 旧选中回推导致「打开任务」无响应并触发 Maximum update depth。
