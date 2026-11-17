@@ -3,7 +3,7 @@ import type { ApprovalDecision, Engine, PermissionMode } from './enums.js'
 import type { Policy } from './policy.js'
 
 /** 执行期只读的策略快照；daemon 从 PolicySchema 解析后传入。 */
-export type PolicySnapshot = Policy
+export type PolicySnapshot = Readonly<Policy>
 
 export interface StartInput {
   prompt: string
