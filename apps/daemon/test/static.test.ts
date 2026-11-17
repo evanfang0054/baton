@@ -2,26 +2,24 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { buildApp } from '../src/app.js'
+import { buildTestApp } from './helpers/app.js'
+import type { TestRuntimeHandle } from './helpers/runtime.js'
 
 const dirs: string[] = []
+const handles: TestRuntimeHandle[] = []
 
-afterEach(() => {
-  dirs.splice(0).forEach((d) => rmSync(d, { recursive: true, force: true }))
+afterEach(async () => {
+  dirs.splice(0).forEach((dir) => rmSync(dir, { recursive: true, force: true }))
+  await Promise.all(handles.splice(0).map((handle) => handle.cleanup()))
 })
 
 async function appWithWeb(token: string | null) {
   const dir = mkdtempSync(join(tmpdir(), 'baton-web-'))
   dirs.push(dir)
   writeFileSync(join(dir, 'index.html'), '<h1>app</h1>')
-  return buildApp({
-    host: '127.0.0.1',
-    port: 0,
-    token,
-    dataDir: '/tmp',
-    webRoot: dir,
-    workspacesRoot: '/tmp',
-  })
+  const { app, handle } = await buildTestApp({ config: { token, webRoot: dir } })
+  handles.push(handle)
+  return app
 }
 
 describe('static and pairing', () => {
@@ -52,7 +50,11 @@ describe('static and pairing', () => {
 
   it('returns JSON 404 for unknown api routes', async () => {
     const app = await appWithWeb('secret')
-    const res = await app.inject({ method: 'GET', url: '/api/nope' })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/nope',
+      headers: { authorization: 'Bearer secret' },
+    })
     expect(res.statusCode).toBe(404)
     expect(res.json()).toMatchObject({ code: 'not_found' })
     await app.close()

@@ -18,6 +18,10 @@ function readTokenFile(file: string): string {
   }
 }
 
+function envFlag(value: string | undefined): boolean {
+  return value === '1' || value?.toLowerCase() === 'true'
+}
+
 export function loadConfig(argv: string[], env: NodeJS.ProcessEnv): Config {
   const home = env.HOME ?? homedir()
   const tokenFile = env.BATON_TOKEN_FILE
@@ -29,6 +33,8 @@ export function loadConfig(argv: string[], env: NodeJS.ProcessEnv): Config {
     dataDir: env.BATON_DATA_DIR ?? join(home, '.baton'),
     webRoot: env.BATON_WEB_ROOT ?? join(process.cwd(), 'apps/web/dist'),
     workspacesRoot: env.BATON_WORKSPACES_ROOT ?? home,
+    maxConcurrency: Number(env.BATON_MAX_CONCURRENCY ?? 1),
+    killSwitch: envFlag(env.BATON_KILL_SWITCH),
   })
   if (config.host !== '127.0.0.1' && !config.token) {
     throw new Error('BATON_TOKEN is required when binding a non-loopback host')

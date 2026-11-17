@@ -1,0 +1,39 @@
+import type { WebSocket } from 'ws'
+import type { BroadcastEvent } from '../db/event-store.js'
+import { sendSafely } from './send.js'
+
+export interface WsHub {
+  register(socket: WebSocket): void
+  broadcast(event: BroadcastEvent): void
+  close(): void
+}
+
+export function createWsHub(): WsHub {
+  const sockets = new Set<WebSocket>()
+
+  return {
+    register(socket) {
+      sockets.add(socket)
+      socket.on('close', () => sockets.delete(socket))
+    },
+    broadcast(event) {
+      const frame = JSON.stringify({
+        v: 1,
+        id: event.id,
+        type: event.type,
+        ts: event.ts,
+        seq: event.ordinal,
+        payload: event.payload,
+      })
+      for (const socket of sockets) {
+        sendSafely(socket, frame)
+      }
+    },
+    close() {
+      for (const socket of sockets) {
+        socket.close(1001, 'server closing')
+      }
+      sockets.clear()
+    },
+  }
+}

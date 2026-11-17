@@ -30,6 +30,8 @@ describe('protocol', () => {
       workspacesRoot: '/tmp',
     })
     expect(config.port).toBe(7317)
+    expect(config.maxConcurrency).toBe(1)
     expect(() => ConfigSchema.parse({ ...config, port: 70000 })).toThrow()
+    expect(() => ConfigSchema.parse({ ...config, maxConcurrency: 0 })).toThrow()
   })
 })

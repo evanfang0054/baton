@@ -38,4 +38,4 @@ CLAUDE.md
 
 # Local runtime
 .env
-workspace/
+/workspace/

@@ -4,12 +4,18 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import * as schema from './schema.js'
+import type { Db } from './types.js'
 
 export function openDb(file: string): Database.Database {
   const db = new Database(file)
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
   return db
+}
+
+export function createOrm(db: Database.Database): Db {
+  return drizzle(db, { schema })
 }
 
 function migrationCandidates(): string[] {
@@ -26,10 +32,12 @@ function resolveMigrationsDir(): string {
   const dir = migrationCandidates().find((candidate) =>
     existsSync(join(candidate, 'meta', '_journal.json')),
   )
-  if (!dir) throw new Error('migrations not found; set BATON_MIGRATIONS_DIR')
+  if (!dir) {
+    throw new Error('migrations not found; set BATON_MIGRATIONS_DIR')
+  }
   return dir
 }
 
 export function migrateDb(db: Database.Database): void {
-  migrate(drizzle(db), { migrationsFolder: resolveMigrationsDir() })
+  migrate(createOrm(db), { migrationsFolder: resolveMigrationsDir() })
 }

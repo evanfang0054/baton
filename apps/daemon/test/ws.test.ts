@@ -1,26 +1,22 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import WebSocket from 'ws'
-import { buildApp } from '../src/app.js'
+import { buildTestApp } from './helpers/app.js'
+import type { TestRuntimeHandle } from './helpers/runtime.js'
 
-const apps: Array<{ close: () => Promise<void> }> = []
+const handles: TestRuntimeHandle[] = []
 
 afterEach(async () => {
-  await Promise.all(apps.splice(0).map((app) => app.close()))
+  await Promise.all(handles.splice(0).map((handle) => handle.cleanup()))
 })
 
 async function listen(token: string | null): Promise<string> {
-  const app = await buildApp({
-    host: '127.0.0.1',
-    port: 0,
-    token,
-    dataDir: '/tmp',
-    webRoot: '/tmp',
-    workspacesRoot: '/tmp',
-  })
-  apps.push(app)
+  const { app, handle } = await buildTestApp({ config: { token } })
+  handles.push(handle)
   await app.listen({ host: '127.0.0.1', port: 0 })
   const address = app.server.address()
-  if (!address || typeof address === 'string') throw new Error('no port')
+  if (!address || typeof address === 'string') {
+    throw new Error('no port')
+  }
   return `ws://127.0.0.1:${address.port}/ws`
 }
 
@@ -60,4 +56,11 @@ describe('ws', () => {
     await expect(pong).resolves.toMatchObject({ type: 'pong' })
     ws.close()
   })
+
+  it('rejects cross-origin browser handshakes', async () => {
+    const url = await listen(null)
+    const ws = new WebSocket(url, { headers: { origin: 'http://evil.example' } })
+    const code = await new Promise<number>((resolve) => ws.on('close', (c) => resolve(c)))
+    expect(code).toBe(4403)
+  }, 8000)
 })

@@ -4,21 +4,44 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import type { Config } from './config.js'
+import type { Db } from './db/types.js'
+import { registerApiAuth } from './http/api-auth.js'
 import { registerAuth } from './http/auth.js'
+import { registerCanvasRoutes } from './http/canvas.js'
+import { registerErrorHandler } from './http/errors.js'
 import { registerStatic } from './http/static.js'
+import { registerTaskRoutes } from './http/tasks.js'
+import { registerWorkspaceRoutes } from './http/workspaces.js'
+import type { Logger } from './log.js'
+import type { Runtime } from './runtime/index.js'
+import type { WsHub } from './ws/hub.js'
 import { attachWs } from './ws/server.js'
 
 const require = createRequire(import.meta.url)
 const { version } = require('../package.json') as { version: string }
 const startedAt = Date.now()
 
-export async function buildApp(config: Config): Promise<FastifyInstance> {
+export interface AppDeps {
+  db: Db
+  runtime: Runtime
+  hub: WsHub
+  logger: Logger
+  now: () => number
+  newId: () => string
+}
+
+export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({ logger: false })
   await app.register(cookie)
 
+  registerErrorHandler(app)
+  registerApiAuth(app, config)
+
   const hasWeb = existsSync(config.webRoot)
   registerAuth(app, config, hasWeb)
-  if (hasWeb) await registerStatic(app, config.webRoot)
+  if (hasWeb) {
+    await registerStatic(app, config.webRoot)
+  }
 
   app.get('/api/health', async () => {
     return HealthResponse.parse({
@@ -28,6 +51,21 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     })
   })
 
-  await attachWs(app, config)
+  registerWorkspaceRoutes(app, {
+    db: deps.db,
+    config,
+    now: deps.now,
+    newId: deps.newId,
+  })
+  registerCanvasRoutes(app, { db: deps.db })
+  registerTaskRoutes(app, { db: deps.db })
+
+  await attachWs(app, config, deps.runtime, deps.hub)
+
+  app.addHook('onClose', async () => {
+    deps.hub.close()
+    await deps.runtime.close()
+  })
+
   return app
 }

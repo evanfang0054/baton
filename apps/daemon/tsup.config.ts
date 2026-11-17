@@ -5,5 +5,5 @@ export default defineConfig({
   format: ['esm'],
   dts: true,
   clean: true,
-  noExternal: ['@baton/protocol'],
+  noExternal: [/^@baton\//],
 })

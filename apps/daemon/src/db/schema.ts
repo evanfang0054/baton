@@ -91,31 +91,52 @@ export const event = sqliteTable(
     sessionId: text('session_id')
       .notNull()
       .references(() => session.id),
+    ordinal: integer('ordinal').notNull(),
     seq: integer('seq').notNull(),
     type: text('type').notNull(),
     payloadJson: text('payload_json').notNull(),
     ts: integer('ts').notNull(),
   },
-  (t) => [uniqueIndex('event_session_seq_idx').on(t.sessionId, t.seq)],
+  (t) => [
+    uniqueIndex('event_session_seq_idx').on(t.sessionId, t.seq),
+    uniqueIndex('event_ordinal_idx').on(t.ordinal),
+  ],
 )
 
-export const approval = sqliteTable('approval', {
-  id: text('id').primaryKey(),
-  sessionId: text('session_id')
-    .notNull()
-    .references(() => session.id),
-  requestJson: text('request_json').notNull(),
-  decision: text('decision'),
-  decidedBy: text('decided_by'),
-  decidedAt: integer('decided_at'),
-})
+export const wsEvent = sqliteTable(
+  'ws_event',
+  {
+    ordinal: integer('ordinal').primaryKey({ autoIncrement: true }),
+    id: text('id').notNull().unique(),
+    type: text('type').notNull(),
+    payloadJson: text('payload_json').notNull(),
+    ts: integer('ts').notNull(),
+  },
+  (t) => [index('ws_event_ts_idx').on(t.ts)],
+)
+
+export const approval = sqliteTable(
+  'approval',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => session.id),
+    requestId: text('request_id'),
+    requestJson: text('request_json').notNull(),
+    decision: text('decision'),
+    decidedBy: text('decided_by'),
+    decidedAt: integer('decided_at'),
+  },
+  (t) => [index('approval_session_request_idx').on(t.sessionId, t.requestId)],
+)
 
 export const review = sqliteTable('review', {
   id: text('id').primaryKey(),
   taskId: text('task_id')
     .notNull()
     .references(() => task.id),
-  verdict: text('verdict').notNull(),
+  verdict: text('verdict'),
   verifyExitCode: integer('verify_exit_code'),
   verifyOutput: text('verify_output'),
   diffStatJson: text('diff_stat_json'),
