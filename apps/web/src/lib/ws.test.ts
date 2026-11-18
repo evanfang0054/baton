@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createWsClient } from './ws'
+import { createWsClient, parseIncomingMessage } from './ws'
 
 class FakeSocket {
   static readonly OPEN = 1
@@ -64,6 +64,38 @@ const taskStatus = {
     updatedAt: 1,
   },
 }
+
+const sessionEvent = {
+  v: 1,
+  ts: 3,
+  seq: 8,
+  type: 'session.event',
+  payload: {
+    sessionId: 's1',
+    seq: 8,
+    event: { type: 'TEXT_MESSAGE_CONTENT', messageId: 'm', delta: 'hi' },
+  },
+}
+
+describe('parseIncomingMessage', () => {
+  it('accepts a valid session.event via the lightweight path', () => {
+    const parsed = parseIncomingMessage(sessionEvent)
+    expect(parsed?.type).toBe('session.event')
+  })
+
+  it('rejects a malformed session.event', () => {
+    expect(
+      parseIncomingMessage({
+        ...sessionEvent,
+        payload: { ...sessionEvent.payload, seq: 'bad' },
+      }),
+    ).toBeNull()
+  })
+
+  it('still validates control messages with the full schema', () => {
+    expect(parseIncomingMessage({ v: 1, ts: 1, type: 'unknown', payload: {} })).toBeNull()
+  })
+})
 
 beforeEach(() => {
   FakeSocket.instances = []

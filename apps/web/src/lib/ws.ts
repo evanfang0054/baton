@@ -30,6 +30,29 @@ function createId() {
   return `ws-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
 
+/**
+ * session.event 是热路径；只做字段级检查即可直接交给 transcript 投影。
+ * 控制消息仍走完整 ServerMessage 校验，保持边界严格。
+ */
+export function parseIncomingMessage(raw: unknown): ServerMessage | null {
+  const envelope = WsEnvelope.safeParse(raw)
+  if (!envelope.success) return null
+  if (envelope.data.type === 'session.event') {
+    const payload = envelope.data.payload as
+      { sessionId?: unknown; seq?: unknown; event?: { type?: unknown } } | undefined
+    if (
+      typeof payload?.sessionId !== 'string' ||
+      typeof payload.seq !== 'number' ||
+      typeof payload.event?.type !== 'string'
+    ) {
+      return null
+    }
+    return envelope.data as unknown as ServerMessage
+  }
+  const event = ServerMessage.safeParse(envelope.data)
+  return event.success ? event.data : null
+}
+
 export function createWsClient(options: WsClientOptions) {
   let socket: WebSocket | null = null
   let closed = false
@@ -122,39 +145,33 @@ export function createWsClient(options: WsClientOptions) {
       } catch {
         return
       }
-      const envelope = WsEnvelope.safeParse(parsed)
-      if (!envelope.success) return
-      const event = ServerMessage.safeParse(envelope.data)
-      if (!event.success) return
-      if (typeof event.data.seq === 'number') lastSeq = event.data.seq
-      if (event.data.type === 'ack') {
-        const entry = pending.get(event.data.payload.commandId)
+      const event = parseIncomingMessage(parsed)
+      if (!event) return
+      if (typeof event.seq === 'number') lastSeq = event.seq
+      if (event.type === 'ack') {
+        const entry = pending.get(event.payload.commandId)
         if (entry) {
           window.clearTimeout(entry.timer)
-          pending.delete(event.data.payload.commandId)
-          entry.resolve(event.data.payload.data)
+          pending.delete(event.payload.commandId)
+          entry.resolve(event.payload.data)
           return
         }
-        handleAck(event.data)
+        handleAck(event)
         return
       }
-      if (event.data.type === 'error') {
-        const commandId = event.data.payload.commandId
+      if (event.type === 'error') {
+        const commandId = event.payload.commandId
         const entry = commandId ? pending.get(commandId) : undefined
         if (entry && commandId) {
           window.clearTimeout(entry.timer)
           pending.delete(commandId)
           entry.reject(
-            new CommandError(
-              event.data.payload.code,
-              event.data.payload.message,
-              event.data.payload.details,
-            ),
+            new CommandError(event.payload.code, event.payload.message, event.payload.details),
           )
           return
         }
       }
-      options.onEvent(event.data)
+      options.onEvent(event)
     })
     socket.addEventListener('close', (event) => {
       if (closed) return
