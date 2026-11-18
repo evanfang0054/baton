@@ -5,7 +5,7 @@ task_count: 5
 estimated_phases: [tests, implementation, verification]
 dod: "policy 写入/审计、kill switch、automation REST、notice/audit/task-automation REST、digest 调度与 notice 广播、runtime 动态接线完成；daemon 集成测试与 pnpm verify 全绿"
 depends_on: [2026-11-19-m2-autopilot-contracts.md]
-status: blocked
+status: completed
 ---
 
 # M2-2a 无人值守与汇报：daemon 实施计划（Plan 2/4）
@@ -25,7 +25,7 @@ status: blocked
 | Plan | 范围 | 状态 |
 |---|---|---|
 | 1. 契约层 | protocol / core / migration / 仓储 | 前置 |
-| **2. daemon（本计划）** | policy / kill switch / digest / notice & audit / runtime | 实施中 |
+| **2. daemon（本计划）** | policy / kill switch / digest / notice & audit / runtime | 已完成 |
 | 3. web | 设置弹窗 / 顶栏状态 / digest 卡 / 任务自动化卡 / 批量开工 | 依赖 2 |
 | 4. 验收 | Playwright / ego-lite / 证据 / 全量验证 | 依赖 3 |
 
@@ -72,7 +72,7 @@ Seam: `GET/PATCH /api/workspaces/:id/automation` 与 `PUT /api/automation/kill-s
 - Produces: `writePolicy(workspacePath, policy): { policyVersion: string }`；`createAutomationState({ initial, forced })`；`createAutomationService({ db, config, state, now, newId })`，含 `getSummary/patchPolicy/setKillSwitch`；`registerAutomationRoutes(app, deps)`。
 - Consumes: `PolicySchema`、`AutomationPolicyPatch`、`AutomationSummary`、`KillSwitchInput/Response`、`resolveWithin`、`getWorkspace`、`insertAudit`、`getSetting/setSetting`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `apps/daemon/test/automation-service.test.ts`：
 
@@ -140,12 +140,12 @@ describe('automation REST', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/automation-service.test.ts test/automation-rest.test.ts`
 Expected: FAIL，提示模块或路由不存在。
 
-- [ ] **Step 3: 实现 policy 写入**
+- [x] **Step 3: 实现 policy 写入**
 
 `apps/daemon/src/workspace/policy.ts` 增加：
 
@@ -190,7 +190,7 @@ export function hashPolicy(policy: Policy): string {
 }
 ```
 
-- [ ] **Step 4: 实现 state/service**
+- [x] **Step 4: 实现 state/service**
 
 `automation/state.ts`：
 
@@ -281,7 +281,7 @@ export function createAutomationService(deps: AutomationServiceDeps) {
 
 `setKillSwitch` 不依赖 workspace；路由返回 `KillSwitchResponse` 即可，不返回 summary。
 
-- [ ] **Step 5: 注册 HTTP 路由**
+- [x] **Step 5: 注册 HTTP 路由**
 
 `http/automation.ts`：
 
@@ -312,12 +312,12 @@ export function registerAutomationRoutes(
 
 `app.ts` 在 `registerTaskRoutes` 之前/后注册 `registerAutomationRoutes`。
 
-- [ ] **Step 6: 运行测试与 daemon 全量测试**
+- [x] **Step 6: 运行测试与 daemon 全量测试**
 
 Run: `pnpm --filter @evanfang0054/baton test`
 Expected: PASS；如 `seedWorkspace` 不存在，在 `test/helpers/runtime.ts` 补一个返回 trusted=false 的 helper。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/daemon/src apps/daemon/test
@@ -346,7 +346,7 @@ Seam: `GET /api/notices`、`POST /api/notices/:id/read`、`GET /api/audit`、`GE
 - Produces: notice 分页/已读、audit 分页、`TaskAutomationSummary`。
 - Consumes: `listNotices/markNoticeRead/listAudit/listApprovalsByTask/getTaskDetail/getReviewByTask`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `apps/daemon/test/notices-rest.test.ts`：
 
@@ -396,12 +396,12 @@ describe('task automation', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/notices-rest.test.ts test/task-automation.test.ts`
 Expected: FAIL，路由 404 或 helper 不存在。
 
-- [ ] **Step 3: 实现路由与查询**
+- [x] **Step 3: 实现路由与查询**
 
 `http/notices.ts`：
 
@@ -465,12 +465,12 @@ app.get('/api/tasks/:id/automation', async (req) => {
 })
 ```
 
-- [ ] **Step 4: 运行测试与 daemon 全量测试**
+- [x] **Step 4: 运行测试与 daemon 全量测试**
 
 Run: `pnpm --filter @evanfang0054/baton test`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/daemon/src apps/daemon/test
@@ -499,7 +499,7 @@ Seam: `POST /api/workspaces/:id/digest` 产生 `notice` + `notice` WS 事件
 - Produces: `createDigestService({ db, config, eventStore, broadcast, now, newId })`，含 `generate(workspaceId, trigger)` 与 `publish(notice)`；`createDigestScheduler({ deps, schedule })`，含 `start/reschedule/stop`。
 - Consumes: `buildDigest`、`listTasks`、`listAutoDecisions`、`listRetryAudits`、`insertNotice`、`setSetting`、`eventStore.appendWs`、`hooks.broadcast`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `apps/daemon/test/automation-digest.test.ts`：
 
@@ -558,12 +558,12 @@ describe('digest scheduler', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/automation-digest.test.ts test/automation-scheduler.test.ts`
 Expected: FAIL，模块不存在。
 
-- [ ] **Step 3: 实现 digest service**
+- [x] **Step 3: 实现 digest service**
 
 `automation/digest.ts`：
 
@@ -575,7 +575,7 @@ Expected: FAIL，模块不存在。
 - `publish(notice)` 用于手动广播；`notice` row 必须已落库。
 - 定时无任务时返回 `null`；手动始终返回。
 
-- [ ] **Step 4: 实现 scheduler**
+- [x] **Step 4: 实现 scheduler**
 
 `automation/scheduler.ts`：
 
@@ -608,16 +608,16 @@ export function createDigestScheduler(deps: DigestSchedulerDeps) {
 
 生产 `schedule` 用 `croner`；测试用 fake schedule。`croner` 不支持时 `start` 跳过定时并设置 `digestCronUnsupported`（service summary 读取一个内存标记）。
 
-- [ ] **Step 5: 注册手动生成路由**
+- [x] **Step 5: 注册手动生成路由**
 
 `POST /api/workspaces/:id/digest` → `digest.generate(id, 'manual')`；成功后 `broadcast(event)`，返回 `{ notice }`。定时任务同样在生成后广播。
 
-- [ ] **Step 6: 运行测试与 daemon 全量测试**
+- [x] **Step 6: 运行测试与 daemon 全量测试**
 
 Run: `pnpm --filter @evanfang0054/baton test`
 Expected: PASS；notice 事件可在 `ws_event` 中查到。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/daemon/src apps/daemon/test
@@ -647,7 +647,7 @@ Seam: 运行中打开 kill switch 后，下一次审批回 ask、verify_fail 进
 - Produces: `SessionRunnerDeps.killSwitch: () => boolean`；`TransitionRunnerDeps.killSwitch: () => boolean`；`createRuntime` 返回 `automation` 与 `digest`；`Runtime.close()` 先停 scheduler。
 - Consumes: `AutomationState`、`AutomationService`、`DigestScheduler`、`getWorkspace`、`hashPolicy`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `apps/daemon/test/automation-runtime.test.ts`：
 
@@ -683,12 +683,12 @@ describe('automation runtime', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/automation-runtime.test.ts`
 Expected: FAIL，helper 或 dynamic kill switch 不存在。
 
-- [ ] **Step 3: 改 session-runner**
+- [x] **Step 3: 改 session-runner**
 
 `SessionRunnerDeps.killSwitch` 改为 `() => boolean`；`handleApproval`：
 
@@ -703,7 +703,7 @@ const decision = evaluateApproval(policy, request, {
 
 audit detail 增加 `policyVersion: hashPolicy(policy)`。
 
-- [ ] **Step 4: 改 transition-runner / effects**
+- [x] **Step 4: 改 transition-runner / effects**
 
 `TransitionRunnerDeps` 增加 `killSwitch: () => boolean`；`start`/`verify_fail` 传入：
 
@@ -734,7 +734,7 @@ detail: {
 }
 ```
 
-- [ ] **Step 5: 改 runtime/bootstrap**
+- [x] **Step 5: 改 runtime/bootstrap**
 
 `createRuntime` 创建 `automationState`、`automationService`、`digestService`、`digestScheduler`；`sessionRunner` 传 `killSwitch: () => automationState.isKillSwitchOn()`；`transitionRunner` 同样；`close` 先 `digestScheduler.stop()`，再 `supervisor.close()`。
 
@@ -742,12 +742,12 @@ detail: {
 
 `createTestRuntime` 增加 `trusted/autopilot/killSwitch` 选项，并在 seed 时写 policy/trust。
 
-- [ ] **Step 6: 运行 daemon 全量测试**
+- [x] **Step 6: 运行 daemon 全量测试**
 
 Run: `pnpm --filter @evanfang0054/baton test`
 Expected: PASS；现有 session-runner/transition-runner 测试按新签名更新。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/daemon/src apps/daemon/test
@@ -768,7 +768,7 @@ Seam: `pnpm verify` 退出码 0；自动化闭环集成测试通过
 - Modify: 本计划末尾「完成记录」
 - Modify: `docs/README.md`（如 plan 索引尚未加入）
 
-- [ ] **Step 1: 写集成测试**
+- [x] **Step 1: 写集成测试**
 
 `apps/daemon/test/automation-e2e.test.ts` 覆盖：
 
@@ -778,7 +778,7 @@ Seam: `pnpm verify` 退出码 0；自动化闭环集成测试通过
 4. untrusted workspace 写 policy `autopilot.enabled=true` → 审批仍 ask。
 5. migration 0007 后旧 notice 的 `workspaceId` 为 null。
 
-- [ ] **Step 2: 运行全量校验**
+- [x] **Step 2: 运行全量校验**
 
 ```bash
 pnpm verify
@@ -789,7 +789,7 @@ pnpm format:check
 
 Expected: 全部退出码 0。
 
-- [ ] **Step 3: 记录完成情况**
+- [x] **Step 3: 记录完成情况**
 
 在本计划末尾追加：
 
@@ -802,12 +802,21 @@ Expected: 全部退出码 0。
 - 未解决风险：
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/daemon/test docs/plans/2026-11-19-m2-autopilot-daemon.md
 git commit -m "docs(plan): 记录 M2-2a daemon 完成"
 ```
+
+---
+
+## 完成记录（2026-11-19）
+
+- 关键 commit：`cf57615` policy 写入/automation service/HTTP 控制面；`6079c93` notice/audit/task-automation 查询；`3effb2e` digest 生成/调度/notice 广播；`f542dc0` runtime 动态 kill switch、digest 生命周期与 policyVersion 审计。
+- 测试结果：daemon 53 files / 193 tests；protocol 119、core 121、adapters 25、web 115；`pnpm verify` 退出码 0。
+- 与计划的偏差：未引入 `croner`，改用内置 `parseDailyCron` + `setTimeout` 支持默认 `m h[,h...] * * *`；不支持的自定义 cron 保留手动生成。`digestCronUnsupported` 字段暂固定 false（默认 cron 可解析），后续如需任意 cron 再接回。
+- 未解决风险：Digest 生成对每个 task 做 approval/review 查询（N+1），任务量大时再测量优化；Policy 文件与 audit 仍非同一事务（ADR 0006 已记录）。
 
 ---
 
