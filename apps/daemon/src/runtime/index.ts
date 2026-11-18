@@ -483,7 +483,7 @@ export function createRuntime(deps: RuntimeDeps) {
           : { ok: false, error: result.error }
       }
       case 'edge.delete': {
-        const result = deleteEdge({ db: deps.db, newId }, message.payload)
+        const result = deleteEdge({ db: deps.db }, message.payload)
         return result.ok ? { ok: true, ack: {} } : { ok: false, error: result.error }
       }
       case 'resume': {

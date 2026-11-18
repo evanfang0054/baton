@@ -70,7 +70,8 @@ export function createEdge(deps: EdgeServiceDeps, input: EdgeCreateInput): EdgeR
     )
     return { ok: true, edgeId }
   } catch (error) {
-    if (String(error).includes('UNIQUE constraint failed')) {
+    const code = (error as { code?: string }).code
+    if (code === 'SQLITE_CONSTRAINT_UNIQUE' && String(error).includes('edge.')) {
       return { ok: false, error: appError('edge_duplicate', 'edge already exists') }
     }
     return { ok: false, error: toAppError(error) }
@@ -78,16 +79,20 @@ export function createEdge(deps: EdgeServiceDeps, input: EdgeCreateInput): EdgeR
 }
 
 export function deleteEdge(
-  deps: EdgeServiceDeps,
+  deps: Pick<EdgeServiceDeps, 'db'>,
   input: EdgeDeleteInput,
 ): { ok: true } | { ok: false; error: AppError } {
-  const existing = getEdge(deps.db, input.edgeId)
-  if (!existing) {
-    return {
-      ok: false,
-      error: appError('edge_not_found', 'edge not found', { edgeId: input.edgeId }),
+  try {
+    const existing = getEdge(deps.db, input.edgeId)
+    if (!existing) {
+      return {
+        ok: false,
+        error: appError('edge_not_found', 'edge not found', { edgeId: input.edgeId }),
+      }
     }
+    deps.db.transaction((tx) => deleteEdgeById(tx, existing.id))
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, error: toAppError(error) }
   }
-  deps.db.transaction((tx) => deleteEdgeById(tx, existing.id))
-  return { ok: true }
 }

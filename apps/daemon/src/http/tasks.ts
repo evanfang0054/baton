@@ -40,7 +40,7 @@ export function registerTaskRoutes(app: FastifyInstance, deps: { db: Db; logger:
       throw appError('task_not_found', 'task not found', { taskId: params.id })
     }
     if (detail.contextInvalid) {
-      deps.logger.error(
+      deps.logger.warn(
         { event: 'context_snapshot_invalid', taskId: params.id },
         'context snapshot invalid',
       )
@@ -48,6 +48,7 @@ export function registerTaskRoutes(app: FastifyInstance, deps: { db: Db; logger:
     const task = detail.task
     return TaskDetailResponse.parse({
       task,
+      contextInvalid: detail.contextInvalid,
       sessions: listSessionsByTask(deps.db, task.id),
       approvals: listApprovalsByTask(deps.db, task.id),
       review: getReviewByTask(deps.db, task.id),

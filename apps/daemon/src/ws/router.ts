@@ -71,7 +71,14 @@ export function createWsRouter(runtime: Runtime) {
       return
     }
 
-    const outcome = runtime.handleCommand(message.data)
+    let outcome: ReturnType<Runtime['handleCommand']>
+    try {
+      outcome = runtime.handleCommand(message.data)
+    } catch {
+      // 单条命令的内部异常不能打掉整条 WS；客户端应收到 error 并保持连接。
+      sendError(socket, envelope.data.id, 'internal_error', 'internal error')
+      return
+    }
     if (!outcome.ok) {
       sendError(
         socket,

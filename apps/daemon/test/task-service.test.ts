@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { Config } from '../src/config.js'
 import { getTask } from '../src/db/repositories.js'
 import { createTaskService } from '../src/runtime/task-service.js'
-import { createTestDb, seedTask, type TestDb } from './helpers/db.js'
+import { createTestDb, seedTask, seedTextNode, type TestDb } from './helpers/db.js'
 
 const dirs: string[] = []
 const dbs: TestDb[] = []
@@ -26,12 +26,7 @@ function setup(options: { allowBypassPermissions?: boolean } = {}): Setup {
   const seeded = seedTask(database.raw)
   const workspacePath = join(root, seeded.relPath)
   mkdirSync(workspacePath, { recursive: true })
-  database.raw
-    .prepare(
-      `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
-       values ('text-1', ?, 'text', 10, 10, 320, 200, null, ?, 1, 1)`,
-    )
-    .run(seeded.canvasId, JSON.stringify({ content: '登录页需求' }))
+  seedTextNode(database.raw, seeded.canvasId, 'text-1', '登录页需求')
 
   const config: Config = {
     host: '127.0.0.1',

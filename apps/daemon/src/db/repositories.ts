@@ -308,17 +308,6 @@ export function hasTaskForNode(db: Db, nodeId: string): boolean {
   )
 }
 
-export function hasEdgeForNode(db: Db, nodeId: string): boolean {
-  return (
-    db
-      .select({ id: edge.id })
-      .from(edge)
-      .where(or(eq(edge.sourceId, nodeId), eq(edge.targetId, nodeId)))
-      .limit(1)
-      .get() !== undefined
-  )
-}
-
 export function listSessionEvents(
   db: Db,
   sessionId: string,
@@ -348,8 +337,12 @@ export function listEdges(db: Db, canvasId: string): Edge[] {
   return db.select().from(edge).where(eq(edge.canvasId, canvasId)).all().map(toEdge)
 }
 
+function getTaskRow(db: Db, id: string) {
+  return db.select().from(task).where(eq(task.id, id)).get()
+}
+
 export function getTask(db: Db, id: string): Task | null {
-  const row = db.select().from(task).where(eq(task.id, id)).get()
+  const row = getTaskRow(db, id)
   return row ? toTask(row) : null
 }
 
@@ -357,7 +350,7 @@ export function getTaskDetail(
   db: Db,
   id: string,
 ): { task: TaskDetail; contextInvalid: boolean } | null {
-  const row = db.select().from(task).where(eq(task.id, id)).get()
+  const row = getTaskRow(db, id)
   if (!row) return null
   const base = toTask(row)
   if (!row.contextJson) {

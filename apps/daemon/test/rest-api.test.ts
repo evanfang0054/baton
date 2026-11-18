@@ -200,7 +200,9 @@ describe('REST API', () => {
       url: `/api/tasks/${handle.seeded.taskId}`,
       headers: auth,
     })
-    expect((oldDetail.json() as { task: { context: unknown } }).task.context).toBeNull()
+    const oldBody = oldDetail.json() as { task: { context: unknown }; contextInvalid: boolean }
+    expect(oldBody.task.context).toBeNull()
+    expect(oldBody.contextInvalid).toBe(false)
 
     handle.database.raw
       .prepare('update task set context_json = ? where id = ?')
@@ -210,7 +212,12 @@ describe('REST API', () => {
       url: `/api/tasks/${handle.seeded.taskId}`,
       headers: auth,
     })
-    expect((withSnapshot.json() as { task: { context: unknown } }).task.context).toEqual(snapshot)
+    const snapshotBody = withSnapshot.json() as {
+      task: { context: unknown }
+      contextInvalid: boolean
+    }
+    expect(snapshotBody.task.context).toEqual(snapshot)
+    expect(snapshotBody.contextInvalid).toBe(false)
 
     handle.database.raw
       .prepare('update task set context_json = ? where id = ?')
@@ -221,7 +228,9 @@ describe('REST API', () => {
       headers: auth,
     })
     expect(invalid.statusCode).toBe(200)
-    expect((invalid.json() as { task: { context: unknown } }).task.context).toBeNull()
+    const invalidBody = invalid.json() as { task: { context: unknown }; contextInvalid: boolean }
+    expect(invalidBody.task.context).toBeNull()
+    expect(invalidBody.contextInvalid).toBe(true)
   })
 
   it('returns session events history', async () => {

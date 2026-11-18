@@ -1,17 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { createTestDb, seedTask } from './helpers/db.js'
+import { createTestDb, seedTask, seedTextNode } from './helpers/db.js'
 import { createEdge, deleteEdge } from '../src/runtime/edge-service.js'
 
 function setup() {
   const database = createTestDb()
   const seeded = seedTask(database.raw)
-  database.raw
-    .prepare(
-      `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
-       values ('text-1', ?, 'text', 10, 10, 320, 200, null, ?, 1, 1)`,
-    )
-    .run(seeded.canvasId, JSON.stringify({ content: '需求' }))
+  seedTextNode(database.raw, seeded.canvasId, 'text-1', '需求')
   return { database, seeded }
 }
 

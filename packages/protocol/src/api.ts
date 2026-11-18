@@ -94,6 +94,7 @@ export type SessionEventsResponse = z.infer<typeof SessionEventsResponse>
 
 export const TaskDetailResponse = z.object({
   task: TaskDetail,
+  contextInvalid: z.boolean().default(false),
   sessions: z.array(Session),
   approvals: z.array(Approval),
   review: Review.nullable(),

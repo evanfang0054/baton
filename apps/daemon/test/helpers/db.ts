@@ -15,6 +15,22 @@ export function createTestDb(): TestDb {
   return { raw, db: createOrm(raw) }
 }
 
+export function seedTextNode(
+  raw: Database.Database,
+  canvasId: string,
+  id: string,
+  content: string,
+  x = 10,
+  y = 10,
+): void {
+  raw
+    .prepare(
+      `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
+       values (?, ?, 'text', ?, ?, 320, 200, null, ?, 1, 1)`,
+    )
+    .run(id, canvasId, x, y, JSON.stringify({ content }))
+}
+
 export interface SeededTask {
   workspaceId: string
   relPath: string

@@ -33,7 +33,7 @@ function isContentNode(node: Node): node is ContentNode {
 function compareNode(a: Node, b: Node): number {
   if (a.y !== b.y) return a.y - b.y
   if (a.x !== b.x) return a.x - b.x
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+  return compareText(a.id, b.id)
 }
 
 function compareNodeDesc(a: Node, b: Node): number {
@@ -385,7 +385,7 @@ export function assembleContext(input: AssembleContextInput): AssembleContextRes
       const node = byId.get(id)
       return { id, reason, ...(node ? { title: nodeTitle(node) } : {}) }
     })
-    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .sort((a, b) => compareText(a.id, b.id))
 
   return {
     prompt: parts.join('\n'),
