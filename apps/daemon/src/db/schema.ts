@@ -38,19 +38,23 @@ export const node = sqliteTable(
   (t) => [index('node_canvas_idx').on(t.canvasId)],
 )
 
-export const edge = sqliteTable('edge', {
-  id: text('id').primaryKey(),
-  canvasId: text('canvas_id')
-    .notNull()
-    .references(() => canvas.id),
-  sourceId: text('source_id')
-    .notNull()
-    .references(() => node.id),
-  targetId: text('target_id')
-    .notNull()
-    .references(() => node.id),
-  type: text('type').notNull().default('context'),
-})
+export const edge = sqliteTable(
+  'edge',
+  {
+    id: text('id').primaryKey(),
+    canvasId: text('canvas_id')
+      .notNull()
+      .references(() => canvas.id),
+    sourceId: text('source_id')
+      .notNull()
+      .references(() => node.id),
+    targetId: text('target_id')
+      .notNull()
+      .references(() => node.id),
+    type: text('type').notNull().default('context'),
+  },
+  (t) => [uniqueIndex('edge_unique_idx').on(t.canvasId, t.sourceId, t.targetId, t.type)],
+)
 
 export const task = sqliteTable(
   'task',
@@ -73,6 +77,7 @@ export const task = sqliteTable(
     dangerouslySkipPermissions: integer('dangerously_skip_permissions', { mode: 'boolean' })
       .notNull()
       .default(false),
+    contextJson: text('context_json'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
