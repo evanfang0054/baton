@@ -389,9 +389,16 @@ export function countActiveTasks(db: Db): number {
   const row = db
     .select({ count: sql<number>`count(*)` })
     .from(task)
-    .where(
-      sql`(${task.status} in ('running', 'verifying')) or (${task.status} = 'waiting_input' and exists (select 1 from session s where s.task_id = ${task.id} and s.status in ('running', 'waiting_input')))`,
-    )
+    .where(sql`${task.status} in ('running', 'verifying')`)
+    .get()
+  return row?.count ?? 0
+}
+
+export function countLiveSessions(db: Db): number {
+  const row = db
+    .select({ count: sql<number>`count(*)` })
+    .from(session)
+    .where(sql`${session.status} in ('running', 'waiting_input')`)
     .get()
   return row?.count ?? 0
 }

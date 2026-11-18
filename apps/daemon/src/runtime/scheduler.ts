@@ -3,7 +3,9 @@ import type { TransitionOutcome } from './types.js'
 
 export interface SchedulerRuntime {
   readonly maxConcurrency: number
+  readonly maxLiveSessions: number
   countActiveTasks(): number
+  countLiveSessions(): number
   findNextQueued(exclude?: ReadonlySet<string>): { id: string } | null
   applyTransition(taskId: string, event: TaskTransitionEvent): TransitionOutcome
 }
@@ -24,6 +26,10 @@ export function createScheduler(runtime: SchedulerRuntime) {
       const skipped = new Set<string>()
       while (true) {
         if (runtime.countActiveTasks() >= runtime.maxConcurrency) {
+          break
+        }
+        // 阻塞任务不占执行槽，但它的引擎进程仍然存活；单独限制总量避免宿主被耗尽。
+        if (runtime.countLiveSessions() >= runtime.maxLiveSessions) {
           break
         }
         const next = runtime.findNextQueued(skipped)

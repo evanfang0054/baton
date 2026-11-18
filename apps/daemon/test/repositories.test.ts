@@ -138,7 +138,7 @@ describe('repositories', () => {
     expect(repo.listTasksByStatus(database.db, ['running'])).toHaveLength(1)
   })
 
-  it('does not count a stalled waiting task as an active execution slot', () => {
+  it('does not count a blocked task as an execution slot but keeps its live session', () => {
     const database = db()
     const seeded = seedTask(database.raw)
     database.db.transaction((tx) => {
@@ -146,12 +146,14 @@ describe('repositories', () => {
       repo.updateSessionStatus(tx, seeded.sessionId!, 'ended', 2, 'unreported')
     })
     expect(repo.countActiveTasks(database.db)).toBe(0)
+    expect(repo.countLiveSessions(database.db)).toBe(0)
 
     database.db.transaction((tx) => {
       repo.updateTaskState(tx, seeded.taskId, 'waiting_input', 0, 'question', 3)
       repo.updateSessionStatus(tx, seeded.sessionId!, 'waiting_input', null, null)
     })
-    expect(repo.countActiveTasks(database.db)).toBe(1)
+    expect(repo.countActiveTasks(database.db)).toBe(0)
+    expect(repo.countLiveSessions(database.db)).toBe(1)
   })
 
   it('inserts and reloads a task through the repository', () => {
