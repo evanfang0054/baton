@@ -149,6 +149,14 @@ test('creates a task with canvas context', async ({ page }) => {
   await page.goto('/?workspace=w1')
   await expect(page.getByText('需求 A')).toBeVisible()
 
+  // 键盘删除不能绕过 NodePanel 的服务端删除：节点保留、不发送 node.delete。
+  await page.locator('.react-flow__node', { hasText: '需求 A' }).click()
+  await page.keyboard.press('Delete')
+  await page.waitForTimeout(300)
+  expect(commands.some((message) => message.type === 'node.delete')).toBe(false)
+  await expect(page.locator('.react-flow__node', { hasText: '需求 A' })).toBeVisible()
+  await page.getByRole('button', { name: '关闭节点详情' }).click()
+
   await page.locator('.react-flow__node', { hasText: '需求 A' }).click({ modifiers: [modifier] })
   await page.locator('.react-flow__node', { hasText: '需求 B' }).click({ modifiers: [modifier] })
   await page.locator('.react-flow__node', { hasText: 'Agent 1' }).click()
