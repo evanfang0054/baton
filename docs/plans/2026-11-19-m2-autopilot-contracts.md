@@ -5,7 +5,7 @@ task_count: 5
 estimated_phases: [tests, implementation, verification]
 dod: "protocol automation/NoticeEvent/API schema、effective autopilot、digest 纯函数、migration 0007 与 setting/notice 仓储完成；pnpm verify 全绿"
 depends_on: []
-status: active
+status: completed
 ---
 
 # M2-2a 无人值守与汇报：契约层实施计划（Plan 1/4）
@@ -24,7 +24,7 @@ status: active
 
 | Plan | 范围 | 状态 |
 |---|---|---|
-| **1. 契约层（本计划）** | protocol / core / migration / setting/notice 仓储 | 实施中 |
+| **1. 契约层（本计划）** | protocol / core / migration / setting/notice 仓储 | 已完成 |
 | 2. daemon | policy 写入 / kill switch / digest / notice & audit REST / runtime | 依赖 1 |
 | 3. web | 设置弹窗 / 顶栏状态 / digest 卡 / 任务自动化卡 / 批量开工 | 依赖 2 |
 | 4. 验收 | Playwright / ego-lite / 证据 / 全量验证 | 依赖 3 |
@@ -745,4 +745,11 @@ git commit -m "docs(plan): 记录 M2-2a 契约层完成"
 ```
 
 ---
+
+## 完成记录（2026-11-19）
+
+- 关键 commit：`2f7e8a0` protocol automation/notice 契约；`c450fa5` core 自动批准/重试安全门槛；`c004fae` core digest；`a211373` 代码评审修复（digest 排序、查询参数、fail-closed）；`b9a11be` migration 0007 与仓储/运行中信任接线。
+- 测试结果：protocol 16 files / 119 tests；core 14 files / 121 tests；daemon 44 files / 175 tests；adapters 3 files / 25 tests；web 30 files / 115 tests；`pnpm verify` 退出码 0。
+- 与计划的偏差：Plan 1 先以 `workspaceTrusted`/`killSwitch` 可选且 fail-closed 保持全量 verify 绿；同时提前把 `workspaceTrust` 接入 session-runner/transition-runner，Plan 2 再补动态 kill switch 与 digest。
+- 未解决风险：`croner` 尚未引入；digest 调度、policy 写入、notice/audit REST 与 automation service 仍在 Plan 2。
 
