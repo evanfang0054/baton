@@ -2,8 +2,8 @@
 spec_topic: m2-autopilot-v0
 decision_summary: "M2-2a 无人值守与汇报 v0：workspace 策略控制面 + 全局 kill switch + 自动化审计 + 站内 digest + 看板批量开工；未信任 workspace 不能自行启用自动驾驶"
 design_approved: true
-user_approved_at: "2026-11-19T04:06:45+08:00"
-gates: [design-approved]
+user_approved_at: "2026-11-19T04:10:31+08:00"
+gates: [design-approved, user-review-passed]
 spec_ref: 2026-11-16-baton-architecture-design.md
 domain_terms: [autopilot, kill switch, digest, notice, policy version, workspace trust]
 ---
@@ -17,7 +17,7 @@ domain_terms: [autopilot, kill switch, digest, notice, policy version, workspace
 
 ## 0. 文档信息
 
-- **状态**：设计已获用户逐项确认；spec 待用户审阅。
+- **状态**：设计已获用户逐项确认；spec 已获用户审阅通过。
 - **范围**：`packages/protocol/**`、`packages/core/src/automation/**`、`packages/core/src/policy/**`、`packages/core/src/state-machine/**`、`apps/daemon/**`、`apps/web/**`、migration 与 lockfile、`docs/**`。
 - **不在范围**：外部 Source（GitHub/飞书）、移动端只读、总管 `enqueue`/验收/打回工具、自动验收、`allow/deny` 编辑器、DSH、M1-7b 的 partial streaming/cost/turn/idle eviction、画布增强。
 - **文档位置**：spec 落 `docs/specs/`，contract 落 `docs/contracts/`，plan 落 `docs/plans/`；不使用 `docs/agent-harness/`。
@@ -657,4 +657,4 @@ grep -RIn "killSwitch" packages/core/src apps/daemon/src | head
 ## 16. 评审记录
 
 - 2026-11-19：用户确认下一迭代为「无人值守与汇报 v0」；配置真源为 workspace `.baton/policy.json`，UI 只写三个字段；保持人工开工 + 看板批量开工；kill switch 只停自动批准/重试、不杀会话；digest 站内 + 9/21 + 手动；移动端拆到 M2-2b；审计为任务详情 + 设置页最近变更；批量开工 P0。设计通过。
-- 待评审：本 spec 正文。评审通过后写 contract（DoD）与 4 个实施切片 plan。
+- 2026-11-19：用户审阅 spec 正文通过；进入 sprint contract 与实施计划。
