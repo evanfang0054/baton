@@ -25,10 +25,7 @@ const typeLabels: Record<ProtocolNode['type'], string> = {
 
 const TERMINAL_STATUSES = new Set<TaskSummary['status']>(['done', 'failed', 'cancelled'])
 
-const panelClass = [
-  'flex min-h-0 w-[380px] shrink-0 flex-col gap-3 overflow-y-auto',
-  'border-l border-separator bg-surface p-4',
-].join(' ')
+const panelClass = 'flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4'
 
 export function NodePanel({
   node,
@@ -122,7 +119,7 @@ export function NodePanel({
   }
 
   return (
-    <aside data-testid="node-detail" className={panelClass}>
+    <div data-testid="node-detail" className={panelClass}>
       <header className="flex items-start justify-between gap-2">
         <div>
           <p className="text-xs text-muted">{typeLabels[node.type]}</p>
@@ -242,6 +239,6 @@ export function NodePanel({
           </p>
         ) : null}
       </section>
-    </aside>
+    </div>
   )
 }

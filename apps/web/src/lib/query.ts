@@ -7,6 +7,8 @@ export const queryKeys = {
   canvas: (workspaceId: string) => ['canvas', workspaceId] as const,
   task: (taskId: string) => ['task', taskId] as const,
   sessionEvents: (sessionId: string) => ['session-events', sessionId] as const,
+  supervisorStatus: ['supervisor', 'status'] as const,
+  supervisorMessages: (workspaceId: string) => ['supervisor', 'messages', workspaceId] as const,
 }
 
 export function createQueryClient() {

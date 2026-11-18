@@ -70,10 +70,7 @@ export function TaskDetailPanel() {
   }, [activeWorkspaceId, detail.data?.task.id, queryClient])
 
   return (
-    <aside
-      data-testid="task-detail"
-      className="flex min-h-0 w-[380px] shrink-0 flex-col gap-3 border-l border-separator bg-surface p-4"
-    >
+    <div data-testid="task-detail" className="flex min-h-0 flex-1 flex-col gap-3 p-4">
       {!activeWorkspaceId ? (
         <p className="text-sm text-muted">尚未选择工作区</p>
       ) : !activeTaskId ? (
@@ -97,7 +94,7 @@ export function TaskDetailPanel() {
           onDone={onDone}
         />
       ) : null}
-    </aside>
+    </div>
   )
 }
 

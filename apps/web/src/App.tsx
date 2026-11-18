@@ -5,6 +5,8 @@ import { ConnectionStatus } from './features/shared/ConnectionStatus'
 import { CanvasPanel, type CanvasPanelHandle } from './features/canvas/CanvasPanel'
 import { NodePanel } from './features/canvas/NodePanel'
 import { RealtimeProvider } from './features/realtime/RealtimeProvider'
+import { RightPanel } from './features/right-panel/RightPanel'
+import { SupervisorPanel, type SupervisorTargetAgent } from './features/supervisor/SupervisorPanel'
 import { BoardRail } from './features/tasks/BoardRail'
 import { TaskBoard } from './features/tasks/TaskBoard'
 import { TaskDetailPanel } from './features/tasks/TaskDetailPanel'
@@ -36,9 +38,11 @@ export function App() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId)
   const activeTaskId = useAppStore((state) => state.activeTaskId)
   const selectedNodeId = useAppStore((state) => state.selectedNodeId)
+  const selectedNodeIds = useAppStore((state) => state.selectedNodeIds)
   const contextNodeIds = useAppStore((state) => state.contextNodeIds)
   const boardExpanded = useAppStore((state) => state.boardExpanded)
   const boardPinned = useAppStore((state) => state.boardPinned)
+  const rightPanel = useAppStore((state) => state.rightPanel)
   const wsStatus = useAppStore((state) => state.wsStatus)
   const setWorkspace = useAppStore((state) => state.setWorkspace)
   const setTask = useAppStore((state) => state.setTask)
@@ -46,6 +50,7 @@ export function App() {
   const setSelection = useAppStore((state) => state.setSelection)
   const setBoardExpanded = useAppStore((state) => state.setBoardExpanded)
   const setBoardPinned = useAppStore((state) => state.setBoardPinned)
+  const setRightPanel = useAppStore((state) => state.setRightPanel)
   const canvasRef = useRef<CanvasPanelHandle>(null)
   const [trustDialogOpen, setTrustDialogOpen] = useState(false)
   const [trustPromptedFor, setTrustPromptedFor] = useState<string | null>(null)
@@ -65,6 +70,12 @@ export function App() {
     () => (canvas.data?.nodes ?? []).filter((node) => contextNodeIds.includes(node.id)),
     [canvas.data?.nodes, contextNodeIds],
   )
+  // 只有单选且恰好是 Agent 时才把它作为默认目标；多选交给总管追问。
+  const targetAgent = useMemo<SupervisorTargetAgent | null>(() => {
+    if (selectedNodeIds.length !== 1) return null
+    const node = canvas.data?.nodes.find((item) => item.id === selectedNodeIds[0])
+    return node?.type === 'agent' ? { id: node.id, title: node.data.title } : null
+  }, [canvas.data?.nodes, selectedNodeIds])
   const counts = useMemo(() => {
     const list = tasks.data ?? []
     return {
@@ -90,11 +101,14 @@ export function App() {
     const url = readUrlState()
     if (url.workspaceId) {
       setWorkspace(url.workspaceId)
-      if (url.taskId) setTask(url.taskId)
+      if (url.taskId) {
+        setTask(url.taskId)
+        setRightPanel('task')
+      }
     } else if (workspaces.data?.[0]) {
       setWorkspace(workspaces.data[0].id)
     }
-  }, [activeWorkspaceId, setTask, setWorkspace, workspaces.data])
+  }, [activeWorkspaceId, setRightPanel, setTask, setWorkspace, workspaces.data])
 
   useEffect(() => {
     if (!activeWorkspaceId) return
@@ -213,6 +227,7 @@ export function App() {
             onSelectTask={(id) => {
               setSelectedNode(null)
               setTask(id)
+              setRightPanel('task')
               setBoardExpanded(false)
               writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
             }}
@@ -229,30 +244,52 @@ export function App() {
               selectedNodeId={selectedNodeId}
               onSelectNode={(id) => {
                 setSelectedNode(id)
+                setRightPanel(id ? 'node' : 'supervisor')
                 if (id) setTask(null)
               }}
               onSelectNodes={setSelection}
             />
           </main>
-          {selectedNode && activeWorkspaceId ? (
-            <NodePanel
-              key={selectedNode.id}
-              node={selectedNode}
-              task={nodeTask ?? null}
-              workspaceId={activeWorkspaceId}
-              workspaceTrusted={activeWorkspace?.trusted ?? false}
-              contextNodes={contextNodes}
-              onOpenTask={(id) => {
-                setSelectedNode(null)
-                setTask(id)
-                writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
-              }}
-              onDeleted={() => setSelectedNode(null)}
-              onClose={() => setSelectedNode(null)}
-            />
-          ) : (
-            <TaskDetailPanel />
-          )}
+          <RightPanel
+            mode={rightPanel}
+            onModeChange={setRightPanel}
+            hasTask={Boolean(activeTaskId)}
+            hasNode={Boolean(selectedNode)}
+            supervisor={
+              <SupervisorPanel
+                workspaceId={activeWorkspaceId}
+                contextNodes={contextNodes}
+                targetAgent={targetAgent}
+              />
+            }
+            task={<TaskDetailPanel />}
+            node={
+              selectedNode && activeWorkspaceId ? (
+                <NodePanel
+                  key={selectedNode.id}
+                  node={selectedNode}
+                  task={nodeTask ?? null}
+                  workspaceId={activeWorkspaceId}
+                  workspaceTrusted={activeWorkspace?.trusted ?? false}
+                  contextNodes={contextNodes}
+                  onOpenTask={(id) => {
+                    setSelectedNode(null)
+                    setTask(id)
+                    setRightPanel('task')
+                    writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
+                  }}
+                  onDeleted={() => {
+                    setSelectedNode(null)
+                    setRightPanel('supervisor')
+                  }}
+                  onClose={() => {
+                    setSelectedNode(null)
+                    setRightPanel('supervisor')
+                  }}
+                />
+              ) : null
+            }
+          />
         </div>
       </div>
     </RealtimeProvider>
