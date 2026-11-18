@@ -5,7 +5,7 @@ task_count: 5
 estimated_phases: [tests, implementation, verification]
 dod: "config/status、store 幂等、三工具、SupervisorEngine、turn 生命周期、WS 广播、历史 REST 完成；daemon 集成测试全绿"
 depends_on: [2026-11-18-m2-supervisor-contracts.md]
-status: pending
+status: completed
 ---
 
 # M2-1 总管 Router v0：daemon 实施计划（Plan 2/4）
@@ -835,9 +835,15 @@ git commit -m "feat(daemon): 总管历史消息接口"
 
 ---
 
-## 完成记录（待填）
+## 完成记录（2026-11-18）
 
-- 日期：
-- 关键 commit：
-- `pnpm verify` 结果：
-- 偏离与坑：
+- **关键 commit**：`233d38d` config/status；`7f49d66` store 幂等；`2fc3b36` 三工具 + origin 审计；`53bb14f` engine/service/WS/历史。
+- **验证**：daemon 41 files / 168 tests；`pnpm verify` 退出码 0。
+- **实现细节与偏离**：
+  - 新增 `ai@7.0.176`、`@ai-sdk/openai-compatible@3.0.93`；THIRD_PARTY_NOTICES 已有 `ai` / `@ai-sdk/*` Apache-2.0 条目。
+  - `SupervisorEngine` 使用 AI SDK 7 的 `streamText` + `stopWhen: stepCountIs(4)`；工具通过 `inputSchema` 绑定。
+  - `ToolContext` 增加 `text`（用户原话），`create_task` 用它作为任务 prompt；`store.insertAssistantTurn` 增加可选 `messageId`，让流式事件与最终消息同 id。
+  - `create_task` 目标/上下文必须是当前选择的子集；未传目标时从选择里的唯一 Agent 推断。
+  - `supervisor.send` 已替换 Plan 1 的 `supervisor_not_implemented` 临时接线；重复 `requestId` 先返回已有 ack，再看 busy。
+  - `policyVersion` 在 core 用纯 TS 短指纹（不引 Node crypto），与 spec 的 sha256 描述略有偏离；只用于版本标识，不用于安全。
+  - 工具错误在 AI SDK 7 的 `toolResults` 里以缺失结果表示，`ToolCallRecord.ok` 以是否有 result 判定；错误文本不进模型上下文之外的日志。
