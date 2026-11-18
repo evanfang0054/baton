@@ -19,6 +19,7 @@
 - [2026-11-17 M1-5 daemon 运行时闭环设计](specs/2026-11-17-m1-daemon-runtime-design.md)
 - [2026-11-17 M1-5a 任务注意力语义设计](specs/2026-11-17-m1-attention-semantics-design.md)
 - [2026-11-17 M1-6a 任务控制台设计](specs/2026-11-17-m1-web-console-design.md)
+- [2026-11-17 M1-7a Claude 适配器与安全基线设计](specs/2026-11-17-m1-claude-adapter-design.md)
 
 ## 现行 ADR
 
@@ -34,6 +35,7 @@
 - [M1-5 daemon 运行时闭环](contracts/M1-daemon-runtime.contract.md)
 - [M1-5a 任务注意力语义](contracts/M1-attention-semantics.contract.md)
 - [M1-6a 任务控制台](contracts/M1-web-console.contract.md)
+- [M1-7a Claude 适配器与安全基线](contracts/M1-claude-adapter.contract.md)
 
 ## 现行 plan
 
@@ -46,6 +48,7 @@
 - [M1-6a Web 壳与看板实施计划](plans/2026-11-17-m1-web-ui.md)
 - [M1-6a 任务详情与人闸门实施计划](plans/2026-11-17-m1-web-detail-gates.md)
 - [M1-6a 可编辑画布与任务创建实施计划](plans/2026-11-17-m1-web-canvas.md)
+- [M1-7a 性能热路径实施计划](plans/2026-11-17-m1-7a-performance.md)
 
 ## 约定
 

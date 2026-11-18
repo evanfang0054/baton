@@ -1,0 +1,972 @@
+---
+spec_ref: ../specs/2026-11-17-m1-claude-adapter-design.md
+spec_topic: m1-claude-adapter
+task_count: 6
+estimated_phases: [baseline, tests, implementation, verification]
+dod: "性能热路径：SQLite NORMAL、事件单次序列化、session-cache 快路径、transcript 增量投影、WS 热路径；5k 事件投影 p95 < 8ms；CI 等价测试通过"
+depends_on: []
+---
+
+# M1-7a 性能热路径实施计划
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `subagent-driven-development` (recommended) or `executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** 在不接真实 Claude 的前提下，先消除 daemon 事件写入与 web transcript 投影的重复 CPU/IO，并建立可复现的基准，为 M1-7a 真实会话提供性能基线。
+
+**Architecture:** daemon 侧把每个会话事件只序列化一次，并用 `ws_event` 的 payload JSON 直接拼 WS 帧；SQLite 保持 WAL，补 `synchronous=NORMAL`。web 侧给 session-cache 加顺序 append 快路径，把 transcript 从每批全量 `buildTranscript` 改为增量投影，并在 WS 热路径减少重复 zod 解析。
+
+**Tech Stack:** TypeScript ESM、better-sqlite3 / Drizzle、vitest / vitest bench、React 19、TanStack Query、Zustand。
+
+---
+
+## 计划地图（M1-7a 共 4 个 plan）
+
+本 plan 是其中第一个，独立于 Claude adapter，可先落地。
+
+| Plan | 范围 | 依赖 | 状态 |
+|---|---|---|---|
+| **A. 性能热路径（本计划）** | event-store / SQLite / session-cache / transcript / WS | 无 | 本次 |
+| B. 契约与并发基座 | workspace trust 字段/migration、`session_reported` 扩展、执行槽/live cap、boot 对账 | 无 | 待写 |
+| C. Claude adapter 与 daemon 接线 | S2 spike、transport/adapter、engine/trust API、`StartInput.workspaceTrust` | B | 待写 |
+| D. Web UX 与真实验收 | trust 弹窗、引擎选择、多审批卡、ego-lite 证据 | B + C | 待写 |
+
+**Commit strategy:** 按项目约定，每个 Task 结束提交一次；提交前跑该 Task 的定向测试，Task 6 跑全量 `pnpm verify`。
+
+---
+
+## Task 1: 基准工具与 baseline
+
+Blocking: none
+Slice type: verification
+Seam: `vitest bench` 输出；无生产行为变更
+
+**Files:**
+
+- Create: `apps/web/src/features/tasks/transcript.fixture.ts`
+- Create: `apps/web/src/features/tasks/transcript.bench.ts`
+- Create: `apps/daemon/test/event-store.bench.ts`
+- Modify: `package.json`（新增 `bench:web`、`bench:daemon`）
+
+**Interfaces:**
+
+- Produces: `makeTextEvents(count)` 供后续 transcript bench 复用；`bench:web` / `bench:daemon` 命令。
+
+- [ ] **Step 1: 写 transcript fixture**
+
+```ts
+// apps/web/src/features/tasks/transcript.fixture.ts
+import type { SessionEventRecord } from '@baton/protocol'
+
+export function makeTextEvents(count: number, startSeq = 1): SessionEventRecord[] {
+  const events: SessionEventRecord[] = []
+  for (let i = 0; i < count; i += 1) {
+    const seq = startSeq + i
+    const messageId = `m-${Math.floor(i / 3)}`
+    const phase = i % 3
+    if (phase === 0) {
+      events.push({
+        seq,
+        type: 'TEXT_MESSAGE_START',
+        payload: { type: 'TEXT_MESSAGE_START', messageId, role: 'assistant' },
+        ts: seq,
+      })
+    } else if (phase === 1) {
+      events.push({
+        seq,
+        type: 'TEXT_MESSAGE_CONTENT',
+        payload: { type: 'TEXT_MESSAGE_CONTENT', messageId, delta: 'x'.repeat(32) },
+        ts: seq,
+      })
+    } else {
+      events.push({
+        seq,
+        type: 'TEXT_MESSAGE_END',
+        payload: { type: 'TEXT_MESSAGE_END', messageId },
+        ts: seq,
+      })
+    }
+  }
+  return events
+}
+```
+
+- [ ] **Step 2: 写 baseline bench（仅全量投影）**
+
+```ts
+// apps/web/src/features/tasks/transcript.bench.ts
+import { bench, describe } from 'vitest'
+import { buildTranscript } from './transcript-model'
+import { makeTextEvents } from './transcript.fixture'
+
+describe('transcript 5k events', () => {
+  const events = makeTextEvents(5000)
+  bench('full rebuild', () => {
+    buildTranscript(events)
+  })
+})
+```
+
+- [ ] **Step 3: 写 event-store bench**
+
+```ts
+// apps/daemon/test/event-store.bench.ts
+import { EventSchemas } from '@baton/protocol'
+import { randomUUID } from 'node:crypto'
+import { bench, describe } from 'vitest'
+import { createEventStore } from '../src/db/event-store.js'
+import { createTestDb, seedTask } from './helpers/db.js'
+
+const deps = { now: () => 1, newId: () => randomUUID() }
+const event = EventSchemas.parse({
+  type: 'TEXT_MESSAGE_CONTENT',
+  messageId: 'm',
+  delta: 'x'.repeat(32),
+})
+
+describe('event store 5k events', () => {
+  bench('append 5k session events', () => {
+    const { raw, db } = createTestDb()
+    const seeded = seedTask(raw)
+    const store = createEventStore(db, deps)
+    for (let seq = 1; seq <= 5000; seq += 1) {
+      store.appendSessionEvent({ sessionId: seeded.sessionId!, seq, event, ts: seq })
+    }
+    raw.close()
+  })
+})
+```
+
+- [ ] **Step 4: 加 bench 命令**
+
+`package.json` 的 scripts 增加：
+
+```json
+"bench:web": "pnpm --filter @baton/web exec vitest bench --run",
+"bench:daemon": "pnpm --filter @evanfang0054/baton exec vitest bench --run"
+```
+
+- [ ] **Step 5: 跑 baseline 并记录**
+
+```bash
+pnpm bench:web
+pnpm bench:daemon
+```
+
+Expected: 两个命令退出码 0，输出 `full rebuild` 与 `append 5k session events` 的 ops/s 或 mean。把数字记到临时记录，Task 6 写入 evidence。
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add apps/web/src/features/tasks/transcript.fixture.ts \
+  apps/web/src/features/tasks/transcript.bench.ts \
+  apps/daemon/test/event-store.bench.ts package.json
+git commit -m "test(perf): 增加 transcript 与 event-store 基准"
+```
+
+---
+
+## Task 2: SQLite 与事件写入
+
+Blocking: none
+Slice type: tracer-bullet
+Seam: `openDb` 的 pragma；`createEventStore.appendSessionEvent` 返回的 `payloadJson` 与 `buildWsFrame`
+
+**Files:**
+
+- Modify: `apps/daemon/src/db/index.ts`
+- Modify: `apps/daemon/src/db/event-store.ts`
+- Modify: `apps/daemon/src/ws/hub.ts`
+- Test: `apps/daemon/test/event-store.test.ts`
+- Test: `apps/daemon/test/db-pragmas.test.ts`（新建）
+
+**Interfaces:**
+
+- Produces: `BroadcastEvent.payloadJson: string`；`buildWsFrame(event: BroadcastEvent): string`；`appendSessionEvent` 仍返回 `BroadcastEvent`。
+
+- [ ] **Step 1: 写失败测试（pragma + 帧序列化）**
+
+```ts
+// apps/daemon/test/db-pragmas.test.ts
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { openDb } from '../src/db/index.js'
+
+const dirs: string[] = []
+afterEach(() => {
+  dirs.splice(0).forEach((dir) => rmSync(dir, { recursive: true, force: true }))
+})
+
+describe('sqlite pragmas', () => {
+  it('uses WAL and NORMAL synchronous mode', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'baton-db-'))
+    dirs.push(dir)
+    const db = openDb(join(dir, 'test.db'))
+    expect(db.pragma('journal_mode', { simple: true })).toBe('wal')
+    expect(db.pragma('synchronous', { simple: true })).toBe(1)
+    db.close()
+  })
+})
+```
+
+在 `event-store.test.ts` 增加：
+
+```ts
+import { buildWsFrame } from '../src/ws/hub.js'
+
+it('reuses the payload JSON when building the ws frame', () => {
+  const database = db()
+  const store = createEventStore(database.db, deps)
+  const seeded = seedTask(database.raw)
+  const appended = store.appendSessionEvent({
+    sessionId: seeded.sessionId!,
+    seq: 1,
+    event: fakeEvent('frame'),
+    ts: 9,
+  })
+  expect(JSON.parse(appended.payloadJson)).toEqual(appended.payload)
+  expect(JSON.parse(buildWsFrame(appended))).toEqual({
+    v: 1,
+    id: appended.id,
+    type: appended.type,
+    ts: appended.ts,
+    seq: appended.ordinal,
+    payload: appended.payload,
+  })
+})
+```
+
+- [ ] **Step 2: 跑测试确认失败**
+
+```bash
+pnpm --filter @evanfang0054/baton exec vitest run test/db-pragmas.test.ts test/event-store.test.ts
+```
+
+Expected: FAIL（synchronous 仍为 2；`buildWsFrame` 不存在）。
+
+- [ ] **Step 3: 补 pragma**
+
+```ts
+// apps/daemon/src/db/index.ts
+db.pragma('journal_mode = WAL')
+db.pragma('synchronous = NORMAL')
+db.pragma('foreign_keys = ON')
+```
+
+- [ ] **Step 4: 让 event-store 只序列化一次并携带 payloadJson**
+
+`apps/daemon/src/db/event-store.ts`：
+
+```ts
+export interface BroadcastEvent {
+  ordinal: number
+  id: string
+  type: ServerMessage['type']
+  payload: unknown
+  payloadJson: string
+  ts: number
+}
+
+function appendWsJson(
+  tx: Tx,
+  input: { type: ServerMessage['type']; payload: unknown; payloadJson: string; ts: number },
+): BroadcastEvent {
+  const id = deps.newId()
+  const result = tx
+    .insert(wsEvent)
+    .values({ id, type: input.type, payloadJson: input.payloadJson, ts: input.ts })
+    .run()
+  return {
+    id,
+    ordinal: Number(result.lastInsertRowid),
+    type: input.type,
+    payload: input.payload,
+    payloadJson: input.payloadJson,
+    ts: input.ts,
+  }
+}
+
+function appendWs(tx: Tx, input: WsEventDraft): BroadcastEvent {
+  return appendWsJson(tx, { ...input, payloadJson: JSON.stringify(input.payload) })
+}
+
+function appendSessionEvent(input: {
+  sessionId: string
+  seq: number
+  event: AgentEvent
+  ts?: number
+}): BroadcastEvent {
+  return db.transaction((tx) => {
+    const ts = input.ts ?? deps.now()
+    const eventJson = JSON.stringify(input.event)
+    const payload = { sessionId: input.sessionId, seq: input.seq, event: input.event }
+    const wsPayloadJson = `{"sessionId":${JSON.stringify(input.sessionId)},"seq":${input.seq},"event":${eventJson}}`
+    const ws = appendWsJson(tx, {
+      type: 'session.event',
+      payload,
+      payloadJson: wsPayloadJson,
+      ts,
+    })
+    tx.insert(event)
+      .values({
+        id: deps.newId(),
+        sessionId: input.sessionId,
+        ordinal: ws.ordinal,
+        seq: input.seq,
+        type: input.event.type,
+        payloadJson: eventJson,
+        ts,
+      })
+      .run()
+    return ws
+  })
+}
+```
+
+`toRow` 需要带上 `payloadJson`：
+
+```ts
+function toRow(row: typeof wsEvent.$inferSelect): WsEventRow {
+  return {
+    ordinal: row.ordinal,
+    id: row.id,
+    type: row.type as ServerMessage['type'],
+    payload: JSON.parse(row.payloadJson) as unknown,
+    payloadJson: row.payloadJson,
+    ts: row.ts,
+  }
+}
+```
+
+- [ ] **Step 5: hub 用 payloadJson 拼帧**
+
+```ts
+// apps/daemon/src/ws/hub.ts
+export function buildWsFrame(event: BroadcastEvent): string {
+  return `{"v":1,"id":${JSON.stringify(event.id)},"type":${JSON.stringify(event.type)},"ts":${event.ts},"seq":${event.ordinal},"payload":${event.payloadJson}}`
+}
+
+broadcast(event) {
+  const frame = buildWsFrame(event)
+  for (const socket of sockets) sendSafely(socket, frame)
+}
+```
+
+- [ ] **Step 6: 跑测试确认通过**
+
+```bash
+pnpm --filter @evanfang0054/baton exec vitest run test/db-pragmas.test.ts test/event-store.test.ts test/replay.test.ts test/ws.test.ts
+```
+
+Expected: PASS。
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add apps/daemon/src/db/index.ts apps/daemon/src/db/event-store.ts \
+  apps/daemon/src/ws/hub.ts apps/daemon/test/db-pragmas.test.ts apps/daemon/test/event-store.test.ts
+git commit -m "perf(daemon): 单次序列化事件并启用 NORMAL synchronous"
+```
+
+---
+
+## Task 3: session-cache 快路径
+
+Blocking: none
+Slice type: tracer-bullet
+Seam: `appendSessionEvents` / `mergeSessionPage`
+
+**Files:**
+
+- Modify: `apps/web/src/features/realtime/session-cache.ts`
+- Test: `apps/web/src/features/realtime/session-cache.test.ts`
+
+**Interfaces:**
+
+- Produces: 顺序 append 时保持已有事件引用、O(k) 追加；乱序时回退到 Set + sort。
+
+- [ ] **Step 1: 写失败测试**
+
+```ts
+it('appends ordered events without rebuilding the whole list', () => {
+  const first = record(1)
+  const second = record(2)
+  const previous = page([first])
+  const next = appendSessionEvents(previous, [second])!
+  expect(next.events.map((event) => event.seq)).toEqual([1, 2])
+  expect(next.events[0]).toBe(first)
+})
+
+it('falls back to merge when an event is out of order', () => {
+  const previous = page([record(2)])
+  const next = appendSessionEvents(previous, [record(1)])!
+  expect(next.events.map((event) => event.seq)).toEqual([1, 2])
+})
+
+it('keeps nextSeq from the page when merging history', () => {
+  const previous = page([record(2)], { nextSeq: 3, hasMore: false })
+  const merged = mergeSessionPage(previous, {
+    sessionId: 's',
+    events: [record(1)],
+    nextSeq: 2,
+    hasMore: true,
+  })
+  expect(merged.nextSeq).toBe(2)
+  expect(merged.hasMore).toBe(true)
+  expect(merged.events.map((event) => event.seq)).toEqual([1, 2])
+})
+```
+
+测试文件顶部补两个本地 helper：
+
+```ts
+function record(seq: number): SessionEventRecord {
+  return {
+    seq,
+    type: 'TEXT_MESSAGE_CONTENT',
+    payload: { type: 'TEXT_MESSAGE_CONTENT', messageId: 'm', delta: 'x' },
+    ts: seq,
+  }
+}
+
+function page(
+  events: SessionEventRecord[],
+  overrides: Partial<SessionEventsResponse> = {},
+): SessionEventsResponse {
+  return { sessionId: 's', events, nextSeq: 0, hasMore: false, ...overrides }
+}
+```
+
+- [ ] **Step 2: 跑测试确认失败**
+
+```bash
+pnpm --filter @baton/web exec vitest run src/features/realtime/session-cache.test.ts
+```
+
+Expected: 第一条 FAIL（`next.events[0]` 不是同一引用，当前实现会全量复制/sort）。
+
+- [ ] **Step 3: 实现快路径**
+
+```ts
+function isAppendOnly(previous: SessionEventsResponse, records: SessionEventRecord[]): boolean {
+  const last = previous.events.at(-1)?.seq ?? 0
+  return records.every((record) => record.seq > last)
+}
+
+export function appendSessionEvents(
+  previous: SessionEventsResponse | undefined,
+  records: SessionEventRecord[],
+): SessionEventsResponse | undefined {
+  if (!previous || records.length === 0) return previous
+  if (isAppendOnly(previous, records)) {
+    return { ...previous, events: [...previous.events, ...records] }
+  }
+  const known = new Set(previous.events.map((event) => event.seq))
+  const events = [...previous.events]
+  for (const record of records) {
+    if (known.has(record.seq)) continue
+    known.add(record.seq)
+    events.push(record)
+  }
+  if (events.length === previous.events.length) return previous
+  events.sort((a, b) => a.seq - b.seq)
+  return { ...previous, events }
+}
+```
+
+`mergeSessionPage` 同理：若 `page.events` 全部大于 `previous` 的最后 seq，直接 `[...previous.events, ...page.events]`；否则走 Set + sort。返回值仍以 `page.nextSeq/hasMore` 为准。
+
+- [ ] **Step 4: 跑测试确认通过**
+
+```bash
+pnpm --filter @baton/web exec vitest run src/features/realtime/session-cache.test.ts
+```
+
+Expected: PASS。
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/web/src/features/realtime/session-cache.ts \
+  apps/web/src/features/realtime/session-cache.test.ts
+git commit -m "perf(web): session-cache 顺序 append 快路径"
+```
+
+---
+
+## Task 4: transcript 增量投影
+
+Blocking: Task 3（需要稳定的有序事件输入）
+Slice type: tracer-bullet
+Seam: `TranscriptProjector.apply(events)` 与 `buildTranscript(events)` 等价
+
+**Files:**
+
+- Create: `apps/web/src/features/tasks/transcript-projector.ts`
+- Create: `apps/web/src/features/tasks/transcript-projector.test.ts`
+- Modify: `apps/web/src/features/tasks/transcript-model.ts`
+- Modify: `apps/web/src/features/tasks/Transcript.tsx`
+- Modify: `apps/web/src/features/tasks/transcript.bench.ts`
+
+**Interfaces:**
+
+- Produces: `TranscriptProjector` 类；`Transcript` 只对新事件做投影。
+
+- [ ] **Step 1: 写等价性失败测试**
+
+```ts
+import { describe, expect, it } from 'vitest'
+import { buildTranscript } from './transcript-model'
+import { TranscriptProjector } from './transcript-projector'
+import { makeTextEvents } from './transcript.fixture'
+
+describe('TranscriptProjector', () => {
+  it('matches a full rebuild after appends', () => {
+    const first = makeTextEvents(30)
+    const projector = new TranscriptProjector()
+    expect(projector.apply(first)).toEqual(buildTranscript(first))
+
+    const next = [...first, ...makeTextEvents(10, 31)]
+    expect(projector.apply(next)).toEqual(buildTranscript(next))
+  })
+
+  it('resets when the prefix changes', () => {
+    const projector = new TranscriptProjector()
+    projector.apply(makeTextEvents(10, 11))
+    const replaced = makeTextEvents(10, 1)
+    expect(projector.apply(replaced)).toEqual(buildTranscript(replaced))
+  })
+})
+```
+
+- [ ] **Step 2: 跑测试确认失败**
+
+```bash
+pnpm --filter @baton/web exec vitest run src/features/tasks/transcript-projector.test.ts
+```
+
+Expected: FAIL（模块不存在）。
+
+- [ ] **Step 3: 抽出 TranscriptProjector**
+
+把 `transcript-model.ts` 里的 `seen/messages/tools/entries` 状态搬进类；`buildTranscript` 保留排序/去重后调用投影器：
+
+```ts
+export class TranscriptProjector {
+  private entries: TranscriptEntry[] = []
+  private messages = new Map<string, TranscriptEntry>()
+  private tools = new Map<string, { entry: TranscriptEntry; args: string; result: string }>()
+  private processedCount = 0
+  private firstSeq: number | null = null
+  private lastSeq = 0
+
+  canAppend(events: SessionEventRecord[]): boolean {
+    if (this.processedCount === 0) return true
+    if (events.length < this.processedCount) return false
+    if (events[0]?.seq !== this.firstSeq) return false
+    return events[this.processedCount - 1]?.seq === this.lastSeq
+  }
+
+  reset(): void {
+    this.entries = []
+    this.messages.clear()
+    this.tools.clear()
+    this.processedCount = 0
+    this.firstSeq = null
+    this.lastSeq = 0
+  }
+
+  apply(events: SessionEventRecord[]): TranscriptEntry[] {
+    if (!this.canAppend(events)) this.reset()
+    for (const event of events.slice(this.processedCount)) this.applyOne(event)
+    this.processedCount = events.length
+    this.firstSeq ??= events[0]?.seq ?? null
+    this.lastSeq = events.at(-1)?.seq ?? this.lastSeq
+    return [...this.entries]
+  }
+
+  private applyOne(event: SessionEventRecord): void {
+    const payload = recordOf(event.payload)
+    if (!payload) return
+    const type = textOf(payload.type) || event.type
+    const ts = event.ts
+
+    switch (type) {
+      case 'TEXT_MESSAGE_START': {
+        const messageId = textOf(payload.messageId)
+        if (messageId) this.ensureMessage(messageId, ts, payload.role)
+        break
+      }
+      case 'TEXT_MESSAGE_CONTENT': {
+        const messageId = textOf(payload.messageId)
+        if (!messageId) break
+        this.ensureMessage(messageId, ts, payload.role).text += textOf(payload.delta)
+        break
+      }
+      case 'TEXT_MESSAGE_END':
+        break
+      case 'TOOL_CALL_START': {
+        const toolCallId = textOf(payload.toolCallId)
+        if (toolCallId) this.ensureTool(toolCallId, ts, payload.toolCallName)
+        break
+      }
+      case 'TOOL_CALL_ARGS': {
+        const toolCallId = textOf(payload.toolCallId)
+        if (!toolCallId) break
+        const draft = this.ensureTool(toolCallId, ts, payload.toolCallName)
+        draft.args += textOf(payload.delta)
+        this.flushTool(draft)
+        break
+      }
+      case 'TOOL_CALL_END':
+        break
+      case 'TOOL_CALL_RESULT': {
+        const toolCallId = textOf(payload.toolCallId)
+        if (!toolCallId) break
+        const draft = this.ensureTool(toolCallId, ts, payload.toolCallName)
+        const content = payload.content
+        draft.result =
+          typeof content === 'string'
+            ? content
+            : Array.isArray(content)
+              ? content
+                  .map((part) => {
+                    const item = recordOf(part)
+                    return item?.type === 'text' ? textOf(item.text) : ''
+                  })
+                  .filter(Boolean)
+                  .join('\n')
+              : ''
+        this.flushTool(draft)
+        break
+      }
+      case 'RUN_STARTED':
+        this.entries.push(systemEntry(`seq-${event.seq}`, '系统', '运行开始', ts))
+        break
+      case 'RUN_FINISHED':
+        this.entries.push(systemEntry(`seq-${event.seq}`, '系统', '运行结束', ts))
+        break
+      case 'RUN_ERROR':
+        this.entries.push(
+          systemEntry(`seq-${event.seq}`, '系统', `运行失败：${textOf(payload.message)}`, ts),
+        )
+        break
+      case 'CUSTOM': {
+        const name = textOf(payload.name)
+        const value = recordOf(payload.value) ?? {}
+        if (name === USER_MESSAGE_EVENT) {
+          this.entries.push({
+            id: `seq-${event.seq}`,
+            role: 'user',
+            title: '你',
+            text: textOf(value.text),
+            mono: false,
+            ts,
+          })
+        } else if (name === APPROVAL_REQUEST_EVENT) {
+          const request = recordOf(value.request) ?? {}
+          const input = request.input === undefined ? '' : JSON.stringify(request.input, null, 2)
+          this.entries.push(
+            systemEntry(
+              `seq-${event.seq}`,
+              '请求审批',
+              `${textOf(request.toolName)}\n${input}`.trim(),
+              ts,
+              true,
+            ),
+          )
+        } else if (name === SESSION_OUTCOME_EVENT) {
+          this.entries.push(
+            systemEntry(
+              `seq-${event.seq}`,
+              `会话 ${textOf(value.outcome)}`,
+              textOf(value.reason),
+              ts,
+            ),
+          )
+        } else if (name) {
+          this.entries.push(systemEntry(`seq-${event.seq}`, name, '', ts))
+        }
+        break
+      }
+      default:
+        break
+    }
+  }
+
+  private ensureMessage(messageId: string, ts: number, role: unknown): TranscriptEntry {
+    const existing = this.messages.get(messageId)
+    if (existing) return existing
+    const config = roleLabel(role)
+    const entry: TranscriptEntry = {
+      id: `msg-${messageId}`,
+      role: config.role,
+      title: config.title,
+      text: '',
+      mono: false,
+      ts,
+    }
+    this.messages.set(messageId, entry)
+    this.entries.push(entry)
+    return entry
+  }
+
+  private ensureTool(toolCallId: string, ts: number, name: unknown) {
+    const existing = this.tools.get(toolCallId)
+    if (existing) return existing
+    const entry: TranscriptEntry = {
+      id: `tool-${toolCallId}`,
+      role: 'tool',
+      title: textOf(name) || '工具',
+      text: '',
+      mono: true,
+      ts,
+    }
+    const draft = { entry, args: '', result: '' }
+    this.tools.set(toolCallId, draft)
+    this.entries.push(entry)
+    return draft
+  }
+
+  private flushTool(draft: { entry: TranscriptEntry; args: string; result: string }): void {
+    const chunks = [draft.args.trim()]
+    if (draft.result.trim()) chunks.push(`→ ${draft.result.trim()}`)
+    draft.entry.text = chunks.filter(Boolean).join('\n')
+  }
+}
+
+export function buildTranscript(events: SessionEventRecord[]): TranscriptEntry[] {
+  const projector = new TranscriptProjector()
+  return projector.apply(orderEvents(events))
+}
+```
+
+`orderEvents` 保留现有去重 + 排序；`Transcript` 从缓存拿到的输入已经是排好序的。
+
+- [ ] **Step 4: Transcript 改用增量投影**
+
+```ts
+function useTranscriptEntries(events: SessionEventRecord[]): TranscriptEntry[] {
+  const projector = useRef<TranscriptProjector | null>(null)
+  const lastEvents = useRef<SessionEventRecord[] | null>(null)
+  const lastEntries = useRef<TranscriptEntry[]>([])
+
+  return useMemo(() => {
+    if (events === lastEvents.current) return lastEntries.current
+    projector.current ??= new TranscriptProjector()
+    const entries = projector.current.apply(events)
+    lastEvents.current = events
+    lastEntries.current = entries
+    return entries
+  }, [events])
+}
+```
+
+`Transcript.tsx` 用该 hook 替换 `useMemo(() => buildTranscript(events), [events])`。StrictMode 下同一个 `events` 引用会命中 `lastEvents` 分支，不会重复 apply。
+
+- [ ] **Step 5: 跑测试与组件测试**
+
+```bash
+pnpm --filter @baton/web exec vitest run src/features/tasks/transcript-projector.test.ts \
+  src/features/tasks/transcript.test.ts src/features/tasks/Transcript.test.tsx
+```
+
+Expected: PASS；现有 transcript 测试不回归。
+
+- [ ] **Step 6: 补增量 bench**
+
+在 `transcript.bench.ts` 增加：
+
+```ts
+bench('incremental append', () => {
+  const projector = new TranscriptProjector()
+  projector.apply(events)
+  projector.apply([...events, ...makeTextEvents(10, 5001)])
+})
+```
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add apps/web/src/features/tasks/transcript-projector.ts \
+  apps/web/src/features/tasks/transcript-projector.test.ts \
+  apps/web/src/features/tasks/transcript-model.ts \
+  apps/web/src/features/tasks/Transcript.tsx \
+  apps/web/src/features/tasks/transcript.bench.ts
+git commit -m "perf(web): transcript 增量投影"
+```
+
+---
+
+## Task 5: WS 热路径减少重复解析
+
+Blocking: none
+Slice type: tracer-bullet
+Seam: `parseIncomingMessage(raw)`；`RealtimeProvider` 不再对每条 session 事件做 `SessionEventRecord.parse`
+
+**Files:**
+
+- Modify: `apps/web/src/lib/ws.ts`
+- Modify: `apps/web/src/features/realtime/RealtimeProvider.tsx`
+- Test: `apps/web/src/lib/ws.test.ts`
+- Test: `apps/web/src/features/realtime/RealtimeProvider.test.tsx`
+
+**Interfaces:**
+
+- Produces: `parseIncomingMessage(raw: unknown): ServerMessage | null`；控制消息仍走完整 `ServerMessage` 校验。
+
+- [ ] **Step 1: 写失败测试**
+
+```ts
+it('parses a session.event with the lightweight path', () => {
+  const parsed = parseIncomingMessage({
+    v: 1,
+    id: 'e1',
+    type: 'session.event',
+    ts: 1,
+    seq: 2,
+    payload: {
+      sessionId: 's',
+      seq: 2,
+      event: { type: 'TEXT_MESSAGE_CONTENT', messageId: 'm', delta: 'hi' },
+    },
+  })
+  expect(parsed?.type).toBe('session.event')
+})
+
+it('rejects a malformed session.event', () => {
+  expect(
+    parseIncomingMessage({
+      v: 1,
+      id: 'e1',
+      type: 'session.event',
+      ts: 1,
+      payload: { sessionId: 's', seq: 'bad', event: {} },
+    }),
+  ).toBeNull()
+})
+```
+
+- [ ] **Step 2: 跑测试确认失败**
+
+```bash
+pnpm --filter @baton/web exec vitest run src/lib/ws.test.ts
+```
+
+Expected: FAIL（`parseIncomingMessage` 不存在）。
+
+- [ ] **Step 3: 实现轻量解析**
+
+```ts
+export function parseIncomingMessage(raw: unknown): ServerMessage | null {
+  const envelope = WsEnvelope.safeParse(raw)
+  if (!envelope.success) return null
+  if (envelope.data.type === 'session.event') {
+    const payload = envelope.data.payload as
+      | { sessionId?: unknown; seq?: unknown; event?: { type?: unknown } }
+      | undefined
+    if (
+      typeof payload?.sessionId !== 'string' ||
+      typeof payload.seq !== 'number' ||
+      typeof payload.event?.type !== 'string'
+    ) {
+      return null
+    }
+    return envelope.data as ServerMessage
+  }
+  const event = ServerMessage.safeParse(envelope.data)
+  return event.success ? event.data : null
+}
+```
+
+`createWsClient` 的 `message` 监听改用 `parseIncomingMessage`。
+
+- [ ] **Step 4: RealtimeProvider 直接构造 record**
+
+```ts
+const record: SessionEventRecord = {
+  seq: event.payload.seq,
+  type: event.payload.event.type,
+  payload: event.payload.event,
+  ts: event.ts,
+}
+enqueueEvent(sessionId, record)
+```
+
+移除 `SessionEventRecord.parse`；非法事件仍走 REST fallback。
+
+- [ ] **Step 5: 跑测试确认通过**
+
+```bash
+pnpm --filter @baton/web exec vitest run src/lib/ws.test.ts \
+  src/features/realtime/RealtimeProvider.test.tsx src/features/realtime/session-cache.test.ts
+```
+
+Expected: PASS。
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add apps/web/src/lib/ws.ts apps/web/src/features/realtime/RealtimeProvider.tsx \
+  apps/web/src/lib/ws.test.ts apps/web/src/features/realtime/RealtimeProvider.test.tsx
+git commit -m "perf(web): WS 热路径轻量解析 session.event"
+```
+
+---
+
+## Task 6: 复测、证据与全量校验
+
+Blocking: Task 2-5
+Slice type: verification
+Seam: `pnpm verify` + bench 输出 + evidence 文件
+
+**Files:**
+
+- Create: `docs/evidence/2026-11-17-m1-7a-perf/README.md`
+- Modify: 无生产代码（若复测发现回归，回到对应 Task）
+
+- [ ] **Step 1: 复测**
+
+```bash
+pnpm bench:web
+pnpm bench:daemon
+```
+
+Expected: `full rebuild` 与 `append 5k session events` 的 mean/ops 与 Task 1 baseline 对比；`incremental append` 明显快于 `full rebuild`。
+
+- [ ] **Step 2: 写 evidence**
+
+`docs/evidence/2026-11-17-m1-7a-perf/README.md` 记录：
+
+- 机器与 Node/pnpm 版本（脱敏，不写主机名/用户名）。
+- 命令、baseline、复测数字。
+- 5k 事件增量投影 p50/p95（若 bench 不直接给 p95，记录 mean/ops 并说明）。
+- 结论：是否达到 spec §8.6 的预算；未达到时的下一步。
+
+- [ ] **Step 3: 全量校验**
+
+```bash
+pnpm verify
+pnpm verify:full
+pnpm pack:check
+```
+
+Expected: 全部退出码 0。
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add docs/evidence/2026-11-17-m1-7a-perf/README.md
+git commit -m "docs(evidence): M1-7a 性能热路径基线"
+```
+
+---
+
+## Self-Review
+
+- **Spec coverage**：本计划覆盖 spec §8.6 的 daemon 写入、web 快路径、transcript 增量投影、WS 热路径与预算；trust/adapter/UX 由 Plan B/C/D 覆盖。
+- **Placeholder scan**：无 TBD/TODO；每个 Task 都有实际测试与实现片段。
+- **Type consistency**：`BroadcastEvent.payloadJson`、`buildWsFrame`、`TranscriptProjector.apply`、`parseIncomingMessage` 在后续 Task 中名称一致。
+- **Scope**：只改 `apps/daemon`、`apps/web`、`package.json`、`docs/evidence`；不触 protocol/core/adapters，不接真实 Claude。
+- **设计同步**：本计划不改 UI 视觉；Plan D 才改 trust/引擎 UI，必须读根目录 `DESIGN.md` 的 token。
