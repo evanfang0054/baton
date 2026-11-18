@@ -101,16 +101,18 @@ function FlowCanvas({
   }, [flowNodes])
 
   // React Flow 自己维护选中态；外部清空 selectedNodeId（如打开任务、关闭节点详情）时
-  // 同步清掉它的选中标记，避免画布上残留高亮。
+  // 同步清掉它的选中标记，避免画布上残留高亮。只在目标尚未选中时补选中，
+  // 否则会把 Cmd/Ctrl 多选收敛成单选。
   useEffect(() => {
     setNodes((current) => {
-      const target = selectedNodeId ?? null
-      const isSynced =
-        target === null
-          ? current.every((node) => !node.selected)
-          : current.length > 0 &&
-            current.every((node) => Boolean(node.selected) === (node.id === target))
-      return isSynced ? current : current.map((node) => ({ ...node, selected: node.id === target }))
+      if (selectedNodeId === null) {
+        return current.every((node) => !node.selected)
+          ? current
+          : current.map((node) => (node.selected ? { ...node, selected: false } : node))
+      }
+      const target = current.find((node) => node.id === selectedNodeId)
+      if (!target || target.selected) return current
+      return current.map((node) => ({ ...node, selected: node.id === selectedNodeId }))
     })
   }, [selectedNodeId, setNodes])
 

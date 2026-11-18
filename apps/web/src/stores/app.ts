@@ -7,6 +7,10 @@ export type SelectionNode = Pick<Node, 'id' | 'type'>
 
 const CONTEXT_TYPES = new Set<Node['type']>(['text', 'file', 'image', 'group'])
 
+function sameIds(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((id, index) => id === b[index])
+}
+
 interface AppState {
   activeWorkspaceId: string | null
   activeTaskId: string | null
@@ -51,11 +55,16 @@ export const useAppStore = create<AppState>((set) => ({
   setSelectedNode: (selectedNodeId) => set({ selectedNodeId }),
   setSelection: (nodes) =>
     set((state) => {
+      const selectedNodeIds = nodes.map((node) => node.id)
       const contentIds = nodes.filter((node) => CONTEXT_TYPES.has(node.type)).map((node) => node.id)
-      return {
-        selectedNodeIds: nodes.map((node) => node.id),
-        ...(contentIds.length > 0 ? { contextNodeIds: contentIds } : {}),
+      const contextNodeIds = contentIds.length > 0 ? contentIds : state.contextNodeIds
+      if (
+        sameIds(selectedNodeIds, state.selectedNodeIds) &&
+        sameIds(contextNodeIds, state.contextNodeIds)
+      ) {
+        return state
       }
+      return { selectedNodeIds, contextNodeIds }
     }),
   removeContextNode: (id) =>
     set((state) => ({ contextNodeIds: state.contextNodeIds.filter((item) => item !== id) })),
