@@ -7,11 +7,13 @@ import { createRequire } from 'node:module'
 import type { Config } from './config.js'
 import type { Db } from './db/types.js'
 import { registerApiAuth } from './http/api-auth.js'
+import { registerAuditRoutes } from './http/audit.js'
 import { registerAuth } from './http/auth.js'
 import { registerAutomationRoutes } from './http/automation.js'
 import { registerCanvasRoutes } from './http/canvas.js'
 import { registerEngineRoutes } from './http/engines.js'
 import { registerErrorHandler } from './http/errors.js'
+import { registerNoticeRoutes } from './http/notices.js'
 import { registerStatic } from './http/static.js'
 import { registerSessionRoutes } from './http/sessions.js'
 import { registerSupervisorRoutes } from './http/supervisor.js'
@@ -69,6 +71,8 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
   registerEngineRoutes(app, { engines: deps.engines })
   registerTaskRoutes(app, { db: deps.db, logger: deps.logger })
   registerAutomationRoutes(app, { service: deps.runtime.automation })
+  registerNoticeRoutes(app, { db: deps.db, now: deps.now })
+  registerAuditRoutes(app, { db: deps.db })
   registerSessionRoutes(app, { db: deps.db })
   registerSupervisorRoutes(app, {
     dataDir: config.dataDir,

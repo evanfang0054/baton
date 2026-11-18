@@ -769,8 +769,8 @@ export function listNotices(
     .map(toNotice)
 }
 
-export function markNoticeRead(tx: Tx, id: string, readAt: number): void {
-  tx.update(notice).set({ readAt }).where(eq(notice.id, id)).run()
+export function markNoticeRead(tx: Tx, id: string, readAt: number): boolean {
+  return tx.update(notice).set({ readAt }).where(eq(notice.id, id)).run().changes > 0
 }
 
 export function listAudit(
