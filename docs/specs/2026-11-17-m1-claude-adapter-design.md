@@ -80,6 +80,7 @@ M1-6a 已合并，任务控制台具备看板、详情、审批/回复/验收、
 | D14 | 预算 | `maxTurns=30`、`maxBudgetUsd=2`；`BATON_CLAUDE_MAX_*` 可改 | 防止跑飞；默认值保守 |
 | D15 | 默认引擎 | 有登录态信号默认 claude；否则 fake 并标「演示引擎」 | 不把新用户带进 fake 任务；macOS Keychain 允许 `unknown` |
 | D16 | 测试 | adapter 用注入 transport；daemon/web 用 fake；本机 ego-lite 真实验收 | CI 不依赖真实 API；真实路径有证据 |
+| D17 | 性能基线 | 不落 partial；WAL + `synchronous=NORMAL`；单次 JSON 序列化；transcript 增量投影；热路径不重复 zod；双上限 | 真实会话事件量/进程数高于 fake；先消掉 O(n log n) 与重复解析 |
 
 ## 4. 协议与数据模型
 
@@ -338,6 +339,32 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 - cost/usage 只写日志（`total_cost_usd`、`num_turns`）；7b 再做 UI。
 - `~/.claude` 的 session 文件只用于引擎 resume；baton DB 是 UI/审计唯一真源。删除/导出/保留策略以 baton DB 为准，文档说明 Claude 自己的历史不受 baton 管理。
 
+### 8.6 性能与 CPU
+
+真实 Claude 的事件量、payload 大小、活进程数都高于 fake。7a 先做以下基线，避免把性能问题留到 7b。
+
+**Daemon**
+
+- SQLite 已开 WAL；补 `synchronous=NORMAL`（本地事件日志；断电最多丢最后几条未提交事务，库仍一致）。
+- `appendSessionEvent` 只做一次 `JSON.stringify`，同一字符串写 `ws_event` 与 `event`。
+- 生产路径不为每个 AG-UI 事件做 `EventSchemas.parse`；adapter 构造 typed event，schema 由 fixture 测试覆盖。
+- 事件级日志只走 debug；info 只记生命周期/错误；不打印大 payload。
+- `ws` hub 已经一次序列化、广播同一字符串；保留 8MB 慢客户端阈值。
+- `maxConcurrency` 限制活跃引擎 CPU；`maxLiveSessions` 限制进程/内存；默认 1 + 5。
+
+**Web**
+
+- `appendSessionEvents` / `mergeSessionPage` 增加快路径：新事件 seq 全部大于已有序时直接 append，避免每批 Set + 全量 sort。
+- `Transcript` 改为增量投影：只对新事件应用 `projectTranscript`，不再每批 `buildTranscript(events)` 全量重算。
+- 热路径减少 zod：`session.event` 做轻量字段检查后直接构造 `SessionEventRecord`；控制消息保留完整 `ServerMessage` 校验。
+- 保留 32ms 合批；不新增逐 token 渲染。
+
+**预算与测量**
+
+- 真实 10 分钟会话：event loop lag p95 < 50ms；blocked 时 daemon CPU < 5% 单核。
+- 5 个 live session 的 RSS 记录在 evidence；若 > 1.5GB，7a 就把默认 live cap 降到 3 或提前做 idle eviction。
+- 5k 事件 transcript 增量投影 p95 < 8ms；CI 只断言增量结果与全量重建等价，不设时间阈值。
+
 ## 9. 认证与运行
 
 - host-native：daemon 以当前用户运行，SDK 复用 `~/.claude` 与 macOS Keychain。
@@ -346,6 +373,7 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
   - `~/.claude/.credentials.json` 或 `~/.claude` 登录相关文件存在 → `available`。
   - 无信号 → `unknown`（macOS Keychain 场景仍允许尝试）。
   - 明确配置了无效 API key 不在探测阶段判断；运行时失败返回 `engine_auth_failed`。
+- `GET /api/engines` 结果缓存 30s，避免频繁文件检查。
 - `task.create` 不因引擎不可用而失败；`task.enqueue`/start 时检查并返回 `engine_unavailable`。
 - UI 默认：`available` 或 `unknown` → claude；`unavailable` → fake 并标「演示引擎」。
 - `env`：显式展开 `process.env`，保留 `PATH`/`HOME`；设置 `CLAUDE_AGENT_SDK_CLIENT_APP=baton/<version>`；不覆盖 `CLAUDE_CONFIG_DIR`，除非用户显式设置。
@@ -366,7 +394,7 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 - **Trust**：首次打开/创建 workspace 弹窗；默认不信任；header 显示「未信任/已信任」徽标；可撤销；hooks 开关默认关。
 - **Engine**：agent 节点创建/建任务表单提供引擎选择；显示 `available/unknown/unavailable` 与原因；fake 标「演示引擎」。
 - **审批**：支持多个 approval 卡并发；按 `approvalId` 渲染；allow/deny 只影响对应 request。
-- **Transcript**：截断提示；长列表继续虚拟滚动；不新增 partial 动画。
+- **Transcript**：截断提示；增量投影；长列表继续虚拟滚动；不新增 partial 动画。
 - **样式**：全部使用 `DESIGN.md` token；状态不能只靠颜色，需文字/图标。
 
 ## 11. 测试与验收
@@ -406,6 +434,8 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 - 引擎选择与不可用状态。
 - 多审批卡并发。
 - transcript 截断提示。
+- session-cache 快路径：顺序 append、乱序合并、去重。
+- 增量投影与全量 `buildTranscript` 等价（属性/表驱动测试）。
 
 ### 11.4 E2E
 
@@ -418,6 +448,7 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 - `pnpm verify` / `verify:full` / `pack:check` 全绿。
 - CI `verify (22/24)`、`pack-check`、`e2e`、`build` 全绿。
 - 真实任务闭环有 ego-lite 证据。
+- 性能 evidence：10 分钟真实会话的 event loop lag、CPU、RSS、DB 增长；5k 事件增量投影结果等价。
 - `THIRD_PARTY_NOTICES.md` 已记录 SDK 与 MCP SDK。
 - 无 SDK 类型泄漏到 protocol/core；`check:boundaries` 覆盖。
 
@@ -430,6 +461,8 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 | project MCP 执行命令 | 供应链风险 | 只在可信 workspace 加载；未知 MCP 工具 ask/deny |
 | blocked 占用 live 进程 | 内存/进程压力 | `maxLiveSessions=5`；7b 再做 idle eviction/resume |
 | 事件量增长 | DB/WS/UI 压力 | 7a 关闭 partial；payload 截断；7b 前先测量 |
+| transcript 全量重投影 | 长会话卡顿 | 增量投影 + session-cache 快路径；5k 事件基准 |
+| 事件双写/重复 zod | CPU/DB 压力 | 单次 JSON 序列化；热路径不重复 parse；WAL + NORMAL |
 | macOS Keychain 无法探测 | 误判不可用 | 使用 `unknown` 状态并允许尝试；运行时错误可解释 |
 | 真实 API 不在 CI | 回归盲区 | fixture 覆盖映射；本机 ego-lite 证据 |
 | SDK 许可 | 分发合规 | 只作 npm 依赖；Docker 已移除；notices 记录 |
@@ -441,9 +474,12 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 3. **Slice 2**：adapter——transport/adapter/mapping/outcome + fixture 测试；依赖 `@anthropic-ai/claude-agent-sdk@0.3.327`（实现时再查最新）与 `@modelcontextprotocol/sdk@1.32.2`。
 4. **Slice 3**：daemon 接线——engine allowlist、auth/engines API、trust 字段/API/审计、`StartInput.workspaceTrust`。
 5. **Slice 4**：web——trust 弹窗/徽标、引擎选择、多审批卡、截断提示。
-6. **Slice 5**：真实验收——ego-lite 闭环、Playwright fake 全链路、文档/notices。
+6. **Slice 5**：性能——session-cache 快路径、transcript 增量投影、WS 热路径、SQLite pragma、基准与 evidence。
+7. **Slice 6**：真实验收——ego-lite 闭环、Playwright fake 全链路、文档/notices。
 
-估算：5–6 个开发日；S2 spike 阻塞 Slice 2。
+估算：6–7 个开发日；S2 spike 阻塞 Slice 2；Slice 5 可与 Slice 4 并行。
+
+Slice 5 中与 adapter 无关的项（session-cache、transcript 投影、WS 热路径、SQLite pragma）建议先于 Slice 2 落地，先建立基线；adapter 接入后再复测。
 
 ## 14. 后续映射
 
