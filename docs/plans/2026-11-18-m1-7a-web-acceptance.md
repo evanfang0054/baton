@@ -86,6 +86,7 @@ depends_on: [2026-11-18-m1-7a-adapter-wiring.md]
 
 **真实 Claude 验收**
 
-- 阻塞：本机 Claude Code 未登录（`claude /login`），S2 spike 已记录 `Not logged in`。
-- 未执行 `建任务 → 工具审批 → blocked → reply → ready → verify → review` 的真实闭环；需登录后按 `docs/runbooks/local.md` 重跑。
+- 已修复首次失败：`settingSources: []` 会切断本机 OAuth；改为不可信 workspace 保留 `['user']`（ADR 0004）。
+- adapter 级真实闭环已验证：`pong` → `baton_report` → `session.outcome=ready` → `RUN_FINISHED`。
+- 未执行完整 UI 真实闭环（建任务 → 工具审批 → blocked → reply → verify → review）；需在本机启动 daemon 后按 `docs/runbooks/local.md` 手动验收。
 - CI 与自动化链路不依赖真实 API。
