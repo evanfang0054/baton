@@ -13,6 +13,7 @@ type ToolPayload = SupervisorToolEvent['payload']
 
 interface SupervisorStreamStore extends SupervisorStreamProjection {
   begin: (input: { threadId: string; messageId: string }) => void
+  waitForReply: () => void
   append: (event: DeltaPayload) => void
   tool: (event: ToolPayload) => void
   apply: (event: DeltaPayload | ToolPayload) => void
@@ -24,6 +25,13 @@ export const useSupervisorStreamStore = create<SupervisorStreamStore>((set) => (
   ...createStreamState(),
   begin: ({ threadId, messageId }) =>
     set({ threadId, messageId, text: '', tools: [], status: 'streaming' }),
+  // 发送成功后、第一个 delta 到达前，也要让 UI 显示“正在思考”，而不是空白等待。
+  waitForReply: () =>
+    set((state) =>
+      state.status === 'idle'
+        ? { ...state, status: 'streaming', text: '', tools: [], messageId: null, threadId: null }
+        : state,
+    ),
   append: (event) => set((state) => applyDelta(state, event)),
   tool: (event) => set((state) => applyTool(state, event)),
   apply: (event) =>

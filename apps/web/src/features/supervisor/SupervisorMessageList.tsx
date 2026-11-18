@@ -1,19 +1,48 @@
 import type { SupervisorMessage as SupervisorMessageRecord } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Loader2 } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { SupervisorEmptyState } from './SupervisorEmptyState'
 import { SupervisorMessage } from './SupervisorMessage'
 import { SupervisorToolCard } from './SupervisorToolCard'
 import type { SupervisorStreamProjection } from './supervisor-model'
 
 function StreamingMessage({ stream }: { stream: SupervisorStreamProjection }) {
+  const targetRef = useRef(stream.text)
+  targetRef.current = stream.text
+  const [visible, setVisible] = useState('')
+
+  // 后端/模型可能一次到达一大段；按帧揭示，避免“整段闪现”。
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setVisible((current) => {
+        const target = targetRef.current
+        if (!target.startsWith(current)) return target
+        if (current.length >= target.length) return current
+        const remaining = target.length - current.length
+        const step = Math.max(4, Math.ceil(remaining / 30))
+        return target.slice(0, current.length + step)
+      })
+    }, 16)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    setVisible('')
+  }, [stream.messageId])
+
   return (
-    <article className="flex gap-3" data-testid="supervisor-streaming">
+    <article className="flex gap-3" data-testid="supervisor-streaming" aria-live="off">
       <span className="w-9 shrink-0 pt-0.5 text-xs text-muted">总管</span>
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        {stream.text ? (
-          <p className="whitespace-pre-wrap break-words text-sm text-foreground">{stream.text}</p>
+        {visible ? (
+          <p className="whitespace-pre-wrap break-words text-sm text-foreground">
+            {visible}
+            <span
+              aria-hidden="true"
+              className="ml-0.5 inline-block h-4 w-1 animate-pulse bg-accent align-middle motion-reduce:animate-none"
+            />
+          </p>
         ) : (
           <p className="flex items-center gap-1.5 text-sm text-muted">
             <Loader2 size={14} className="animate-spin" aria-hidden="true" />

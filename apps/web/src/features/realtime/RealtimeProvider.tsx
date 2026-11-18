@@ -46,6 +46,7 @@ export function RealtimeProvider({
     // 每个 chunk 都写缓存会触发 transcript 全量重投影；按帧合并写入。
     const pendingEvents = new Map<string, SessionEventRecord[]>()
     let flushTimer: number | undefined
+    const finalizeTimers: number[] = []
     const flush = () => {
       flushTimer = undefined
       for (const [sessionId, records] of pendingEvents) {
@@ -118,20 +119,33 @@ export function RealtimeProvider({
           return
         }
         if (event.type === 'supervisor.message') {
-          useSupervisorStreamStore.getState().finish()
-          const key = queryKeys.supervisorMessages(workspaceId)
-          queryClient.setQueryData<SupervisorMessagesResponse>(key, (previous) =>
-            previous && !previous.messages.some((message) => message.id === event.payload.id)
-              ? { ...previous, messages: [...previous.messages, event.payload] }
-              : previous,
-          )
-          // 让 REST 校正 nextBefore / threadId 等分页字段。
-          void queryClient.invalidateQueries({ queryKey: key })
-          // create_task 不经过 task.status 事件；任务列表/看板必须在这里刷新。
-          void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
-          const taskId = event.payload.decision?.taskId
-          if (taskId) {
-            void queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+          const finalize = () => {
+            useSupervisorStreamStore.getState().finish()
+            const key = queryKeys.supervisorMessages(workspaceId)
+            queryClient.setQueryData<SupervisorMessagesResponse>(key, (previous) =>
+              previous && !previous.messages.some((message) => message.id === event.payload.id)
+                ? { ...previous, messages: [...previous.messages, event.payload] }
+                : previous,
+            )
+            // 让 REST 校正 nextBefore / threadId 等分页字段。
+            void queryClient.invalidateQueries({ queryKey: key })
+            // create_task 不经过 task.status 事件；任务列表/看板必须在这里刷新。
+            void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+            const taskId = event.payload.decision?.taskId
+            if (taskId) {
+              void queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+            }
+          }
+          // 模型可能把一大段文本一次性吐出来；让流式气泡先按帧展示完，再切到最终消息，
+          // 避免肉眼看到“整段闪现”。短回复几乎没有延迟。
+          const streaming = useSupervisorStreamStore.getState().status === 'streaming'
+          const delay = streaming
+            ? Math.min(900, Math.max(120, Math.round(event.payload.content.length * 2)))
+            : 0
+          if (delay > 0) {
+            finalizeTimers.push(window.setTimeout(finalize, delay))
+          } else {
+            finalize()
           }
           return
         }
@@ -147,6 +161,7 @@ export function RealtimeProvider({
       client.close()
       if (invalidateTimer) window.clearTimeout(invalidateTimer)
       if (flushTimer) window.clearTimeout(flushTimer)
+      for (const timer of finalizeTimers) window.clearTimeout(timer)
     }
   }, [workspaceId, queryClient, setWsStatus])
 

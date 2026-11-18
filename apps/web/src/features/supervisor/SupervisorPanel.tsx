@@ -11,7 +11,7 @@ import { SupervisorComposer } from './SupervisorComposer'
 import { SupervisorMessageList } from './SupervisorMessageList'
 import { SupervisorStatusBar } from './SupervisorStatusBar'
 import { createRequestId, type SupervisorTargetAgent } from './supervisor-model'
-import { useSupervisorStream } from './stream-store'
+import { useSupervisorStream, useSupervisorStreamStore } from './stream-store'
 
 export function SupervisorPanel({
   workspaceId,
@@ -45,6 +45,7 @@ export function SupervisorPanel({
     setOlderBefore(null)
     setOlderLoaded(false)
     setQuickPrompt('')
+    useSupervisorStreamStore.getState().reset()
   }, [workspaceId])
 
   const messages = useMemo(() => {
