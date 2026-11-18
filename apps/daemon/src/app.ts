@@ -8,6 +8,7 @@ import type { Config } from './config.js'
 import type { Db } from './db/types.js'
 import { registerApiAuth } from './http/api-auth.js'
 import { registerAuth } from './http/auth.js'
+import { registerAutomationRoutes } from './http/automation.js'
 import { registerCanvasRoutes } from './http/canvas.js'
 import { registerEngineRoutes } from './http/engines.js'
 import { registerErrorHandler } from './http/errors.js'
@@ -67,6 +68,7 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
   registerCanvasRoutes(app, { db: deps.db })
   registerEngineRoutes(app, { engines: deps.engines })
   registerTaskRoutes(app, { db: deps.db, logger: deps.logger })
+  registerAutomationRoutes(app, { service: deps.runtime.automation })
   registerSessionRoutes(app, { db: deps.db })
   registerSupervisorRoutes(app, {
     dataDir: config.dataDir,

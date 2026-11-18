@@ -8,6 +8,8 @@ import type {
   TaskTransitionEvent,
 } from '@baton/protocol'
 import { randomUUID } from 'node:crypto'
+import { createAutomationService } from '../automation/service.js'
+import { createAutomationState } from '../automation/state.js'
 import type { Config } from '../config.js'
 import { createEventStore, type BroadcastEvent, type WsEventRow } from '../db/event-store.js'
 import {
@@ -140,6 +142,17 @@ export function createRuntime(deps: RuntimeDeps) {
   }
 
   const taskService = createTaskService({ db: deps.db, config: deps.config, now, newId })
+  const automationState = createAutomationState({
+    initial: deps.config.killSwitch,
+    forced: deps.config.killSwitch,
+  })
+  const automation = createAutomationService({
+    db: deps.db,
+    config: deps.config,
+    state: automationState,
+    now,
+    newId,
+  })
   const supervisor = createSupervisorService({
     db: deps.db,
     dataDir: deps.config.dataDir,
@@ -583,7 +596,7 @@ export function createRuntime(deps: RuntimeDeps) {
     })
   }
 
-  return { ...runtime, scheduler: created, supervisor }
+  return { ...runtime, scheduler: created, supervisor, automation }
 }
 
 export type Runtime = ReturnType<typeof createRuntime>
