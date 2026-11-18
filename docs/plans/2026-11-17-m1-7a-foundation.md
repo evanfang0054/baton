@@ -24,7 +24,7 @@ depends_on: []
 | Plan | 范围 | 状态 |
 |---|---|---|
 | A. 性能热路径 | SQLite/event-store/session-cache/WS | 已完成，PR #12（栈 #10/#11/#12 待合并） |
-| **B. 契约与并发基座（本计划）** | trust、状态机、并发、boot | 本次 |
+| **B. 契约与并发基座（本计划）** | trust、状态机、并发、boot | 已完成（2026-11-18） |
 | C. Claude adapter 与 daemon 接线 | S2 spike、adapter、engine/trust 接线 | 待写；依赖 B |
 | D. Web UX 与真实验收 | trust 弹窗、引擎选择、ego-lite | 待写；依赖 B+C |
 
@@ -732,3 +732,32 @@ git commit -m "docs(plan): M1-7a 契约与并发基座执行记录"
 - **Placeholder scan**：无 TBD/TODO；每个 Task 有测试与实现片段。
 - **Type consistency**：`Workspace.trusted/projectHooks/trustedAt`、`countLiveSessions`、`maxLiveSessions`、`WorkspaceTrustInput` 在后续 Task 中名称一致。
 - **Scope**：只改 protocol/core/daemon/migration；不接真实 Claude、不改 web、不动 Plan A 的 event-store/ws/session-cache。
+
+---
+
+## 执行记录（2026-11-18）
+
+分支 `feat/m1-7a-foundation`，基于 `docs/m1-7-spec`（`6fa6969`）。
+
+**Commit 序列**
+
+- `docs(plan)`：本计划落库。
+- `feat(protocol): workspace trust 字段与 migration`：`Workspace` 增加 `trusted/projectHooks/trustedAt`；migration `apps/daemon/migrations/0003_workspace_trust.sql`（`trusted INTEGER NOT NULL DEFAULT false`、`project_hooks TEXT NOT NULL DEFAULT 'off'`、`trusted_at INTEGER`）。
+- `feat(daemon): workspace trust API 与审计`：`PATCH /api/workspaces/:id/trust`；审计 `workspace.trust` / `workspace.untrust` / `workspace.project_hooks_changed`；撤销信任时 `trustedAt` 归零但保留 hooks 偏好。
+- `feat(core): waiting_input 接受 session_reported`：`unreported → stalled`、`blocked → question`、`dropped → dropped`，不新增事件类型；矩阵测试补 `waiting_input:session_reported`。
+- `feat(daemon): 执行槽与 live session 双上限`：`countActiveTasks` 只计 `running|verifying`；新增 `countLiveSessions` 计 `running|waiting_input` session；`BATON_MAX_LIVE_SESSIONS` 默认 5；调度器在 live 到顶时停止启动。
+- `feat(daemon): 重启对账收敛到 waiting_input(stalled)`：启动时活跃 session 置 `failed`，任务走 `session_reported(unreported, "daemon restarted")`；`verifying` 仍 `verify_fail(124) → review`；pending approval 记 `approval.expired`。
+- 两个补充修复：`style(daemon)` 修 repository 格式；`test(web)` 为 App fixture 补 trust 字段（协议收紧暴露的运行时校验缺口）。
+
+**行为确认**
+
+- blocked 任务释放执行槽，但保留 live session 计数；live 上限独立阻断新启动。
+- stalled 任务可 `enqueue` 回到 queued；waiting_input 上的重复上报只刷新 waitingReason。
+- 重启不会把正在运行的任务判死，用户可重新入队或取消。
+
+**验证**
+
+- `pnpm verify`：通过（typecheck、lint、format、boundaries、protocol、test、build）。
+- `pnpm verify:full`：通过（e2e 1 passed）。
+- `pnpm pack:check`：`pack-check ok`，tarball 包含 `dist/migrations/0003_workspace_trust.sql`。
+- 测试总数 399：protocol 101、adapters 13、core 98、web 68、daemon 119。
