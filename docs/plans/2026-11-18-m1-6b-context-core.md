@@ -1140,3 +1140,14 @@ Expected: typecheck、lint、format、boundaries、protocol 检查、测试、bu
 git add docs/plans/2026-11-18-m1-6b-context-core.md
 git commit -m "docs(plan): M1-6b 后端计划完成记录"
 ```
+
+---
+
+## 完成记录（2026-11-18）
+
+- **提交**：`261d558` protocol、`63f8f52` edge service、`2dc3cfa` schema/migration、`0f055bf` core relations、`b896d37` task snapshot、`9767587` cascade delete。
+- **验证**：`pnpm verify` 全绿（typecheck、lint、format、boundaries、protocol、全部单测、build）。
+- **实现偏离**：
+  - Task 4 先于 Task 2 提交：protocol 新增边命令后，daemon 的 `ClientMessage` switch 必须同时补齐，否则 typecheck 失败；schema/migration 不依赖边命令，因此顺序调整不影响结果。
+  - 关系 200 条上限是防御常量；实际约束是 4k 字符预算。测试用 `RELATION_LIMITS` 锁定常量并覆盖字符截断行为（contract 第 9 条已同步措辞）。
+  - `apps/web/src/features/tasks/TaskDetailPanel.test.tsx` 的 fixture 用 `...{ context: null }` 展开写入：该文件在顶层出现字面量 `context` 键时，Vite/React 测试转换会报 “Vitest failed to find the runner”；展开写法已通过测试。
