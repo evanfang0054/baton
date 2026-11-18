@@ -67,6 +67,10 @@
 - [M2-1 总管 daemon 实施计划](plans/2026-11-18-m2-supervisor-daemon.md)
 - [M2-1 总管 Web 实施计划](plans/2026-11-18-m2-supervisor-web.md)
 - [M2-1 总管验收实施计划](plans/2026-11-18-m2-supervisor-acceptance.md)
+- [M2-2a 契约层实施计划](plans/2026-11-19-m2-autopilot-contracts.md)
+- [M2-2a daemon 实施计划](plans/2026-11-19-m2-autopilot-daemon.md)
+- [M2-2a web 实施计划](plans/2026-11-19-m2-autopilot-web.md)
+- [M2-2a 验收实施计划](plans/2026-11-19-m2-autopilot-acceptance.md)
 
 ## 验收证据
 
