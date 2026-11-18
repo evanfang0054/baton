@@ -82,7 +82,7 @@ export const task = sqliteTable(
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
-  (t) => [index('task_status_idx').on(t.status)],
+  (t) => [index('task_status_idx').on(t.status), index('task_workspace_idx').on(t.workspaceId)],
 )
 
 export const supervisorThread = sqliteTable(
@@ -146,18 +146,22 @@ export const supervisorDecision = sqliteTable(
   ],
 )
 
-export const session = sqliteTable('session', {
-  id: text('id').primaryKey(),
-  taskId: text('task_id')
-    .notNull()
-    .references(() => task.id),
-  adapter: text('adapter').notNull(),
-  engineSessionId: text('engine_session_id'),
-  status: text('status').notNull(),
-  outcome: text('outcome'),
-  startedAt: integer('started_at').notNull(),
-  endedAt: integer('ended_at'),
-})
+export const session = sqliteTable(
+  'session',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => task.id),
+    adapter: text('adapter').notNull(),
+    engineSessionId: text('engine_session_id'),
+    status: text('status').notNull(),
+    outcome: text('outcome'),
+    startedAt: integer('started_at').notNull(),
+    endedAt: integer('ended_at'),
+  },
+  (t) => [index('session_task_idx').on(t.taskId)],
+)
 
 export const event = sqliteTable(
   'event',
@@ -207,17 +211,21 @@ export const approval = sqliteTable(
   (t) => [index('approval_session_request_idx').on(t.sessionId, t.requestId)],
 )
 
-export const review = sqliteTable('review', {
-  id: text('id').primaryKey(),
-  taskId: text('task_id')
-    .notNull()
-    .references(() => task.id),
-  verdict: text('verdict'),
-  verifyExitCode: integer('verify_exit_code'),
-  verifyOutput: text('verify_output'),
-  diffStatJson: text('diff_stat_json'),
-  decidedAt: integer('decided_at'),
-})
+export const review = sqliteTable(
+  'review',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => task.id),
+    verdict: text('verdict'),
+    verifyExitCode: integer('verify_exit_code'),
+    verifyOutput: text('verify_output'),
+    diffStatJson: text('diff_stat_json'),
+    decidedAt: integer('decided_at'),
+  },
+  (t) => [index('review_task_idx').on(t.taskId)],
+)
 
 export const audit = sqliteTable(
   'audit',
@@ -228,13 +236,24 @@ export const audit = sqliteTable(
     action: text('action').notNull(),
     detailJson: text('detail_json').notNull(),
   },
-  (t) => [index('audit_ts_idx').on(t.ts)],
+  (t) => [index('audit_ts_idx').on(t.ts), index('audit_action_ts_idx').on(t.action, t.ts)],
 )
 
-export const notice = sqliteTable('notice', {
-  id: text('id').primaryKey(),
-  ts: integer('ts').notNull(),
-  kind: text('kind').notNull(),
-  payloadJson: text('payload_json').notNull(),
-  readAt: integer('read_at'),
+export const notice = sqliteTable(
+  'notice',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id').references(() => workspace.id),
+    ts: integer('ts').notNull(),
+    kind: text('kind').notNull(),
+    payloadJson: text('payload_json').notNull(),
+    readAt: integer('read_at'),
+  },
+  (t) => [index('notice_workspace_ts_idx').on(t.workspaceId, t.ts)],
+)
+
+export const setting = sqliteTable('setting', {
+  key: text('key').primaryKey(),
+  valueJson: text('value_json').notNull(),
+  updatedAt: integer('updated_at').notNull(),
 })

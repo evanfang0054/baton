@@ -46,6 +46,7 @@ export interface ActiveRun {
   seq: number
   outcome: SessionOutcome | null
   outcomeReason?: string
+  workspaceTrusted: boolean
 }
 
 export interface SessionRunner {
@@ -100,7 +101,10 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     const decision =
       request.toolName === ASK_USER_QUESTION_TOOL
         ? null
-        : evaluateApproval(policy, request, { killSwitch: deps.killSwitch ?? false })
+        : evaluateApproval(policy, request, {
+            killSwitch: deps.killSwitch ?? false,
+            workspaceTrusted: active.workspaceTrusted,
+          })
     if (decision !== null && (decision.decision === 'allow' || decision.decision === 'deny')) {
       const autoDecision = decision.decision
       // 决策与审计必须同事务提交，否则崩溃窗口会出现“已放行但无审计”。
@@ -309,6 +313,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       requestIdByApprovalId: new Map(),
       seq: 0,
       outcome: null,
+      workspaceTrusted: input.workspaceTrust.projectSettings,
     }
     activeRuns.set(input.sessionId, active)
     const promise = consume(active, input.policy)

@@ -83,6 +83,8 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
         runningCount: countActiveTasks(deps.db),
         maxConcurrency: deps.config.maxConcurrency,
         autopilot: policy.autopilot,
+        workspaceTrusted: workspace?.trusted === true,
+        killSwitch: deps.config.killSwitch,
         waitingReason: task.waitingReason,
       },
       event,

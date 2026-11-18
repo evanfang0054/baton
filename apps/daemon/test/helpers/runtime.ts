@@ -37,11 +37,12 @@ export function createTestRuntime(
     config?: Partial<Config>
     broadcast?: (event: BroadcastEvent) => void
     engines?: EngineRegistry
+    trusted?: boolean
   } = {},
 ): TestRuntimeHandle {
   const root = mkdtempSync(join(tmpdir(), 'baton-runtime-'))
   const database = createTestDb()
-  const seeded = seedTask(database.raw)
+  const seeded = seedTask(database.raw, { trusted: options.trusted ?? true })
   mkdirSync(join(root, seeded.relPath), { recursive: true })
   database.raw
     .prepare(
