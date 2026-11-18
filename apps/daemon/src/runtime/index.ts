@@ -486,6 +486,11 @@ export function createRuntime(deps: RuntimeDeps) {
         const result = deleteEdge({ db: deps.db }, message.payload)
         return result.ok ? { ok: true, ack: {} } : { ok: false, error: result.error }
       }
+      case 'supervisor.send':
+        return {
+          ok: false,
+          error: appError('supervisor_not_implemented', 'supervisor service is not wired yet'),
+        }
       case 'resume': {
         const result = replay(message.payload.sinceSeq)
         const cursor = result.rows.at(-1)?.ordinal ?? eventStore.maxOrdinal()

@@ -45,10 +45,14 @@ export function registerTaskRoutes(app: FastifyInstance, deps: { db: Db; logger:
         'context snapshot invalid',
       )
     }
+    if (detail.originInvalid) {
+      deps.logger.warn({ event: 'task_origin_invalid', taskId: params.id }, 'task origin invalid')
+    }
     const task = detail.task
     return TaskDetailResponse.parse({
       task,
       contextInvalid: detail.contextInvalid,
+      originInvalid: detail.originInvalid,
       sessions: listSessionsByTask(deps.db, task.id),
       approvals: listApprovalsByTask(deps.db, task.id),
       review: getReviewByTask(deps.db, task.id),
