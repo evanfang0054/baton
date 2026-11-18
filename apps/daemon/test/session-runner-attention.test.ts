@@ -134,6 +134,7 @@ describe('session runner attention', () => {
             yield EventSchemas.parse({ type: 'RUN_FINISHED', threadId: 't', runId: 'r' })
           })(),
           approve: async () => {},
+          answerQuestion: async () => {},
           send: async () => {},
           interrupt: async () => {},
           dispose: async () => {},

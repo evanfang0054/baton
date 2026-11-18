@@ -36,6 +36,7 @@ export function createTaskPayload(
     contextNodeIds: ['text-1'],
     engine: 'fake',
     workspaceMode: 'main',
+    dangerouslySkipPermissions: false,
     ...overrides,
   }
 }

@@ -45,6 +45,7 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
     let workspacePath = ''
     let policy = DEFAULT_POLICY
     let workspaceTrust = { projectSettings: false, projectHooks: false }
+    let bypassPermissions = false
     const workspace = getWorkspace(deps.db, task.workspaceId)
     if (event.type === 'start') {
       if (!workspace) {
@@ -62,6 +63,8 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
             workspace.projectHooks === 'on' &&
             deps.config.claudeProjectHooks !== 'off',
         }
+        bypassPermissions =
+          task.dangerouslySkipPermissions && deps.config.allowBypassPermissions && workspace.trusted
       } catch (error) {
         return { ok: false, error: toAppError(error) }
       }
@@ -114,6 +117,7 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
             workspacePath,
             policy,
             workspaceTrust,
+            bypassPermissions,
             approval,
             verifyMeta: deps.verifyMeta,
           },

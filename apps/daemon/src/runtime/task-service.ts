@@ -4,6 +4,7 @@ import type { Config } from '../config.js'
 import {
   getCanvasByWorkspace,
   getWorkspace,
+  insertAudit,
   insertTask,
   listEdges,
   listNodes,
@@ -41,6 +42,27 @@ export function createTaskService(deps: TaskServiceDeps) {
           error: appError('unsupported_workspace_mode', 'worktree mode is not available', {
             workspaceMode: input.workspaceMode,
           }),
+        }
+      }
+      if (input.dangerouslySkipPermissions) {
+        if (!deps.config.allowBypassPermissions) {
+          return {
+            ok: false,
+            error: appError(
+              'bypass_not_allowed',
+              'dangerously skip permissions is disabled; set BATON_ALLOW_BYPASS_PERMISSIONS=1',
+            ),
+          }
+        }
+        if (!workspace.trusted) {
+          return {
+            ok: false,
+            error: appError(
+              'workspace_untrusted',
+              'workspace must be trusted before skipping permissions',
+              { workspaceId: workspace.id },
+            ),
+          }
         }
       }
       if (input.engine === 'pty') {
@@ -117,9 +139,19 @@ export function createTaskService(deps: TaskServiceDeps) {
           worktreePath: null,
           verifyCommand: input.verifyCommand ?? null,
           retryCount: 0,
+          dangerouslySkipPermissions: input.dangerouslySkipPermissions,
           createdAt: now,
           updatedAt: now,
         })
+        if (input.dangerouslySkipPermissions) {
+          insertAudit(tx, {
+            id: deps.newId(),
+            ts: now,
+            actor: 'user',
+            action: 'task.bypass_permissions',
+            detail: { taskId, workspaceId: workspace.id },
+          })
+        }
       })
       return { ok: true, taskId }
     } catch (error) {

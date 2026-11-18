@@ -20,6 +20,7 @@ const approvalBase = {
   decision: null,
   decidedBy: null,
   decidedAt: null,
+  response: null,
 }
 
 const reviewBase = {

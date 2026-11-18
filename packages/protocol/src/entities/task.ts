@@ -16,6 +16,8 @@ export const Task = z.object({
   worktreePath: z.string().nullable(),
   verifyCommand: z.string().nullable(),
   retryCount: z.number().int().nonnegative(),
+  /** 仅该任务跳过 SDK 权限审批；默认 false，需全局开关与已信任 workspace。 */
+  dangerouslySkipPermissions: z.boolean(),
   createdAt: Timestamp,
   updatedAt: Timestamp,
 })

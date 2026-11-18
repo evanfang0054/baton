@@ -43,11 +43,13 @@ function engineReasonText(reason: string | undefined): string {
 export function CreateTaskForm({
   nodeId,
   workspaceId,
+  workspaceTrusted,
   defaultTitle,
   onCreated,
 }: {
   nodeId: string
   workspaceId: string
+  workspaceTrusted: boolean
   defaultTitle: string
   onCreated: (taskId: string) => void
 }) {
@@ -58,6 +60,7 @@ export function CreateTaskForm({
   const [title, setTitle] = useState(defaultTitle)
   const [prompt, setPrompt] = useState('')
   const [verifyCommand, setVerifyCommand] = useState('')
+  const [skipPermissions, setSkipPermissions] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -83,6 +86,7 @@ export function CreateTaskForm({
           contextNodeIds: [],
           engine,
           workspaceMode: 'main',
+          dangerouslySkipPermissions: skipPermissions && workspaceTrusted,
           ...(verifyCommand.trim() ? { verifyCommand: verifyCommand.trim() } : {}),
         },
       })) as { taskId?: string } | undefined
@@ -141,6 +145,23 @@ export function CreateTaskForm({
             ))}
           </select>
           {selectedEngine?.reason ? <span>{engineReasonText(selectedEngine.reason)}</span> : null}
+        </label>
+        <label className="flex items-start gap-2 text-xs text-muted">
+          <input
+            type="checkbox"
+            aria-label="跳过权限确认"
+            checked={skipPermissions}
+            onChange={(event) => setSkipPermissions(event.target.checked)}
+            disabled={!workspaceTrusted}
+            className="mt-0.5 size-4 accent-accent"
+          />
+          <span>
+            跳过权限确认（--dangerously-skip-permissions）
+            <br />
+            {workspaceTrusted
+              ? '仅对本任务生效；需服务端开启 BATON_ALLOW_BYPASS_PERMISSIONS。'
+              : '仅已信任的工作区可用；先在顶部信任此工作区。'}
+          </span>
         </label>
         {engines.isError ? (
           <p role="alert" className="text-sm text-danger">

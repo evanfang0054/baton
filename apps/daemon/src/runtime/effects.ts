@@ -53,6 +53,7 @@ export interface EffectContext {
   workspacePath: string
   policy: Policy
   workspaceTrust: WorkspaceTrustSnapshot
+  bypassPermissions: boolean
   approval: ApprovalRecord | null
   verifyMeta: Map<string, number>
 }
@@ -180,6 +181,7 @@ export function planAndApplyEffects(tx: Tx, ctx: EffectContext, effects: TaskEff
             workspacePath: ctx.workspacePath,
             policy: ctx.policy,
             workspaceTrust: ctx.workspaceTrust,
+            bypassPermissions: ctx.bypassPermissions,
           }),
         )
         break

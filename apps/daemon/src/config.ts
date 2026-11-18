@@ -38,6 +38,7 @@ export function loadConfig(argv: string[], env: NodeJS.ProcessEnv): Config {
     claudeMaxTurns: Number(env.BATON_CLAUDE_MAX_TURNS ?? 30),
     claudeMaxBudgetUsd: Number(env.BATON_CLAUDE_MAX_BUDGET_USD ?? 2),
     claudeProjectHooks: env.BATON_CLAUDE_PROJECT_HOOKS === 'off' ? 'off' : 'on',
+    allowBypassPermissions: envFlag(env.BATON_ALLOW_BYPASS_PERMISSIONS),
     killSwitch: envFlag(env.BATON_KILL_SWITCH),
   })
   if (config.host !== '127.0.0.1' && !config.token) {

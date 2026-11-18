@@ -33,6 +33,7 @@ const task: TaskSummary = {
   branch: null,
   worktreePath: null,
   verifyCommand: null,
+  dangerouslySkipPermissions: false,
   retryCount: 0,
   createdAt: 1,
   updatedAt: 1,
@@ -54,6 +55,7 @@ function renderPanel(
           node={node}
           task={taskSummary}
           workspaceId="w1"
+          workspaceTrusted={false}
           onOpenTask={vi.fn()}
           onDeleted={onDeleted}
           onClose={vi.fn()}
@@ -69,6 +71,7 @@ function renderPanel(
             node={nextNode}
             task={nextTask}
             workspaceId="w1"
+            workspaceTrusted={false}
             onOpenTask={vi.fn()}
             onDeleted={onDeleted}
             onClose={vi.fn()}

@@ -19,6 +19,8 @@ export interface StartInput {
   permissionMode: PermissionMode
   policy: PolicySnapshot
   workspaceTrust: WorkspaceTrustSnapshot
+  /** 仅该任务跳过权限审批；由 daemon 校验全局开关与 workspace trust 后传入。 */
+  bypassPermissions: boolean
 }
 
 export interface AgentRun {
@@ -29,6 +31,12 @@ export interface AgentRun {
    */
   events: AsyncIterable<AgentEvent>
   approve(requestId: string, decision: ApprovalDecision, note?: string): Promise<void>
+  /** AskUserQuestion 的答案；answers 键为 question 文本。 */
+  answerQuestion(
+    requestId: string,
+    answers: Record<string, string>,
+    response?: string,
+  ): Promise<void>
   send(text: string): Promise<void>
   interrupt(): Promise<void>
   dispose(): Promise<void>

@@ -6,6 +6,7 @@ const base = {
   prompt: 'demo',
   cwd: '/workspace/demo',
   projectHooksGlobal: true,
+  bypassPermissions: false,
   systemPromptAppend: '<baton_protocol/>',
   maxTurns: 30,
   maxBudgetUsd: 2,
@@ -64,6 +65,18 @@ describe('buildClaudeOptions', () => {
     expect(options.systemPrompt).toMatchObject({ type: 'preset', preset: 'claude_code' })
     expect(options.disallowedTools).toEqual(expect.arrayContaining([...DISALLOWED_TOOLS]))
     expect(options.env?.CLAUDE_AGENT_SDK_CLIENT_APP).toBe('baton/0.0.0')
+  })
+
+  it('enables bypass only when explicitly requested', () => {
+    const options = buildClaudeOptions({
+      ...base,
+      bypassPermissions: true,
+      workspaceTrust: { projectSettings: true, projectHooks: false },
+    })
+    expect(options.permissionMode).toBe('bypassPermissions')
+    expect(options.allowDangerouslySkipPermissions).toBe(true)
+    // managed settings 里的 disableBypassPermissionsMode 会让 SDK 直接拒绝 bypass。
+    expect(options.managedSettings?.permissions?.disableBypassPermissionsMode).toBeUndefined()
   })
 
   it('reports the installed SDK version without importing the SDK', () => {

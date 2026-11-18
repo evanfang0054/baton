@@ -96,6 +96,7 @@ function toTask(row: typeof task.$inferSelect): Task {
     worktreePath: row.worktreePath,
     verifyCommand: row.verifyCommand,
     retryCount: row.retryCount,
+    dangerouslySkipPermissions: row.dangerouslySkipPermissions,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   })
@@ -122,6 +123,7 @@ function toApproval(row: typeof approval.$inferSelect): ApprovalRecord {
     decision: row.decision,
     decidedBy: row.decidedBy,
     decidedAt: row.decidedAt,
+    response: row.responseJson ? (JSON.parse(row.responseJson) as unknown) : null,
   })
   return { ...parsed, requestId: row.requestId }
 }
@@ -336,6 +338,7 @@ export function insertTask(tx: Tx, input: Task): void {
       worktreePath: input.worktreePath,
       verifyCommand: input.verifyCommand,
       retryCount: input.retryCount,
+      dangerouslySkipPermissions: input.dangerouslySkipPermissions,
       createdAt: input.createdAt,
       updatedAt: input.updatedAt,
     })
@@ -525,6 +528,13 @@ export function updateApprovalDecision(
   decidedAt: number,
 ): void {
   tx.update(approval).set({ decision, decidedBy, decidedAt }).where(eq(approval.id, id)).run()
+}
+
+export function updateApprovalResponse(tx: Tx, id: string, response: unknown): void {
+  tx.update(approval)
+    .set({ responseJson: JSON.stringify(response) })
+    .where(eq(approval.id, id))
+    .run()
 }
 
 export function insertReview(tx: Tx, input: Review): void {

@@ -17,13 +17,19 @@ function stubEngines(engines: unknown[]) {
   )
 }
 
-function renderForm(send = vi.fn().mockResolvedValue({ taskId: 't1' })) {
+function renderForm(send = vi.fn().mockResolvedValue({ taskId: 't1' }), workspaceTrusted = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const onCreated = vi.fn()
   render(
     <QueryClientProvider client={client}>
       <CommandProvider send={send}>
-        <CreateTaskForm nodeId="n1" workspaceId="w1" defaultTitle="Agent 1" onCreated={onCreated} />
+        <CreateTaskForm
+          nodeId="n1"
+          workspaceId="w1"
+          workspaceTrusted={workspaceTrusted}
+          defaultTitle="Agent 1"
+          onCreated={onCreated}
+        />
       </CommandProvider>
     </QueryClientProvider>,
   )
@@ -64,11 +70,37 @@ describe('CreateTaskForm', () => {
           contextNodeIds: [],
           engine: 'claude-sdk',
           workspaceMode: 'main',
+          dangerouslySkipPermissions: false,
           verifyCommand: 'node -e "console.log(1)"',
         },
       }),
     )
     expect(onCreated).toHaveBeenCalledWith('t1')
+  })
+
+  it('disables skip permissions until the workspace is trusted', async () => {
+    stubEngines([{ engine: 'fake', status: 'available' }])
+    renderForm(vi.fn().mockResolvedValue({ taskId: 't1' }), false)
+    expect(screen.getByLabelText('跳过权限确认')).toBeDisabled()
+  })
+
+  it('sends the bypass flag only for a trusted workspace', async () => {
+    stubEngines([{ engine: 'fake', status: 'available' }])
+    const { send } = renderForm(vi.fn().mockResolvedValue({ taskId: 't1' }), true)
+    await waitFor(() => expect(screen.getByLabelText('执行引擎')).toHaveValue('fake'))
+    fireEvent.change(screen.getByLabelText('任务标题'), { target: { value: '演示任务' } })
+    fireEvent.change(screen.getByLabelText('任务说明'), { target: { value: '请完成演示' } })
+    fireEvent.click(screen.getByLabelText('跳过权限确认'))
+    fireEvent.click(screen.getByRole('button', { name: '创建任务' }))
+
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'task.create',
+          payload: expect.objectContaining({ dangerouslySkipPermissions: true }),
+        }),
+      ),
+    )
   })
 
   it('falls back to the demo engine when Claude is unavailable', async () => {

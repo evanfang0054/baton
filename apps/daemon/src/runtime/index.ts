@@ -25,6 +25,7 @@ import {
   hasTaskForNode,
   insertNode,
   listTasksByStatus,
+  updateApprovalResponse,
   updateNode,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
@@ -35,6 +36,7 @@ import type { AdapterFactory } from './adapter-factory.js'
 import type { EngineRegistry } from './engines.js'
 import { createScheduler, type Scheduler } from './scheduler.js'
 import { createSessionRunner, type SessionRunner } from './session-runner.js'
+import { validateQuestionAnswers } from './questions.js'
 import { createTaskService } from './task-service.js'
 import { createTransitionRunner } from './transition-runner.js'
 import type { RuntimeHooks, StartSessionInput, TransitionOutcome } from './types.js'
@@ -206,6 +208,11 @@ export function createRuntime(deps: RuntimeDeps) {
         }),
       }
     }
+    // 结构化提问必须在决定前拿到合法答案；答案与决定分开存，但同一次命令完成。
+    const answerCheck = validateQuestionAnswers(approval.request, input)
+    if (!answerCheck.ok) {
+      return { ok: false, error: answerCheck.error }
+    }
     const session = getSession(deps.db, approval.sessionId)
     if (!session) {
       return {
@@ -214,6 +221,9 @@ export function createRuntime(deps: RuntimeDeps) {
           sessionId: approval.sessionId,
         }),
       }
+    }
+    if (answerCheck.payload) {
+      deps.db.transaction((tx) => updateApprovalResponse(tx, approval.id, answerCheck.payload))
     }
     const event: TaskTransitionEvent =
       input.decision === 'allow'

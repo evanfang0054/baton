@@ -177,6 +177,7 @@ describe('session runner', () => {
         return {
           events: (async function* () {})(),
           approve: async () => {},
+          answerQuestion: async () => {},
           send: async () => {},
           interrupt: async () => {},
           dispose: async () => {},

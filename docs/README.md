@@ -27,6 +27,7 @@
 - [0002 web 组件库选择 HeroUI v3](adr/0002-heroui-component-library.md)
 - [0003 v1 移除 Docker 分发](adr/0003-drop-docker-from-v1.md)
 - [0004 不可信 workspace 仍加载 user settings](adr/0004-untrusted-loads-user-settings.md)
+- [0005 按任务跳过审批与结构化提问](adr/0005-bypass-permissions-and-questions.md)
 
 ## 现行 contract
 

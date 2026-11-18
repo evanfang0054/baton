@@ -232,6 +232,7 @@ export function App() {
               node={selectedNode}
               task={nodeTask ?? null}
               workspaceId={activeWorkspaceId}
+              workspaceTrusted={activeWorkspace?.trusted ?? false}
               onOpenTask={(id) => {
                 setSelectedNode(null)
                 setTask(id)

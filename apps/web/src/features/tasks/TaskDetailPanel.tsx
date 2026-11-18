@@ -7,6 +7,7 @@ import { queryKeys } from '../../lib/query'
 import { useAppStore } from '../../stores/app'
 import { mergeSessionPage } from '../realtime/session-cache'
 import { ApprovalCard } from './ApprovalCard'
+import { QuestionCard } from './QuestionCard'
 import { ReplyComposer } from './ReplyComposer'
 import { ReviewCard } from './ReviewCard'
 import { TaskActions } from './TaskActions'
@@ -133,9 +134,13 @@ function DetailContent({
       {task.status === 'waiting_input' && needsApproval ? (
         pendingApprovals.length > 0 ? (
           <div className="flex shrink-0 flex-col gap-2">
-            {pendingApprovals.map((approval) => (
-              <ApprovalCard key={approval.id} approval={approval} onDone={onDone} />
-            ))}
+            {pendingApprovals.map((approval) =>
+              approval.request.toolName === 'AskUserQuestion' ? (
+                <QuestionCard key={approval.id} approval={approval} onDone={onDone} />
+              ) : (
+                <ApprovalCard key={approval.id} approval={approval} onDone={onDone} />
+              ),
+            )}
           </div>
         ) : (
           <p className="shrink-0 text-sm text-muted">等待审批记录同步…</p>

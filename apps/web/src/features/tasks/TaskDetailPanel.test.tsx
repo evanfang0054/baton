@@ -20,6 +20,7 @@ const baseTask: TaskDetailResponse['task'] = {
   branch: null,
   worktreePath: null,
   verifyCommand: null,
+  dangerouslySkipPermissions: false,
   retryCount: 0,
   createdAt: 1,
   updatedAt: 2,
@@ -132,6 +133,7 @@ describe('TaskDetailPanel', () => {
             decision: null,
             decidedBy: null,
             decidedAt: null,
+            response: null,
           },
         ],
       }),
@@ -144,6 +146,57 @@ describe('TaskDetailPanel', () => {
       expect(send).toHaveBeenCalledWith({
         type: 'approval.decide',
         payload: { approvalId: 'a1', decision: 'allow' },
+      }),
+    )
+  })
+
+  it('renders a question card for AskUserQuestion approvals', async () => {
+    stubFetch(
+      detail({
+        task: { ...baseTask, status: 'waiting_input', waitingReason: 'approval' },
+        attention: 'needs_approval',
+        approvals: [
+          {
+            id: 'q1',
+            sessionId: 's1',
+            request: {
+              toolName: 'AskUserQuestion',
+              risk: 'high',
+              input: {
+                questions: [
+                  {
+                    question: '用哪个方案？',
+                    header: '方案',
+                    multiSelect: false,
+                    options: [
+                      { label: '方案 A', description: '改动小' },
+                      { label: '方案 B', description: '重构彻底' },
+                    ],
+                  },
+                ],
+              },
+            },
+            decision: null,
+            decidedBy: null,
+            decidedAt: null,
+            response: null,
+          },
+        ],
+      }),
+    )
+    const { send } = renderPanel()
+
+    expect(await screen.findByText('Agent 需要你的选择')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('方案 B'))
+    fireEvent.click(screen.getByRole('button', { name: '提交选择' }))
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({
+        type: 'approval.decide',
+        payload: {
+          approvalId: 'q1',
+          decision: 'allow',
+          answers: { '用哪个方案？': '方案 B' },
+        },
       }),
     )
   })
@@ -161,6 +214,7 @@ describe('TaskDetailPanel', () => {
             decision: null,
             decidedBy: null,
             decidedAt: null,
+            response: null,
           },
           {
             id: 'a2',
@@ -169,6 +223,7 @@ describe('TaskDetailPanel', () => {
             decision: null,
             decidedBy: null,
             decidedAt: null,
+            response: null,
           },
         ],
       }),
@@ -262,6 +317,7 @@ describe('TaskDetailPanel', () => {
       verifyOutput: 'verify ok',
       diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
       decidedAt: null,
+      response: null,
     } as const
     stubFetch(
       detail({

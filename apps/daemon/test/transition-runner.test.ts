@@ -241,6 +241,69 @@ describe('transition runner', () => {
     expect(getApproval(handle.database.db, 'approval-1')?.decision).toBe('allow')
   })
 
+  it('validates and stores structured question answers before deciding', async () => {
+    const handle = setup()
+    const taskId = handle.createTask()
+    handle.runtime.applyTransition(taskId, { type: 'enqueue' })
+    await handle.runtime.settle()
+    const sessionId = handle.startSessions[0]!.sessionId
+    handle.database.db.transaction((tx) =>
+      insertApproval(tx, {
+        id: 'approval-q',
+        sessionId,
+        requestId: 'req-q',
+        request: {
+          toolName: 'AskUserQuestion',
+          risk: 'high',
+          input: {
+            questions: [
+              {
+                question: '用哪个方案？',
+                header: '方案',
+                multiSelect: false,
+                options: [
+                  { label: '方案 A', description: '改动小' },
+                  { label: '方案 B', description: '重构彻底' },
+                ],
+              },
+            ],
+          },
+        },
+      }),
+    )
+    const requested = handle.runtime.applyTransition(taskId, {
+      type: 'approval_requested',
+      approvalId: 'approval-q',
+    })
+    expect(requested.ok).toBe(true)
+
+    const missing = handle.runtime.decideApproval({ approvalId: 'approval-q', decision: 'allow' })
+    expect(missing.ok).toBe(false)
+    if (!missing.ok) {
+      expect(missing.error.code).toBe('invalid_payload')
+    }
+
+    const invalid = handle.runtime.decideApproval({
+      approvalId: 'approval-q',
+      decision: 'allow',
+      answers: { '用哪个方案？': '方案 C' },
+    })
+    expect(invalid.ok).toBe(false)
+
+    const decided = handle.runtime.decideApproval({
+      approvalId: 'approval-q',
+      decision: 'allow',
+      answers: { '用哪个方案？': '方案 A' },
+      response: '先做最小改动',
+    })
+    expect(decided.ok).toBe(true)
+    await handle.runtime.settle()
+    expect(getApproval(handle.database.db, 'approval-q')?.response).toEqual({
+      answers: { '用哪个方案？': '方案 A' },
+      response: '先做最小改动',
+    })
+  })
+
   it('starts the next queued task after the first enters review', async () => {
     const handle = setup({ maxConcurrency: 1 })
     const first = handle.createTask({ title: 'one' })

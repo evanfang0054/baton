@@ -70,6 +70,9 @@ export const task = sqliteTable(
     worktreePath: text('worktree_path'),
     verifyCommand: text('verify_command'),
     retryCount: integer('retry_count').notNull().default(0),
+    dangerouslySkipPermissions: integer('dangerously_skip_permissions', { mode: 'boolean' })
+      .notNull()
+      .default(false),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
@@ -132,6 +135,7 @@ export const approval = sqliteTable(
     decision: text('decision'),
     decidedBy: text('decided_by'),
     decidedAt: integer('decided_at'),
+    responseJson: text('response_json'),
   },
   (t) => [index('approval_session_request_idx').on(t.sessionId, t.requestId)],
 )

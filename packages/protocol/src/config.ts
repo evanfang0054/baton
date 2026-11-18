@@ -12,6 +12,7 @@ export const ConfigSchema = z.object({
   claudeMaxTurns: z.number().int().positive().default(30),
   claudeMaxBudgetUsd: z.number().positive().default(2),
   claudeProjectHooks: z.enum(['on', 'off']).default('on'),
+  allowBypassPermissions: z.boolean().default(false),
   killSwitch: z.boolean().default(false),
 })
 

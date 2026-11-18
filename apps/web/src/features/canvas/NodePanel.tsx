@@ -37,6 +37,7 @@ export function NodePanel({
   node,
   task,
   workspaceId,
+  workspaceTrusted,
   onOpenTask,
   onDeleted,
   onClose,
@@ -44,6 +45,7 @@ export function NodePanel({
   node: ProtocolNode
   task: TaskSummary | null
   workspaceId: string
+  workspaceTrusted: boolean
   onOpenTask: (taskId: string) => void
   onDeleted: () => void
   onClose: () => void
@@ -126,6 +128,7 @@ export function NodePanel({
           key={task?.id ?? 'new-task'}
           nodeId={node.id}
           workspaceId={workspaceId}
+          workspaceTrusted={workspaceTrusted}
           defaultTitle={node.data.title}
           onCreated={onOpenTask}
         />

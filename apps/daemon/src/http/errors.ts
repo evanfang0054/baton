@@ -8,6 +8,8 @@ const STATUS_BY_CODE: Record<string, number> = {
   unsupported_engine: 400,
   engine_unavailable: 503,
   invalid_policy: 400,
+  bypass_not_allowed: 400,
+  workspace_untrusted: 409,
   unauthorized: 401,
   not_found: 404,
   workspace_not_found: 404,

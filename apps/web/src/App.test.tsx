@@ -71,6 +71,7 @@ function stubTaskApi() {
     worktreePath: null,
     verifyCommand: null,
     retryCount: 0,
+    dangerouslySkipPermissions: false,
     createdAt: 1,
     updatedAt: 2,
   }

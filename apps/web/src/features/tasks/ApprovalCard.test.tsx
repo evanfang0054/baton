@@ -17,6 +17,7 @@ const approval: Approval = {
   decision: null,
   decidedBy: null,
   decidedAt: null,
+  response: null,
 }
 
 describe('ApprovalCard', () => {

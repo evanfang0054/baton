@@ -78,6 +78,16 @@ describe('loadConfig', () => {
     expect(loadConfig([], { BATON_KILL_SWITCH: 'true' }).killSwitch).toBe(true)
   })
 
+  it('reads the bypass switch from BATON_ALLOW_BYPASS_PERMISSIONS', () => {
+    expect(loadConfig([], {}).allowBypassPermissions).toBe(false)
+    expect(loadConfig([], { BATON_ALLOW_BYPASS_PERMISSIONS: '1' }).allowBypassPermissions).toBe(
+      true,
+    )
+    expect(loadConfig([], { BATON_ALLOW_BYPASS_PERMISSIONS: 'true' }).allowBypassPermissions).toBe(
+      true,
+    )
+  })
+
   it('fails clearly when the token file is missing', () => {
     expect(() => loadConfig([], { BATON_TOKEN_FILE: '/definitely/missing' })).toThrow(
       /BATON_TOKEN_FILE/,

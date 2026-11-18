@@ -8,6 +8,7 @@ export interface StartSessionInput {
   workspacePath: string
   policy: Policy
   workspaceTrust: WorkspaceTrustSnapshot
+  bypassPermissions: boolean
 }
 
 export interface RuntimeHooks {
