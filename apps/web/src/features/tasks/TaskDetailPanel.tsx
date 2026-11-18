@@ -13,6 +13,7 @@ import { ReplyComposer } from './ReplyComposer'
 import { ReviewCard } from './ReviewCard'
 import { TaskActions } from './TaskActions'
 import { TaskHeader } from './TaskHeader'
+import { TaskOriginCard } from './TaskOriginCard'
 import { Transcript } from './Transcript'
 
 const sessionStatusLabels: Record<string, string> = {
@@ -133,6 +134,7 @@ function DetailContent({
         invalid={detail.contextInvalid}
         targetNodeId={task.nodeId}
       />
+      <TaskOriginCard origin={task.origin} invalid={detail.originInvalid} />
 
       {task.status === 'waiting_input' && needsApproval ? (
         pendingApprovals.length > 0 ? (

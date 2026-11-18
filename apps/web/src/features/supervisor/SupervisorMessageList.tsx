@@ -1,6 +1,7 @@
 import type { SupervisorMessage as SupervisorMessageRecord } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Loader2 } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { SupervisorEmptyState } from './SupervisorEmptyState'
 import { SupervisorMessage } from './SupervisorMessage'
 import { SupervisorToolCard } from './SupervisorToolCard'
@@ -48,8 +49,27 @@ export function SupervisorMessageList({
   onRetryIncomplete: () => void
   onPickQuickPrompt: (text: string) => void
 }) {
+  const logRef = useRef<HTMLDivElement>(null)
+  const stickToBottom = useRef(true)
+
+  // 用户停在底部时跟随新消息/流式文本；主动上翻阅读历史时不抢滚动位置。
+  useEffect(() => {
+    const element = logRef.current
+    if (element && stickToBottom.current) {
+      element.scrollTop = element.scrollHeight
+    }
+  }, [incomplete, messages.length, stream.status, stream.text, stream.tools.length])
+
+  const onScroll = () => {
+    const element = logRef.current
+    if (!element) return
+    stickToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80
+  }
+
   return (
     <div
+      ref={logRef}
+      onScroll={onScroll}
       role="log"
       aria-live="polite"
       aria-label="总管对话"
