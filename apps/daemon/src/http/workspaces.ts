@@ -50,6 +50,9 @@ export function registerWorkspaceRoutes(app: FastifyInstance, deps: WorkspaceRou
       id: deps.newId(),
       name: parsed.data.name,
       relPath,
+      trusted: false,
+      projectHooks: 'off',
+      trustedAt: null,
       createdAt: deps.now(),
     }
     const canvas: Canvas = {

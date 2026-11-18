@@ -18,13 +18,36 @@ const nodeBase = {
 
 describe('core entities', () => {
   it('parses Workspace and rejects an empty name', () => {
-    expect(Workspace.parse({ id: 'w1', name: 'demo', relPath: 'demo', createdAt: 1 })).toEqual({
+    expect(
+      Workspace.parse({
+        id: 'w1',
+        name: 'demo',
+        relPath: 'demo',
+        trusted: false,
+        projectHooks: 'off',
+        trustedAt: null,
+        createdAt: 1,
+      }),
+    ).toEqual({
       id: 'w1',
       name: 'demo',
       relPath: 'demo',
+      trusted: false,
+      projectHooks: 'off',
+      trustedAt: null,
       createdAt: 1,
     })
-    expect(() => Workspace.parse({ id: 'w1', name: '', relPath: 'demo', createdAt: 1 })).toThrow()
+    expect(() =>
+      Workspace.parse({
+        id: 'w1',
+        name: '',
+        relPath: 'demo',
+        trusted: false,
+        projectHooks: 'off',
+        trustedAt: null,
+        createdAt: 1,
+      }),
+    ).toThrow()
   })
 
   it('parses Canvas and rejects a non-positive zoom', () => {

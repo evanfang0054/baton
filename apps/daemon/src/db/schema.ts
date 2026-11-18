@@ -4,6 +4,9 @@ export const workspace = sqliteTable('workspace', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   relPath: text('rel_path').notNull().unique(),
+  trusted: integer('trusted', { mode: 'boolean' }).notNull().default(false),
+  projectHooks: text('project_hooks').notNull().default('off'),
+  trustedAt: integer('trusted_at'),
   createdAt: integer('created_at').notNull(),
 })
 

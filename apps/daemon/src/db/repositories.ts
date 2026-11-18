@@ -40,6 +40,9 @@ function toWorkspace(row: typeof workspace.$inferSelect): Workspace {
     id: row.id,
     name: row.name,
     relPath: row.relPath,
+    trusted: row.trusted,
+    projectHooks: row.projectHooks,
+    trustedAt: row.trustedAt,
     createdAt: row.createdAt,
   })
 }
@@ -162,6 +165,9 @@ export function insertWorkspaceWithCanvas(
         id: input.workspace.id,
         name: input.workspace.name,
         relPath: input.workspace.relPath,
+        trusted: input.workspace.trusted,
+        projectHooks: input.workspace.projectHooks,
+        trustedAt: input.workspace.trustedAt,
         createdAt: input.workspace.createdAt,
       })
       .run()

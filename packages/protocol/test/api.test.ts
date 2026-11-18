@@ -13,7 +13,15 @@ import {
   WorkspaceListResponse,
 } from '../src/api.js'
 
-const workspace = { id: 'w1', name: 'demo', relPath: 'demo', createdAt: 1 }
+const workspace = {
+  id: 'w1',
+  name: 'demo',
+  relPath: 'demo',
+  trusted: false,
+  projectHooks: 'off',
+  trustedAt: null,
+  createdAt: 1,
+}
 const canvas = { id: 'c1', workspaceId: 'w1', viewport: { x: 0, y: 0, zoom: 1 } }
 const task = {
   id: 't1',
