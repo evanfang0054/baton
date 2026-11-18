@@ -8,6 +8,10 @@ export interface WsHub {
   close(): void
 }
 
+export function buildWsFrame(event: BroadcastEvent): string {
+  return `{"v":1,"id":${JSON.stringify(event.id)},"type":${JSON.stringify(event.type)},"ts":${event.ts},"seq":${event.ordinal},"payload":${event.payloadJson}}`
+}
+
 export function createWsHub(): WsHub {
   const sockets = new Set<WebSocket>()
 
@@ -17,14 +21,7 @@ export function createWsHub(): WsHub {
       socket.on('close', () => sockets.delete(socket))
     },
     broadcast(event) {
-      const frame = JSON.stringify({
-        v: 1,
-        id: event.id,
-        type: event.type,
-        ts: event.ts,
-        seq: event.ordinal,
-        payload: event.payload,
-      })
+      const frame = buildWsFrame(event)
       for (const socket of sockets) {
         sendSafely(socket, frame)
       }

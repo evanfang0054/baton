@@ -1,4 +1,4 @@
-import { SessionEventRecord, type SessionEventsResponse } from '@baton/protocol'
+import type { SessionEventRecord, SessionEventsResponse } from '@baton/protocol'
 import { toast } from '@heroui/react/toast'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
@@ -76,20 +76,13 @@ export function RealtimeProvider({
             })
             return
           }
-          try {
-            const record = SessionEventRecord.parse({
-              seq: event.payload.seq,
-              type: event.payload.event.type,
-              payload: event.payload.event,
-              ts: event.ts,
-            })
-            enqueueEvent(sessionId, record)
-          } catch {
-            // 非法事件不影响后续消息；可用 REST 重新拉取修复。
-            void queryClient.invalidateQueries({
-              queryKey: queryKeys.sessionEvents(sessionId),
-            })
+          const record: SessionEventRecord = {
+            seq: event.payload.seq,
+            type: event.payload.event.type,
+            payload: event.payload.event,
+            ts: event.ts,
           }
+          enqueueEvent(sessionId, record)
           return
         }
         if (event.type === 'error') {

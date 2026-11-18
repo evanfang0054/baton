@@ -20,6 +20,7 @@ export interface BroadcastEvent {
   id: string
   type: ServerMessage['type']
   payload: unknown
+  payloadJson: string
   ts: number
 }
 
@@ -95,6 +96,7 @@ function toRow(row: typeof wsEvent.$inferSelect): WsEventRow {
     id: row.id,
     type: row.type as ServerMessage['type'],
     payload: JSON.parse(row.payloadJson) as unknown,
+    payloadJson: row.payloadJson,
     ts: row.ts,
   }
 }
@@ -104,18 +106,9 @@ function toRow(row: typeof wsEvent.$inferSelect): WsEventRow {
  * appendWs 必须在调用方的事务里使用；appendSessionEvent 自己开事务。
  */
 export function createEventStore(db: Db, deps: EventStoreDeps) {
-  function appendWs(tx: Tx, input: WsEventDraft): BroadcastEvent {
-    return appendWsSerialized(tx, {
-      type: input.type,
-      payloadJson: JSON.stringify(input.payload),
-      payload: input.payload,
-      ts: input.ts,
-    })
-  }
-
-  function appendWsSerialized(
+  function appendWsJson(
     tx: Tx,
-    input: { type: ServerMessage['type']; payloadJson: string; payload: unknown; ts: number },
+    input: { type: ServerMessage['type']; payload: unknown; payloadJson: string; ts: number },
   ): BroadcastEvent {
     const id = deps.newId()
     const result = tx
@@ -132,8 +125,18 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
       ordinal: Number(result.lastInsertRowid),
       type: input.type,
       payload: input.payload,
+      payloadJson: input.payloadJson,
       ts: input.ts,
     }
+  }
+
+  function appendWs(tx: Tx, input: WsEventDraft): BroadcastEvent {
+    return appendWsJson(tx, {
+      type: input.type,
+      payload: input.payload,
+      payloadJson: JSON.stringify(input.payload),
+      ts: input.ts,
+    })
   }
 
   function appendSessionEvent(input: {
@@ -149,7 +152,7 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
       // 一次序列化 event，再拼出 ws payload；避免同一份大 payload 序列化两次。
       const payloadJson = `{"sessionId":${JSON.stringify(input.sessionId)},"seq":${input.seq},"event":${eventJson}}`
       const payload = { sessionId: input.sessionId, seq: input.seq, event: truncated }
-      const ws = appendWsSerialized(tx, {
+      const ws = appendWsJson(tx, {
         type: 'session.event',
         payloadJson,
         payload,
