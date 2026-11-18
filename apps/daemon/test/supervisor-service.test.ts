@@ -69,8 +69,10 @@ function setup(engine: SupervisorEngine) {
 
 describe('supervisor service', () => {
   it('acks, streams, creates a todo task and dedupes the trigger', async () => {
+    const seen: string[] = []
     const engine: SupervisorEngine = {
-      async run({ onDelta, tools }) {
+      async run({ onDelta, tools, messages }) {
+        seen.push(...messages.map((message) => `${message.role}:${message.content}`))
         onDelta('正在建任务')
         const result = await tools.create_task.execute({
           title: '登录页暗黑模式',
@@ -98,6 +100,7 @@ describe('supervisor service', () => {
     expect(frames.some((frame) => frame.includes('supervisor.delta'))).toBe(true)
     expect(frames.some((frame) => frame.includes('supervisor.tool'))).toBe(true)
     expect(frames.some((frame) => frame.includes('supervisor.message'))).toBe(true)
+    expect(seen).toEqual(['user:给这个 Agent 建个任务'])
     expect(getTask(database.db, 'task-new')?.status).toBe('todo')
     expect(service.history(seeded.workspaceId, 50).messages.map((message) => message.role)).toEqual(
       ['user', 'assistant'],

@@ -260,10 +260,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           input.threadId,
         ),
       }
-      const history = store
-        .listMessages(input.threadId, 21)
-        .messages.filter((message) => message.id !== input.userMessageId)
-        .slice(-20)
+      const history = store.listMessages(input.threadId, 21).messages.slice(-20)
       const engine = deps.engine ?? createAiSdkSupervisorEngine(input.config)
       const result = await engine.run({
         system: `${SUPERVISOR_PROMPT}\n\n${candidateCard({
