@@ -25,6 +25,7 @@ baton 以 MIT 许可发布。运行时会依赖下列第三方组件，其许可
 | `better-sqlite3` | MIT | 本地存储 |
 | `execa` / `simple-git` / `chokidar` / `croner` | MIT | 进程、Git、监听、定时 |
 | `picomatch` | MIT | core 的 policy glob 匹配（直接依赖） |
+| `@modelcontextprotocol/sdk` | MIT | in-process MCP server（`baton_report`），与 Claude Agent SDK 配套 |
 | `react` / `react-dom` | MIT | 前端运行时 |
 | `@tanstack/react-query` | MIT | 服务端状态与缓存 |
 | `@tanstack/react-virtual` | MIT | transcript 长列表虚拟滚动 |
@@ -39,7 +40,7 @@ baton 以 MIT 许可发布。运行时会依赖下列第三方组件，其许可
 
 | 组件 | 许可 | 说明 |
 |---|---|---|
-| `@anthropic-ai/claude-agent-sdk` | 见包内 LICENSE.md（非 OSI） | 仅作为运行时依赖使用，不 fork、不再分发其源码；其平台二进制包随 npm 依赖安装 |
+| `@anthropic-ai/claude-agent-sdk@0.3.327` | 见包内 LICENSE.md（非 OSI） | 仅作为运行时依赖使用，不 fork、不再分发其源码；其平台二进制包随 npm 依赖安装 |
 
 ## 文档与设计资产
 

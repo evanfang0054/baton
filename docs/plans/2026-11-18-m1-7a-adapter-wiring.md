@@ -25,7 +25,7 @@ depends_on: [2026-11-17-m1-7a-foundation.md]
 |---|---|---|
 | A. 性能热路径 | SQLite/event-store/session-cache/WS | 已完成（PR #12） |
 | B. 契约与并发基座 | trust、状态机、并发、boot | 已完成（PR #13） |
-| **C. Claude adapter 与 daemon 接线（本计划）** | engine、adapter、trust、截断 | 本次 |
+| **C. Claude adapter 与 daemon 接线（本计划）** | engine、adapter、trust、截断 | 已完成（2026-11-18） |
 | D. Web UX 与真实验收 | trust 弹窗、引擎选择、ego-lite | 待写；依赖 C |
 
 **Commit strategy:** 每个 Task 提交一次；Task 7 跑全量验证。
@@ -208,3 +208,35 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 - **Spec coverage**：§4.3 engine、§4.4 StartInput、§5 adapter、§6 trust/安全、§8 截断、§9 认证/预算。
 - **Boundary**：SDK import 只在 `packages/adapters/src/claude/**`；daemon 只依赖 `AgentAdapter`。
 - **Scope**：不做 web、不做真实 API 测试、不做 7b。
+
+---
+
+## 执行记录（2026-11-18）
+
+分支 `feat/m1-7a-claude-adapter`，基于 `feat/m1-7a-foundation`。
+
+**依赖**
+
+- `@anthropic-ai/claude-agent-sdk@0.3.327`（npm registry 复查仍为最新）
+- `@modelcontextprotocol/sdk@1.32.2`
+
+**Commit 序列**
+
+- `feat(protocol)`：`WorkspaceTrustSnapshot`、`StartInput.workspaceTrust`、`EngineStatus` / `EngineListResponse`。
+- `feat(adapter)`：`claude/transport.ts`（SDK 边界、选项矩阵、审批桥、`baton_report`）、`mapping.ts`、`outcome.ts`、`adapter.ts`；`index.ts` 只导出 fake/meta，`@baton/adapters/claude` 走子路径按需加载。
+- `feat(daemon)`：`/api/engines`（30s 缓存）、动态 adapter factory、`task.create` 允许 claude、`enqueue` 在不可用时返回 `engine_unavailable`、session runner 注入 trust 快照。
+- `feat(daemon)`：`BATON_CLAUDE_MAX_TURNS` / `BATON_CLAUDE_MAX_BUDGET_USD` / `BATON_CLAUDE_PROJECT_HOOKS`。
+- `feat(daemon)`：事件截断——text 64KB、tool args/result 16KB，`_baton.truncated` + `originalBytes`，单次 event 序列化。
+
+**S2 spike**
+
+- 真实 SDK 可启动并进入事件流；本机 CLI 未登录，返回 `Not logged in · Please run /login`，被正确映射为 `RUN_ERROR`。
+- 证据：`docs/evidence/2026-11-17-m1-7-claude/spike.md`。
+- 结论：transport/映射 Go；真实 API 闭环需在本机完成 `claude /login` 后才能验收，CI 不依赖。
+
+**验证**
+
+- `pnpm verify`：通过。
+- `pnpm verify:full`：通过（e2e 1 passed）。
+- `pnpm pack:check`：`pack-check ok`；daemon bundle 含按需加载的 Claude chunk。
+- 测试总数 417：protocol 102、adapters 22、core 98、web 68、daemon 127。
