@@ -124,7 +124,8 @@ export function buildClaudeOptions(input: ClaudeTransportInput): Options {
   const hooksEnabled = input.workspaceTrust.projectHooks && input.projectHooksGlobal
   return {
     cwd: input.cwd,
-    settingSources: input.workspaceTrust.projectSettings ? ['project'] : [],
+    // user settings 承载本机登录态；隔离 project/local 即可，清空 user 会导致 OAuth 不可用（ADR 0004）。
+    settingSources: input.workspaceTrust.projectSettings ? ['user', 'project'] : ['user'],
     strictMcpConfig: !input.workspaceTrust.projectSettings,
     plugins: [],
     permissionMode: 'default',

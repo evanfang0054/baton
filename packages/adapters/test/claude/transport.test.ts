@@ -17,7 +17,7 @@ describe('buildClaudeOptions', () => {
       ...base,
       workspaceTrust: { projectSettings: false, projectHooks: false },
     })
-    expect(options.settingSources).toEqual([])
+    expect(options.settingSources).toEqual(['user'])
     expect(options.strictMcpConfig).toBe(true)
     expect(options.plugins).toEqual([])
     expect(options.managedSettings).toMatchObject({
@@ -36,7 +36,7 @@ describe('buildClaudeOptions', () => {
       ...base,
       workspaceTrust: { projectSettings: true, projectHooks: true },
     })
-    expect(options.settingSources).toEqual(['project'])
+    expect(options.settingSources).toEqual(['user', 'project'])
     expect(options.strictMcpConfig).toBe(false)
     expect(options.managedSettings?.disableAllHooks).toBeUndefined()
     expect(options.managedSettings?.allowManagedPermissionRulesOnly).toBe(true)
