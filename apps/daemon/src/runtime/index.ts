@@ -33,6 +33,7 @@ import { appError, toAppError } from '../errors.js'
 import type { Logger } from '../log.js'
 import { createVerifyRunner, type VerifyRunner } from '../verify/runner.js'
 import type { AdapterFactory } from './adapter-factory.js'
+import { createEdge, deleteEdge } from './edge-service.js'
 import type { EngineRegistry } from './engines.js'
 import { createScheduler, type Scheduler } from './scheduler.js'
 import { createSessionRunner, type SessionRunner } from './session-runner.js'
@@ -480,6 +481,16 @@ export function createRuntime(deps: RuntimeDeps) {
         }
         deps.db.transaction((tx) => deleteNode(tx, existing.id))
         return { ok: true, ack: { nodeId: existing.id } }
+      }
+      case 'edge.create': {
+        const result = createEdge({ db: deps.db, newId }, message.payload)
+        return result.ok
+          ? { ok: true, ack: { edgeId: result.edgeId } }
+          : { ok: false, error: result.error }
+      }
+      case 'edge.delete': {
+        const result = deleteEdge({ db: deps.db, newId }, message.payload)
+        return result.ok ? { ok: true, ack: {} } : { ok: false, error: result.error }
       }
       case 'resume': {
         const result = replay(message.payload.sinceSeq)

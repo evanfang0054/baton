@@ -253,6 +253,52 @@ export function deleteNode(tx: Tx, id: string): void {
   tx.delete(node).where(eq(node.id, id)).run()
 }
 
+export function getEdge(db: Db, id: string): Edge | null {
+  const row = db.select().from(edge).where(eq(edge.id, id)).get()
+  return row ? toEdge(row) : null
+}
+
+export function findEdge(
+  db: Db,
+  input: { canvasId: string; sourceId: string; targetId: string; type: string },
+): Edge | null {
+  const row = db
+    .select()
+    .from(edge)
+    .where(
+      and(
+        eq(edge.canvasId, input.canvasId),
+        eq(edge.sourceId, input.sourceId),
+        eq(edge.targetId, input.targetId),
+        eq(edge.type, input.type),
+      ),
+    )
+    .get()
+  return row ? toEdge(row) : null
+}
+
+export function insertEdge(tx: Tx, value: Edge): void {
+  tx.insert(edge)
+    .values({
+      id: value.id,
+      canvasId: value.canvasId,
+      sourceId: value.sourceId,
+      targetId: value.targetId,
+      type: value.type,
+    })
+    .run()
+}
+
+export function deleteEdgeById(tx: Tx, id: string): void {
+  tx.delete(edge).where(eq(edge.id, id)).run()
+}
+
+export function deleteEdgesForNode(tx: Tx, nodeId: string): void {
+  tx.delete(edge)
+    .where(or(eq(edge.sourceId, nodeId), eq(edge.targetId, nodeId)))
+    .run()
+}
+
 export function hasTaskForNode(db: Db, nodeId: string): boolean {
   return (
     db.select({ id: task.id }).from(task).where(eq(task.nodeId, nodeId)).limit(1).get() !==
