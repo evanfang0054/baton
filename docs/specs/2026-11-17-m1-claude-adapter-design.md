@@ -80,7 +80,7 @@ M1-6a 已合并，任务控制台具备看板、详情、审批/回复/验收、
 | D14 | 预算 | `maxTurns=30`、`maxBudgetUsd=2`；`BATON_CLAUDE_MAX_*` 可改 | 防止跑飞；默认值保守 |
 | D15 | 默认引擎 | 有登录态信号默认 claude；否则 fake 并标「演示引擎」 | 不把新用户带进 fake 任务；macOS Keychain 允许 `unknown` |
 | D16 | 测试 | adapter 用注入 transport；daemon/web 用 fake；本机 ego-lite 真实验收 | CI 不依赖真实 API；真实路径有证据 |
-| D17 | 性能基线 | 不落 partial；WAL + `synchronous=NORMAL`；单次 JSON 序列化；transcript 增量投影；热路径不重复 zod；双上限 | 真实会话事件量/进程数高于 fake；先消掉 O(n log n) 与重复解析 |
+| D17 | 性能基线 | 不落 partial；WAL + `synchronous=NORMAL`；单次 JSON 序列化；transcript 基准 + 数据触发；热路径不重复 zod；双上限 | 先测量；50k 内已达标，增量投影按真实数据触发 |
 
 ## 4. 协议与数据模型
 
@@ -355,7 +355,7 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 **Web**
 
 - `appendSessionEvents` / `mergeSessionPage` 增加快路径：新事件 seq 全部大于已有序时直接 append，避免每批 Set + 全量 sort。
-- `Transcript` 改为增量投影：只对新事件应用 `projectTranscript`，不再每批 `buildTranscript(events)` 全量重算。
+- `Transcript` 7a 保留全量重建；基准显示 5k 0.64ms、20k 2.24ms、50k 5.43ms、100k 11.76ms（mean，p95 见 evidence）。50k 内满足 8ms 预算；真实会话 >50k 或 p95 超预算时，再引入增量投影。
 - 热路径减少 zod：`session.event` 做轻量字段检查后直接构造 `SessionEventRecord`；控制消息保留完整 `ServerMessage` 校验。
 - 保留 32ms 合批；不新增逐 token 渲染。
 
@@ -363,7 +363,7 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 
 - 真实 10 分钟会话：event loop lag p95 < 50ms；blocked 时 daemon CPU < 5% 单核。
 - 5 个 live session 的 RSS 记录在 evidence；若 > 1.5GB，7a 就把默认 live cap 降到 3 或提前做 idle eviction。
-- 5k 事件 transcript 增量投影 p95 < 8ms；CI 只断言增量结果与全量重建等价，不设时间阈值。
+- 5k/20k/50k transcript 全量重建 p95；50k p95 < 8ms；100k 作为观察值；超过触发增量投影。CI 只断言功能正确，不设时间阈值。
 
 ## 9. 认证与运行
 
@@ -394,7 +394,7 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 - **Trust**：首次打开/创建 workspace 弹窗；默认不信任；header 显示「未信任/已信任」徽标；可撤销；hooks 开关默认关。
 - **Engine**：agent 节点创建/建任务表单提供引擎选择；显示 `available/unknown/unavailable` 与原因；fake 标「演示引擎」。
 - **审批**：支持多个 approval 卡并发；按 `approvalId` 渲染；allow/deny 只影响对应 request。
-- **Transcript**：截断提示；增量投影；长列表继续虚拟滚动；不新增 partial 动画。
+- **Transcript**：截断提示；50k 内全量重建；超过阈值再引入增量投影；长列表继续虚拟滚动；不新增 partial 动画。
 - **样式**：全部使用 `DESIGN.md` token；状态不能只靠颜色，需文字/图标。
 
 ## 11. 测试与验收
@@ -435,7 +435,7 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 - 多审批卡并发。
 - transcript 截断提示。
 - session-cache 快路径：顺序 append、乱序合并、去重。
-- 增量投影与全量 `buildTranscript` 等价（属性/表驱动测试）。
+- transcript 5k/20k/50k 基准，50k p95 < 8ms；超过阈值再引入增量投影。
 
 ### 11.4 E2E
 
@@ -448,7 +448,7 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 - `pnpm verify` / `verify:full` / `pack:check` 全绿。
 - CI `verify (22/24)`、`pack-check`、`e2e`、`build` 全绿。
 - 真实任务闭环有 ego-lite 证据。
-- 性能 evidence：10 分钟真实会话的 event loop lag、CPU、RSS、DB 增长；5k 事件增量投影结果等价。
+- 性能 evidence：10 分钟真实会话的 event loop lag、CPU、RSS、DB 增长；5k/20k/50k transcript 全量重建 p95，50k < 8ms。
 - `THIRD_PARTY_NOTICES.md` 已记录 SDK 与 MCP SDK。
 - 无 SDK 类型泄漏到 protocol/core；`check:boundaries` 覆盖。
 
@@ -461,7 +461,7 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 | project MCP 执行命令 | 供应链风险 | 只在可信 workspace 加载；未知 MCP 工具 ask/deny |
 | blocked 占用 live 进程 | 内存/进程压力 | `maxLiveSessions=5`；7b 再做 idle eviction/resume |
 | 事件量增长 | DB/WS/UI 压力 | 7a 关闭 partial；payload 截断；7b 前先测量 |
-| transcript 全量重投影 | 长会话卡顿 | 增量投影 + session-cache 快路径；5k 事件基准 |
+| transcript 全量重投影 | 长会话卡顿 | 5k/20k/50k 基准；50k 内达标；超过触发增量投影 |
 | 事件双写/重复 zod | CPU/DB 压力 | 单次 JSON 序列化；热路径不重复 parse；WAL + NORMAL |
 | macOS Keychain 无法探测 | 误判不可用 | 使用 `unknown` 状态并允许尝试；运行时错误可解释 |
 | 真实 API 不在 CI | 回归盲区 | fixture 覆盖映射；本机 ego-lite 证据 |
@@ -474,7 +474,7 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 3. **Slice 2**：adapter——transport/adapter/mapping/outcome + fixture 测试；依赖 `@anthropic-ai/claude-agent-sdk@0.3.327`（实现时再查最新）与 `@modelcontextprotocol/sdk@1.32.2`。
 4. **Slice 3**：daemon 接线——engine allowlist、auth/engines API、trust 字段/API/审计、`StartInput.workspaceTrust`。
 5. **Slice 4**：web——trust 弹窗/徽标、引擎选择、多审批卡、截断提示。
-6. **Slice 5**：性能——session-cache 快路径、transcript 增量投影、WS 热路径、SQLite pragma、基准与 evidence。
+6. **Slice 5**：性能——session-cache 快路径、transcript 基准（数据触发增量投影）、WS 热路径、SQLite pragma、evidence。
 7. **Slice 6**：真实验收——ego-lite 闭环、Playwright fake 全链路、文档/notices。
 
 估算：6–7 个开发日；S2 spike 阻塞 Slice 2；Slice 5 可与 Slice 4 并行。

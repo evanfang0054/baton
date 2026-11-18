@@ -1,9 +1,9 @@
 ---
 spec_ref: ../specs/2026-11-17-m1-claude-adapter-design.md
 spec_topic: m1-claude-adapter
-task_count: 6
+task_count: 5
 estimated_phases: [baseline, tests, implementation, verification]
-dod: "性能热路径：SQLite NORMAL、事件单次序列化、session-cache 快路径、transcript 增量投影、WS 热路径；5k 事件投影 p95 < 8ms；CI 等价测试通过"
+dod: "性能热路径：SQLite NORMAL、事件单次序列化、session-cache 快路径、WS 热路径；5k/20k/50k transcript 全量重建 50k p95 < 8ms；增量投影按真实数据触发"
 depends_on: []
 ---
 
@@ -13,7 +13,7 @@ depends_on: []
 
 **Goal:** 在不接真实 Claude 的前提下，先消除 daemon 事件写入与 web transcript 投影的重复 CPU/IO，并建立可复现的基准，为 M1-7a 真实会话提供性能基线。
 
-**Architecture:** daemon 侧把每个会话事件只序列化一次，并用 `ws_event` 的 payload JSON 直接拼 WS 帧；SQLite 保持 WAL，补 `synchronous=NORMAL`。web 侧给 session-cache 加顺序 append 快路径，把 transcript 从每批全量 `buildTranscript` 改为增量投影，并在 WS 热路径减少重复 zod 解析。
+**Architecture:** daemon 侧把每个会话事件只序列化一次，并用 `ws_event` 的 payload JSON 直接拼 WS 帧；SQLite 保持 WAL，补 `synchronous=NORMAL`。web 侧给 session-cache 加顺序 append 快路径，transcript 保留全量重建并用 5k/20k/50k 基准守住 8ms 预算；增量投影按真实数据触发；WS 热路径减少重复 zod 解析。
 
 **Tech Stack:** TypeScript ESM、better-sqlite3 / Drizzle、vitest / vitest bench、React 19、TanStack Query、Zustand。
 
@@ -497,309 +497,15 @@ git commit -m "perf(web): session-cache 顺序 append 快路径"
 
 ---
 
-## Task 4: transcript 增量投影
+## Task 4: transcript 增量投影（Deferred，数据触发）
 
-Blocking: Task 3（需要稳定的有序事件输入）
-Slice type: tracer-bullet
-Seam: `TranscriptProjector.apply(events)` 与 `buildTranscript(events)` 等价
+**状态**：2026-11-17 决定 7a 不做，保留基准与触发条件。
 
-**Files:**
-
-- Create: `apps/web/src/features/tasks/transcript-projector.ts`
-- Create: `apps/web/src/features/tasks/transcript-projector.test.ts`
-- Modify: `apps/web/src/features/tasks/transcript-model.ts`
-- Modify: `apps/web/src/features/tasks/Transcript.tsx`
-- Modify: `apps/web/src/features/tasks/transcript.bench.ts`
-
-**Interfaces:**
-
-- Produces: `TranscriptProjector` 类；`Transcript` 只对新事件做投影。
-
-- [ ] **Step 1: 写等价性失败测试**
-
-```ts
-import { describe, expect, it } from 'vitest'
-import { buildTranscript } from './transcript-model'
-import { TranscriptProjector } from './transcript-projector'
-import { makeTextEvents } from './transcript.fixture'
-
-describe('TranscriptProjector', () => {
-  it('matches a full rebuild after appends', () => {
-    const first = makeTextEvents(30)
-    const projector = new TranscriptProjector()
-    expect(projector.apply(first)).toEqual(buildTranscript(first))
-
-    const next = [...first, ...makeTextEvents(10, 31)]
-    expect(projector.apply(next)).toEqual(buildTranscript(next))
-  })
-
-  it('resets when the prefix changes', () => {
-    const projector = new TranscriptProjector()
-    projector.apply(makeTextEvents(10, 11))
-    const replaced = makeTextEvents(10, 1)
-    expect(projector.apply(replaced)).toEqual(buildTranscript(replaced))
-  })
-})
-```
-
-- [ ] **Step 2: 跑测试确认失败**
-
-```bash
-pnpm --filter @baton/web exec vitest run src/features/tasks/transcript-projector.test.ts
-```
-
-Expected: FAIL（模块不存在）。
-
-- [ ] **Step 3: 抽出 TranscriptProjector**
-
-把 `transcript-model.ts` 里的 `seen/messages/tools/entries` 状态搬进类；`buildTranscript` 保留排序/去重后调用投影器：
-
-```ts
-export class TranscriptProjector {
-  private entries: TranscriptEntry[] = []
-  private messages = new Map<string, TranscriptEntry>()
-  private tools = new Map<string, { entry: TranscriptEntry; args: string; result: string }>()
-  private processedCount = 0
-  private firstSeq: number | null = null
-  private lastSeq = 0
-
-  canAppend(events: SessionEventRecord[]): boolean {
-    if (this.processedCount === 0) return true
-    if (events.length < this.processedCount) return false
-    if (events[0]?.seq !== this.firstSeq) return false
-    return events[this.processedCount - 1]?.seq === this.lastSeq
-  }
-
-  reset(): void {
-    this.entries = []
-    this.messages.clear()
-    this.tools.clear()
-    this.processedCount = 0
-    this.firstSeq = null
-    this.lastSeq = 0
-  }
-
-  apply(events: SessionEventRecord[]): TranscriptEntry[] {
-    if (!this.canAppend(events)) this.reset()
-    for (const event of events.slice(this.processedCount)) this.applyOne(event)
-    this.processedCount = events.length
-    this.firstSeq ??= events[0]?.seq ?? null
-    this.lastSeq = events.at(-1)?.seq ?? this.lastSeq
-    return [...this.entries]
-  }
-
-  private applyOne(event: SessionEventRecord): void {
-    const payload = recordOf(event.payload)
-    if (!payload) return
-    const type = textOf(payload.type) || event.type
-    const ts = event.ts
-
-    switch (type) {
-      case 'TEXT_MESSAGE_START': {
-        const messageId = textOf(payload.messageId)
-        if (messageId) this.ensureMessage(messageId, ts, payload.role)
-        break
-      }
-      case 'TEXT_MESSAGE_CONTENT': {
-        const messageId = textOf(payload.messageId)
-        if (!messageId) break
-        this.ensureMessage(messageId, ts, payload.role).text += textOf(payload.delta)
-        break
-      }
-      case 'TEXT_MESSAGE_END':
-        break
-      case 'TOOL_CALL_START': {
-        const toolCallId = textOf(payload.toolCallId)
-        if (toolCallId) this.ensureTool(toolCallId, ts, payload.toolCallName)
-        break
-      }
-      case 'TOOL_CALL_ARGS': {
-        const toolCallId = textOf(payload.toolCallId)
-        if (!toolCallId) break
-        const draft = this.ensureTool(toolCallId, ts, payload.toolCallName)
-        draft.args += textOf(payload.delta)
-        this.flushTool(draft)
-        break
-      }
-      case 'TOOL_CALL_END':
-        break
-      case 'TOOL_CALL_RESULT': {
-        const toolCallId = textOf(payload.toolCallId)
-        if (!toolCallId) break
-        const draft = this.ensureTool(toolCallId, ts, payload.toolCallName)
-        const content = payload.content
-        draft.result =
-          typeof content === 'string'
-            ? content
-            : Array.isArray(content)
-              ? content
-                  .map((part) => {
-                    const item = recordOf(part)
-                    return item?.type === 'text' ? textOf(item.text) : ''
-                  })
-                  .filter(Boolean)
-                  .join('\n')
-              : ''
-        this.flushTool(draft)
-        break
-      }
-      case 'RUN_STARTED':
-        this.entries.push(systemEntry(`seq-${event.seq}`, '系统', '运行开始', ts))
-        break
-      case 'RUN_FINISHED':
-        this.entries.push(systemEntry(`seq-${event.seq}`, '系统', '运行结束', ts))
-        break
-      case 'RUN_ERROR':
-        this.entries.push(
-          systemEntry(`seq-${event.seq}`, '系统', `运行失败：${textOf(payload.message)}`, ts),
-        )
-        break
-      case 'CUSTOM': {
-        const name = textOf(payload.name)
-        const value = recordOf(payload.value) ?? {}
-        if (name === USER_MESSAGE_EVENT) {
-          this.entries.push({
-            id: `seq-${event.seq}`,
-            role: 'user',
-            title: '你',
-            text: textOf(value.text),
-            mono: false,
-            ts,
-          })
-        } else if (name === APPROVAL_REQUEST_EVENT) {
-          const request = recordOf(value.request) ?? {}
-          const input = request.input === undefined ? '' : JSON.stringify(request.input, null, 2)
-          this.entries.push(
-            systemEntry(
-              `seq-${event.seq}`,
-              '请求审批',
-              `${textOf(request.toolName)}\n${input}`.trim(),
-              ts,
-              true,
-            ),
-          )
-        } else if (name === SESSION_OUTCOME_EVENT) {
-          this.entries.push(
-            systemEntry(
-              `seq-${event.seq}`,
-              `会话 ${textOf(value.outcome)}`,
-              textOf(value.reason),
-              ts,
-            ),
-          )
-        } else if (name) {
-          this.entries.push(systemEntry(`seq-${event.seq}`, name, '', ts))
-        }
-        break
-      }
-      default:
-        break
-    }
-  }
-
-  private ensureMessage(messageId: string, ts: number, role: unknown): TranscriptEntry {
-    const existing = this.messages.get(messageId)
-    if (existing) return existing
-    const config = roleLabel(role)
-    const entry: TranscriptEntry = {
-      id: `msg-${messageId}`,
-      role: config.role,
-      title: config.title,
-      text: '',
-      mono: false,
-      ts,
-    }
-    this.messages.set(messageId, entry)
-    this.entries.push(entry)
-    return entry
-  }
-
-  private ensureTool(toolCallId: string, ts: number, name: unknown) {
-    const existing = this.tools.get(toolCallId)
-    if (existing) return existing
-    const entry: TranscriptEntry = {
-      id: `tool-${toolCallId}`,
-      role: 'tool',
-      title: textOf(name) || '工具',
-      text: '',
-      mono: true,
-      ts,
-    }
-    const draft = { entry, args: '', result: '' }
-    this.tools.set(toolCallId, draft)
-    this.entries.push(entry)
-    return draft
-  }
-
-  private flushTool(draft: { entry: TranscriptEntry; args: string; result: string }): void {
-    const chunks = [draft.args.trim()]
-    if (draft.result.trim()) chunks.push(`→ ${draft.result.trim()}`)
-    draft.entry.text = chunks.filter(Boolean).join('\n')
-  }
-}
-
-export function buildTranscript(events: SessionEventRecord[]): TranscriptEntry[] {
-  const projector = new TranscriptProjector()
-  return projector.apply(orderEvents(events))
-}
-```
-
-`orderEvents` 保留现有去重 + 排序；`Transcript` 从缓存拿到的输入已经是排好序的。
-
-- [ ] **Step 4: Transcript 改用增量投影**
-
-```ts
-function useTranscriptEntries(events: SessionEventRecord[]): TranscriptEntry[] {
-  const projector = useRef<TranscriptProjector | null>(null)
-  const lastEvents = useRef<SessionEventRecord[] | null>(null)
-  const lastEntries = useRef<TranscriptEntry[]>([])
-
-  return useMemo(() => {
-    if (events === lastEvents.current) return lastEntries.current
-    projector.current ??= new TranscriptProjector()
-    const entries = projector.current.apply(events)
-    lastEvents.current = events
-    lastEntries.current = entries
-    return entries
-  }, [events])
-}
-```
-
-`Transcript.tsx` 用该 hook 替换 `useMemo(() => buildTranscript(events), [events])`。StrictMode 下同一个 `events` 引用会命中 `lastEvents` 分支，不会重复 apply。
-
-- [ ] **Step 5: 跑测试与组件测试**
-
-```bash
-pnpm --filter @baton/web exec vitest run src/features/tasks/transcript-projector.test.ts \
-  src/features/tasks/transcript.test.ts src/features/tasks/Transcript.test.tsx
-```
-
-Expected: PASS；现有 transcript 测试不回归。
-
-- [ ] **Step 6: 补增量 bench**
-
-在 `transcript.bench.ts` 增加：
-
-```ts
-bench('incremental append', () => {
-  const projector = new TranscriptProjector()
-  projector.apply(events)
-  projector.apply([...events, ...makeTextEvents(10, 5001)])
-})
-```
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add apps/web/src/features/tasks/transcript-projector.ts \
-  apps/web/src/features/tasks/transcript-projector.test.ts \
-  apps/web/src/features/tasks/transcript-model.ts \
-  apps/web/src/features/tasks/Transcript.tsx \
-  apps/web/src/features/tasks/transcript.bench.ts
-git commit -m "perf(web): transcript 增量投影"
-```
-
----
+- baseline：5k 0.64ms / 20k 2.24ms / 50k 5.43ms / 100k 11.76ms（mean）。
+- 7a 不落 partial，50k 内已满足 spec §8.6 的 p95 < 8ms。
+- 触发条件：真实会话 >50k 事件，或 transcript 重建 p95 > 8ms。
+- 触发后：在 7b/后续引入 `TranscriptProjector`（只处理新事件），并用全量 `buildTranscript` 做等价测试。
+- 本 Task 不产生代码变更；`scripts/bench-m1-7a.ts` 保留以便复测。
 
 ## Task 5: WS 热路径减少重复解析
 
@@ -919,7 +625,7 @@ git commit -m "perf(web): WS 热路径轻量解析 session.event"
 
 ## Task 6: 复测、证据与全量校验
 
-Blocking: Task 2-5
+Blocking: Task 2, 3, 5
 Slice type: verification
 Seam: `pnpm verify` + bench 输出 + evidence 文件
 
@@ -931,11 +637,10 @@ Seam: `pnpm verify` + bench 输出 + evidence 文件
 - [ ] **Step 1: 复测**
 
 ```bash
-pnpm bench:web
-pnpm bench:daemon
+pnpm bench:m1-7a
 ```
 
-Expected: `full rebuild` 与 `append 5k session events` 的 mean/ops 与 Task 1 baseline 对比；`incremental append` 明显快于 `full rebuild`。
+Expected: transcript 5k/20k/50k/100k 与 event store 5k 的 mean/p95 与 Task 1 baseline 对比；50k p95 < 8ms。
 
 - [ ] **Step 2: 写 evidence**
 
@@ -943,7 +648,7 @@ Expected: `full rebuild` 与 `append 5k session events` 的 mean/ops 与 Task 1 
 
 - 机器与 Node/pnpm 版本（脱敏，不写主机名/用户名）。
 - 命令、baseline、复测数字。
-- 5k 事件增量投影 p50/p95（若 bench 不直接给 p95，记录 mean/ops 并说明）。
+- 5k/20k/50k transcript 全量重建 p50/p95（50k p95 < 8ms；100k 作为观察值）。
 - 结论：是否达到 spec §8.6 的预算；未达到时的下一步。
 
 - [ ] **Step 3: 全量校验**
@@ -967,7 +672,7 @@ git commit -m "docs(evidence): M1-7a 性能热路径基线"
 
 ## Self-Review
 
-- **Spec coverage**：本计划覆盖 spec §8.6 的 daemon 写入、web 快路径、transcript 增量投影、WS 热路径与预算；trust/adapter/UX 由 Plan B/C/D 覆盖。
+- **Spec coverage**：本计划覆盖 spec §8.6 的 daemon 写入、web 快路径、transcript 基准（增量投影按数据触发）、WS 热路径与预算；trust/adapter/UX 由 Plan B/C/D 覆盖。
 - **Placeholder scan**：无 TBD/TODO；每个 Task 都有实际测试与实现片段。
 - **Type consistency**：`BroadcastEvent.payloadJson`、`buildWsFrame`、`TranscriptProjector.apply`、`parseIncomingMessage` 在后续 Task 中名称一致。
 - **Scope**：只改 `apps/daemon`、`apps/web`、`package.json`、`docs/evidence`；不触 protocol/core/adapters，不接真实 Claude。
@@ -986,4 +691,4 @@ git commit -m "docs(evidence): M1-7a 性能热路径基线"
   - 50k：mean 5.43ms / p95 6.96ms
   - 100k：mean 11.76ms / p95 17.33ms
   - event store append 5k：mean 231ms / p95 243ms
-- 结论：50k 以内 transcript 全量重建已在 spec §8.6 的 8ms 预算内；Task 4 的 stateful 增量投影可能不必要，待用户确认后改为「有序输入快路径 + 50k 基准」。event store 写入是更明显的热点，Task 2 优先。
+- 结论：50k 以内 transcript 全量重建已在 spec §8.6 的 8ms 预算内；决定 Task 4 的 stateful 增量投影 **7a 不做**，保留 5k/20k/50k 基准与触发条件（真实会话 >50k 或 p95 >8ms）。event store 写入是更明显的热点，Task 2 优先。
