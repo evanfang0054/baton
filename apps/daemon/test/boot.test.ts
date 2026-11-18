@@ -22,7 +22,7 @@ afterEach(async () => {
 })
 
 describe('reconcileOnBoot', () => {
-  it('fails active tasks, keeps verify evidence and expires approvals', async () => {
+  it('marks active tasks stalled, keeps verify evidence and expires approvals', async () => {
     const handle = setup()
     const first = handle.createTask({ title: 'one' })
     const second = handle.createTask({ title: 'two' })
@@ -52,8 +52,10 @@ describe('reconcileOnBoot', () => {
       newId: () => 'audit-boot',
     })
 
-    expect(handle.runtime.getTask(first)?.status).toBe('failed')
-    expect(handle.runtime.getTask(second)?.status).toBe('failed')
+    expect(handle.runtime.getTask(first)?.status).toBe('waiting_input')
+    expect(handle.runtime.getTask(first)?.waitingReason).toBe('stalled')
+    expect(handle.runtime.getTask(second)?.status).toBe('waiting_input')
+    expect(handle.runtime.getTask(second)?.waitingReason).toBe('stalled')
     expect(handle.runtime.getTask(verifying)?.status).toBe('review')
     const review = getReviewByTask(handle.database.db, verifying)
     expect(review?.verifyExitCode).toBe(124)

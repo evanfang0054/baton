@@ -20,8 +20,8 @@ export interface BootReconcilerDeps {
 }
 
 /**
- * 重启后没有存活的子进程：把所有瞬时状态收敛到明确终态，避免僵尸任务。
- * 只使用现有转移事件，不新增协议分支。
+ * 重启后没有存活的子进程：把瞬时状态收敛到可恢复的等待态，避免僵尸任务。
+ * 任务保留为 waiting_input(stalled)，用户可重新入队或取消；不回放历史。
  */
 export function reconcileOnBoot(deps: BootReconcilerDeps): void {
   const apply = (taskId: string, event: TaskTransitionEvent): void => {
@@ -40,7 +40,7 @@ export function reconcileOnBoot(deps: BootReconcilerDeps): void {
   }
 
   for (const task of listTasksByStatus(deps.db, ['running', 'waiting_input'])) {
-    apply(task.id, { type: 'error', message: 'daemon restarted' })
+    apply(task.id, { type: 'session_reported', outcome: 'unreported', reason: 'daemon restarted' })
   }
 
   for (const task of listTasksByStatus(deps.db, ['verifying'])) {
