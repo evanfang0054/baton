@@ -11,9 +11,19 @@ import {
   WorkspaceCreateInput,
   WorkspaceCreateResponse,
   WorkspaceListResponse,
+  WorkspaceTrustInput,
+  WorkspaceTrustResponse,
 } from '../src/api.js'
 
-const workspace = { id: 'w1', name: 'demo', relPath: 'demo', createdAt: 1 }
+const workspace = {
+  id: 'w1',
+  name: 'demo',
+  relPath: 'demo',
+  trusted: false,
+  projectHooks: 'off',
+  trustedAt: null,
+  createdAt: 1,
+}
 const canvas = { id: 'c1', workspaceId: 'w1', viewport: { x: 0, y: 0, zoom: 1 } }
 const task = {
   id: 't1',
@@ -47,6 +57,16 @@ describe('REST DTO schemas', () => {
   it('validates workspace responses', () => {
     expect(WorkspaceListResponse.parse({ workspaces: [workspace] }).workspaces).toHaveLength(1)
     expect(WorkspaceCreateResponse.parse({ workspace, canvas }).workspace.id).toBe('w1')
+  })
+
+  it('validates workspace trust input and response', () => {
+    expect(WorkspaceTrustInput.parse({ trusted: true, projectHooks: 'on' })).toEqual({
+      trusted: true,
+      projectHooks: 'on',
+    })
+    expect(WorkspaceTrustInput.parse({ trusted: false })).toEqual({ trusted: false })
+    expect(() => WorkspaceTrustInput.parse({ trusted: 'yes' })).toThrow()
+    expect(WorkspaceTrustResponse.parse({ workspace }).workspace.trusted).toBe(false)
   })
 
   it('validates canvas response with nodes and edges', () => {

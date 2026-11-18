@@ -41,6 +41,7 @@ function setup(): Setup {
     webRoot: root,
     workspacesRoot: root,
     maxConcurrency: 1,
+    maxLiveSessions: 5,
     killSwitch: false,
   }
   const service = createTaskService({

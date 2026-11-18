@@ -12,6 +12,7 @@ import type { Config } from '../config.js'
 import { createEventStore, type BroadcastEvent, type WsEventRow } from '../db/event-store.js'
 import {
   countActiveTasks,
+  countLiveSessions,
   deleteNode,
   getApproval,
   getCanvas,
@@ -511,8 +512,10 @@ export function createRuntime(deps: RuntimeDeps) {
     getReviewByTask: (taskId: string) => getReviewByTask(deps.db, taskId),
     getSession: (id: string) => getSession(deps.db, id),
     countActiveTasks: () => countActiveTasks(deps.db),
+    countLiveSessions: () => countLiveSessions(deps.db),
     findNextQueued,
     maxConcurrency: deps.config.maxConcurrency,
+    maxLiveSessions: deps.config.maxLiveSessions,
   }
 
   const created = createScheduler(runtime)

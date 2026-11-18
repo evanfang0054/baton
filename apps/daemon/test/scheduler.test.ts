@@ -5,6 +5,8 @@ import type { TransitionOutcome } from '../src/runtime/types.js'
 function queueRuntime(
   tasks: string[],
   failing: Set<string>,
+  live = 0,
+  maxLiveSessions = 5,
 ): SchedulerRuntime & {
   started: string[]
   attempts: string[]
@@ -14,9 +16,11 @@ function queueRuntime(
   let active = 0
   return {
     maxConcurrency: 1,
+    maxLiveSessions,
     started,
     attempts,
     countActiveTasks: () => active,
+    countLiveSessions: () => live,
     findNextQueued: (exclude) => {
       const next = tasks.find((id) => !exclude?.has(id))
       return next ? { id: next } : null
@@ -60,5 +64,17 @@ describe('scheduler', () => {
 
     expect(runtime.attempts).toEqual(['bad', 'worse'])
     expect(runtime.started).toEqual([])
+  })
+
+  it('stops starting when live sessions reach the cap', () => {
+    const runtime = queueRuntime(['next'], new Set(), 5, 5)
+    createScheduler(runtime).pump()
+    expect(runtime.started).toEqual([])
+  })
+
+  it('starts while a blocked task is live but no longer holds an execution slot', () => {
+    const runtime = queueRuntime(['next'], new Set(), 1, 5)
+    createScheduler(runtime).pump()
+    expect(runtime.started).toEqual(['next'])
   })
 })

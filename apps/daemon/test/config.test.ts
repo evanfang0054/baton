@@ -49,6 +49,12 @@ describe('loadConfig', () => {
     expect(() => loadConfig([], { BATON_MAX_CONCURRENCY: 'abc' })).toThrow()
   })
 
+  it('defaults maxLiveSessions to 5 and reads BATON_MAX_LIVE_SESSIONS', () => {
+    expect(loadConfig([], {}).maxLiveSessions).toBe(5)
+    expect(loadConfig([], { BATON_MAX_LIVE_SESSIONS: '3' }).maxLiveSessions).toBe(3)
+    expect(() => loadConfig([], { BATON_MAX_LIVE_SESSIONS: '0' })).toThrow()
+  })
+
   it('reads the global kill switch from BATON_KILL_SWITCH', () => {
     expect(loadConfig([], {}).killSwitch).toBe(false)
     expect(loadConfig([], { BATON_KILL_SWITCH: '1' }).killSwitch).toBe(true)

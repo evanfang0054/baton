@@ -79,7 +79,19 @@ function stubTaskApi() {
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.startsWith('/api/workspaces')) {
-        return json({ workspaces: [{ id: 'w1', name: 'demo', relPath: 'demo', createdAt: 1 }] })
+        return json({
+          workspaces: [
+            {
+              id: 'w1',
+              name: 'demo',
+              relPath: 'demo',
+              trusted: false,
+              projectHooks: 'off',
+              trustedAt: null,
+              createdAt: 1,
+            },
+          ],
+        })
       }
       if (url.startsWith('/api/tasks?workspaceId=w1')) {
         return json({ tasks: [{ ...task, attention: 'needs_reply', waitingSince: 2 }] })

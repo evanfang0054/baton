@@ -40,6 +40,9 @@ function toWorkspace(row: typeof workspace.$inferSelect): Workspace {
     id: row.id,
     name: row.name,
     relPath: row.relPath,
+    trusted: row.trusted,
+    projectHooks: row.projectHooks,
+    trustedAt: row.trustedAt,
     createdAt: row.createdAt,
   })
 }
@@ -162,6 +165,9 @@ export function insertWorkspaceWithCanvas(
         id: input.workspace.id,
         name: input.workspace.name,
         relPath: input.workspace.relPath,
+        trusted: input.workspace.trusted,
+        projectHooks: input.workspace.projectHooks,
+        trustedAt: input.workspace.trustedAt,
         createdAt: input.workspace.createdAt,
       })
       .run()
@@ -173,6 +179,14 @@ export function insertWorkspaceWithCanvas(
       })
       .run()
   })
+}
+
+export function updateWorkspaceTrust(
+  tx: Tx,
+  id: string,
+  input: { trusted: boolean; projectHooks: 'off' | 'on'; trustedAt: number | null },
+): void {
+  tx.update(workspace).set(input).where(eq(workspace.id, id)).run()
 }
 
 export function getCanvasByWorkspace(db: Db, workspaceId: string): Canvas | null {
@@ -376,9 +390,16 @@ export function countActiveTasks(db: Db): number {
   const row = db
     .select({ count: sql<number>`count(*)` })
     .from(task)
-    .where(
-      sql`(${task.status} in ('running', 'verifying')) or (${task.status} = 'waiting_input' and exists (select 1 from session s where s.task_id = ${task.id} and s.status in ('running', 'waiting_input')))`,
-    )
+    .where(sql`${task.status} in ('running', 'verifying')`)
+    .get()
+  return row?.count ?? 0
+}
+
+export function countLiveSessions(db: Db): number {
+  const row = db
+    .select({ count: sql<number>`count(*)` })
+    .from(session)
+    .where(sql`${session.status} in ('running', 'waiting_input')`)
     .get()
   return row?.count ?? 0
 }

@@ -55,6 +55,7 @@ export function createTestRuntime(
     webRoot: root,
     workspacesRoot: root,
     maxConcurrency: options.maxConcurrency ?? 1,
+    maxLiveSessions: 5,
     killSwitch: false,
     ...options.config,
   }
