@@ -2,6 +2,7 @@ import { EventSchemas } from '@baton/protocol'
 import { randomUUID } from 'node:crypto'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createEventStore } from '../src/db/event-store.js'
+import { buildWsFrame } from '../src/ws/hub.js'
 import { createTestDb, seedTask, type TestDb } from './helpers/db.js'
 
 const dbs: TestDb[] = []
@@ -70,6 +71,27 @@ describe('event store', () => {
       sessionId: seeded.sessionId,
       seq: 1,
       event: { type: 'TEXT_MESSAGE_CONTENT' },
+    })
+  })
+
+  it('reuses the payload JSON when building the ws frame', () => {
+    const database = db()
+    const store = createEventStore(database.db, deps)
+    const seeded = seedTask(database.raw)
+    const appended = store.appendSessionEvent({
+      sessionId: seeded.sessionId!,
+      seq: 1,
+      event: fakeEvent('frame'),
+      ts: 9,
+    })
+    expect(JSON.parse(appended.payloadJson)).toEqual(appended.payload)
+    expect(JSON.parse(buildWsFrame(appended))).toEqual({
+      v: 1,
+      id: appended.id,
+      type: appended.type,
+      ts: appended.ts,
+      seq: appended.ordinal,
+      payload: appended.payload,
     })
   })
 

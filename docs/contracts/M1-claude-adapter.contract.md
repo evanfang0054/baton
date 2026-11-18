@@ -41,7 +41,7 @@
 - [ ] **19. 引擎接线**：`adapter-factory` 动态加载 `claude-sdk`，未安装/不可用时返回 `engine_unavailable`；`task-service` 不再拒绝非 fake；`task.create` 允许建任务，`task.enqueue` 在不可用时给出可操作错误；测试覆盖。
 - [ ] **20. 事件存储**：`appendSessionEvent` 只序列化一次；tool result 16KB、text block 64KB 截断并标记；`event`/`ws_event` 同时写入；分页/回放测试保持通过；截断测试覆盖。
 - [ ] **21. SQLite 性能**：保留 WAL，补 `synchronous=NORMAL`；旧 DB 可打开；写入/读取测试通过；文档记录断电最多丢最后几条未提交事务的取舍。
-- [ ] **22. Web 热路径**：session-cache 顺序 append 快路径（乱序才排序）；`Transcript` 增量投影；`session.event` 轻量解析、控制消息完整校验；32ms 合批保留；增量投影与全量 `buildTranscript` 等价测试。
+- [ ] **22. Web 热路径**：session-cache 顺序 append 快路径（乱序才排序）；`session.event` 轻量解析、控制消息完整校验；32ms 合批保留；5k/20k transcript 全量重建 p95 < 8ms；50k 为边界（mean <8ms，p95 约 8–10ms）；真实会话 >50k 或持续 p95 超预算时才引入增量投影。
 - [ ] **23. Web UX**：首次打开/创建 workspace 弹 trust 弹窗（默认不信任、hooks 默认关、列出 CLAUDE.md/skills/MCP/plugins 与 hooks 风险）；header 徽标与撤销；引擎选择与 `available/unknown/unavailable`；fake 标「演示引擎」；多个审批卡并发；截断提示；组件测试。
 - [ ] **24. 认证与分发**：host-native 优先复用 `~/.claude`；`ANTHROPIC_API_KEY`/`CLAUDE_CODE_OAUTH_TOKEN` 可选；Docker 保持移除；`docs/runbooks/local.md` 说明启动、token、数据目录、远程反代；`THIRD_PARTY_NOTICES.md` 记录 SDK 0.3.327 与 MCP SDK 1.32.2。
 
@@ -50,7 +50,7 @@
 - [ ] **25. 自动化质量**：`pnpm verify`、`pnpm verify:full`、`pnpm pack:check`、`pnpm check:boundaries`、`pnpm check:protocol`、`pnpm format:check` 全绿；CI `verify (22/24)`、`pack-check`、`e2e`、`build` 全绿。
 - [ ] **26. 真实闭环**：ego-lite 在本机 scratch workspace 完成 `建任务 → 开工 → tool call → approval allow → blocked → reply → ready → verify → review → approve`；刷新后状态/transcript/审批/验收仍在；证据落 `docs/evidence/2026-11-17-m1-7-claude/`。
 - [ ] **27. 拒绝路径**：审批 deny 后工具未执行、模型继续或结束；`baton_report` 未上报进 `waiting_input(stalled)`；`task.cancel` 后无残留进程；三条路径有测试或 evidence。
-- [ ] **28. 性能 evidence**：10 分钟真实会话记录 event loop lag（p95 < 50ms）、blocked 时 CPU（< 5% 单核）、5 个 live session RSS、DB 增长；5k 事件增量投影 p50/p95（p95 < 8ms）；若 RSS > 1.5GB，默认 live cap 降到 3 或提前做 idle eviction。
+- [ ] **28. 性能 evidence**：10 分钟真实会话记录 event loop lag（p95 < 50ms）、blocked 时 CPU（< 5% 单核）、5 个 live session RSS、DB 增长；5k/20k transcript 全量重建 p95 < 8ms；50k 为边界；若 RSS > 1.5GB，默认 live cap 降到 3 或提前做 idle eviction。
 - [ ] **29. 范围与文档**：未实现 Docker/ACP/PTY/触发器/总管/worktree/M1-6b/7b；spec/contract/plan 互链；`docs/README.md` 与架构 spec 回链更新；无 `TODO`/`FIXME`。
 
 ## Boundary Conditions
@@ -135,3 +135,4 @@ pnpm format:check
 
 - S2 spike（Slice 0）未通过时，本 contract 的 adapter 条目暂缓，先回到 spec 改设计；不把 spike 风险带进实现。
 - 真实 API 不进 CI；`pnpm verify:full` 使用 fake/系统 Chrome；真实闭环由 ego-lite evidence 承担。
+- 执行期调整（2026-11-17）：baseline 显示 5k 0.64ms、20k 2.24ms、50k 5.43ms、100k 11.76ms；7a 无 partial，50k 内已达标。决定 7a 不做 stateful 增量投影，保留基准；触发条件为真实会话 >50k 事件或 p95 >8ms。
