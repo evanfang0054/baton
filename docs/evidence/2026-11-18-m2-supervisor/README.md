@@ -3,7 +3,8 @@
 - 日期：2026-11-18
 - 分支：`feat/m2-supervisor-v0`
 - 状态：**阻塞**（本机没有 `~/.baton/supervisor.json`，也没有可用的模型 API key）
-- 已完成：Playwright mocked 回归、`pnpm verify:full`、`pnpm pack:check`
+- 已完成：Playwright mocked 回归、真实 AI SDK 引擎对本地 OpenAI-compatible mock 的流式与
+  tool-call 测试、`pnpm verify:full`、`pnpm pack:check`
 - 待完成：真实模型跑通创建任务、开工引导、状态查询、刷新恢复与幂等
 
 ## 为什么阻塞
@@ -16,6 +17,18 @@
 
 本机未创建该文件，环境变量中也没有可复用的模型 key。按脱敏约定，本文不记录任何真实
 baseUrl、key、账号或本机绝对路径。
+
+配置模板与说明见 `docs/runbooks/supervisor-config.md`；本机已生成空的
+`~/.baton/supervisor.json`（0600），填入三项后即可继续验收。
+
+## 已完成的模拟调试
+
+- `apps/daemon/test/supervisor-engine-mock.test.ts`：用本地 OpenAI-compatible SSE mock
+  驱动真实 `ai` + `@ai-sdk/openai-compatible` 引擎，验证流式文本、`create_task` 工具调用
+  与工具执行结果；不需要真实 key。
+- `apps/web/e2e/supervisor.spec.ts`：REST/WS 全 mock，覆盖建任务、attention 查询、
+  要求开工引导、未配置提示。
+- 以上仅证明链路与契约，不证明真实模型的指令遵循与工具选择质量。
 
 ## 恢复验收的步骤
 

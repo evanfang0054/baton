@@ -392,9 +392,11 @@ Seam: `docs/evidence/2026-11-18-m2-supervisor/README.md`
 
 不要提交该文件；不要截图配置文件。
 
-> **2026-11-18 阻塞记录**：本机不存在 `~/.baton/supervisor.json`，环境也没有可用模型 key；
-> 已把验收步骤与证据占位写入 `docs/evidence/2026-11-18-m2-supervisor/README.md`，
-> 待有模型配置后按本计划继续。未用脚本引擎或 mock 冒充真实模型验收。
+> **2026-11-18 阻塞记录**：本机不存在可用的 `~/.baton/supervisor.json`，环境也没有模型 key；
+> 已生成空模板（0600）并写入配置说明 `docs/runbooks/supervisor-config.md`，
+> 验收步骤与证据占位在 `docs/evidence/2026-11-18-m2-supervisor/README.md`。
+> 已用 `apps/daemon/test/supervisor-engine-mock.test.ts` 对真实 AI SDK 引擎做本地
+> OpenAI-compatible mock 调试，但未用 mock 冒充真实模型验收。
 
 - [ ] **Step 2: 启动 daemon**
 

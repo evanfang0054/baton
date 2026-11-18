@@ -10,6 +10,7 @@
 ## 现行 runbook
 
 - [本地运行与运维](runbooks/local.md)
+- [总管模型配置](runbooks/supervisor-config.md)
 
 ## 现行 spec
 
