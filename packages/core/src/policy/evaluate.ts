@@ -46,6 +46,7 @@ export function evaluateApproval(
   const auto =
     risk !== 'high' &&
     policy.autopilot.enabled &&
+    ctx.workspaceTrusted &&
     !ctx.killSwitch &&
     within(risk, policy.approval.autoApproveMaxRisk)
 

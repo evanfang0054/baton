@@ -189,7 +189,12 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
           event.output,
           event.diffStat,
         )
-        if (ctx.autopilot.enabled && ctx.retryCount < ctx.autopilot.retryMax) {
+        if (
+          ctx.autopilot.enabled &&
+          ctx.workspaceTrusted &&
+          !ctx.killSwitch &&
+          ctx.retryCount < ctx.autopilot.retryMax
+        ) {
           return ok(
             'queued',
             ctx.retryCount + 1,
