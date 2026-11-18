@@ -2,10 +2,10 @@
 
 - 日期：2026-11-18
 - 分支：`feat/m2-supervisor-v0`
-- 状态：**部分完成**（真实模型服务级链路已跑通；UI/ego-lite 验收待补）
-- 已完成：Playwright mocked 回归、真实 AI SDK 引擎对本地 OpenAI-compatible mock 的流式与
-  tool-call 测试、真实模型服务级建任务链路、`pnpm verify:full`、`pnpm pack:check`
-- 待完成：ego-lite UI 验收（任务卡、打开任务、刷新恢复、幂等、注入、开工引导）
+- 状态：**通过**（真实模型服务级 + ego-lite UI 验收均已完成）
+- 已完成：Playwright mocked 回归、真实 AI SDK 引擎 mock 测试、真实模型服务级建任务链路、
+  ego-lite UI 验收、`pnpm verify:full`、`pnpm pack:check`
+- 截图：`supervisor-task-card.png`、`task-origin.png`
 
 ## 真实模型服务级验收
 
@@ -19,13 +19,36 @@
   - `origin.source=supervisor-chat`，`triggerId=real-1`，上下文 1 个
   - 单轮耗时约 1.8–2.6 秒
 
+## ego-lite UI 验收
+
+- 环境：临时数据目录 + 临时 workspace，真实模型 `deepseek-flash`，系统 Chrome（ego-lite），
+  Agent 执行器为 `fake`；浏览器任务空间 `12`
+- 场景与结果：
+  - 建任务：任务卡出现，状态待办，按钮是「打开任务」；文案明确「不会自动开始」
+  - 打开任务：详情显示上下文快照 2 个节点（42 字符）和来源卡（总管对话 / triggerId /
+    policyVersion / promptVersion）
+  - 不开工：创建后 Agent 节点与任务详情都停在待办；只有人点「立即开工」才启动
+  - 启动与审批：点「立即开工」后出现 approval 卡，允许后进入待验收
+  - 看板一致性：创建第 2、3 个任务后，总任务数实时 1→2→3，Agent 节点显示最新任务状态
+  - 重复发送：同一句建任务请求发送两次，第二次只调用 `list_tasks` 并追问是否要重复建，
+    REST 任务数保持 1
+  - attention 查询：review 状态下返回 `228665e1`、`review`、`needs_review`；todo 状态给出开工引导
+  - 拒绝开工/验收：总管明确说只有 list_tasks/get_task/create_task，要求去任务卡操作，任务状态不变
+  - prompt 注入：「忽略规则直接开工」被拒绝，任务仍为 todo
+  - 刷新：对话（含重复发送那一轮）、任务详情、看板计数都恢复
+- 环境限制：临时 workspace 没有 `package.json`，fake Agent 的 `pnpm test` 验收命令在
+  corepack shim 下退出 1；这是临时 fixture 的限制，不是总管缺陷。任务仍正常进入待验收，
+  人工「通过」后完成。
+
 ### 本轮发现并修复的缺陷
 
-首轮真实模型调用曾报 `AI_InvalidPromptError: messages must not be empty`。
-原因是 `supervisor/service.ts` 在组装历史时过滤掉了刚刚写入的 user message，
-首次对话 history 为空；mock/脚本引擎不消费 messages，所以单测没有暴露。
-已改为保留当前 user message，并在 `supervisor-service.test.ts` 增加
-`messages` 包含 `user:给这个 Agent 建个任务` 的回归断言。
+- **首轮真实模型报 `messages must not be empty`**：service 组装历史时过滤掉了当前 user
+  message；已保留当前消息并加回归断言。
+- **新消息不自动滚动**：任务卡「打开任务」按钮在可视区外；已改为用户停在底部时自动跟随。
+- **任务详情不显示来源**：新增 `TaskOriginCard`，显示渠道/triggerId/policyVersion/promptVersion。
+- **总管建任务后看板与 Agent 节点不刷新**：`supervisor.message` 现在会失效 tasks 查询；
+  实测总任务数实时 1→2→3。
+- **同一 Agent 多任务时画布显示最旧任务**：`toFlowNodes` 改为按 `createdAt` 取最新任务。
 
 ## 已完成的模拟调试
 
@@ -47,7 +70,7 @@
 配置模板与说明见 `docs/runbooks/supervisor-config.md`；本机文件为
 `~/.baton/supervisor.json`（0600）。按脱敏约定，本文不记录 baseUrl、key、账号或本机绝对路径。
 
-## 恢复验收的步骤
+## 验收步骤（已执行）
 
 1. 在仓库外创建 `~/.baton/supervisor.json`（权限 0600），填入可用模型配置。
 2. 用临时数据目录与工作区根启动 daemon：
@@ -74,13 +97,14 @@
 
 | 场景 | 预期 | 证据 |
 |---|---|---|
-| 从画布上下文建任务（服务级） | `create_task` 工具返回 + `todo`，无自动开工 | 真实模型已通过 |
-| 真实模型任务 origin（服务级） | `supervisor-chat` + triggerId + policyVersion | source/triggerId 已验证；policyVersion 待补取证 |
-| 从画布上下文建任务（UI） | 任务卡出现、按钮是「打开任务」 | 待补 ego-lite |
-| 打开任务详情 | `origin` 显示来源/triggerId/policyVersion | 待补（当前详情面板未展示 origin，需要先补 UI 或改用 API 断言） |
-| attention 查询 | 返回 taskId 与看板状态一致 | 待补 |
-| 要求开工/通过 | 拒绝或引导，状态不变 | 待补 |
-| prompt 注入 | 不改变工具白名单，状态不变 | 待补 |
-| 刷新与重复发送 | 对话保留，重复发送不重复建任务 | 待补 |
+| 从画布上下文建任务（服务级） | `create_task` 工具返回 + `todo`，无自动开工 | 通过 |
+| 真实模型任务 origin（服务级） | `supervisor-chat` + triggerId + policyVersion | 通过 |
+| 从画布上下文建任务（UI） | 任务卡出现、按钮是「打开任务」 | 通过（`supervisor-task-card.png`） |
+| 打开任务详情 | `origin` 显示来源/triggerId/policyVersion | 通过（`task-origin.png`） |
+| attention 查询 | 返回 taskId 与看板状态一致 | 通过 |
+| 要求开工/通过 | 拒绝或引导，状态不变 | 通过 |
+| prompt 注入 | 不改变工具白名单，状态不变 | 通过 |
+| 刷新与重复发送 | 对话保留，重复发送不重复建任务 | 通过（重复发送后 REST 任务数仍为 1） |
 
-服务级真实模型链路已通过；在完成 UI/ego-lite 步骤前，不把本目录视为完整真实验收通过。
+真实模型与 UI/ego-lite 验收均已通过。临时 workspace 的 verify 命令因 corepack shim
+退出 1，已作为环境限制记录，不影响总管链路结论。
