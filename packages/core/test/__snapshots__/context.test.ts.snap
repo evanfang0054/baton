@@ -10,5 +10,10 @@ exports[`assembleContext > renders task + explicit/context nodes deterministical
 <node id="n7" type="text" title="分组内说明 A">分组内说明 A</node>
 <node id="n8" type="text" title="分组内说明 B">分组内说明 B</node>
 <node id="n2" type="image" title="设计稿"><image src="artifacts/design.png" alt="设计稿"/></node>
-</context>"
+</context>
+<relations>
+<edge from="n2" to="n1" type="context" from_title="设计稿" to_title="PRD"/>
+<edge from="n1" to="n4" type="context" from_title="PRD" to_title="Agent"/>
+<edge from="n5" to="n4" type="context" from_title="review" to_title="Agent"/>
+</relations>"
 `;

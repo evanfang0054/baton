@@ -1,4 +1,4 @@
-import type { Node, NodeType } from '@baton/protocol'
+import type { ContextNodeRef, ContextRelation, Node, NodeType } from '@baton/protocol'
 import { isSensitivePath } from './sensitive.js'
 import type { AssembleContextInput, AssembleContextResult, DropReason } from './types.js'
 
@@ -6,6 +6,9 @@ const DEFAULT_MAX_CHARS = 48_000
 const DEFAULT_MAX_NODE_CHARS = 16_384
 const MAX_DEPTH = 2
 const MAX_NODES = 40
+
+/** 关系是内容之外的独立小预算；200 条是防御上限，4k 字符是实际约束。 */
+export const RELATION_LIMITS = { maxEdges: 200, maxChars: 4_000 } as const
 
 interface Candidate {
   node: Node
@@ -56,6 +59,25 @@ function titleOf(node: ContentNode): string {
     case 'image':
       return node.data.alt ?? 'image'
   }
+}
+
+function nodeTitle(node: Node): string {
+  switch (node.type) {
+    case 'text':
+    case 'file':
+    case 'image':
+      return titleOf(node)
+    case 'agent':
+      return node.data.title
+    case 'group':
+      return node.data.label
+    case 'review':
+      return 'review'
+  }
+}
+
+function compareText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0
 }
 
 function escapeAttr(value: string): string {
@@ -277,30 +299,92 @@ export function assembleContext(input: AssembleContextInput): AssembleContextRes
     .map((item) => {
       const attributes =
         `id="${escapeAttr(item.node.id)}" type="${item.node.type}" ` +
-        `title="${escapeAttr(titleOf(item.node as ContentNode))}"`
+        `title="${escapeAttr(nodeTitle(item.node))}"`
       const mark = item.truncated ? ' truncated="true"' : ''
       return `<node ${attributes}${mark}>${item.content}</node>`
     })
     .join('\n')
+
+  const includedIds = new Set(rendered.map((item) => item.node.id))
+  const relationScope = new Set([...includedIds, input.targetNodeId])
+  const relationCandidates: ContextRelation[] = input.edges
+    .filter((edge) => relationScope.has(edge.sourceId) || relationScope.has(edge.targetId))
+    .flatMap((edge) => {
+      const from = byId.get(edge.sourceId)
+      const to = byId.get(edge.targetId)
+      if (!from || !to) return []
+      return [
+        {
+          from: edge.sourceId,
+          to: edge.targetId,
+          type: edge.type,
+          fromTitle: nodeTitle(from),
+          toTitle: nodeTitle(to),
+          includedFrom: includedIds.has(edge.sourceId),
+          includedTo: includedIds.has(edge.targetId),
+        } satisfies ContextRelation,
+      ]
+    })
+    .sort((a, b) => {
+      const priority =
+        Number(!(a.includedFrom && a.includedTo)) - Number(!(b.includedFrom && b.includedTo))
+      return (
+        priority ||
+        compareText(a.from, b.from) ||
+        compareText(a.to, b.to) ||
+        compareText(a.type, b.type)
+      )
+    })
+
+  const relationLines: string[] = []
+  const renderedRelations: ContextRelation[] = []
+  let relationChars = 0
+  let relationsTruncated = false
+
+  for (const relation of relationCandidates) {
+    const line =
+      `<edge from="${escapeAttr(relation.from)}" to="${escapeAttr(relation.to)}" ` +
+      `type="${relation.type}" from_title="${escapeAttr(relation.fromTitle)}" ` +
+      `to_title="${escapeAttr(relation.toTitle)}"/>`
+    if (
+      renderedRelations.length >= RELATION_LIMITS.maxEdges ||
+      relationChars + line.length > RELATION_LIMITS.maxChars
+    ) {
+      relationsTruncated = true
+      break
+    }
+    relationLines.push(line)
+    renderedRelations.push(relation)
+    relationChars += line.length
+  }
 
   const parts = [
     `<task>${input.taskPrompt}</task>`,
     `<context>${body.length > 0 ? `\n${body}\n` : ''}</context>`,
   ]
 
+  if (relationLines.length > 0) {
+    const attr = relationsTruncated ? ' truncated="true"' : ''
+    parts.push(`<relations${attr}>\n${relationLines.join('\n')}\n</relations>`)
+  }
+
   if (truncatedIds.size > 0) {
     parts.push(`<truncated nodes="${escapeAttr([...truncatedIds].sort().join(','))}"/>`)
   }
 
-  const included = rendered.map((item) => ({
+  const included: ContextNodeRef[] = rendered.map((item) => ({
     id: item.node.id,
     type: item.node.type as NodeType,
+    title: nodeTitle(item.node),
     depth: item.depth,
     chars: item.chars,
   }))
 
   const droppedList = [...dropped.entries()]
-    .map(([id, reason]) => ({ id, reason }))
+    .map(([id, reason]) => {
+      const node = byId.get(id)
+      return { id, reason, ...(node ? { title: nodeTitle(node) } : {}) }
+    })
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 
   return {
@@ -309,5 +393,7 @@ export function assembleContext(input: AssembleContextInput): AssembleContextRes
     dropped: droppedList,
     truncated,
     redactedPaths,
+    relations: renderedRelations,
+    relationsTruncated,
   }
 }

@@ -1,6 +1,6 @@
 import { Edge, Node } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
-import { assembleContext, isSensitivePath } from '../src/context/index.js'
+import { assembleContext, isSensitivePath, RELATION_LIMITS } from '../src/context/index.js'
 
 const node = (
   id: string,
@@ -53,7 +53,7 @@ describe('assembleContext', () => {
     expect(result.prompt).toContain('<node id="n3" type="file" title="login.md">')
     expect(result.prompt).toContain('使用暗色变量。')
     expect(result.prompt).toContain('分组内说明 A')
-    expect(result.prompt).not.toContain('n5')
+    expect(result.prompt).not.toContain('<node id="n5"')
     expect(result.included.map((item) => item.id)).toEqual(['n1', 'n3', 'n7', 'n8', 'n2'])
     expect(result.dropped).toEqual([])
 
@@ -99,7 +99,7 @@ describe('assembleContext', () => {
       contentByNodeId: { n9: 'TOKEN=should-not-appear' },
     })
     expect(result.prompt).not.toContain('should-not-appear')
-    expect(result.dropped).toContainEqual({ id: 'n9', reason: 'sensitive' })
+    expect(result.dropped).toContainEqual({ id: 'n9', reason: 'sensitive', title: '.env' })
     expect(result.redactedPaths).toContain('.env')
   })
 
@@ -117,7 +117,7 @@ describe('assembleContext', () => {
     expect(result.truncated).toBe(true)
     expect(result.prompt).toContain('<truncated nodes="')
     expect(result.included.reduce((sum, item) => sum + item.chars, 0)).toBeLessThanOrEqual(60)
-    expect(result.dropped).toContainEqual({ id: 'n11', reason: 'budget' })
+    expect(result.dropped).toContainEqual(expect.objectContaining({ id: 'n11', reason: 'budget' }))
     expect(result.prompt).toContain('truncated="true"')
   })
 
@@ -130,7 +130,7 @@ describe('assembleContext', () => {
       nodes: [...nodes, empty],
       edges,
     })
-    expect(result.dropped).toContainEqual({ id: 'n12', reason: 'empty' })
+    expect(result.dropped).toContainEqual(expect.objectContaining({ id: 'n12', reason: 'empty' }))
     expect(result.dropped).toContainEqual({ id: 'missing', reason: 'not_found' })
   })
 
@@ -143,7 +143,7 @@ describe('assembleContext', () => {
       edges,
       maxChars: 0,
     })
-    expect(result.dropped).toContainEqual({ id: 'n4', reason: 'target' })
+    expect(result.dropped).toContainEqual(expect.objectContaining({ id: 'n4', reason: 'target' }))
     expect(result.dropped.filter((item) => item.id === 'missing')).toHaveLength(1)
     expect(result.prompt).toContain('<context></context>')
     expect(result.truncated).toBe(true)
@@ -203,9 +203,9 @@ describe('assembleContext', () => {
     })
     expect(result.prompt).toContain('depth1')
     expect(result.prompt).toContain('depth2')
-    expect(result.prompt).not.toContain('depth3')
-    expect(result.prompt).not.toContain('Other')
-    expect(result.prompt).not.toContain('r1')
+    expect(result.prompt).not.toContain('<node id="d0"')
+    expect(result.prompt).not.toContain('<node id="a1"')
+    expect(result.prompt).not.toContain('<node id="r1"')
     expect(result.dropped).toContainEqual({ id: 'gone', reason: 'not_found' })
   })
 
@@ -274,7 +274,7 @@ describe('assembleContext', () => {
       edges: [],
       maxNodeChars: 0,
     })
-    expect(result.dropped).toContainEqual({ id: 'n30', reason: 'empty' })
+    expect(result.dropped).toContainEqual(expect.objectContaining({ id: 'n30', reason: 'empty' }))
     expect(result.truncated).toBe(true)
   })
 
@@ -310,7 +310,9 @@ describe('assembleContext', () => {
       edges: [],
     })
     expect(result.included.map((item) => item.id)).toEqual(['text3'])
-    expect(result.dropped).toContainEqual({ id: 'target3', reason: 'target' })
+    expect(result.dropped).toContainEqual(
+      expect.objectContaining({ id: 'target3', reason: 'target' }),
+    )
   })
 
   it('does not expand an unselected group', () => {
@@ -322,5 +324,78 @@ describe('assembleContext', () => {
       edges: [edge('e-group', 'n6', 'n4')],
     })
     expect(result.included).toEqual([])
+  })
+
+  it('renders relations touching included nodes or the target', () => {
+    const result = assembleContext({
+      taskPrompt: '总结约束',
+      targetNodeId: 'n4',
+      selectedNodeIds: ['n1', 'n2'],
+      nodes,
+      edges: [
+        edge('e1', 'n1', 'n4'),
+        edge('e2', 'n2', 'n1'),
+        edge('e3', 'n5', 'n4'),
+        edge('e4', 'n7', 'n8'),
+      ],
+    })
+
+    expect(result.prompt).toContain('<relations>')
+    expect(result.prompt).toContain(
+      '<edge from="n1" to="n4" type="context" from_title="PRD" to_title="Agent"/>',
+    )
+    expect(result.prompt).toContain(
+      '<edge from="n2" to="n1" type="context" from_title="设计稿" to_title="PRD"/>',
+    )
+    expect(result.prompt).toContain(
+      '<edge from="n5" to="n4" type="context" from_title="review" to_title="Agent"/>',
+    )
+    expect(result.prompt).not.toContain('from="n7" to="n8"')
+    expect(result.prompt).not.toContain('<node id="n5"')
+    expect(result.relations.map((item) => item.from)).toEqual(['n2', 'n1', 'n5'])
+    expect(result.relationsTruncated).toBe(false)
+  })
+
+  it('omits the relations block when no edge touches the context', () => {
+    const result = assembleContext({
+      taskPrompt: 'x',
+      targetNodeId: 'n4',
+      selectedNodeIds: ['n1'],
+      nodes,
+      edges: [],
+    })
+    expect(result.prompt).not.toContain('<relations>')
+    expect(result.relations).toEqual([])
+    expect(result.relationsTruncated).toBe(false)
+  })
+
+  it('escapes relation titles', () => {
+    const weird = node('n40', 'text', { content: '<需求 & "spec">' }, 0, 300)
+    const result = assembleContext({
+      taskPrompt: 'x',
+      targetNodeId: 'n4',
+      selectedNodeIds: ['n40'],
+      nodes: [...nodes, weird],
+      edges: [edge('e-weird', 'n40', 'n4')],
+    })
+    expect(result.prompt).toContain('from_title="&lt;需求 &amp; &quot;spec&quot;&gt;"')
+  })
+
+  it('truncates relations by the character budget', () => {
+    const many = Array.from({ length: 120 }, (_, index) => edge(`e${index}`, 'n1', 'n2'))
+    const result = assembleContext({
+      taskPrompt: 'x',
+      targetNodeId: 'n4',
+      selectedNodeIds: ['n1', 'n2'],
+      nodes,
+      edges: many,
+    })
+    expect(result.relations.length).toBeLessThan(120)
+    expect(result.relationsTruncated).toBe(true)
+    expect(result.prompt).toContain('<relations truncated="true">')
+  })
+
+  it('keeps the defensive relation limits', () => {
+    expect(RELATION_LIMITS).toEqual({ maxEdges: 200, maxChars: 4_000 })
   })
 })

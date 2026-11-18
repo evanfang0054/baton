@@ -1,4 +1,13 @@
-import type { Edge, Node, NodeType } from '@baton/protocol'
+import type {
+  ContextDropped,
+  ContextNodeRef,
+  ContextRelation,
+  DropReason,
+  Edge,
+  Node,
+} from '@baton/protocol'
+
+export type { DropReason }
 
 export interface AssembleContextInput {
   taskPrompt: string
@@ -12,12 +21,12 @@ export interface AssembleContextInput {
   maxNodeChars?: number
 }
 
-export type DropReason = 'budget' | 'sensitive' | 'limit' | 'not_found' | 'target' | 'empty'
-
 export interface AssembleContextResult {
   prompt: string
-  included: Array<{ id: string; type: NodeType; depth: number; chars: number }>
-  dropped: Array<{ id: string; reason: DropReason }>
+  included: ContextNodeRef[]
+  dropped: ContextDropped[]
   truncated: boolean
   redactedPaths: string[]
+  relations: ContextRelation[]
+  relationsTruncated: boolean
 }
