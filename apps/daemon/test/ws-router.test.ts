@@ -185,7 +185,7 @@ describe('ws router', () => {
     })
   })
 
-  it('rejects deleting a node referenced by an edge', async () => {
+  it('deletes a node together with its edges', async () => {
     const { handle, ws } = await setup()
     handle.database.raw
       .prepare(
@@ -207,8 +207,14 @@ describe('ws router', () => {
       ts: 1,
       payload: { nodeId: 'edge-target' },
     })
-    const error = await ws.next('error')
-    expect(error.payload).toMatchObject({ code: 'node_in_use', details: { reference: 'edge' } })
+    await ws.next('ack')
+
+    expect(getNode(handle.database.db, 'edge-target')).toBeNull()
+    expect(
+      handle.database.raw
+        .prepare('select count(*) as count from edge where source_id = ? or target_id = ?')
+        .get('edge-target', 'edge-target'),
+    ).toEqual({ count: 0 })
   })
 
   it('rejects deleting a node referenced by a task', async () => {

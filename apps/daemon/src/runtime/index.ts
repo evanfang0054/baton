@@ -13,6 +13,7 @@ import { createEventStore, type BroadcastEvent, type WsEventRow } from '../db/ev
 import {
   countActiveTasks,
   countLiveSessions,
+  deleteEdgesForNode,
   deleteNode,
   getApproval,
   getCanvas,
@@ -21,7 +22,6 @@ import {
   getReviewByTask,
   getSession,
   getTask,
-  hasEdgeForNode,
   hasTaskForNode,
   insertNode,
   listTasksByStatus,
@@ -470,16 +470,10 @@ export function createRuntime(deps: RuntimeDeps) {
             }),
           }
         }
-        if (hasEdgeForNode(deps.db, existing.id)) {
-          return {
-            ok: false,
-            error: appError('node_in_use', 'node is referenced by an edge', {
-              nodeId: existing.id,
-              reference: 'edge',
-            }),
-          }
-        }
-        deps.db.transaction((tx) => deleteNode(tx, existing.id))
+        deps.db.transaction((tx) => {
+          deleteEdgesForNode(tx, existing.id)
+          deleteNode(tx, existing.id)
+        })
         return { ok: true, ack: { nodeId: existing.id } }
       }
       case 'edge.create': {
