@@ -39,6 +39,9 @@
 - 环境限制：临时 workspace 没有 `package.json`，fake Agent 的 `pnpm test` 验收命令在
   corepack shim 下退出 1；这是临时 fixture 的限制，不是总管缺陷。任务仍正常进入待验收，
   人工「通过」后完成。
+- 残留风险：重复发送本轮没有新建任务，但这是模型调用 `list_tasks` 后主动追问的结果，
+  不是服务端硬去重；如果模型直接再次调用 `create_task`，仍可能重复建任务。后续可考虑
+  按 workspace + target + 规范化 prompt 做短时间窗口去重。
 
 ### 本轮发现并修复的缺陷
 
