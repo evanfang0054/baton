@@ -1,5 +1,5 @@
 import { attentionFor, type TaskEffect } from '@baton/core'
-import type { Policy, Task, TaskStatus, TaskStatusCause } from '@baton/protocol'
+import type { Policy, Task, TaskStatus, TaskStatusCause, WorkspaceTrustSnapshot } from '@baton/protocol'
 import {
   type ApprovalRecord,
   appendTaskFeedback,
@@ -46,6 +46,7 @@ export interface EffectContext {
   newId: () => string
   workspacePath: string
   policy: Policy
+  workspaceTrust: WorkspaceTrustSnapshot
   approval: ApprovalRecord | null
   verifyMeta: Map<string, number>
 }
@@ -172,6 +173,7 @@ export function planAndApplyEffects(tx: Tx, ctx: EffectContext, effects: TaskEff
             sessionId,
             workspacePath: ctx.workspacePath,
             policy: ctx.policy,
+            workspaceTrust: ctx.workspaceTrust,
           }),
         )
         break

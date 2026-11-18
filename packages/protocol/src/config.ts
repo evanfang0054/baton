@@ -9,6 +9,9 @@ export const ConfigSchema = z.object({
   workspacesRoot: z.string().min(1),
   maxConcurrency: z.number().int().positive().default(1),
   maxLiveSessions: z.number().int().positive().default(5),
+  claudeMaxTurns: z.number().int().positive().default(30),
+  claudeMaxBudgetUsd: z.number().positive().default(2),
+  claudeProjectHooks: z.enum(['on', 'off']).default('on'),
   killSwitch: z.boolean().default(false),
 })
 

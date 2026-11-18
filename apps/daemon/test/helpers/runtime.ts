@@ -56,6 +56,9 @@ export function createTestRuntime(
     workspacesRoot: root,
     maxConcurrency: options.maxConcurrency ?? 1,
     maxLiveSessions: 5,
+    claudeMaxTurns: 30,
+    claudeMaxBudgetUsd: 2,
+    claudeProjectHooks: 'on',
     killSwitch: false,
     ...options.config,
   }

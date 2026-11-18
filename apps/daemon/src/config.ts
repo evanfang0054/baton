@@ -35,6 +35,9 @@ export function loadConfig(argv: string[], env: NodeJS.ProcessEnv): Config {
     workspacesRoot: env.BATON_WORKSPACES_ROOT ?? home,
     maxConcurrency: Number(env.BATON_MAX_CONCURRENCY ?? 1),
     maxLiveSessions: Number(env.BATON_MAX_LIVE_SESSIONS ?? 5),
+    claudeMaxTurns: Number(env.BATON_CLAUDE_MAX_TURNS ?? 30),
+    claudeMaxBudgetUsd: Number(env.BATON_CLAUDE_MAX_BUDGET_USD ?? 2),
+    claudeProjectHooks: env.BATON_CLAUDE_PROJECT_HOOKS === 'off' ? 'off' : 'on',
     killSwitch: envFlag(env.BATON_KILL_SWITCH),
   })
   if (config.host !== '127.0.0.1' && !config.token) {

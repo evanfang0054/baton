@@ -42,6 +42,9 @@ function setup(): Setup {
     workspacesRoot: root,
     maxConcurrency: 1,
     maxLiveSessions: 5,
+    claudeMaxTurns: 30,
+    claudeMaxBudgetUsd: 2,
+    claudeProjectHooks: 'on',
     killSwitch: false,
   }
   const service = createTaskService({

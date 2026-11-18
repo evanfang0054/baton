@@ -288,6 +288,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
         cwd: input.workspacePath,
         permissionMode: 'manual',
         policy: input.policy,
+        workspaceTrust: input.workspaceTrust,
       })
     } catch (error) {
       failTask(task.id, input.sessionId, error)

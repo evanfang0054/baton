@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CanvasQuery,
   CanvasResponse,
+  EngineListResponse,
   SessionEventsQuery,
   SessionEventsResponse,
   TaskDetailResponse,
@@ -67,6 +68,20 @@ describe('REST DTO schemas', () => {
     expect(WorkspaceTrustInput.parse({ trusted: false })).toEqual({ trusted: false })
     expect(() => WorkspaceTrustInput.parse({ trusted: 'yes' })).toThrow()
     expect(WorkspaceTrustResponse.parse({ workspace }).workspace.trusted).toBe(false)
+  })
+
+  it('validates engine status list', () => {
+    expect(
+      EngineListResponse.parse({
+        engines: [
+          { engine: 'claude-sdk', status: 'unknown', reason: 'no auth signal' },
+          { engine: 'fake', status: 'available' },
+        ],
+      }).engines,
+    ).toHaveLength(2)
+    expect(() =>
+      EngineListResponse.parse({ engines: [{ engine: 'pty', status: 'nope' }] }),
+    ).toThrow()
   })
 
   it('validates canvas response with nodes and edges', () => {

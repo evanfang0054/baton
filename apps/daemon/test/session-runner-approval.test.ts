@@ -76,6 +76,7 @@ describe('session runner approval failures', () => {
       sessionId: seeded.sessionId!,
       workspacePath: '.',
       policy: PolicySchema.parse({}),
+      workspaceTrust: { projectSettings: false, projectHooks: false },
     })
     await runner.close()
 

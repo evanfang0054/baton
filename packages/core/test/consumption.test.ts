@@ -83,6 +83,7 @@ describe('context -> policy -> adapter wiring', () => {
       cwd: '/workspace/demo',
       permissionMode: 'manual',
       policy: snapshot,
+      workspaceTrust: { projectSettings: false, projectHooks: false },
     })
 
     const decision = evaluateApproval(
