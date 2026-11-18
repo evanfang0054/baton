@@ -35,6 +35,7 @@
 - [M1-5 daemon 运行时闭环](contracts/M1-daemon-runtime.contract.md)
 - [M1-5a 任务注意力语义](contracts/M1-attention-semantics.contract.md)
 - [M1-6a 任务控制台](contracts/M1-web-console.contract.md)
+- [M1-7a Claude 适配器与安全基线](contracts/M1-claude-adapter.contract.md)
 
 ## 现行 plan
 
