@@ -20,6 +20,7 @@ export interface BroadcastEvent {
   id: string
   type: ServerMessage['type']
   payload: unknown
+  payloadJson: string
   ts: number
 }
 
@@ -38,6 +39,7 @@ function toRow(row: typeof wsEvent.$inferSelect): WsEventRow {
     id: row.id,
     type: row.type as ServerMessage['type'],
     payload: JSON.parse(row.payloadJson) as unknown,
+    payloadJson: row.payloadJson,
     ts: row.ts,
   }
 }
@@ -47,14 +49,17 @@ function toRow(row: typeof wsEvent.$inferSelect): WsEventRow {
  * appendWs 必须在调用方的事务里使用；appendSessionEvent 自己开事务。
  */
 export function createEventStore(db: Db, deps: EventStoreDeps) {
-  function appendWs(tx: Tx, input: WsEventDraft): BroadcastEvent {
+  function appendWsJson(
+    tx: Tx,
+    input: { type: ServerMessage['type']; payload: unknown; payloadJson: string; ts: number },
+  ): BroadcastEvent {
     const id = deps.newId()
     const result = tx
       .insert(wsEvent)
       .values({
         id,
         type: input.type,
-        payloadJson: JSON.stringify(input.payload),
+        payloadJson: input.payloadJson,
         ts: input.ts,
       })
       .run()
@@ -63,8 +68,18 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
       ordinal: Number(result.lastInsertRowid),
       type: input.type,
       payload: input.payload,
+      payloadJson: input.payloadJson,
       ts: input.ts,
     }
+  }
+
+  function appendWs(tx: Tx, input: WsEventDraft): BroadcastEvent {
+    return appendWsJson(tx, {
+      type: input.type,
+      payload: input.payload,
+      payloadJson: JSON.stringify(input.payload),
+      ts: input.ts,
+    })
   }
 
   function appendSessionEvent(input: {
@@ -75,9 +90,14 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
   }): BroadcastEvent {
     return db.transaction((tx) => {
       const ts = input.ts ?? deps.now()
-      const ws = appendWs(tx, {
+      const eventJson = JSON.stringify(input.event)
+      const payload = { sessionId: input.sessionId, seq: input.seq, event: input.event }
+      // ws_event 与 event 都需要这份事件；手工拼一次，避免同一对象被反复序列化。
+      const wsPayloadJson = `{"sessionId":${JSON.stringify(input.sessionId)},"seq":${input.seq},"event":${eventJson}}`
+      const ws = appendWsJson(tx, {
         type: 'session.event',
-        payload: { sessionId: input.sessionId, seq: input.seq, event: input.event },
+        payload,
+        payloadJson: wsPayloadJson,
         ts,
       })
       tx.insert(event)
@@ -87,7 +107,7 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
           ordinal: ws.ordinal,
           seq: input.seq,
           type: input.event.type,
-          payloadJson: JSON.stringify(input.event),
+          payloadJson: eventJson,
           ts,
         })
         .run()

@@ -1,11 +1,28 @@
 import type { SessionEventRecord, SessionEventsResponse } from '@baton/protocol'
 
+/** 判断一批事件是否严格递增且全部晚于已有序列表；是则无需 Set/sort。 */
+export function isAppendOnly(
+  previous: SessionEventsResponse,
+  records: SessionEventRecord[],
+): boolean {
+  if (records.length === 0) return false
+  let last = previous.events.at(-1)?.seq ?? 0
+  for (const record of records) {
+    if (record.seq <= last) return false
+    last = record.seq
+  }
+  return true
+}
+
 /** 合并一批 WebSocket 实时事件；按 session 内 seq 去重并保持升序。 */
 export function appendSessionEvents(
   previous: SessionEventsResponse | undefined,
   records: SessionEventRecord[],
 ): SessionEventsResponse | undefined {
-  if (!previous) return previous
+  if (!previous || records.length === 0) return previous
+  if (isAppendOnly(previous, records)) {
+    return { ...previous, events: [...previous.events, ...records] }
+  }
   const known = new Set(previous.events.map((event) => event.seq))
   const events = [...previous.events]
   for (const record of records) {
@@ -25,6 +42,10 @@ export function mergeSessionPage(
   page: SessionEventsResponse,
 ): SessionEventsResponse {
   if (!previous) return page
+  if (page.events.length === 0) return { ...page, events: previous.events }
+  if (isAppendOnly(previous, page.events)) {
+    return { ...page, events: [...previous.events, ...page.events] }
+  }
   const known = new Set(previous.events.map((event) => event.seq))
   const events = [...previous.events, ...page.events.filter((event) => !known.has(event.seq))]
   events.sort((a, b) => a.seq - b.seq)
