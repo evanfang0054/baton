@@ -30,18 +30,22 @@ function StreamingMessage({ stream }: { stream: SupervisorStreamProjection }) {
 export function SupervisorMessageList({
   messages,
   stream,
+  incomplete,
   canLoadOlder,
   loadingOlder,
   onLoadOlder,
   onRetry,
+  onRetryIncomplete,
   onPickQuickPrompt,
 }: {
   messages: SupervisorMessageRecord[]
   stream: SupervisorStreamProjection
+  incomplete: SupervisorMessageRecord | null
   canLoadOlder: boolean
   loadingOlder: boolean
   onLoadOlder: () => void
   onRetry: (message: SupervisorMessageRecord) => void
+  onRetryIncomplete: () => void
   onPickQuickPrompt: (text: string) => void
 }) {
   return (
@@ -68,6 +72,15 @@ export function SupervisorMessageList({
           onRetry={message.status === 'error' ? () => onRetry(message) : undefined}
         />
       ))}
+      {incomplete ? (
+        <div role="status" className="rounded-lg border border-warning bg-warning/10 p-3">
+          <p className="text-xs font-medium text-warning">上一条未完成</p>
+          <p className="mt-1 text-xs text-muted">没有收到总管的回复。</p>
+          <Button variant="tertiary" size="sm" className="mt-2" onPress={onRetryIncomplete}>
+            重试
+          </Button>
+        </div>
+      ) : null}
       {stream.status === 'streaming' ? <StreamingMessage stream={stream} /> : null}
     </div>
   )

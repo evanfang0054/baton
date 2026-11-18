@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { getSupervisorMessages, getSupervisorStatus } from '../../lib/api'
 import { useCommand } from '../../lib/command-context'
 import { queryKeys } from '../../lib/query'
+import { SupervisorComposer } from './SupervisorComposer'
 import { SupervisorMessageList } from './SupervisorMessageList'
 import { SupervisorStatusBar } from './SupervisorStatusBar'
 import { createRequestId, type SupervisorTargetAgent } from './supervisor-model'
@@ -27,7 +28,7 @@ export function SupervisorPanel({
   const [olderBefore, setOlderBefore] = useState<string | null>(null)
   const [olderLoaded, setOlderLoaded] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
-  const [, setQuickPrompt] = useState('')
+  const [quickPrompt, setQuickPrompt] = useState('')
 
   const status = useQuery({
     queryKey: queryKeys.supervisorStatus,
@@ -43,6 +44,7 @@ export function SupervisorPanel({
     setOlderMessages([])
     setOlderBefore(null)
     setOlderLoaded(false)
+    setQuickPrompt('')
   }, [workspaceId])
 
   const messages = useMemo(() => {
@@ -56,6 +58,9 @@ export function SupervisorPanel({
   }, [history.data?.messages, olderMessages])
 
   const nextBefore = olderLoaded ? olderBefore : (history.data?.nextBefore ?? null)
+  const lastMessage = messages.at(-1)
+  const incomplete =
+    lastMessage?.role === 'user' && stream.status !== 'streaming' ? lastMessage : null
 
   const loadOlder = async () => {
     if (!workspaceId || !nextBefore || loadingOlder) return
@@ -72,21 +77,16 @@ export function SupervisorPanel({
     }
   }
 
-  const retry = async (message: SupervisorMessage) => {
+  const resend = async (userMessage: SupervisorMessage) => {
     if (!workspaceId) return
-    const index = messages.findIndex((item) => item.id === message.id)
-    const previousUser = [...messages.slice(0, index)]
-      .reverse()
-      .find((item) => item.role === 'user')
-    if (!previousUser) return
-    const meta = previousUser.meta
+    const meta = userMessage.meta
     try {
       await send({
         type: 'supervisor.send',
         payload: {
           workspaceId,
           requestId: createRequestId(),
-          text: previousUser.content,
+          text: userMessage.content,
           contextNodeIds: meta?.contextNodeIds ?? [],
           ...(meta?.targetNodeId ? { targetNodeId: meta.targetNodeId } : {}),
         },
@@ -94,6 +94,14 @@ export function SupervisorPanel({
     } catch (cause) {
       toast.danger(cause instanceof Error ? cause.message : '重试失败')
     }
+  }
+
+  const retry = async (message: SupervisorMessage) => {
+    const index = messages.findIndex((item) => item.id === message.id)
+    const previousUser = [...messages.slice(0, index)]
+      .reverse()
+      .find((item) => item.role === 'user')
+    if (previousUser) await resend(previousUser)
   }
 
   return (
@@ -162,11 +170,21 @@ export function SupervisorPanel({
         <SupervisorMessageList
           messages={messages}
           stream={stream}
+          incomplete={incomplete}
           canLoadOlder={Boolean(nextBefore)}
           loadingOlder={loadingOlder}
           onLoadOlder={() => void loadOlder()}
           onRetry={(message) => void retry(message)}
+          onRetryIncomplete={() => incomplete && void resend(incomplete)}
           onPickQuickPrompt={setQuickPrompt}
+        />
+      ) : null}
+      {workspaceId && history.data ? (
+        <SupervisorComposer
+          workspaceId={workspaceId}
+          contextNodes={contextNodes}
+          targetAgent={targetAgent}
+          initialText={quickPrompt}
         />
       ) : null}
     </div>
