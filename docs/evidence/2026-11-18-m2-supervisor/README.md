@@ -5,7 +5,7 @@
 - 状态：**通过**（真实模型服务级 + ego-lite UI 验收均已完成）
 - 已完成：Playwright mocked 回归、真实 AI SDK 引擎 mock 测试、真实模型服务级建任务链路、
   ego-lite UI 验收、`pnpm verify:full`、`pnpm pack:check`
-- 截图：`supervisor-task-card.png`、`task-origin.png`
+- 截图：`supervisor-task-card.png`、`task-origin.png`、`supervisor-streaming.png`
 
 ## 真实模型服务级验收
 
@@ -42,6 +42,16 @@
 - 残留风险：重复发送本轮没有新建任务，但这是模型调用 `list_tasks` 后主动追问的结果，
   不是服务端硬去重；如果模型直接再次调用 `create_task`，仍可能重复建任务。后续可考虑
   按 workspace + target + 规范化 prompt 做短时间窗口去重。
+
+### 流式体验
+
+- SDK 未改：仍是 `ai` 7 + `@ai-sdk/openai-compatible` 直接 `streamText`，符合原方案。
+- 实测 daemon：一次长回答只收到 2 个 `supervisor.delta`（3 字符 + 384 字符），模型/网关
+  把大部分文本一次性返回；不是 WS 或 UI 丢帧。
+- 优化后：发送后立即显示乐观 user message 和“总管正在思考…”，流式文本按帧揭示，
+  末尾有光标；最终消息延迟到揭示接近完成后再替换，避免整段闪现。实测流式气泡文本
+  长度 11→34→117→174→220→258→294→318→342，约 1 秒内逐步增长。
+- 截图：`supervisor-streaming.png`。
 
 ### 本轮发现并修复的缺陷
 

@@ -486,7 +486,7 @@ git commit -m "docs(plan): M2-1 总管计划完成记录"
 - 日期：2026-11-18
 - 关键 commit：`b907b7b`（多选目标修复）、`73bc197`（supervisor e2e）、`af86dfe`（mock 引擎测试）、
   `cc4201d`（配置 runbook）、`f9f6268`（首轮 messages 修复）、`068b229`（自动跟随 + 来源卡）、
-  `929c407`（建任务后刷新看板/画布）、本记录 commit（验收证据）
+  `929c407`（建任务后刷新看板/画布）、`1c5472c`（流式与即时反馈）、本记录 commit（验收证据）
 - `pnpm verify:full` 结果：退出码 0；Playwright 6 passed；typecheck / lint / format / boundaries / protocol / 单测 / build 全过
 - `pnpm pack:check`：`pack-check ok`
 - 真实模型：`deepseek-flash` 连通性、tool calling、服务级建任务链路通过；
@@ -494,6 +494,10 @@ git commit -m "docs(plan): M2-1 总管计划完成记录"
 - ego-lite：**通过**。任务卡/打开任务/来源卡/不开工/审批/待验收/attention/拒绝开工/注入/
   刷新/重复发送全部执行；总任务数实时 1→2→3；截图
   `docs/evidence/2026-11-18-m2-supervisor/supervisor-task-card.png` 与 `task-origin.png`。
+- 流式体验：SDK 保持 `ai` 7 + `@ai-sdk/openai-compatible` 直接 `streamText`；实测模型一次
+  返回 384 字大块（daemon 仅 2 个 delta），已加乐观 user message、立即“正在思考”、
+  客户端按帧揭示、光标与延迟最终切换；实测气泡文本 11→34→117→174→220→258→294→318→342，
+  截图 `supervisor-streaming.png`。
 - 环境限制：临时 workspace 无 `package.json`，fake Agent 的 `pnpm test` 在 corepack shim 下
   退出 1；任务仍进入待验收，人工通过后完成，不是总管缺陷。
 - 偏离与坑：
