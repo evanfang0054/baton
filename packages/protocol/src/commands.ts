@@ -9,6 +9,7 @@ import {
   TextNode,
 } from './entities/index.js'
 import { ApprovalDecision, EdgeType, Engine, WorkspaceMode } from './enums.js'
+import { SupervisorSendInput } from './supervisor.js'
 
 export const ResumeInput = z.object({
   sinceSeq: z.number().int().nonnegative().optional(),
@@ -152,5 +153,6 @@ export const ClientMessage = z.discriminatedUnion('type', [
   CommandBase.extend({ type: z.literal('node.delete'), payload: NodeDeleteInput }),
   CommandBase.extend({ type: z.literal('edge.create'), payload: EdgeCreateInput }),
   CommandBase.extend({ type: z.literal('edge.delete'), payload: EdgeDeleteInput }),
+  CommandBase.extend({ type: z.literal('supervisor.send'), payload: SupervisorSendInput }),
 ])
 export type ClientMessage = z.infer<typeof ClientMessage>

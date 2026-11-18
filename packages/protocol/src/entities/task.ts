@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { Id, Timestamp } from '../common.js'
 import { ContextSnapshot } from '../context.js'
 import { Engine, TaskStatus, WaitingReason, WorkspaceMode } from '../enums.js'
+import { TaskOrigin } from '../supervisor.js'
 
 export const Task = z.object({
   id: Id,
@@ -26,5 +27,6 @@ export type Task = z.infer<typeof Task>
 
 export const TaskDetail = Task.extend({
   context: ContextSnapshot.nullable().default(null),
+  origin: TaskOrigin.nullable().default(null),
 })
 export type TaskDetail = z.infer<typeof TaskDetail>

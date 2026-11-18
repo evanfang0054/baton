@@ -113,6 +113,16 @@ const fixtures = [
   ['edge.create', { sourceId: 'n1', targetId: 'n2' }],
   ['edge.create', { sourceId: 'n1', targetId: 'n2', type: 'context' }],
   ['edge.delete', { edgeId: 'e1' }],
+  [
+    'supervisor.send',
+    {
+      workspaceId: 'w1',
+      requestId: 'r1',
+      text: '给这个 Agent 建个任务',
+      contextNodeIds: ['n1'],
+      targetNodeId: 'a1',
+    },
+  ],
 ] as const
 
 describe('ClientMessage', () => {
