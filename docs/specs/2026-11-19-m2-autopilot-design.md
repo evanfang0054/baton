@@ -11,6 +11,7 @@ domain_terms: [autopilot, kill switch, digest, notice, policy version, workspace
 # M2-2a 无人值守与汇报 v0 设计
 
 > 子 spec。回链主架构：`docs/specs/2026-11-16-baton-architecture-design.md`。
+> 实现校正：M2-2a Plan 1 的查询参数、有效 autopilot 与逐次 trust 读取以 `docs/adr/0006-m2-autopilot-contract-adjustments.md` 为准。
 > 前置：M2-1 总管 Router v0（已合并，`main` `0c9eedf`）。
 > 背景材料：`baton.ai` 两份材料（讨论稿，不进仓库）；`deepseek-ai/dsh-superagent-prototype`（MIT，research prototype）只借鉴领域语义与安全边界，不复制代码。
 > 本 spec 调整 M2-1 §13 的顺序：先做 M2-2a 无人值守与汇报，外部 Source 顺延到 v1 之后；理由见 §1。
@@ -254,7 +255,7 @@ export const NoticeListQuery = z.object({
   workspaceId: Id.optional(),
   kind: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
-  before: z.coerce.number().int().nonnegative().optional(),
+  before: Timestamp.optional(),
 })
 export const NoticeListResponse = z.object({
   notices: z.array(Notice),
@@ -264,12 +265,9 @@ export const NoticeListResponse = z.object({
 export const DigestGenerateResponse = z.object({ notice: Notice })
 
 export const AuditListQuery = z.object({
-  actionPrefix: z
-    .string()
-    .regex(/^[a-z.]{1,64}$/)
-    .optional(),
+  actionPrefix: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  before: z.coerce.number().int().nonnegative().optional(),
+  before: Timestamp.optional(),
 })
 export const AuditListResponse = z.object({
   entries: z.array(Audit),
@@ -338,8 +336,8 @@ export function effectiveAutopilot(policy: Policy, gate: AutomationGate): Policy
 }
 ```
 
-- `PolicyContext` 增加 `workspaceTrusted?: boolean`；`evaluateApproval` 的 auto 条件增加 `workspaceTrusted === true`。
-- `TransitionContext` 增加 `workspaceTrusted?: boolean`、`killSwitch?: boolean`；`verify_fail` 的重试分支要求 `workspaceTrusted === true && killSwitch === false`。Plan 1 先以“缺省即 fail-closed”保持全量 verify 绿，Plan 2 再传真实值。
+- `PolicyContext` 增加 `workspaceTrusted: boolean`；`evaluateApproval` 的 auto 条件增加 `workspaceTrusted === true`。
+- `TransitionContext` 增加 `workspaceTrusted: boolean`、`killSwitch: boolean`；`verify_fail` 的重试分支要求 `workspaceTrusted === true && killSwitch === false`。
 - 所有 core 测试使用同一口径；矩阵覆盖 `enabled × trusted × killSwitch`。
 - daemon 不再自己拼规则，只传事实。
 

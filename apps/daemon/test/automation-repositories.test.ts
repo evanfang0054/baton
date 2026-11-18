@@ -47,6 +47,16 @@ describe('automation repositories', () => {
     expect(listNotices(db, { workspaceId: seeded.workspaceId, limit: 10 })[0]?.readAt).toBe(30)
   })
 
+  it('does not treat malformed settings as missing', () => {
+    const { db, raw } = createTestDb()
+    raw
+      .prepare(
+        "insert into setting (key, value_json, updated_at) values ('kill_switch', '{bad', 1)",
+      )
+      .run()
+    expect(() => getSetting(db, 'kill_switch')).toThrow()
+  })
+
   it('filters and paginates audit entries', () => {
     const { db } = createTestDb()
     db.transaction((tx) => {

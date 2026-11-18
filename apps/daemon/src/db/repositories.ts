@@ -21,7 +21,7 @@ import {
   type TaskStatus,
   type WaitingReason,
 } from '@baton/protocol'
-import { and, asc, desc, eq, gt, inArray, like, lt, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, lt, or, sql } from 'drizzle-orm'
 import {
   approval,
   audit,
@@ -713,11 +713,8 @@ function toNotice(row: typeof notice.$inferSelect): Notice {
 export function getSetting(db: Db, key: string): unknown {
   const row = db.select().from(setting).where(eq(setting.key, key)).get()
   if (!row) return null
-  try {
-    return JSON.parse(row.valueJson) as unknown
-  } catch {
-    return null
-  }
+  // 安全设置（如 kill switch）不能把损坏 JSON 静默当成“未设置”。
+  return JSON.parse(row.valueJson) as unknown
 }
 
 export function setSetting(tx: Tx, key: string, value: unknown, now: number): void {
@@ -760,7 +757,7 @@ export function listNotices(
   const conditions = [
     filter.workspaceId ? eq(notice.workspaceId, filter.workspaceId) : undefined,
     filter.kind ? eq(notice.kind, filter.kind) : undefined,
-    filter.before ? lt(notice.ts, filter.before) : undefined,
+    filter.before !== undefined ? lt(notice.ts, filter.before) : undefined,
   ].filter((condition) => condition !== undefined)
   return db
     .select()
@@ -781,8 +778,9 @@ export function listAudit(
   filter: { actionPrefix?: string; limit: number; before?: number },
 ): Audit[] {
   const conditions = [
-    filter.actionPrefix ? like(audit.action, `${filter.actionPrefix}%`) : undefined,
-    filter.before ? lt(audit.ts, filter.before) : undefined,
+    filter.actionPrefix ? gte(audit.action, filter.actionPrefix) : undefined,
+    filter.actionPrefix ? lt(audit.action, `${filter.actionPrefix}\uffff`) : undefined,
+    filter.before !== undefined ? lt(audit.ts, filter.before) : undefined,
   ].filter((condition) => condition !== undefined)
   return db
     .select()

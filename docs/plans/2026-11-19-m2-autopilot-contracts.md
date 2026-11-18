@@ -56,7 +56,7 @@ Seam: `packages/protocol/src/index.ts` 导出 `AutomationPolicyPatch` 与 `Notic
 - Produces: `AutomationPolicyPatch`、`AutomationSummary`、`DigestTaskRef`、`DigestReport`、`TaskAutomationDecision`、`TaskAutomationSummary`；`Notice.workspaceId`；`NoticeEvent`；`KillSwitchInput/Response`、`NoticeListQuery/Response`、`DigestGenerateResponse`、`AuditListQuery/Response`。
 - Consumes: `PolicySchema`（`./policy.js`）、`Id/Timestamp`（`./common.js`）、`TaskStatus/Attention/ApprovalDecision/RiskLevel`（`./enums.js`）、`Audit`（`./entities/index.js`）。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `packages/protocol/test/automation.test.ts`：
 
@@ -148,12 +148,12 @@ describe('automation protocol', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/protocol exec vitest run test/automation.test.ts`
 Expected: FAIL，提示 `AutomationPolicyPatch`/`NoticeEvent` 未导出或 `workspaceId` 缺失。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `packages/protocol/src/entities/notice.ts` 增加字段：
 
@@ -211,12 +211,12 @@ export const NoticeEvent = ReplayableBase.extend({
 
 并加入文件末尾的 `ServerMessage` 联合；`packages/protocol/src/api.ts` 增加 spec §5.4 的 query/response schema；`packages/protocol/src/index.ts` 增加 `export * from './automation.js'`。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pnpm --filter @baton/protocol exec vitest run test/automation.test.ts test/exports.test.ts`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/protocol/src packages/protocol/test
@@ -246,7 +246,7 @@ Seam: `packages/core/src/automation/effective.ts` 的 `effectiveAutopilot` 与 `
 - Produces: `effectiveAutopilot(policy, { workspaceTrusted, killSwitch }): Policy['autopilot']`；`PolicyContext` 增加 `workspaceTrusted`；`TransitionContext` 增加 `workspaceTrusted`、`killSwitch`。
 - Consumes: `Policy`、`ApprovalRequest`、`PolicyDecision`、`TransitionContext`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `packages/core/test/automation-effective.test.ts`：
 
@@ -323,12 +323,12 @@ describe('effective autopilot', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/core exec vitest run test/automation-effective.test.ts`
 Expected: FAIL，提示 `effectiveAutopilot` 未导出或 `workspaceTrusted` 缺失。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 `packages/core/src/automation/effective.ts`：
 
@@ -380,12 +380,12 @@ if (
 
 `state-machine/index.ts` 与 `packages/core/src/index.ts` 补导出。
 
-- [ ] **Step 4: 运行 core 全量测试**
+- [x] **Step 4: 运行 core 全量测试**
 
 Run: `pnpm --filter @baton/core test`
 Expected: PASS；如快照因新增上下文字段变化，按实际输出更新并人工复核。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/core
@@ -411,7 +411,7 @@ Seam: `buildDigest(input)` 输出 `DigestReport`
 - Produces: `DigestInput`、`buildDigest(input: DigestInput): DigestReport`。
 - Consumes: `Task`、`DigestReport`、`DigestTaskRef`、`boardColumn`、`waitingSinceFor`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `packages/core/test/automation-digest.test.ts`：
 
@@ -498,12 +498,12 @@ describe('buildDigest', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/core exec vitest run test/automation-digest.test.ts`
 Expected: FAIL，提示 `buildDigest` 未导出。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 `packages/core/src/automation/digest.ts`：
 
@@ -517,12 +517,12 @@ Expected: FAIL，提示 `buildDigest` 未导出。
 
 `packages/core/src/index.ts` 导出 `buildDigest` 与类型。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pnpm --filter @baton/core test`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/core
@@ -547,10 +547,10 @@ Seam: fixture DB 上 `migrateDb` 后能读写 setting、notice、audit 分页
 
 **Interfaces：**
 
-- Produces: `getSetting(tx|db, key)`、`setSetting(tx|db, key, value)`、`insertNotice`、`listNotices`、`markNoticeRead`、`listAudit`。
+- Produces: `getSetting(db, key)`、`setSetting(tx, key, value, now)`、`insertNotice`、`listNotices`、`markNoticeRead`、`listAudit`（返回 `Audit[]`，路由计算 `nextBefore`）。
 - Consumes: `Db/Tx`、`setting/notice/audit` schema。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `apps/daemon/test/automation-repositories.test.ts`：
 
@@ -593,7 +593,7 @@ describe('automation repositories', () => {
       insertAudit(tx, { id: 'a2', ts: 2, actor: 'user', action: 'automation.kill_switch', detail: {} })
       insertAudit(tx, { id: 'a3', ts: 3, actor: 'system', action: 'task.retry', detail: {} })
     })
-    expect(listAudit(db, { actionPrefix: 'automation.', limit: 2 }).entries).toHaveLength(2)
+    expect(listAudit(db, { actionPrefix: 'automation.', limit: 2 })).toHaveLength(2)
   })
 })
 ```
@@ -615,12 +615,12 @@ describe('migration 0007', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/automation-repositories.test.ts test/migration-0007.test.ts`
 Expected: FAIL，提示 `setting` 表或仓储函数不存在。
 
-- [ ] **Step 3: 实现 schema 与 migration**
+- [x] **Step 3: 实现 schema 与 migration**
 
 `apps/daemon/src/db/schema.ts` 增加：
 
@@ -655,7 +655,7 @@ pnpm exec drizzle-kit generate --name autopilot_v0
 
 校对 `0007_*.sql` 包含 `setting`、`notice.workspace_id`、四个索引；若 drizzle 未生成复合索引，手工补 SQL 并更新 `migrations/meta/_journal.json`/snapshot，以 `migrateDb` 实际执行为准。
 
-- [ ] **Step 4: 实现仓储**
+- [x] **Step 4: 实现仓储**
 
 `apps/daemon/src/db/repositories.ts`：
 
@@ -688,12 +688,12 @@ export function insertNotice(tx: Tx, input: { id: string; workspaceId: string | 
 
 `listNotices` 按 `ts desc` 分页（`before` 为时间戳）；`markNoticeRead` 更新 `readAt`；`listAudit` 支持 `actionPrefix`、`before`、`limit`。查询用 drizzle 参数化条件，禁止拼接 SQL。
 
-- [ ] **Step 5: 运行测试与 daemon 全量测试**
+- [x] **Step 5: 运行测试与 daemon 全量测试**
 
 Run: `pnpm --filter @evanfang0054/baton test`
 Expected: PASS；migration fixture 同时覆盖空库与已有任务/notice 升级。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/daemon/src/db apps/daemon/migrations apps/daemon/test
@@ -713,7 +713,7 @@ Seam: `pnpm verify` 退出码 0
 - Modify: 本计划末尾「完成记录」
 - Modify: `docs/README.md`（如 plan 索引尚未加入）
 
-- [ ] **Step 1: 运行全量校验**
+- [x] **Step 1: 运行全量校验**
 
 ```bash
 pnpm verify
@@ -724,7 +724,7 @@ pnpm format:check
 
 Expected: 全部退出码 0。
 
-- [ ] **Step 2: 记录完成情况**
+- [x] **Step 2: 记录完成情况**
 
 在本计划末尾追加：
 
@@ -737,7 +737,7 @@ Expected: 全部退出码 0。
 - 未解决风险：
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/plans/2026-11-19-m2-autopilot-contracts.md

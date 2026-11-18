@@ -193,8 +193,8 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
         if (
           ctx.autopilot.enabled &&
           canAutopilot({
-            workspaceTrusted: ctx.workspaceTrusted === true,
-            killSwitch: ctx.killSwitch ?? true,
+            workspaceTrusted: ctx.workspaceTrusted,
+            killSwitch: ctx.killSwitch,
           }) &&
           ctx.retryCount < ctx.autopilot.retryMax
         ) {

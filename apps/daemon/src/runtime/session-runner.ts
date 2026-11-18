@@ -15,6 +15,7 @@ import type { BroadcastEvent, EventStore } from '../db/event-store.js'
 import {
   getApproval,
   getTask,
+  getWorkspace,
   insertApproval,
   insertAudit,
   updateApprovalDecision,
@@ -46,7 +47,6 @@ export interface ActiveRun {
   seq: number
   outcome: SessionOutcome | null
   outcomeReason?: string
-  workspaceTrusted: boolean
 }
 
 export interface SessionRunner {
@@ -97,13 +97,16 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       }),
     )
 
+    // 每次审批都读当前 trust：撤销信任后必须立即回到 ask，不能沿用启动快照。
+    const task = getTask(deps.db, active.taskId)
+    const workspace = task ? getWorkspace(deps.db, task.workspaceId) : null
     // 结构化提问不能被策略自动放行：没有答案的 allow 会让 SDK 停在 pending。
     const decision =
       request.toolName === ASK_USER_QUESTION_TOOL
         ? null
         : evaluateApproval(policy, request, {
             killSwitch: deps.killSwitch ?? false,
-            workspaceTrusted: active.workspaceTrusted,
+            workspaceTrusted: workspace?.trusted === true,
           })
     if (decision !== null && (decision.decision === 'allow' || decision.decision === 'deny')) {
       const autoDecision = decision.decision
@@ -313,7 +316,6 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       requestIdByApprovalId: new Map(),
       seq: 0,
       outcome: null,
-      workspaceTrusted: input.workspaceTrust.projectSettings,
     }
     activeRuns.set(input.sessionId, active)
     const promise = consume(active, input.policy)

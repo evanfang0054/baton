@@ -32,6 +32,7 @@
 - [0003 v1 移除 Docker 分发](adr/0003-drop-docker-from-v1.md)
 - [0004 不可信 workspace 仍加载 user settings](adr/0004-untrusted-loads-user-settings.md)
 - [0005 按任务跳过审批与结构化提问](adr/0005-bypass-permissions-and-questions.md)
+- [0006 M2-2a 契约实现校正](adr/0006-m2-autopilot-contract-adjustments.md)
 
 ## 现行 contract
 

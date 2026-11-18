@@ -71,6 +71,20 @@ describe('migration 0007', () => {
       process.env.BATON_MIGRATIONS_DIR = oldMigrations
       migrateDb(db)
       db.prepare(
+        `insert into workspace (id, name, rel_path, created_at) values ('w-old', 'old', 'old', 1)`,
+      ).run()
+      db.prepare(
+        `insert into task (
+           id, workspace_id, title, prompt, status, engine, workspace_mode, retry_count,
+           dangerously_skip_permissions, created_at, updated_at
+         ) values ('t-old', 'w-old', 'old', 'x', 'todo', 'fake', 'main', 0, 0, 1, 1)`,
+      ).run()
+      db.prepare(
+        `insert into session (id, task_id, adapter, status, started_at)
+         values ('s-old', 't-old', 'fake', 'ended', 1)`,
+      ).run()
+      db.prepare(`insert into review (id, task_id) values ('r-old', 't-old')`).run()
+      db.prepare(
         `insert into notice (id, ts, kind, payload_json, read_at) values (?, ?, ?, ?, ?)`,
       ).run('n-old', 1, 'digest', '{}', null)
 
@@ -80,6 +94,9 @@ describe('migration 0007', () => {
         workspace_id: string | null
       }
       expect(row.workspace_id).toBeNull()
+      expect(db.prepare('select count(*) as count from task').get()).toEqual({ count: 1 })
+      expect(db.prepare('select count(*) as count from session').get()).toEqual({ count: 1 })
+      expect(db.prepare('select count(*) as count from review').get()).toEqual({ count: 1 })
     } finally {
       db.close()
     }
