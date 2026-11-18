@@ -25,6 +25,7 @@ export interface TransitionRunnerDeps {
   now: () => number
   newId: () => string
   verifyMeta: Map<string, number>
+  killSwitch: () => boolean
 }
 
 function fail(code: string, message: string, details?: unknown): TransitionOutcome {
@@ -84,7 +85,7 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
         maxConcurrency: deps.config.maxConcurrency,
         autopilot: policy.autopilot,
         workspaceTrusted: workspace?.trusted === true,
-        killSwitch: deps.config.killSwitch,
+        killSwitch: deps.killSwitch(),
         waitingReason: task.waitingReason,
       },
       event,

@@ -18,6 +18,7 @@ import {
   updateReviewVerdict,
   updateSessionStatus,
 } from '../db/repositories.js'
+import { hashPolicy } from '../automation/version.js'
 import type { BroadcastEvent, EventStore } from '../db/event-store.js'
 import type { Tx } from '../db/types.js'
 import type { RuntimeHooks } from './types.js'
@@ -157,7 +158,12 @@ export function planAndApplyEffects(tx: Tx, ctx: EffectContext, effects: TaskEff
           ts: ctx.now,
           actor: 'system',
           action: 'task.retry',
-          detail: { taskId: ctx.task.id, retryCount: ctx.retryCount },
+          detail: {
+            taskId: ctx.task.id,
+            retryCount: ctx.retryCount,
+            workspaceId: ctx.task.workspaceId,
+            policyVersion: hashPolicy(ctx.policy),
+          },
         })
         break
       }

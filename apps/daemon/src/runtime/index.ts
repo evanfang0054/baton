@@ -25,6 +25,7 @@ import {
   getReview,
   getReviewByTask,
   getSession,
+  getSetting,
   getTask,
   hasTaskForNode,
   insertNode,
@@ -147,8 +148,16 @@ export function createRuntime(deps: RuntimeDeps) {
   }
 
   const taskService = createTaskService({ db: deps.db, config: deps.config, now, newId })
+  let persistedKillSwitch: boolean
+  try {
+    const setting = getSetting(deps.db, 'kill_switch') as { enabled?: boolean } | null
+    persistedKillSwitch = setting?.enabled === true
+  } catch {
+    // 设置损坏时按强制暂停处理，避免安全开关 fail-open。
+    persistedKillSwitch = true
+  }
   const automationState = createAutomationState({
-    initial: deps.config.killSwitch,
+    initial: persistedKillSwitch,
     forced: deps.config.killSwitch,
   })
   const automation = createAutomationService({
@@ -202,6 +211,7 @@ export function createRuntime(deps: RuntimeDeps) {
     now,
     newId,
     verifyMeta,
+    killSwitch: () => automationState.isKillSwitchOn(),
   })
 
   function applyTransition(taskId: string, event: TaskTransitionEvent): TransitionOutcome {
@@ -624,7 +634,7 @@ export function createRuntime(deps: RuntimeDeps) {
       applyTransition,
       now,
       newId,
-      killSwitch: deps.config.killSwitch,
+      killSwitch: () => automationState.isKillSwitchOn(),
     })
   }
 

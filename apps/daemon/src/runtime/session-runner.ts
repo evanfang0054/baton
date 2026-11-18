@@ -24,6 +24,7 @@ import {
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError, toAppError } from '../errors.js'
+import { hashPolicy } from '../automation/version.js'
 import type { AdapterFactory } from './adapter-factory.js'
 import { ASK_USER_QUESTION_TOOL, parseStoredAnswers, validateQuestionAnswers } from './questions.js'
 import type { StartSessionInput, TransitionOutcome } from './types.js'
@@ -36,7 +37,7 @@ export interface SessionRunnerDeps {
   applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
   now: () => number
   newId: () => string
-  killSwitch?: boolean
+  killSwitch: () => boolean
 }
 
 export interface ActiveRun {
@@ -105,7 +106,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       request.toolName === ASK_USER_QUESTION_TOOL
         ? null
         : evaluateApproval(policy, request, {
-            killSwitch: deps.killSwitch ?? false,
+            killSwitch: deps.killSwitch(),
             workspaceTrusted: workspace?.trusted === true,
           })
     if (decision !== null && (decision.decision === 'allow' || decision.decision === 'deny')) {
@@ -123,6 +124,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
             taskId: active.taskId,
             risk: decision.risk,
             matchedRule: decision.matchedRule,
+            policyVersion: hashPolicy(policy),
           },
         })
       })
