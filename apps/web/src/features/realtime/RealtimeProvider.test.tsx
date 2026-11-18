@@ -1,10 +1,11 @@
-import type { SessionEventsResponse } from '@baton/protocol'
+import type { SessionEventsResponse, SupervisorMessagesResponse } from '@baton/protocol'
 import { toast } from '@heroui/react/toast'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '../../lib/query'
 import { useAppStore } from '../../stores/app'
+import { useSupervisorStreamStore } from '../supervisor/stream-store'
 import { RealtimeProvider } from './RealtimeProvider'
 
 vi.mock('@heroui/react/toast', () => ({ toast: { danger: vi.fn() } }))
@@ -66,6 +67,7 @@ beforeEach(() => {
   FakeSocket.instances = []
   vi.stubGlobal('WebSocket', FakeSocket)
   useAppStore.setState({ activeTaskId: null, activeWorkspaceId: 'w1' })
+  useSupervisorStreamStore.getState().reset()
   vi.mocked(toast.danger).mockClear()
 })
 
@@ -129,6 +131,66 @@ describe('RealtimeProvider', () => {
         client.getQueryData<SessionEventsResponse>(queryKeys.sessionEvents('s1'))?.events,
       ).toHaveLength(2),
     )
+  })
+
+  it('projects supervisor streams and appends the final message', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const initial: SupervisorMessagesResponse = { threadId: 'th1', messages: [] }
+    client.setQueryData(queryKeys.supervisorMessages('w1'), initial)
+    renderProvider(client)
+    const socket = FakeSocket.instances[0]!
+    socket.open()
+
+    socket.message({
+      v: 1,
+      ts: 30,
+      type: 'supervisor.delta',
+      payload: { threadId: 'th1', messageId: 'm1', delta: '正在建任务' },
+    })
+    socket.message({
+      v: 1,
+      ts: 31,
+      type: 'supervisor.tool',
+      payload: {
+        threadId: 'th1',
+        messageId: 'm1',
+        toolCallId: 'tc1',
+        name: 'create_task',
+        phase: 'start',
+      },
+    })
+    await waitFor(() => {
+      const stream = useSupervisorStreamStore.getState()
+      expect(stream.text).toBe('正在建任务')
+      expect(stream.tools).toHaveLength(1)
+      expect(stream.status).toBe('streaming')
+    })
+
+    socket.message({
+      v: 1,
+      ts: 32,
+      type: 'supervisor.message',
+      payload: {
+        id: 'm1',
+        threadId: 'th1',
+        role: 'assistant',
+        content: '已建任务',
+        toolCalls: [],
+        decision: null,
+        meta: null,
+        status: 'ok',
+        error: null,
+        createdAt: 32,
+      },
+    })
+    await waitFor(() =>
+      expect(
+        client.getQueryData<SupervisorMessagesResponse>(queryKeys.supervisorMessages('w1'))
+          ?.messages,
+      ).toHaveLength(1),
+    )
+    expect(useSupervisorStreamStore.getState().status).toBe('idle')
+    expect(useSupervisorStreamStore.getState().text).toBe('')
   })
 
   it('coalesces invalidations and surfaces broadcast errors as toasts', async () => {

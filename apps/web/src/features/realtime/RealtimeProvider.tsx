@@ -1,4 +1,8 @@
-import type { SessionEventRecord, SessionEventsResponse } from '@baton/protocol'
+import type {
+  SessionEventRecord,
+  SessionEventsResponse,
+  SupervisorMessagesResponse,
+} from '@baton/protocol'
 import { toast } from '@heroui/react/toast'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
@@ -6,6 +10,7 @@ import { CommandProvider, offlineCommand, type CommandSender } from '../../lib/c
 import { queryKeys } from '../../lib/query'
 import { createWsClient } from '../../lib/ws'
 import { useAppStore } from '../../stores/app'
+import { useSupervisorStreamStore } from '../supervisor/stream-store'
 import { appendSessionEvents } from './session-cache'
 
 const INVALIDATING_EVENTS = new Set(['task.status', 'approval.request', 'verify.result'])
@@ -72,6 +77,10 @@ export function RealtimeProvider({
           void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces })
           void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
           void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+          void queryClient.invalidateQueries({ queryKey: queryKeys.supervisorStatus })
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.supervisorMessages(workspaceId),
+          })
         }
       },
       onEvent: (event) => {
@@ -102,6 +111,22 @@ export function RealtimeProvider({
             ts: event.ts,
           }
           enqueueEvent(sessionId, record)
+          return
+        }
+        if (event.type === 'supervisor.delta' || event.type === 'supervisor.tool') {
+          useSupervisorStreamStore.getState().apply(event.payload)
+          return
+        }
+        if (event.type === 'supervisor.message') {
+          useSupervisorStreamStore.getState().finish()
+          const key = queryKeys.supervisorMessages(workspaceId)
+          queryClient.setQueryData<SupervisorMessagesResponse>(key, (previous) =>
+            previous && !previous.messages.some((message) => message.id === event.payload.id)
+              ? { ...previous, messages: [...previous.messages, event.payload] }
+              : previous,
+          )
+          // 让 REST 校正 nextBefore / threadId 等分页字段。
+          void queryClient.invalidateQueries({ queryKey: key })
           return
         }
         if (event.type === 'error') {
