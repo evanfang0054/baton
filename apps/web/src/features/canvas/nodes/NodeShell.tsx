@@ -25,11 +25,13 @@ export function NodeShell({ selected, children }: { selected?: boolean; children
       <Handle
         type="target"
         position={Position.Top}
+        isConnectable
         className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
       />
       <Handle
         type="source"
         position={Position.Bottom}
+        isConnectable
         className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
       />
       {children}
