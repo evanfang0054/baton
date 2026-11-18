@@ -14,7 +14,7 @@ import type {
   RiskLevel,
   WorkspaceTrustSnapshot,
 } from '@baton/protocol'
-import { z } from 'zod/v4'
+import { z } from 'zod'
 
 export const BATON_REPORT_TOOL = 'mcp__baton__baton_report'
 
