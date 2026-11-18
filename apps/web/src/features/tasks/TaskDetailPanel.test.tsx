@@ -22,6 +22,7 @@ const baseTask: TaskDetailResponse['task'] = {
   verifyCommand: null,
   dangerouslySkipPermissions: false,
   retryCount: 0,
+  ...{ context: null },
   createdAt: 1,
   updatedAt: 2,
 }
