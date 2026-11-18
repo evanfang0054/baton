@@ -89,6 +89,16 @@ const EXPECTED: Record<string, { status: TaskStatus; effects: TaskEffect[] }> = 
       emit('running', { approvalId: 'a1' }),
     ],
   },
+  'waiting_input:session_reported': {
+    status: 'waiting_input',
+    effects: [
+      emit('waiting_input', {
+        waitingReason: 'question',
+        outcome: 'blocked',
+        reason: 'need a decision',
+      }),
+    ],
+  },
   'waiting_input:error': {
     status: 'failed',
     effects: [{ type: 'interruptSession', reason: 'boom' }, emit('failed', { reason: 'boom' })],

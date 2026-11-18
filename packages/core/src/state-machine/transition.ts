@@ -132,6 +132,20 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
           { approvalId: event.approvalId },
         )
       }
+      if (event.type === 'session_reported') {
+        // 重启对账/重复上报：等待中的任务已经被看见，保持 waiting_input 只刷新原因。
+        const waitingReason: WaitingReason =
+          event.outcome === 'blocked'
+            ? 'question'
+            : event.outcome === 'dropped'
+              ? 'dropped'
+              : 'stalled'
+        return ok('waiting_input', ctx.retryCount, [], waitingReason, {
+          waitingReason,
+          outcome: event.outcome,
+          ...(event.reason ? { reason: event.reason } : {}),
+        })
+      }
       if (event.type === 'enqueue' && ctx.waitingReason === 'stalled') {
         return ok('queued', ctx.retryCount, [effects.enqueueTask()])
       }

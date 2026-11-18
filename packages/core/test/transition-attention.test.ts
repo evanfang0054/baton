@@ -36,6 +36,33 @@ describe('attention transitions', () => {
     expect(result.waitingReason).toBe('stalled')
   })
 
+  it('refreshes a waiting task to stalled on an unreported session', () => {
+    const result = transition(
+      { ...base, status: 'waiting_input', waitingReason: 'question' },
+      { type: 'session_reported', outcome: 'unreported', reason: 'daemon restarted' },
+    )
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      return
+    }
+    expect(result.status).toBe('waiting_input')
+    expect(result.waitingReason).toBe('stalled')
+    expect(result.effects.at(-1)?.type).toBe('emitTaskStatus')
+  })
+
+  it('updates waiting reason on a repeated blocked/dropped report', () => {
+    const blocked = transition(
+      { ...base, status: 'waiting_input', waitingReason: 'stalled' },
+      { type: 'session_reported', outcome: 'blocked' },
+    )
+    expect(blocked.ok && blocked.waitingReason).toBe('question')
+    const dropped = transition(
+      { ...base, status: 'waiting_input', waitingReason: 'stalled' },
+      { type: 'session_reported', outcome: 'dropped' },
+    )
+    expect(dropped.ok && dropped.waitingReason).toBe('dropped')
+  })
+
   it('allows a stalled task to be re-enqueued', () => {
     const result = transition(
       { ...base, status: 'waiting_input', waitingReason: 'stalled' },
