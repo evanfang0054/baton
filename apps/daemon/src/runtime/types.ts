@@ -1,4 +1,5 @@
 import type { AppError, Policy, TaskStatus, WaitingReason } from '@baton/protocol'
+import type { WorkspaceTrustSnapshot } from '@baton/protocol'
 import type { BroadcastEvent } from '../db/event-store.js'
 
 export interface StartSessionInput {
@@ -6,6 +7,7 @@ export interface StartSessionInput {
   sessionId: string
   workspacePath: string
   policy: Policy
+  workspaceTrust: WorkspaceTrustSnapshot
 }
 
 export interface RuntimeHooks {

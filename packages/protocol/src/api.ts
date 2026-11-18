@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Id, Timestamp } from './common.js'
-import { Attention, TaskStatus } from './enums.js'
+import { Attention, Engine, TaskStatus } from './enums.js'
 import {
   Approval,
   Canvas,
@@ -33,6 +33,16 @@ export type WorkspaceTrustInput = z.infer<typeof WorkspaceTrustInput>
 
 export const WorkspaceTrustResponse = z.object({ workspace: Workspace })
 export type WorkspaceTrustResponse = z.infer<typeof WorkspaceTrustResponse>
+
+export const EngineStatus = z.object({
+  engine: Engine,
+  status: z.enum(['available', 'unknown', 'unavailable']),
+  reason: z.string().optional(),
+})
+export type EngineStatus = z.infer<typeof EngineStatus>
+
+export const EngineListResponse = z.object({ engines: z.array(EngineStatus) })
+export type EngineListResponse = z.infer<typeof EngineListResponse>
 
 export const CanvasQuery = z.object({ workspaceId: Id })
 export type CanvasQuery = z.infer<typeof CanvasQuery>

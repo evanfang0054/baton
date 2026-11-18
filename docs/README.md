@@ -26,6 +26,7 @@
 - [0001 不做完整事件溯源，task.status 作为投影](adr/0001-no-full-event-sourcing.md)
 - [0002 web 组件库选择 HeroUI v3](adr/0002-heroui-component-library.md)
 - [0003 v1 移除 Docker 分发](adr/0003-drop-docker-from-v1.md)
+- [0004 不可信 workspace 仍加载 user settings](adr/0004-untrusted-loads-user-settings.md)
 
 ## 现行 contract
 
@@ -49,6 +50,8 @@
 - [M1-6a 任务详情与人闸门实施计划](plans/2026-11-17-m1-web-detail-gates.md)
 - [M1-6a 可编辑画布与任务创建实施计划](plans/2026-11-17-m1-web-canvas.md)
 - [M1-7a 性能热路径实施计划](plans/2026-11-17-m1-7a-performance.md)
+- [M1-7a 契约与并发基座实施计划](plans/2026-11-17-m1-7a-foundation.md)
+- [M1-7a Claude adapter 与 daemon 接线实施计划](plans/2026-11-18-m1-7a-adapter-wiring.md)
 
 ## 约定
 

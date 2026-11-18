@@ -43,10 +43,10 @@ export function createTaskService(deps: TaskServiceDeps) {
           }),
         }
       }
-      if (input.engine !== 'fake') {
+      if (input.engine === 'pty') {
         return {
           ok: false,
-          error: appError('unsupported_engine', `engine ${input.engine} is not available in M1-5`, {
+          error: appError('unsupported_engine', 'PTY engine is not available in v1', {
             engine: input.engine,
           }),
         }

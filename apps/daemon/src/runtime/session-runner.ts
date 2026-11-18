@@ -282,12 +282,13 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
 
     let run: AgentRun
     try {
-      const adapter = deps.adapters(task.engine)
+      const adapter = await deps.adapters(task.engine)
       run = await adapter.start({
         prompt: task.prompt,
         cwd: input.workspacePath,
         permissionMode: 'manual',
         policy: input.policy,
+        workspaceTrust: input.workspaceTrust,
       })
     } catch (error) {
       failTask(task.id, input.sessionId, error)

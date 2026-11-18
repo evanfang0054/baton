@@ -7,6 +7,7 @@ const startInput = (): StartInput => ({
   cwd: '/workspace/demo',
   permissionMode: 'manual',
   policy: PolicySchema.parse({}),
+  workspaceTrust: { projectSettings: false, projectHooks: false },
 })
 
 async function waitFor(

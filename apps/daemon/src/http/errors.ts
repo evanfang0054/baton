@@ -6,6 +6,7 @@ const STATUS_BY_CODE: Record<string, number> = {
   invalid_path: 400,
   unsupported_workspace_mode: 400,
   unsupported_engine: 400,
+  engine_unavailable: 503,
   invalid_policy: 400,
   unauthorized: 401,
   not_found: 404,

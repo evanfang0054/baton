@@ -44,6 +44,7 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
     // error/cancel/enqueue 等不应因 workspace 缺失而无法收敛。
     let workspacePath = ''
     let policy = DEFAULT_POLICY
+    let workspaceTrust = { projectSettings: false, projectHooks: false }
     const workspace = getWorkspace(deps.db, task.workspaceId)
     if (event.type === 'start') {
       if (!workspace) {
@@ -54,6 +55,13 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
       try {
         workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
         policy = loadPolicy(workspacePath)
+        workspaceTrust = {
+          projectSettings: workspace.trusted,
+          projectHooks:
+            workspace.trusted &&
+            workspace.projectHooks === 'on' &&
+            deps.config.claudeProjectHooks !== 'off',
+        }
       } catch (error) {
         return { ok: false, error: toAppError(error) }
       }
@@ -105,6 +113,7 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
             newId: deps.newId,
             workspacePath,
             policy,
+            workspaceTrust,
             approval,
             verifyMeta: deps.verifyMeta,
           },

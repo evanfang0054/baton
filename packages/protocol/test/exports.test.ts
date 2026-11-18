@@ -102,6 +102,7 @@ describe('protocol exports', () => {
       cwd: '/workspace/demo',
       permissionMode: 'manual',
       policy: PolicySchema.parse({}),
+      workspaceTrust: { projectSettings: false, projectHooks: false },
     })
     expect(adapter.name).toBe('fake')
     await run.dispose()
