@@ -1,5 +1,15 @@
 export type SupervisorStreamStatus = 'idle' | 'streaming' | 'error'
 
+export interface SupervisorTargetAgent {
+  id: string
+  title: string
+}
+
+export function createRequestId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
+  return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+}
+
 export interface SupervisorStreamTool {
   id: string
   name: string
