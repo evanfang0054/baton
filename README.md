@@ -6,7 +6,7 @@
 
 ## 状态
 
-M0 骨架：可安装、可启动、可打包、可容器化。M1 起接入 Claude Code 与验收闭环。
+M1-6a 任务控制台已完成：可安装、可启动、可打包；M1-7 接入真实 Claude Code。v1 不使用 Docker。
 
 ## 本地运行
 
@@ -18,15 +18,9 @@ npx @evanfang0054/baton
 
 打开终端输出的地址；需要 token 时用 `/?token=` 配对。
 
-## Docker
+## 远程访问
 
-```bash
-cp .env.example .env
-# 填入 BATON_TOKEN 与 ANTHROPIC_API_KEY
-docker compose up -d
-```
-
-详见 [Docker 部署](docs/runbooks/docker.md)。
+v1 默认只监听 `127.0.0.1`。需要从其他设备访问时，自行用 Tailscale / Caddy / Nginx 反向代理 `7317`，并设置 `BATON_TOKEN`。详见 [本地运行与运维](docs/runbooks/local.md)。
 
 ## 开发
 
@@ -34,7 +28,6 @@ docker compose up -d
 pnpm verify       # typecheck + lint + format + 守卫 + 测试 + build
 pnpm verify:full  # verify + e2e
 pnpm pack:check   # npm pack 安装链路自检
-pnpm docker:smoke # 镜像构建与容器健康检查
 ```
 
 ## 文档
