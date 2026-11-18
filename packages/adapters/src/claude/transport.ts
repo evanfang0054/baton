@@ -20,6 +20,7 @@ export const BATON_REPORT_TOOL = 'mcp__baton__baton_report'
 
 /** v1 明确禁用的工具面；策略 deny 仍会再兜底一次。 */
 export const DISALLOWED_TOOLS = [
+  'AskUserQuestion',
   'EnterWorktree',
   'ExitWorktree',
   'CronCreate',
@@ -359,7 +360,7 @@ export const createSdkClaudeTransport: ClaudeTransportFactory = async (input) =>
       if (!entry) {
         return
       }
-      pending.delete(requestId)
+      // resolve() 内部会 delete；这里提前 delete 会让 finish() 认为请求已失效，SDK 将永远挂起。
       entry.resolve(
         decision === 'allow'
           ? { behavior: 'allow', updatedInput: entry.input }
