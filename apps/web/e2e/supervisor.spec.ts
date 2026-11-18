@@ -85,7 +85,10 @@ const canvasNodes = [
   },
 ]
 
-async function mockSupervisorRest(page: import('@playwright/test').Page, getMessages: () => unknown[]) {
+async function mockSupervisorRest(
+  page: import('@playwright/test').Page,
+  getMessages: () => unknown[],
+) {
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname
     if (path === '/api/workspaces') {
@@ -128,7 +131,11 @@ test('creates a todo task from canvas context without starting it', async ({ pag
 
   await page.routeWebSocket('**/ws', (ws) => {
     ws.onMessage((raw) => {
-      const message = JSON.parse(String(raw)) as { id?: string; type?: string; payload?: any }
+      const message = JSON.parse(String(raw)) as {
+        id?: string
+        type?: string
+        payload?: { text?: unknown }
+      }
       if (!message.id) return
       commands.push(message)
 
@@ -236,11 +243,15 @@ test('answers attention query and refuses to start work', async ({ page }) => {
 
   await page.routeWebSocket('**/ws', (ws) => {
     ws.onMessage((raw) => {
-      const message = JSON.parse(String(raw)) as { id?: string; type?: string; payload?: any }
+      const message = JSON.parse(String(raw)) as {
+        id?: string
+        type?: string
+        payload?: { text?: unknown }
+      }
       if (!message.id) return
       commands.push(message)
       if (message.type === 'supervisor.send') {
-        const text = String(message.payload.text)
+        const text = String(message.payload?.text)
         const content = text.includes('开工')
           ? '请打开任务卡，点「立即开工」；总管不替你开工。'
           : '待处理：task-1（review，已等 3 分钟）。'
@@ -255,7 +266,11 @@ test('answers attention query and refuses to start work', async ({ page }) => {
             id: `ack-${message.id}`,
             type: 'ack',
             ts: Date.now(),
-            payload: { commandId: message.id, ok: true, data: { threadId: 'th1', messageId: 'm1' } },
+            payload: {
+              commandId: message.id,
+              ok: true,
+              data: { threadId: 'th1', messageId: 'm1' },
+            },
           }),
         )
         ws.send(
