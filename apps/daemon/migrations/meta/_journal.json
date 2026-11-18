@@ -43,6 +43,13 @@
       "when": 1795004643988,
       "tag": "0005_greedy_wolf_cub",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1795011992158,
+      "tag": "0006_supervisor_v0",
+      "breakpoints": true
     }
   ]
 }

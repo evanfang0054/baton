@@ -78,10 +78,72 @@ export const task = sqliteTable(
       .notNull()
       .default(false),
     contextJson: text('context_json'),
+    originJson: text('origin_json'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
   (t) => [index('task_status_idx').on(t.status)],
+)
+
+export const supervisorThread = sqliteTable(
+  'supervisor_thread',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id),
+    source: text('source').notNull().default('supervisor-chat'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [index('supervisor_thread_workspace_idx').on(t.workspaceId, t.updatedAt)],
+)
+
+export const supervisorMessage = sqliteTable(
+  'supervisor_message',
+  {
+    id: text('id').primaryKey(),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => supervisorThread.id),
+    role: text('role').notNull(),
+    content: text('content').notNull(),
+    toolCallsJson: text('tool_calls_json'),
+    metaJson: text('meta_json'),
+    triggerId: text('trigger_id'),
+    status: text('status').notNull().default('ok'),
+    errorJson: text('error_json'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('supervisor_message_trigger_idx').on(t.threadId, t.triggerId),
+    index('supervisor_message_thread_idx').on(t.threadId, t.createdAt),
+  ],
+)
+
+export const supervisorDecision = sqliteTable(
+  'supervisor_decision',
+  {
+    id: text('id').primaryKey(),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => supervisorThread.id),
+    triggerId: text('trigger_id').notNull(),
+    messageId: text('message_id')
+      .notNull()
+      .references(() => supervisorMessage.id),
+    kind: text('kind').notNull(),
+    strength: text('strength').notNull(),
+    mode: text('mode').notNull(),
+    reason: text('reason').notNull(),
+    taskId: text('task_id').references(() => task.id),
+    toolCallsJson: text('tool_calls_json').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('supervisor_decision_trigger_idx').on(t.threadId, t.triggerId),
+    index('supervisor_decision_thread_idx').on(t.threadId, t.createdAt),
+  ],
 )
 
 export const session = sqliteTable('session', {

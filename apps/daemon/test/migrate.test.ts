@@ -54,7 +54,7 @@ describe('migrateDb', () => {
     const db2 = openDb(file)
     migrateDb(db2)
     expect(schema(db2)).toEqual(before)
-    expect(before.filter((row) => row.type === 'table')).toHaveLength(12)
+    expect(before.filter((row) => row.type === 'table')).toHaveLength(15)
     expect(
       before
         .filter((row) => row.type === 'index')
@@ -67,6 +67,11 @@ describe('migrateDb', () => {
       'event_ordinal_idx',
       'event_session_seq_idx',
       'node_canvas_idx',
+      'supervisor_decision_thread_idx',
+      'supervisor_decision_trigger_idx',
+      'supervisor_message_thread_idx',
+      'supervisor_message_trigger_idx',
+      'supervisor_thread_workspace_idx',
       'task_status_idx',
       'workspace_rel_path_unique',
       'ws_event_id_unique',

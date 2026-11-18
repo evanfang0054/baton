@@ -8,6 +8,7 @@ import {
   Session,
   Task,
   TaskDetail,
+  TaskOrigin,
   Workspace,
   type ApprovalDecision,
   type ApprovalRequest,
@@ -349,24 +350,45 @@ export function getTask(db: Db, id: string): Task | null {
 export function getTaskDetail(
   db: Db,
   id: string,
-): { task: TaskDetail; contextInvalid: boolean } | null {
+): { task: TaskDetail; contextInvalid: boolean; originInvalid: boolean } | null {
   const row = getTaskRow(db, id)
   if (!row) return null
   const base = toTask(row)
-  if (!row.contextJson) {
-    return { task: TaskDetail.parse({ ...base, context: null }), contextInvalid: false }
+
+  let context: ContextSnapshot | null = null
+  let contextInvalid = false
+  if (row.contextJson) {
+    try {
+      const parsed = ContextSnapshot.safeParse(JSON.parse(row.contextJson) as unknown)
+      if (parsed.success) {
+        context = parsed.data
+      } else {
+        contextInvalid = true
+      }
+    } catch {
+      contextInvalid = true
+    }
   }
-  try {
-    const parsed = ContextSnapshot.safeParse(JSON.parse(row.contextJson) as unknown)
-    if (!parsed.success) {
-      return { task: TaskDetail.parse({ ...base, context: null }), contextInvalid: true }
+
+  let origin: TaskOrigin | null = null
+  let originInvalid = false
+  if (row.originJson) {
+    try {
+      const parsed = TaskOrigin.safeParse(JSON.parse(row.originJson) as unknown)
+      if (parsed.success) {
+        origin = parsed.data
+      } else {
+        originInvalid = true
+      }
+    } catch {
+      originInvalid = true
     }
-    return {
-      task: TaskDetail.parse({ ...base, context: parsed.data }),
-      contextInvalid: false,
-    }
-  } catch {
-    return { task: TaskDetail.parse({ ...base, context: null }), contextInvalid: true }
+  }
+
+  return {
+    task: TaskDetail.parse({ ...base, context, origin }),
+    contextInvalid,
+    originInvalid,
   }
 }
 
@@ -387,7 +409,12 @@ export function listTasksByStatus(db: Db, statuses: TaskStatus[]): Task[] {
     .map(toTask)
 }
 
-export function insertTask(tx: Tx, input: Task, contextJson: string | null = null): void {
+export function insertTask(
+  tx: Tx,
+  input: Task,
+  contextJson: string | null = null,
+  originJson: string | null = null,
+): void {
   tx.insert(task)
     .values({
       id: input.id,
@@ -405,6 +432,7 @@ export function insertTask(tx: Tx, input: Task, contextJson: string | null = nul
       retryCount: input.retryCount,
       dangerouslySkipPermissions: input.dangerouslySkipPermissions,
       contextJson,
+      originJson,
       createdAt: input.createdAt,
       updatedAt: input.updatedAt,
     })
