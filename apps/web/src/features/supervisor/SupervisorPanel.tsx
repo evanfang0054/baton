@@ -136,7 +136,7 @@ export function SupervisorPanel({
             总管未配置模型
           </p>
           <p className="mt-1 text-xs text-muted">
-            在数据目录的 supervisor.json 中填写 baseUrl、apiKey、model 后重试。
+            在数据目录的 supervisor.json 中补齐模型配置后重试。
           </p>
           {status.data.errorCode ? (
             <p className="mt-1 font-mono text-xs text-muted">{status.data.errorCode}</p>
