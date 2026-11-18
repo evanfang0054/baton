@@ -3,7 +3,7 @@ spec_topic: m2-supervisor-v0
 decision_summary: "M2-1 总管 Router v0：单用户本地、仅总管聊天输入；完整 dsh 词汇、分阶段激活；只读任务 + 建任务到 todo，不自动开工；不建 admission/policy/subscription 表"
 design_approved: true
 user_approved_at: 2026-11-18T22:04:02+08:00
-gates: [design-approved]
+gates: [design-approved, user-review-passed]
 spec_ref: 2026-11-16-baton-architecture-design.md
 ---
 
