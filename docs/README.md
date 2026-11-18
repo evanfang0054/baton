@@ -20,6 +20,7 @@
 - [2026-11-17 M1-5a 任务注意力语义设计](specs/2026-11-17-m1-attention-semantics-design.md)
 - [2026-11-17 M1-6a 任务控制台设计](specs/2026-11-17-m1-web-console-design.md)
 - [2026-11-17 M1-7a Claude 适配器与安全基线设计](specs/2026-11-17-m1-claude-adapter-design.md)
+- [2026-11-18 M1-6b 画布上下文与关系设计](specs/2026-11-18-m1-6b-canvas-context-design.md)
 
 ## 现行 ADR
 
@@ -38,6 +39,7 @@
 - [M1-5a 任务注意力语义](contracts/M1-attention-semantics.contract.md)
 - [M1-6a 任务控制台](contracts/M1-web-console.contract.md)
 - [M1-7a Claude 适配器与安全基线](contracts/M1-claude-adapter.contract.md)
+- [M1-6b 画布上下文与关系](contracts/M1-6b-canvas-context.contract.md)
 
 ## 现行 plan
 
@@ -54,6 +56,8 @@
 - [M1-7a 契约与并发基座实施计划](plans/2026-11-17-m1-7a-foundation.md)
 - [M1-7a Claude adapter 与 daemon 接线实施计划](plans/2026-11-18-m1-7a-adapter-wiring.md)
 - [M1-7a Web UX 与验收实施计划](plans/2026-11-18-m1-7a-web-acceptance.md)
+- [M1-6b 后端实施计划](plans/2026-11-18-m1-6b-context-core.md)
+- [M1-6b Web 实施计划](plans/2026-11-18-m1-6b-context-web.md)
 
 ## 约定
 
