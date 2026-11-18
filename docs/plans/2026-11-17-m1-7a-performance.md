@@ -692,3 +692,9 @@ git commit -m "docs(evidence): M1-7a 性能热路径基线"
   - 100k：mean 11.76ms / p95 17.33ms
   - event store append 5k：mean 231ms / p95 243ms
 - 结论：50k 以内 transcript 全量重建已在 spec §8.6 的 8ms 预算内；决定 Task 4 的 stateful 增量投影 **7a 不做**，保留 5k/20k/50k 基准与触发条件（真实会话 >50k 或 p95 >8ms）。event store 写入是更明显的热点，Task 2 优先。
+
+### Task 2（2026-11-17）
+
+- `openDb` 补 `synchronous=NORMAL`；`appendSessionEvent` 只序列化一次；`BroadcastEvent.payloadJson` + `buildWsFrame` 复用 WS payload。
+- tests：db-pragmas、event-store、replay、ws 全绿；daemon 115 tests。
+- A/B（file DB，5k events，FULL vs NORMAL）：569 vs 470ms；1209 vs 699ms。NORMAL 在同一对比较快；绝对值受磁盘/GC 影响大，evidence 只记录相对趋势。
