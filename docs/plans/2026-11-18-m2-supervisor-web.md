@@ -5,7 +5,7 @@ task_count: 4
 estimated_phases: [tests, implementation, verification]
 dod: "RightPanel 三 tab、SupervisorPanel 状态、stream-store、composer chips/payload、任务卡只打开不开工；web 测试全绿"
 depends_on: [2026-11-18-m2-supervisor-daemon.md]
-status: pending
+status: completed
 ---
 
 # M2-1 总管 Router v0：Web 右栏实施计划（Plan 3/4）
@@ -41,7 +41,7 @@ Seam: 右栏出现「总管/任务/节点」三 tab，默认总管
 
 - Produces: `getSupervisorStatus()`、`getSupervisorMessages(workspaceId, before?, limit?)`；`queryKeys.supervisorStatus/supervisorMessages`；`rightPanel: 'supervisor'|'task'|'node'`；`RightPanel`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```tsx
 import { render, screen } from '@testing-library/react'
@@ -87,12 +87,12 @@ describe('RightPanel', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/web test -- RightPanel`
 Expected: FAIL。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 `api.ts`：
 
@@ -147,12 +147,12 @@ setRightPanel: (value: 'supervisor' | 'task' | 'node') => void
 
 `TaskDetailPanel`/`NodePanel`：去掉外层 `w-[380px] shrink-0 border-l ...`，改为 `flex min-h-0 flex-1 flex-col`；`data-testid` 保留。现有测试按内容查询，通常不受影响。
 
-- [ ] **Step 4: 跑测试**
+- [x] **Step 4: 跑测试**
 
 Run: `pnpm --filter @baton/web test -- RightPanel TaskDetailPanel NodePanel`
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/web/src/lib apps/web/src/stores apps/web/src/features/right-panel apps/web/src/App.tsx apps/web/src/features/tasks apps/web/src/features/canvas
@@ -178,7 +178,7 @@ Seam: `supervisor.delta/tool/message` 进入 stream-store，final 清空并更�
 
 - Produces: `useSupervisorStream`；`applyDelta`/`applyTool`/`finishStream`；RealtimeProvider 对 supervisor 事件的分发。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -216,12 +216,12 @@ describe('supervisor stream projection', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/web test -- supervisor-model`
 Expected: FAIL。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 `stream-store.ts`：
 
@@ -263,12 +263,12 @@ if (event.type === 'supervisor.message') {
 
 （`apply` 可在 store 内分发 delta/tool；final message 作为 `SupervisorMessage` 入缓存。）
 
-- [ ] **Step 4: 跑测试**
+- [x] **Step 4: 跑测试**
 
 Run: `pnpm --filter @baton/web test -- supervisor-model RealtimeProvider`
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/web/src/features/supervisor apps/web/src/features/realtime
@@ -299,7 +299,7 @@ Seam: 空态/未配置/流式/错误/任务卡/打开任务
 - Consumes: `getSupervisorStatus`、`getSupervisorMessages`、`useSupervisorStream`、`queryKeys`、`useCommand`。
 - Produces: `SupervisorPanel({ workspaceId, contextNodes, targetAgent })`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```tsx
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -331,12 +331,12 @@ describe('SupervisorPanel', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/web test -- SupervisorPanel`
 Expected: FAIL。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - `SupervisorPanel`：`useQuery` status/messages；未配置显示提示；空会话显示定位 + 两个快捷入口；有消息时渲染 `SupervisorMessageList`；流式时渲染 stream 气泡 + 工具进度；错误显示内联错误卡 + 重试。
 - `SupervisorMessageList`：`role="log"`，按时间升序；顶部「加载更早」；长列表用现有虚拟滚动或分页（v0 先分页）。
@@ -348,12 +348,12 @@ Expected: FAIL。
 
 视觉只用 `DESIGN.md` token；不硬编码 hex；焦点可见；状态有文字/图标。
 
-- [ ] **Step 4: 跑测试**
+- [x] **Step 4: 跑测试**
 
 Run: `pnpm --filter @baton/web test -- SupervisorPanel`
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/web/src/features/supervisor
@@ -379,7 +379,7 @@ Seam: 发送 payload 带 `contextNodeIds/targetNodeId`，IME 回车不误发
 - Consumes: `useCommand`、`contextNodeIds`、`contextNodes`、`targetAgent`、`clearContext`/`removeContextNode`。
 - Produces: `SupervisorComposer({ workspaceId, contextNodes, targetAgent })`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```tsx
 import { render, screen } from '@testing-library/react'
@@ -429,12 +429,12 @@ describe('SupervisorComposer', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/web test -- SupervisorComposer`
 Expected: FAIL。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - `TextArea` + 上下文 chips（`contextNodes`：type + title，可移除）+ 目标 Agent chip + 发送按钮。
 - 发送：
@@ -451,7 +451,7 @@ Expected: FAIL。
 - 固定提示：“总管只建待办，不会自动开工。”
 - 没有目标 Agent 时显示“未选目标 Agent”，但仍可发送（总管会追问）。
 
-- [ ] **Step 4: 跑测试与全量 web 测试**
+- [x] **Step 4: 跑测试与全量 web 测试**
 
 Run:
 
@@ -462,7 +462,7 @@ pnpm --filter @baton/web typecheck
 
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/web/src/features/supervisor
@@ -471,9 +471,14 @@ git commit -m "feat(web): 总管输入框与上下文 chips"
 
 ---
 
-## 完成记录（待填）
+## 完成记录
 
-- 日期：
-- 关键 commit：
-- `pnpm --filter @baton/web test` 结果：
+- 日期：2026-11-18
+- 关键 commit：`f0ad0c3`（右栏三 tab）、`da12397`（流式 store/Realtime）、`e7387c8`（面板与卡片）、`931076a`（composer 与 chips）
+- `pnpm --filter @baton/web test` 结果：30 文件 / 113 测试通过
 - 偏离与坑：
+  - RightPanel 默认总管后，`App.test`/`Root.test` 从断言 `task-detail` 改为 `right-panel`。
+  - `SupervisorStatusBar` 在状态未返回前显示“读取配置中”，避免和未配置提示同时出现“未配置”。
+  - 工具卡支持同一视图同时渲染历史 `ToolCallRecord` 与流式 `supervisor.tool`，任务卡从 `create_task` 的 `result` 解析。
+  - 空态快捷入口通过 `initialText` 注入 composer；composer 失败保留草稿与同一 `requestId`。
+  - Vitest 编辑测试文件后偶发 runner 缓存错误，清 `node_modules/.vitest-cache` 与 `apps/web/node_modules/.vite` 后恢复。

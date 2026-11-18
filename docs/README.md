@@ -65,6 +65,10 @@
 - [M2-1 总管 Web 实施计划](plans/2026-11-18-m2-supervisor-web.md)
 - [M2-1 总管验收实施计划](plans/2026-11-18-m2-supervisor-acceptance.md)
 
+## 验收证据
+
+- [M2-1 总管真实链路验收（阻塞，待模型配置）](evidence/2026-11-18-m2-supervisor/README.md)
+
 ## 约定
 
 - spec 一旦进入实现阶段不再大改；方案变更以新的 spec 或 ADR 追加，并回链旧文档。

@@ -5,7 +5,7 @@ task_count: 3
 estimated_phases: [tests, verification, evidence]
 dod: "Playwright 覆盖建任务/查状态/引导/未配置/流式；ego-lite 真实模型跑通并留证；verify:full 与 pack:check 全绿"
 depends_on: [2026-11-18-m2-supervisor-web.md]
-status: pending
+status: blocked
 ---
 
 # M2-1 总管 Router v0：验收与证据实施计划（Plan 4/4）
@@ -34,7 +34,7 @@ Seam: `apps/web/e2e/supervisor.spec.ts`
 
 - Consumes: 生产 WS 命令 `supervisor.send`、事件 `supervisor.delta/tool/message`；REST `/api/supervisor/status`、`/api/supervisor/messages`。
 
-- [ ] **Step 1: 写测试**
+- [x] **Step 1: 写测试**
 
 ```ts
 import { expect, test } from '@playwright/test'
@@ -357,12 +357,12 @@ test('shows the unconfigured hint', async ({ page }) => {
 })
 ```
 
-- [ ] **Step 2: 跑测试**
+- [x] **Step 2: 跑测试**
 
 Run: `pnpm exec playwright test apps/web/e2e/supervisor.spec.ts`
 Expected: 3 passed。
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add apps/web/e2e/supervisor.spec.ts
@@ -391,6 +391,10 @@ Seam: `docs/evidence/2026-11-18-m2-supervisor/README.md`
 ```
 
 不要提交该文件；不要截图配置文件。
+
+> **2026-11-18 阻塞记录**：本机不存在 `~/.baton/supervisor.json`，环境也没有可用模型 key；
+> 已把验收步骤与证据占位写入 `docs/evidence/2026-11-18-m2-supervisor/README.md`，
+> 待有模型配置后按本计划继续。未用脚本引擎或 mock 冒充真实模型验收。
 
 - [ ] **Step 2: 启动 daemon**
 
@@ -438,7 +442,7 @@ Seam: `pnpm verify:full` + `pnpm pack:check` 全绿
 - Modify: `docs/plans/2026-11-18-m2-supervisor-contracts.md` / `-daemon.md` / `-web.md` / `-acceptance.md` 的完成记录
 - Modify: `THIRD_PARTY_NOTICES.md`（如依赖尚未加）
 
-- [ ] **Step 1: 全量验证**
+- [x] **Step 1: 全量验证**
 
 ```bash
 pnpm verify
@@ -451,7 +455,7 @@ pnpm format:check
 
 Expected: 全部退出码 0。
 
-- [ ] **Step 2: 越权与占位检查**
+- [x] **Step 2: 越权与占位检查**
 
 ```bash
 grep -RIn "TODO\|FIXME" packages/protocol/src packages/core/src apps/daemon/src apps/web/src   # 输出为空
@@ -459,13 +463,13 @@ grep -RIn "task.enqueue" apps/daemon/src/supervisor apps/web/src/features/superv
 grep -RIn "apiKey\|baseUrl" apps/web/src                                                       # 不出现 supervisor key/baseUrl
 ```
 
-- [ ] **Step 3: 更新文档索引与完成记录**
+- [x] **Step 3: 更新文档索引与完成记录**
 
 - `docs/README.md` 的 spec/contract/plan 索引完整互链。
 - 四个 plan 末尾追加：日期、关键 commit、`pnpm verify:full` 结果、ego-lite 证据路径、实现偏离与坑。
 - `THIRD_PARTY_NOTICES.md` 增加 `ai` / `@ai-sdk/openai-compatible` 许可（如 Task 2 尚未加）。
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add docs THIRD_PARTY_NOTICES.md
@@ -474,10 +478,17 @@ git commit -m "docs(plan): M2-1 总管计划完成记录"
 
 ---
 
-## 完成记录（待填）
+## 完成记录
 
-- 日期：
-- 关键 commit：
-- `pnpm verify:full` 结果：
-- ego-lite 证据：
+- 日期：2026-11-18
+- 关键 commit：`b907b7b`（多选目标修复）、`73bc197`（supervisor e2e）、本记录 commit（计划与证据索引）
+- `pnpm verify:full` 结果：退出码 0；Playwright 6 passed；typecheck / lint / format / boundaries / protocol / 单测 / build 全过
+- `pnpm pack:check`：`pack-check ok`
+- ego-lite 证据：**未完成**。本机缺少 `~/.baton/supervisor.json` 与模型 key，已在
+  `docs/evidence/2026-11-18-m2-supervisor/README.md` 记录阻塞原因、复现步骤与证据占位；
+  未用 mock/脚本引擎冒充真实模型验收。
 - 偏离与坑：
+  - 计划中的 `supervisor.message` mock 缺少必填 `id`，落地时补齐，否则 ServerMessage 校验会丢弃。
+  - 多选文本 + Agent 时仍应识别唯一 Agent 目标；App 从“总选中数=1”改为“Agent 数=1”。
+  - `grep apiKey|baseUrl apps/web/src` 曾命中配置提示文案，已改为不含字段名。
+  - 系统 Chrome 启动偶发超过 30s 导致 `journey` 首次失败；复跑通过，未改全局超时。
