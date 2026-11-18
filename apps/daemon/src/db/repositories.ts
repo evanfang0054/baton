@@ -181,8 +181,15 @@ export function insertWorkspaceWithCanvas(
   })
 }
 
-export function getCanvasByWorkspace(db: Db, workspaceId: string): Canvas | null {
-  const row = db.select().from(canvas).where(eq(canvas.workspaceId, workspaceId)).get()
+export function updateWorkspaceTrust(
+  tx: Tx,
+  id: string,
+  input: { trusted: boolean; projectHooks: 'off' | 'on'; trustedAt: number | null },
+): void {
+  tx.update(workspace).set(input).where(eq(workspace.id, id)).run()
+}
+
+export function getCanvasByWorkspace(db: Db, workspaceId: string): Canvas | null {  const row = db.select().from(canvas).where(eq(canvas.workspaceId, workspaceId)).get()
   return row ? toCanvas(row) : null
 }
 

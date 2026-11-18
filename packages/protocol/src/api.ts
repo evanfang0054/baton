@@ -25,6 +25,15 @@ export type WorkspaceListResponse = z.infer<typeof WorkspaceListResponse>
 export const WorkspaceCreateResponse = z.object({ workspace: Workspace, canvas: Canvas })
 export type WorkspaceCreateResponse = z.infer<typeof WorkspaceCreateResponse>
 
+export const WorkspaceTrustInput = z.object({
+  trusted: z.boolean(),
+  projectHooks: z.enum(['off', 'on']).optional(),
+})
+export type WorkspaceTrustInput = z.infer<typeof WorkspaceTrustInput>
+
+export const WorkspaceTrustResponse = z.object({ workspace: Workspace })
+export type WorkspaceTrustResponse = z.infer<typeof WorkspaceTrustResponse>
+
 export const CanvasQuery = z.object({ workspaceId: Id })
 export type CanvasQuery = z.infer<typeof CanvasQuery>
 

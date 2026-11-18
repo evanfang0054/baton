@@ -2,6 +2,8 @@ import {
   WorkspaceCreateInput,
   WorkspaceCreateResponse,
   WorkspaceListResponse,
+  WorkspaceTrustInput,
+  WorkspaceTrustResponse,
   type Canvas,
   type Workspace,
 } from '@baton/protocol'
@@ -10,9 +12,12 @@ import { realpathSync } from 'node:fs'
 import { relative, sep } from 'node:path'
 import type { Config } from '../config.js'
 import {
+  getWorkspace,
   getWorkspaceByRelPath,
+  insertAudit,
   insertWorkspaceWithCanvas,
   listWorkspaces,
+  updateWorkspaceTrust,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
@@ -62,5 +67,44 @@ export function registerWorkspaceRoutes(app: FastifyInstance, deps: WorkspaceRou
     }
     insertWorkspaceWithCanvas(deps.db, { workspace, canvas })
     return reply.code(201).send(WorkspaceCreateResponse.parse({ workspace, canvas }))
+  })
+
+  app.patch('/api/workspaces/:id/trust', async (req) => {
+    const parsed = WorkspaceTrustInput.safeParse(req.body)
+    if (!parsed.success) {
+      throw appError('invalid_payload', 'invalid trust payload', parsed.error.issues)
+    }
+    const current = getWorkspace(deps.db, (req.params as { id: string }).id)
+    if (!current) {
+      throw appError('workspace_not_found', 'workspace not found')
+    }
+    const projectHooks = parsed.data.projectHooks ?? current.projectHooks
+    const trustedAt = parsed.data.trusted ? deps.now() : null
+
+    deps.db.transaction((tx) => {
+      updateWorkspaceTrust(tx, current.id, {
+        trusted: parsed.data.trusted,
+        projectHooks,
+        trustedAt,
+      })
+      insertAudit(tx, {
+        id: deps.newId(),
+        ts: deps.now(),
+        actor: 'user',
+        action: parsed.data.trusted ? 'workspace.trust' : 'workspace.untrust',
+        detail: { workspaceId: current.id, projectHooks },
+      })
+      if (projectHooks !== current.projectHooks) {
+        insertAudit(tx, {
+          id: deps.newId(),
+          ts: deps.now(),
+          actor: 'user',
+          action: 'workspace.project_hooks_changed',
+          detail: { workspaceId: current.id, projectHooks },
+        })
+      }
+    })
+
+    return WorkspaceTrustResponse.parse({ workspace: getWorkspace(deps.db, current.id) })
   })
 }
