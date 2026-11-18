@@ -31,6 +31,63 @@ export interface ReplayResult {
 }
 
 const REPLAY_LIMIT = 5000
+const TOOL_PAYLOAD_LIMIT = 16 * 1024
+const TEXT_PAYLOAD_LIMIT = 64 * 1024
+const TRUNCATED_MARKER = '\n…[truncated]'
+
+function truncateUtf8(
+  value: string,
+  maxBytes: number,
+): { value: string; truncated: boolean; originalBytes: number } {
+  const bytes = Buffer.from(value, 'utf8')
+  if (bytes.length <= maxBytes) {
+    return { value, truncated: false, originalBytes: bytes.length }
+  }
+  let end = maxBytes
+  while (end > 0 && (bytes[end]! & 0xc0) === 0x80) {
+    end -= 1
+  }
+  return {
+    value: `${bytes.subarray(0, end).toString('utf8')}${TRUNCATED_MARKER}`,
+    truncated: true,
+    originalBytes: bytes.length,
+  }
+}
+
+/**
+ * 单条事件上限：tool args/result 16KB，text 64KB。
+ * 截断标记与原始字节数保留在 `_baton`，UI 可提示，不会静默丢数据。
+ */
+export function truncateSessionEvent(event: AgentEvent): AgentEvent {
+  if (event.type === 'TEXT_MESSAGE_CONTENT') {
+    const result = truncateUtf8(event.delta, TEXT_PAYLOAD_LIMIT)
+    if (!result.truncated) return event
+    return {
+      ...event,
+      delta: result.value,
+      _baton: { truncated: true, originalBytes: result.originalBytes },
+    } as AgentEvent
+  }
+  if (event.type === 'TOOL_CALL_ARGS') {
+    const result = truncateUtf8(event.delta, TOOL_PAYLOAD_LIMIT)
+    if (!result.truncated) return event
+    return {
+      ...event,
+      delta: result.value,
+      _baton: { truncated: true, originalBytes: result.originalBytes },
+    } as AgentEvent
+  }
+  if (event.type === 'TOOL_CALL_RESULT' && typeof event.content === 'string') {
+    const result = truncateUtf8(event.content, TOOL_PAYLOAD_LIMIT)
+    if (!result.truncated) return event
+    return {
+      ...event,
+      content: result.value,
+      _baton: { truncated: true, originalBytes: result.originalBytes },
+    } as AgentEvent
+  }
+  return event
+}
 
 function toRow(row: typeof wsEvent.$inferSelect): WsEventRow {
   return {
@@ -48,13 +105,25 @@ function toRow(row: typeof wsEvent.$inferSelect): WsEventRow {
  */
 export function createEventStore(db: Db, deps: EventStoreDeps) {
   function appendWs(tx: Tx, input: WsEventDraft): BroadcastEvent {
+    return appendWsSerialized(tx, {
+      type: input.type,
+      payloadJson: JSON.stringify(input.payload),
+      payload: input.payload,
+      ts: input.ts,
+    })
+  }
+
+  function appendWsSerialized(
+    tx: Tx,
+    input: { type: ServerMessage['type']; payloadJson: string; payload: unknown; ts: number },
+  ): BroadcastEvent {
     const id = deps.newId()
     const result = tx
       .insert(wsEvent)
       .values({
         id,
         type: input.type,
-        payloadJson: JSON.stringify(input.payload),
+        payloadJson: input.payloadJson,
         ts: input.ts,
       })
       .run()
@@ -75,9 +144,15 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
   }): BroadcastEvent {
     return db.transaction((tx) => {
       const ts = input.ts ?? deps.now()
-      const ws = appendWs(tx, {
+      const truncated = truncateSessionEvent(input.event)
+      const eventJson = JSON.stringify(truncated)
+      // 一次序列化 event，再拼出 ws payload；避免同一份大 payload 序列化两次。
+      const payloadJson = `{"sessionId":${JSON.stringify(input.sessionId)},"seq":${input.seq},"event":${eventJson}}`
+      const payload = { sessionId: input.sessionId, seq: input.seq, event: truncated }
+      const ws = appendWsSerialized(tx, {
         type: 'session.event',
-        payload: { sessionId: input.sessionId, seq: input.seq, event: input.event },
+        payloadJson,
+        payload,
         ts,
       })
       tx.insert(event)
@@ -86,8 +161,8 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
           sessionId: input.sessionId,
           ordinal: ws.ordinal,
           seq: input.seq,
-          type: input.event.type,
-          payloadJson: JSON.stringify(input.event),
+          type: truncated.type,
+          payloadJson: eventJson,
           ts,
         })
         .run()

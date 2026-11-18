@@ -158,4 +158,40 @@ describe('event store', () => {
     expect(rows[0]!.payload).toMatchObject({ approvalId: 'a1', sessionId: seeded.sessionId })
     expect(rows[1]!.payload).toMatchObject({ reviewId: 'r1', exitCode: 0, durationMs: 10 })
   })
+
+  it('truncates large text, tool args and tool results with metadata', () => {
+    const database = db()
+    const store = createEventStore(database.db, deps)
+    const seeded = seedTask(database.raw)
+    const text = 'x'.repeat(70 * 1024)
+    const args = JSON.stringify({ command: 'y'.repeat(20 * 1024) })
+    const result = 'z'.repeat(20 * 1024)
+
+    const events = [
+      { type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: text },
+      { type: 'TOOL_CALL_ARGS', toolCallId: 't1', delta: args },
+      { type: 'TOOL_CALL_RESULT', messageId: 'm2', toolCallId: 't1', content: result },
+    ] as const
+
+    events.forEach((raw, index) => {
+      store.appendSessionEvent({
+        sessionId: seeded.sessionId!,
+        seq: index + 1,
+        event: EventSchemas.parse(raw),
+      })
+    })
+
+    const rows = database.raw
+      .prepare('select type, payload_json from event order by seq')
+      .all() as Array<{ type: string; payload_json: string }>
+    expect(rows).toHaveLength(3)
+    for (const row of rows) {
+      const parsed = JSON.parse(row.payload_json) as { _baton?: { truncated?: boolean } }
+      expect(parsed._baton?.truncated).toBe(true)
+    }
+    expect(rows[0]!.payload_json).toContain('…[truncated]')
+    expect(Buffer.byteLength(rows[0]!.payload_json)).toBeLessThan(text.length)
+    expect(rows[1]!.type).toBe('TOOL_CALL_ARGS')
+    expect(rows[2]!.type).toBe('TOOL_CALL_RESULT')
+  })
 })
