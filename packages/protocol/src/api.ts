@@ -10,6 +10,7 @@ import {
   Review,
   Session,
   Task,
+  TaskDetail,
   Workspace,
 } from './entities/index.js'
 
@@ -92,7 +93,7 @@ export const SessionEventsResponse = z.object({
 export type SessionEventsResponse = z.infer<typeof SessionEventsResponse>
 
 export const TaskDetailResponse = z.object({
-  task: Task,
+  task: TaskDetail,
   sessions: z.array(Session),
   approvals: z.array(Approval),
   review: Review.nullable(),

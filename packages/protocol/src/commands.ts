@@ -8,7 +8,7 @@ import {
   ReviewNode,
   TextNode,
 } from './entities/index.js'
-import { ApprovalDecision, Engine, WorkspaceMode } from './enums.js'
+import { ApprovalDecision, EdgeType, Engine, WorkspaceMode } from './enums.js'
 
 export const ResumeInput = z.object({
   sinceSeq: z.number().int().nonnegative().optional(),
@@ -123,6 +123,16 @@ export type NodeUpdateInput = z.infer<typeof NodeUpdateInput>
 export const NodeDeleteInput = z.object({ nodeId: Id })
 export type NodeDeleteInput = z.infer<typeof NodeDeleteInput>
 
+export const EdgeCreateInput = z.object({
+  sourceId: Id,
+  targetId: Id,
+  type: EdgeType.default('context'),
+})
+export type EdgeCreateInput = z.infer<typeof EdgeCreateInput>
+
+export const EdgeDeleteInput = z.object({ edgeId: Id })
+export type EdgeDeleteInput = z.infer<typeof EdgeDeleteInput>
+
 const CommandBase = z.object({
   v: z.literal(1),
   id: Id,
@@ -140,5 +150,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   CommandBase.extend({ type: z.literal('node.create'), payload: NodeCreateInput }),
   CommandBase.extend({ type: z.literal('node.update'), payload: NodeUpdateInput }),
   CommandBase.extend({ type: z.literal('node.delete'), payload: NodeDeleteInput }),
+  CommandBase.extend({ type: z.literal('edge.create'), payload: EdgeCreateInput }),
+  CommandBase.extend({ type: z.literal('edge.delete'), payload: EdgeDeleteInput }),
 ])
 export type ClientMessage = z.infer<typeof ClientMessage>
