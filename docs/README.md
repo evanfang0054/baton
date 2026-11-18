@@ -51,6 +51,7 @@
 - [M1-7a 性能热路径实施计划](plans/2026-11-17-m1-7a-performance.md)
 - [M1-7a 契约与并发基座实施计划](plans/2026-11-17-m1-7a-foundation.md)
 - [M1-7a Claude adapter 与 daemon 接线实施计划](plans/2026-11-18-m1-7a-adapter-wiring.md)
+- [M1-7a Web UX 与验收实施计划](plans/2026-11-18-m1-7a-web-acceptance.md)
 
 ## 约定
 

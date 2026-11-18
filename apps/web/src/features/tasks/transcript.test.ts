@@ -30,6 +30,24 @@ describe('buildTranscript', () => {
     expect(entries[0]).toMatchObject({ role: 'assistant', title: 'Agent', text: '你好' })
   })
 
+  it('flags truncated events in the transcript entry', () => {
+    const entries = buildTranscript([
+      event(1, 'TEXT_MESSAGE_START', {
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'm1',
+        role: 'assistant',
+      }),
+      event(2, 'TEXT_MESSAGE_CONTENT', {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'm1',
+        delta: '很长的内容…[truncated]',
+        _baton: { truncated: true, originalBytes: 70000 },
+      }),
+    ])
+    expect(entries[0]).toMatchObject({ truncated: true })
+    expect(entries[0]?.text).toContain('[truncated]')
+  })
+
   it('renders user, approval and outcome custom events', () => {
     const entries = buildTranscript([
       event(1, 'CUSTOM', {

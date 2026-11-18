@@ -148,6 +148,45 @@ describe('TaskDetailPanel', () => {
     )
   })
 
+  it('renders concurrent approval cards independently', async () => {
+    stubFetch(
+      detail({
+        task: { ...baseTask, status: 'waiting_input', waitingReason: 'approval' },
+        attention: 'needs_approval',
+        approvals: [
+          {
+            id: 'a1',
+            sessionId: 's1',
+            request: { toolName: 'Bash', input: { command: 'pnpm test' }, risk: 'medium' },
+            decision: null,
+            decidedBy: null,
+            decidedAt: null,
+          },
+          {
+            id: 'a2',
+            sessionId: 's1',
+            request: { toolName: 'WebFetch', input: { url: 'https://example.com' }, risk: 'high' },
+            decision: null,
+            decidedBy: null,
+            decidedAt: null,
+          },
+        ],
+      }),
+    )
+    const { send } = renderPanel()
+
+    await waitFor(() => expect(screen.getAllByText('需要授权')).toHaveLength(2))
+    const allowButtons = screen.getAllByRole('button', { name: '允许' })
+    expect(allowButtons).toHaveLength(2)
+    fireEvent.click(allowButtons[0]!)
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({
+        type: 'approval.decide',
+        payload: { approvalId: 'a2', decision: 'allow' },
+      }),
+    )
+  })
+
   it('shows the reply composer for a question gate', async () => {
     stubFetch(
       detail({

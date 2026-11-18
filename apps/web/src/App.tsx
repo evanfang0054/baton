@@ -1,6 +1,6 @@
 import { Button } from '@heroui/react/button'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ConnectionStatus } from './features/shared/ConnectionStatus'
 import { CanvasPanel, type CanvasPanelHandle } from './features/canvas/CanvasPanel'
 import { NodePanel } from './features/canvas/NodePanel'
@@ -10,6 +10,8 @@ import { TaskBoard } from './features/tasks/TaskBoard'
 import { TaskDetailPanel } from './features/tasks/TaskDetailPanel'
 import { CreateWorkspaceDialog } from './features/workspaces/CreateWorkspaceDialog'
 import { WorkspaceSwitcher } from './features/workspaces/WorkspaceSwitcher'
+import { WorkspaceTrustBadge } from './features/workspaces/WorkspaceTrustBadge'
+import { WorkspaceTrustDialog } from './features/workspaces/WorkspaceTrustDialog'
 import { getCanvas, listTasks, listWorkspaces, UnauthorizedError } from './lib/api'
 import { queryKeys } from './lib/query'
 import { readUrlState, writeUrlState } from './lib/url'
@@ -43,6 +45,8 @@ export function App() {
   const setBoardExpanded = useAppStore((state) => state.setBoardExpanded)
   const setBoardPinned = useAppStore((state) => state.setBoardPinned)
   const canvasRef = useRef<CanvasPanelHandle>(null)
+  const [trustDialogOpen, setTrustDialogOpen] = useState(false)
+  const [trustPromptedFor, setTrustPromptedFor] = useState<string | null>(null)
 
   const workspaces = useQuery({ queryKey: queryKeys.workspaces, queryFn: listWorkspaces })
   const tasks = useQuery({
@@ -66,6 +70,8 @@ export function App() {
   }, [tasks.data])
 
   const selectedNode = canvas.data?.nodes.find((node) => node.id === selectedNodeId) ?? null
+  const activeWorkspace =
+    workspaces.data?.find((workspace) => workspace.id === activeWorkspaceId) ?? null
   const nodeTask = selectedNode && tasks.data?.find((task) => task.nodeId === selectedNode.id)
   const unauthorized =
     wsStatus === 'unauthorized' ||
@@ -91,6 +97,13 @@ export function App() {
       taskId: activeTaskId,
     })
   }, [activeWorkspaceId, activeTaskId])
+
+  useEffect(() => {
+    if (!activeWorkspace || activeWorkspace.trusted) return
+    if (trustPromptedFor === activeWorkspace.id) return
+    setTrustPromptedFor(activeWorkspace.id)
+    setTrustDialogOpen(true)
+  }, [activeWorkspace, trustPromptedFor])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -126,6 +139,20 @@ export function App() {
             }}
           />
           <ConnectionStatus />
+          {activeWorkspace ? (
+            <>
+              <WorkspaceTrustBadge
+                workspace={activeWorkspace}
+                onTrust={() => setTrustDialogOpen(true)}
+              />
+              <WorkspaceTrustDialog
+                key={activeWorkspace.id}
+                workspace={activeWorkspace}
+                open={trustDialogOpen}
+                onOpenChange={setTrustDialogOpen}
+              />
+            </>
+          ) : null}
           <div className="ml-auto flex items-center gap-2">
             <Button
               variant="secondary"

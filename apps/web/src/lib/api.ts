@@ -1,12 +1,15 @@
 import {
   AppError,
   CanvasResponse,
+  EngineListResponse,
   SessionEventsResponse,
   TaskDetailResponse,
   TaskListResponse,
   WorkspaceCreateInput,
   WorkspaceCreateResponse,
   WorkspaceListResponse,
+  WorkspaceTrustInput,
+  WorkspaceTrustResponse,
 } from '@baton/protocol'
 
 export class ApiError extends Error {
@@ -60,6 +63,20 @@ export async function createWorkspace(input: WorkspaceCreateInput) {
       body: JSON.stringify(input),
     }),
   )
+}
+
+export async function updateWorkspaceTrust(workspaceId: string, input: WorkspaceTrustInput) {
+  return WorkspaceTrustResponse.parse(
+    await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/trust`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    }),
+  ).workspace
+}
+
+export async function listEngines() {
+  return EngineListResponse.parse(await request('/api/engines')).engines
 }
 
 export async function listTasks(workspaceId: string) {

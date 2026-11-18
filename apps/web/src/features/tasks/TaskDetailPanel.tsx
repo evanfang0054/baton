@@ -117,8 +117,6 @@ function DetailContent({
 }) {
   const task = detail.task
   const pendingApprovals = [...detail.approvals].reverse().filter((item) => item.decision === null)
-  const pendingApproval =
-    pendingApprovals.find((item) => item.sessionId === activeSessionId) ?? pendingApprovals[0]
   const needsApproval = detail.attention === 'needs_approval'
 
   return (
@@ -126,8 +124,12 @@ function DetailContent({
       <TaskHeader task={task} attention={detail.attention} waitingSince={detail.waitingSince} />
 
       {task.status === 'waiting_input' && needsApproval ? (
-        pendingApproval ? (
-          <ApprovalCard approval={pendingApproval} onDone={onDone} />
+        pendingApprovals.length > 0 ? (
+          <div className="flex shrink-0 flex-col gap-2">
+            {pendingApprovals.map((approval) => (
+              <ApprovalCard key={approval.id} approval={approval} onDone={onDone} />
+            ))}
+          </div>
         ) : (
           <p className="shrink-0 text-sm text-muted">等待审批记录同步…</p>
         )

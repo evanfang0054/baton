@@ -14,6 +14,7 @@ export interface TranscriptEntry {
   text: string
   mono: boolean
   ts: number
+  truncated?: boolean
 }
 
 function recordOf(value: unknown): Record<string, unknown> | null {
@@ -117,6 +118,7 @@ export function buildTranscript(events: SessionEventRecord[]): TranscriptEntry[]
         if (!messageId) break
         const entry = ensureMessage(messageId, ts, payload.role)
         entry.text += textOf(payload.delta)
+        if (recordOf(payload._baton)?.truncated === true) entry.truncated = true
         break
       }
       case 'TEXT_MESSAGE_END':
@@ -131,6 +133,7 @@ export function buildTranscript(events: SessionEventRecord[]): TranscriptEntry[]
         if (!toolCallId) break
         const draft = ensureTool(toolCallId, ts, payload.toolCallName)
         draft.args += textOf(payload.delta)
+        if (recordOf(payload._baton)?.truncated === true) draft.entry.truncated = true
         flushTool(draft)
         break
       }
@@ -154,6 +157,7 @@ export function buildTranscript(events: SessionEventRecord[]): TranscriptEntry[]
                   .join('\n')
               : ''
         flushTool(draft)
+        if (recordOf(payload._baton)?.truncated === true) draft.entry.truncated = true
         break
       }
       case 'RUN_STARTED':

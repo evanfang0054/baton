@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, UnauthorizedError, listWorkspaces } from './api'
+import {
+  ApiError,
+  UnauthorizedError,
+  listEngines,
+  listWorkspaces,
+  updateWorkspaceTrust,
+} from './api'
 
 function stubResponse(status: number, body: unknown) {
   vi.stubGlobal(
@@ -36,5 +42,40 @@ describe('api request', () => {
       details: { path: '../etc' },
     })
     await expect(listWorkspaces()).rejects.toBeInstanceOf(ApiError)
+  })
+
+  it('reads engines and patches workspace trust', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        calls.push({ url: String(input), init })
+        if (String(input) === '/api/engines') {
+          return Response.json({
+            engines: [
+              { engine: 'claude-sdk', status: 'unknown' },
+              { engine: 'fake', status: 'available' },
+            ],
+          })
+        }
+        return Response.json({
+          workspace: {
+            id: 'w1',
+            name: 'demo',
+            relPath: 'demo',
+            trusted: true,
+            projectHooks: 'off',
+            trustedAt: 2,
+            createdAt: 1,
+          },
+        })
+      }),
+    )
+    expect(await listEngines()).toHaveLength(2)
+    expect((await updateWorkspaceTrust('w1', { trusted: true })).trusted).toBe(true)
+    expect(calls[1]).toMatchObject({
+      url: '/api/workspaces/w1/trust',
+      init: { method: 'PATCH', body: JSON.stringify({ trusted: true }) },
+    })
   })
 })
