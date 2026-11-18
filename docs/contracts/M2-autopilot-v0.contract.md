@@ -80,3 +80,4 @@ grep -RIn "enqueue_task" apps/daemon/src/supervisor packages/protocol/src
 - **Generator 修订（14 条）**：补充 kill switch 可观察结果、trust 矩阵、digest 窗口/回放/未读、Web 细项、真实验收参数、路径 jail 与查询安全；新增“范围守卫”作为第 14 条。
 - **Evaluator 复核**：14 条均可通过命令、测试或截图判定；无未决项。
 - **Final consensus**：以上 14 条 Definition of Done、5 条 Boundary Conditions、2 类 Acceptance Criteria。
+- **User approval**：2026-11-19T04:11:57+08:00，用户确认 contract 通过；进入实施计划。
