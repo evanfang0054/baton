@@ -5,7 +5,7 @@ task_count: 4
 estimated_phases: [tests, implementation, verification]
 dod: "protocol 词汇与 supervisor.send/事件、core 状态投影与 policy/origin、migration 0006、TaskDetail.origin 完成；pnpm verify 全绿"
 depends_on: []
-status: active
+status: completed
 ---
 
 # M2-1 总管 Router v0：契约层实施计划（Plan 1/4）
@@ -760,9 +760,12 @@ git commit -m "feat(daemon): 任务详情返回 origin 并降级坏快照"
 
 ---
 
-## 完成记录（待填）
+## 完成记录（2026-11-18）
 
-- 日期：
-- 关键 commit：
-- `pnpm verify` 结果：
-- 偏离与坑：
+- **关键 commit**：`5f926ce` protocol 词汇/命令/事件；`138b62a` core 状态投影与 origin；`3d1c0bd` migration 0006；`b93e21d` TaskDetail.origin；`265211e` web 兼容修复。
+- **验证**：protocol 113 tests、core 109 tests、daemon 157 tests、web 102 tests；`pnpm verify` 退出码 0。
+- **偏离与坑**：
+  - `TaskDetail.origin`/`TaskDetailResponse.originInvalid` 让 web `TaskDetailPanel.test.tsx` 的 fixture 必须补字段；同时 `ServerMessage` 增加无 `seq` 的总管事件，`ws.ts` 改为 `'seq' in event` 判断。
+  - 该 Vitest 环境对**顶层 `beforeEach`/`afterEach`** 会报 `failed to find the current suite`；把 hooks 移进 `describe` 后通过。新增 web 测试一律把 hooks 放在 `describe` 内。
+  - 清理 `node_modules/.vitest-cache` 与 `apps/web/node_modules/.vite` 后，测试运行器恢复正常；遇到同类错误先清缓存，再怀疑产品代码。
+  - `runtime/index.ts` 先为 `supervisor.send` 返回 `supervisor_not_implemented`，等 Plan 2 Task 4 替换为真实 service；这是临时接线，不是 TODO 占位。
