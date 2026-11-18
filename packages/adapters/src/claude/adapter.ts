@@ -97,6 +97,12 @@ export class ClaudeAdapter implements AgentAdapter {
           } else if (event.type === 'outcome') {
             outcome = event.outcome
             yield mapSessionOutcome(event.outcome, event.reason)
+            // ready 是会话级终态；不等待 SDK result，避免 resumed turn 不返回 result 时挂死。
+            if (event.outcome === 'ready') {
+              finished = true
+              yield mapRunFinished(threadId, runId)
+              return
+            }
           } else if (event.type === 'turn_result') {
             if (!event.ok) {
               finished = true

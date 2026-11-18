@@ -160,6 +160,18 @@ describe('ClaudeAdapter', () => {
     expect(finished).toBe(true)
   })
 
+  it('finishes immediately when a ready outcome arrives without a turn_result', async () => {
+    const transport = new FakeTransport()
+    const { run } = await makeRun(transport)
+    transport.push({ type: 'init', sessionId: 'session-1' })
+    transport.push({ type: 'outcome', outcome: 'ready', reason: 'done' })
+    const events = await collect(run)
+    expect(events.at(-1)?.type).toBe('RUN_FINISHED')
+    expect(
+      events.some((event) => event.type === 'CUSTOM' && event.name === 'session.outcome'),
+    ).toBe(true)
+  })
+
   it('ends an unreported turn without synthesizing an outcome', async () => {
     const transport = new FakeTransport()
     const { run } = await makeRun(transport)
