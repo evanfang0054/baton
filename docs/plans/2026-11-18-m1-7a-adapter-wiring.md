@@ -230,9 +230,10 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 
 **S2 spike**
 
-- 真实 SDK 可启动并进入事件流；本机 CLI 未登录，返回 `Not logged in · Please run /login`，被正确映射为 `RUN_ERROR`。
+- 真实 SDK 启动与事件流已验证；首次失败定位为 `settingSources: []` 切断本机 OAuth，修复见 ADR 0004（不可信 workspace 保留 `['user']`）。
+- 修复后：`pong` → `baton_report` → `session.outcome=ready` → `RUN_FINISHED`，无残留进程。
 - 证据：`docs/evidence/2026-11-17-m1-7-claude/spike.md`。
-- 结论：transport/映射 Go；真实 API 闭环需在本机完成 `claude /login` 后才能验收，CI 不依赖。
+- 结论：transport/映射/outcome Go；完整 UI 真实闭环仍由 Plan D/本机验收承担，CI 不依赖真实 API。
 
 **验证**
 
