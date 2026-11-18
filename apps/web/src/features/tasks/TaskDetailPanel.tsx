@@ -7,6 +7,7 @@ import { queryKeys } from '../../lib/query'
 import { useAppStore } from '../../stores/app'
 import { mergeSessionPage } from '../realtime/session-cache'
 import { ApprovalCard } from './ApprovalCard'
+import { ContextSnapshotCard } from './ContextSnapshotCard'
 import { QuestionCard } from './QuestionCard'
 import { ReplyComposer } from './ReplyComposer'
 import { ReviewCard } from './ReviewCard'
@@ -130,6 +131,7 @@ function DetailContent({
   return (
     <>
       <TaskHeader task={task} attention={detail.attention} waitingSince={detail.waitingSince} />
+      <ContextSnapshotCard snapshot={task.context} />
 
       {task.status === 'waiting_input' && needsApproval ? (
         pendingApprovals.length > 0 ? (
