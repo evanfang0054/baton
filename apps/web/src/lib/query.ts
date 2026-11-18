@@ -2,6 +2,7 @@ import { QueryClient } from '@tanstack/react-query'
 
 export const queryKeys = {
   workspaces: ['workspaces'] as const,
+  engines: ['engines'] as const,
   tasks: (workspaceId: string) => ['tasks', workspaceId] as const,
   canvas: (workspaceId: string) => ['canvas', workspaceId] as const,
   task: (taskId: string) => ['task', taskId] as const,

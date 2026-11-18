@@ -7,7 +7,7 @@ export const BOARD_COLUMNS: Array<{ id: BoardColumnId; label: string }> = [
   { id: 'unplanned', label: '未规划' },
   { id: 'todo', label: '待办' },
   { id: 'running', label: '进行中' },
-  { id: 'waiting', label: '待审核' },
+  { id: 'waiting', label: '待处理' },
   { id: 'review', label: '待验收' },
   { id: 'done', label: '已完成' },
   { id: 'closed', label: '已取消' },

@@ -44,6 +44,9 @@ function EntryView({ entry }: { entry: TranscriptEntry }) {
             <p className="mt-1 text-sm whitespace-pre-wrap text-foreground">{entry.text}</p>
           )
         ) : null}
+        {entry.truncated ? (
+          <p className="mt-1 text-xs text-warning">内容已截断，完整内容见原始事件</p>
+        ) : null}
       </div>
     </div>
   )

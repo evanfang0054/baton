@@ -1,10 +1,44 @@
+import type { Engine, EngineStatus } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Input } from '@heroui/react/input'
 import { TextArea } from '@heroui/react/textarea'
-import { useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { listEngines } from '../../lib/api'
 import { useCommand } from '../../lib/command-context'
 import { queryKeys } from '../../lib/query'
+
+const engineNames: Record<Engine, string> = {
+  'claude-sdk': 'Claude Code',
+  fake: '演示引擎（fake）',
+  pty: 'PTY',
+}
+
+const statusLabels: Record<EngineStatus['status'], string> = {
+  available: '可用',
+  unknown: '未知（将尝试本机登录）',
+  unavailable: '不可用',
+}
+
+function preferredEngine(engines: EngineStatus[]): Engine | null {
+  const claude = engines.find(
+    (entry) => entry.engine === 'claude-sdk' && entry.status !== 'unavailable',
+  )
+  if (claude) return claude.engine
+  return engines.find((entry) => entry.engine === 'fake')?.engine ?? null
+}
+
+function engineReasonText(reason: string | undefined): string {
+  if (!reason) return ''
+  if (reason.includes('Keychain cannot be probed')) {
+    return '复用本机 Claude Code 登录态（Keychain 无法探测）'
+  }
+  if (reason.includes('credential found in environment')) return '已检测到环境变量凭据'
+  if (reason.includes('Claude Code credentials found')) return '已检测到本机 Claude Code 凭据'
+  if (reason.includes('Claude Agent SDK is not installed')) return '未安装 Claude Agent SDK'
+  if (reason.includes('not supported in v1')) return 'v1 不支持此引擎'
+  return reason
+}
 
 export function CreateTaskForm({
   nodeId,
@@ -19,14 +53,23 @@ export function CreateTaskForm({
 }) {
   const send = useCommand()
   const queryClient = useQueryClient()
+  const engines = useQuery({ queryKey: queryKeys.engines, queryFn: listEngines })
+  const [engine, setEngine] = useState<Engine | null>(null)
   const [title, setTitle] = useState(defaultTitle)
   const [prompt, setPrompt] = useState('')
   const [verifyCommand, setVerifyCommand] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (engine || !engines.data) return
+    setEngine(preferredEngine(engines.data))
+  }, [engine, engines.data])
+
+  const selectedEngine = engines.data?.find((entry) => entry.engine === engine)
+
   const submit = async () => {
-    if (!title.trim() || !prompt.trim() || pending) return
+    if (!title.trim() || !prompt.trim() || pending || !engine) return
     setPending(true)
     setError(null)
     try {
@@ -38,7 +81,7 @@ export function CreateTaskForm({
           title: title.trim(),
           prompt: prompt.trim(),
           contextNodeIds: [],
-          engine: 'fake',
+          engine,
           workspaceMode: 'main',
           ...(verifyCommand.trim() ? { verifyCommand: verifyCommand.trim() } : {}),
         },
@@ -77,6 +120,33 @@ export function CreateTaskForm({
           onChange={(event) => setVerifyCommand(event.target.value)}
           fullWidth
         />
+        <label className="flex flex-col gap-1 text-xs text-muted">
+          <span>执行引擎</span>
+          <select
+            aria-label="执行引擎"
+            value={engine ?? ''}
+            onChange={(event) => setEngine(event.target.value as Engine)}
+            className="h-8 rounded-lg border border-separator bg-background px-2 text-sm text-foreground"
+            disabled={!engines.data || engines.isError}
+          >
+            {!engine ? <option value="">加载引擎…</option> : null}
+            {(engines.data ?? []).map((entry) => (
+              <option
+                key={entry.engine}
+                value={entry.engine}
+                disabled={entry.status === 'unavailable'}
+              >
+                {engineNames[entry.engine]} · {statusLabels[entry.status]}
+              </option>
+            ))}
+          </select>
+          {selectedEngine?.reason ? <span>{engineReasonText(selectedEngine.reason)}</span> : null}
+        </label>
+        {engines.isError ? (
+          <p role="alert" className="text-sm text-danger">
+            引擎状态加载失败
+          </p>
+        ) : null}
         {error ? (
           <p role="alert" className="text-sm text-danger">
             {error}
@@ -84,7 +154,7 @@ export function CreateTaskForm({
         ) : null}
         <Button
           variant="primary"
-          isDisabled={!title.trim() || !prompt.trim() || pending}
+          isDisabled={!title.trim() || !prompt.trim() || pending || !engine}
           onPress={() => void submit()}
         >
           创建任务

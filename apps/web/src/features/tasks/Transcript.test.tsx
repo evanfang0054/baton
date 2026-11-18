@@ -35,6 +35,28 @@ describe('Transcript', () => {
     expect(screen.getByText('继续')).toBeInTheDocument()
   })
 
+  it('shows a truncation hint for large events', () => {
+    render(
+      <Transcript
+        events={[
+          {
+            seq: 1,
+            ts: 1,
+            type: 'TEXT_MESSAGE_CONTENT',
+            payload: {
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId: 'm1',
+              delta: 'x…[truncated]',
+              _baton: { truncated: true, originalBytes: 70000 },
+            },
+          },
+        ]}
+        virtualize={false}
+      />,
+    )
+    expect(screen.getByText('内容已截断，完整内容见原始事件')).toBeInTheDocument()
+  })
+
   it('shows empty and loading states', () => {
     const { rerender } = render(<Transcript events={[]} virtualize={false} />)
     expect(screen.getByText('暂无会话记录')).toBeInTheDocument()

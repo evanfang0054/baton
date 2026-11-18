@@ -27,7 +27,9 @@ export function ReviewCard({
         </Chip>
       </div>
       <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted">
-        <span>{review.diffStat.filesChanged} 个文件</span>
+        <span title="仅统计 Git 已跟踪文件；非 git 工作区或未跟踪文件不计入">
+          Git 文件 {review.diffStat.filesChanged}
+        </span>
         <span className="text-success">+{review.diffStat.insertions}</span>
         <span className="text-danger">-{review.diffStat.deletions}</span>
       </div>
