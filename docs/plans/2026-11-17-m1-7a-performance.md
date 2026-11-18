@@ -704,3 +704,9 @@ git commit -m "docs(evidence): M1-7a 性能热路径基线"
 - 新增 `isAppendOnly`；`appendSessionEvents` / `mergeSessionPage` 在严格递增时直接 append，乱序才回退 Set + sort。
 - tests：session-cache 4 tests；web 69 tests 全绿。
 - 说明：helper 与实现同一步落地；旧实现没有该导出，等价于测试前置失败。
+
+### Task 5（2026-11-17）
+
+- 新增 `parseIncomingMessage`：`session.event` 只做字段级检查；控制消息仍走完整 `ServerMessage`。
+- `RealtimeProvider` 直接构造 `SessionEventRecord`，去掉逐事件 `SessionEventRecord.parse`。
+- tests：ws 8、RealtimeProvider 2、session-cache 4，定向 14 tests 全绿。
