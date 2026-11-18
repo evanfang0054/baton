@@ -46,6 +46,7 @@ function detail(overrides: Partial<TaskDetailResponse> = {}): TaskDetailResponse
     review: null,
     waitingSince: null,
     attention: 'none',
+    ['contextInvalid']: false,
     ...overrides,
   }
 }

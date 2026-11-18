@@ -173,6 +173,8 @@ describe('CreateTaskForm', () => {
     renderForm(send, false, 'Agent 1', contextNodes)
     expect(screen.getByText('需求 A')).toBeInTheDocument()
     expect(screen.getByText('a.md')).toBeInTheDocument()
+    expect(screen.getByText('已选 2 个')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '清空' })).toBeInTheDocument()
     await waitFor(() => expect(screen.getByLabelText('执行引擎')).toHaveValue('fake'))
     fireEvent.change(screen.getByLabelText('任务说明'), { target: { value: '开始' } })
     fireEvent.click(screen.getByRole('button', { name: '创建任务' }))

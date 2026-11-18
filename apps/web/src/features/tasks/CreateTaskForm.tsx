@@ -3,6 +3,7 @@ import { Button } from '@heroui/react/button'
 import { Input } from '@heroui/react/input'
 import { TextArea } from '@heroui/react/textarea'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { FileText, Folder, Image as ImageIcon, Type } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { listEngines } from '../../lib/api'
 import { useCommand } from '../../lib/command-context'
@@ -42,6 +43,21 @@ function engineReasonText(reason: string | undefined): string {
   return reason
 }
 
+function ContextIcon({ type }: { type: ProtocolNode['type'] }) {
+  switch (type) {
+    case 'text':
+      return <Type size={12} />
+    case 'file':
+      return <FileText size={12} />
+    case 'image':
+      return <ImageIcon size={12} />
+    case 'group':
+      return <Folder size={12} />
+    default:
+      return null
+  }
+}
+
 export function CreateTaskForm({
   nodeId,
   workspaceId,
@@ -60,6 +76,7 @@ export function CreateTaskForm({
   const send = useCommand()
   const queryClient = useQueryClient()
   const removeContextNode = useAppStore((state) => state.removeContextNode)
+  const clearContext = useAppStore((state) => state.clearContext)
   const engines = useQuery({ queryKey: queryKeys.engines, queryFn: listEngines })
   const [engine, setEngine] = useState<Engine | null>(null)
   const [title, setTitle] = useState(defaultTitle)
@@ -118,22 +135,33 @@ export function CreateTaskForm({
       <div className="mt-2 flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2" data-testid="context-chips">
           {contextNodes.length > 0 ? (
-            contextNodes.map((node) => (
-              <span
-                key={node.id}
-                className="inline-flex items-center gap-1 rounded-full border border-separator px-2 py-1 text-xs"
+            <>
+              <span className="text-xs text-muted">已选 {contextNodes.length} 个</span>
+              <button
+                type="button"
+                className="text-xs text-muted underline-offset-2 hover:text-foreground hover:underline"
+                onClick={clearContext}
               >
-                {nodeTitle(node)}
-                <button
-                  type="button"
-                  aria-label={`移除 ${nodeTitle(node)}`}
-                  className="text-muted hover:text-danger"
-                  onClick={() => removeContextNode(node.id)}
+                清空
+              </button>
+              {contextNodes.map((node) => (
+                <span
+                  key={node.id}
+                  className="inline-flex items-center gap-1 rounded-full border border-separator px-2 py-1 text-xs"
                 >
-                  ×
-                </button>
-              </span>
-            ))
+                  <ContextIcon type={node.type} />
+                  {nodeTitle(node)}
+                  <button
+                    type="button"
+                    aria-label={`移除 ${nodeTitle(node)}`}
+                    className="text-muted hover:text-danger"
+                    onClick={() => removeContextNode(node.id)}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </>
           ) : (
             <p className="text-xs text-muted">按住 Shift 框选画布节点，或在打开面板前先多选。</p>
           )}

@@ -33,11 +33,17 @@ describe('ContextSnapshotCard', () => {
     expect(screen.getByText('spec.md')).toBeInTheDocument()
     expect(screen.getByText('敏感文件已排除')).toBeInTheDocument()
     expect(screen.getByText('需求 A → spec.md')).toBeInTheDocument()
+    expect(screen.getByText('两端注入')).toBeInTheDocument()
     expect(screen.getByText('关系已截断')).toBeInTheDocument()
   })
 
   it('handles old tasks without a snapshot', () => {
     render(<ContextSnapshotCard snapshot={null} />)
     expect(screen.getByText('该任务创建于上下文快照上线前，未记录')).toBeInTheDocument()
+  })
+
+  it('distinguishes an invalid snapshot from an old task', () => {
+    render(<ContextSnapshotCard snapshot={null} invalid />)
+    expect(screen.getByText('上下文快照不可用，任务其余信息不受影响')).toBeInTheDocument()
   })
 })

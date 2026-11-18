@@ -131,7 +131,11 @@ function DetailContent({
   return (
     <>
       <TaskHeader task={task} attention={detail.attention} waitingSince={detail.waitingSince} />
-      <ContextSnapshotCard snapshot={task.context} />
+      <ContextSnapshotCard
+        snapshot={task.context}
+        invalid={detail.contextInvalid}
+        targetNodeId={task.nodeId}
+      />
 
       {task.status === 'waiting_input' && needsApproval ? (
         pendingApprovals.length > 0 ? (
