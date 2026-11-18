@@ -10,6 +10,7 @@ import type { Db } from './types.js'
 export function openDb(file: string): Database.Database {
   const db = new Database(file)
   db.pragma('journal_mode = WAL')
+  db.pragma('synchronous = NORMAL')
   db.pragma('foreign_keys = ON')
   return db
 }
