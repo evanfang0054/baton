@@ -71,11 +71,13 @@ export function App() {
     () => (canvas.data?.nodes ?? []).filter((node) => contextNodeIds.includes(node.id)),
     [canvas.data?.nodes, contextNodeIds],
   )
-  // 只有单选且恰好是 Agent 时才把它作为默认目标；多选交给总管追问。
+  // 选中里恰好一个 Agent 时作为默认目标；纯 Agent 或多 Agent 交给总管追问。
   const targetAgent = useMemo<SupervisorTargetAgent | null>(() => {
-    if (selectedNodeIds.length !== 1) return null
-    const node = canvas.data?.nodes.find((item) => item.id === selectedNodeIds[0])
-    return node?.type === 'agent' ? { id: node.id, title: node.data.title } : null
+    const nodes = (canvas.data?.nodes ?? []).filter((node) => selectedNodeIds.includes(node.id))
+    const agents = nodes.filter((node) => node.type === 'agent')
+    const agent = agents.length === 1 ? agents[0] : null
+    if (!agent || agent.type !== 'agent') return null
+    return { id: agent.id, title: agent.data.title }
   }, [canvas.data?.nodes, selectedNodeIds])
   const counts = useMemo(() => {
     const list = tasks.data ?? []
