@@ -35,6 +35,7 @@ export interface InsertUserMessageInput {
 export interface InsertAssistantTurnInput {
   threadId: string
   triggerId: string
+  messageId?: string
   content: string
   toolCalls: z.infer<typeof toolCallsSchema>
   status: 'ok' | 'error'
@@ -58,6 +59,7 @@ export interface SupervisorStore {
     limit: number,
     before?: string,
   ): { messages: SupervisorMessageValue[]; nextBefore?: string }
+  getUserMessageByTrigger(threadId: string, triggerId: string): SupervisorMessageValue | null
   getDecisionByTrigger(threadId: string, triggerId: string): SupervisorDecision | null
 }
 
@@ -191,7 +193,7 @@ export function createSupervisorStore(deps: SupervisorStoreDeps): SupervisorStor
     },
 
     insertAssistantTurn(input) {
-      const messageId = deps.newId()
+      const messageId = input.messageId ?? deps.newId()
       const decisionId = deps.newId()
       const at = deps.now()
       const toolCallsJson = JSON.stringify(input.toolCalls)
@@ -295,6 +297,21 @@ export function createSupervisorStore(deps: SupervisorStoreDeps): SupervisorStor
         messages: page.reverse().map((row) => toMessage(row, byMessage.get(row.id) ?? null)),
         ...(nextBefore ? { nextBefore } : {}),
       }
+    },
+
+    getUserMessageByTrigger(threadId, triggerId) {
+      const row = deps.db
+        .select()
+        .from(supervisorMessage)
+        .where(
+          and(
+            eq(supervisorMessage.threadId, threadId),
+            eq(supervisorMessage.triggerId, triggerId),
+            eq(supervisorMessage.role, 'user'),
+          ),
+        )
+        .get()
+      return row ? toMessage(row, null) : null
     },
 
     getDecisionByTrigger(threadId, triggerId) {

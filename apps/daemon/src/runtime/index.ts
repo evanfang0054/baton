@@ -40,6 +40,8 @@ import { createSessionRunner, type SessionRunner } from './session-runner.js'
 import { validateQuestionAnswers } from './questions.js'
 import { createTaskService } from './task-service.js'
 import { createTransitionRunner } from './transition-runner.js'
+import { createSupervisorService } from '../supervisor/service.js'
+import type { SupervisorEngine } from '../supervisor/engine.js'
 import type { RuntimeHooks, StartSessionInput, TransitionOutcome } from './types.js'
 
 export interface RuntimeDeps {
@@ -57,6 +59,8 @@ export interface RuntimeDeps {
   ) => void | Promise<void>
   runVerify?: (taskId: string) => void | Promise<void>
   sendToSession?: (taskId: string, text: string) => void | Promise<void>
+  broadcastRaw?: (frame: string) => void
+  supervisorEngine?: SupervisorEngine
   now?: () => number
   newId?: () => string
   logger?: Logger
@@ -136,6 +140,17 @@ export function createRuntime(deps: RuntimeDeps) {
   }
 
   const taskService = createTaskService({ db: deps.db, config: deps.config, now, newId })
+  const supervisor = createSupervisorService({
+    db: deps.db,
+    dataDir: deps.config.dataDir,
+    taskService,
+    ...(deps.supervisorEngine ? { engine: deps.supervisorEngine } : {}),
+    now,
+    newId,
+    ...(deps.logger ? { logger: deps.logger } : {}),
+    ...(deps.broadcastRaw ? { broadcastRaw: deps.broadcastRaw } : {}),
+    track: hooks.track,
+  })
   const transitionRunner = createTransitionRunner({
     db: deps.db,
     config: deps.config,
@@ -487,10 +502,7 @@ export function createRuntime(deps: RuntimeDeps) {
         return result.ok ? { ok: true, ack: {} } : { ok: false, error: result.error }
       }
       case 'supervisor.send':
-        return {
-          ok: false,
-          error: appError('supervisor_not_implemented', 'supervisor service is not wired yet'),
-        }
+        return supervisor.send(message.payload)
       case 'resume': {
         const result = replay(message.payload.sinceSeq)
         const cursor = result.rows.at(-1)?.ordinal ?? eventStore.maxOrdinal()
@@ -540,6 +552,7 @@ export function createRuntime(deps: RuntimeDeps) {
         return
       }
       closing = true
+      supervisor.close()
       await verifyHolder.value?.close()
       await sessionHolder.value?.close()
       await settle()
@@ -570,7 +583,7 @@ export function createRuntime(deps: RuntimeDeps) {
     })
   }
 
-  return { ...runtime, scheduler: created }
+  return { ...runtime, scheduler: created, supervisor }
 }
 
 export type Runtime = ReturnType<typeof createRuntime>

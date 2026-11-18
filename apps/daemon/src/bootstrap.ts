@@ -37,6 +37,7 @@ export async function bootstrap(config: Config): Promise<BootstrapResult> {
     db: orm,
     config,
     broadcast: (event) => hub.broadcast(event),
+    broadcastRaw: (frame) => hub.broadcastRaw(frame),
     adapters: createAdapterFactory(
       {},
       {
