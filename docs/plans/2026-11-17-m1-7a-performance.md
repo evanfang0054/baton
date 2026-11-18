@@ -36,6 +36,8 @@ depends_on: []
 
 ## Task 1: 基准工具与 baseline
 
+> 执行期修订：Vitest 5.1 不导出 `bench`，改用 `scripts/bench-m1-7a.ts` + `tsx`；见文末执行记录。
+
 Blocking: none
 Slice type: verification
 Seam: `vitest bench` 输出；无生产行为变更
@@ -970,3 +972,18 @@ git commit -m "docs(evidence): M1-7a 性能热路径基线"
 - **Type consistency**：`BroadcastEvent.payloadJson`、`buildWsFrame`、`TranscriptProjector.apply`、`parseIncomingMessage` 在后续 Task 中名称一致。
 - **Scope**：只改 `apps/daemon`、`apps/web`、`package.json`、`docs/evidence`；不触 protocol/core/adapters，不接真实 Claude。
 - **设计同步**：本计划不改 UI 视觉；Plan D 才改 trust/引擎 UI，必须读根目录 `DESIGN.md` 的 token。
+
+---
+
+## 执行记录
+
+### Task 1（2026-11-17）
+
+- Vitest 5.1 不导出 `bench`，改为 `scripts/bench-m1-7a.ts` + `tsx`；`package.json` 命令为 `bench:m1-7a`。
+- baseline（本机 Node 22.23）：
+  - transcript full rebuild 5k：mean 0.64ms / p95 0.83ms
+  - 20k：mean 2.24ms / p95 3.64ms
+  - 50k：mean 5.43ms / p95 6.96ms
+  - 100k：mean 11.76ms / p95 17.33ms
+  - event store append 5k：mean 231ms / p95 243ms
+- 结论：50k 以内 transcript 全量重建已在 spec §8.6 的 8ms 预算内；Task 4 的 stateful 增量投影可能不必要，待用户确认后改为「有序输入快路径 + 50k 基准」。event store 写入是更明显的热点，Task 2 优先。
