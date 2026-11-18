@@ -1,4 +1,5 @@
 import type { CanvasResponse, NodeCreateValue, TaskSummary } from '@baton/protocol'
+import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -7,6 +8,8 @@ import {
   ReactFlowProvider,
   useNodesState,
   useReactFlow,
+  type Connection,
+  type Edge as FlowEdge,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import {
@@ -21,10 +24,17 @@ import {
 import type { ForwardedRef } from 'react'
 import { useCommand } from '../../lib/command-context'
 import { queryKeys } from '../../lib/query'
+import type { SelectionNode } from '../../stores/app'
 import { CanvasActionsProvider } from './actions'
 import { CanvasToolbar } from './CanvasToolbar'
 import { CreateFileNodeDialog } from './CreateFileNodeDialog'
-import { mergeFlowNodes, nextNodePosition, toFlowEdges, toFlowNodes } from './model'
+import {
+  isValidConnection,
+  mergeFlowNodes,
+  nextNodePosition,
+  toFlowEdges,
+  toFlowNodes,
+} from './model'
 import { AgentNode } from './nodes/AgentNode'
 import { FileNode } from './nodes/FileNode'
 import { TextNode } from './nodes/TextNode'
@@ -41,6 +51,7 @@ interface CanvasPanelProps {
   tasks: TaskSummary[]
   selectedNodeId: string | null
   onSelectNode: (nodeId: string | null) => void
+  onSelectNodes: (nodes: SelectionNode[]) => void
 }
 
 const nodeTypes = { text: TextNode, file: FileNode, agent: AgentNode }
@@ -61,6 +72,7 @@ function FlowCanvas({
   tasks,
   selectedNodeId,
   onSelectNode,
+  onSelectNodes,
   handleRef,
 }: CanvasPanelProps & {
   handleRef: ForwardedRef<CanvasPanelHandle>
@@ -70,6 +82,7 @@ function FlowCanvas({
   const containerRef = useRef<HTMLDivElement>(null)
   const { screenToFlowPosition, fitView, zoomIn, zoomOut } = useReactFlow()
   const [fileDialogOpen, setFileDialogOpen] = useState(false)
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
 
   const flowNodes = useMemo(() => {
     if (!canvas) return []
@@ -120,6 +133,48 @@ function FlowCanvas({
     },
     [refreshCanvas, send],
   )
+
+  const connect = useCallback(
+    async (connection: Connection) => {
+      if (!canvas || !isValidConnection(connection, canvas.edges)) return
+      try {
+        await send({
+          type: 'edge.create',
+          payload: {
+            sourceId: connection.source,
+            targetId: connection.target,
+            type: 'context',
+          },
+        })
+      } catch (cause) {
+        toast.danger(cause instanceof Error ? cause.message : '连线创建失败')
+      } finally {
+        await refreshCanvas()
+      }
+    },
+    [canvas, refreshCanvas, send],
+  )
+
+  const removeEdges = useCallback(
+    async (deleted: FlowEdge[]) => {
+      try {
+        await Promise.all(
+          deleted.map((edge) => send({ type: 'edge.delete', payload: { edgeId: edge.id } })),
+        )
+      } catch (cause) {
+        toast.danger(cause instanceof Error ? cause.message : '连线删除失败')
+      } finally {
+        setSelectedEdgeId(null)
+        await refreshCanvas()
+      }
+    },
+    [refreshCanvas, send],
+  )
+
+  const deleteSelectedEdge = useCallback(() => {
+    const edge = canvas?.edges.find((item) => item.id === selectedEdgeId)
+    if (edge) void removeEdges([{ id: edge.id } as FlowEdge])
+  }, [canvas?.edges, removeEdges, selectedEdgeId])
 
   const centerPosition = useCallback(() => {
     const rect = containerRef.current?.getBoundingClientRect()
@@ -220,6 +275,13 @@ function FlowCanvas({
         onZoomIn={() => void zoomIn()}
         onZoomOut={() => void zoomOut()}
       />
+      {selectedEdgeId ? (
+        <div className="absolute top-3 right-3 z-10">
+          <Button variant="danger" onPress={deleteSelectedEdge}>
+            删除连线
+          </Button>
+        </div>
+      ) : null}
       {nodes.length === 0 ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="rounded-xl border border-dashed border-separator px-6 py-10 text-sm text-muted">
@@ -240,10 +302,22 @@ function FlowCanvas({
           // 用 onNodeClick 而不是 onSelectionChange：后者会在外部清空选中后
           // 把 React Flow 的旧选中反复推回 store，触发更新死循环。
           onNodeClick={(_, node) => onSelectNode(node.id)}
-          onPaneClick={() => onSelectNode(null)}
-          nodesConnectable={false}
-          edgesFocusable={false}
-          deleteKeyCode={null}
+          onSelectionChange={({ nodes: selected }) =>
+            onSelectNodes(selected.map((node) => ({ id: node.id, type: node.data.node.type })))
+          }
+          onPaneClick={() => {
+            setSelectedEdgeId(null)
+            onSelectNode(null)
+          }}
+          onEdgeClick={(_, edge) => setSelectedEdgeId(edge.id)}
+          selectionKeyCode="Shift"
+          multiSelectionKeyCode={['Meta', 'Control']}
+          nodesConnectable
+          edgesFocusable
+          deleteKeyCode={['Backspace', 'Delete']}
+          isValidConnection={(connection) => isValidConnection(connection, canvas.edges)}
+          onConnect={(connection) => void connect(connection)}
+          onEdgesDelete={(deleted) => void removeEdges(deleted)}
           defaultViewport={canvas.canvas.viewport}
           minZoom={0.2}
           maxZoom={2}

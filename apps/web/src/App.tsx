@@ -42,6 +42,7 @@ export function App() {
   const setWorkspace = useAppStore((state) => state.setWorkspace)
   const setTask = useAppStore((state) => state.setTask)
   const setSelectedNode = useAppStore((state) => state.setSelectedNode)
+  const setSelection = useAppStore((state) => state.setSelection)
   const setBoardExpanded = useAppStore((state) => state.setBoardExpanded)
   const setBoardPinned = useAppStore((state) => state.setBoardPinned)
   const canvasRef = useRef<CanvasPanelHandle>(null)
@@ -225,6 +226,7 @@ export function App() {
                 setSelectedNode(id)
                 if (id) setTask(null)
               }}
+              onSelectNodes={setSelection}
             />
           </main>
           {selectedNode && activeWorkspaceId ? (

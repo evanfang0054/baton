@@ -40,6 +40,7 @@ function renderPanel(send = vi.fn().mockResolvedValue({ nodeId: 'n-new' })) {
           tasks={tasks}
           selectedNodeId={null}
           onSelectNode={vi.fn()}
+          onSelectNodes={vi.fn()}
         />
       </CommandProvider>
     </QueryClientProvider>,
@@ -85,6 +86,7 @@ describe('CanvasPanel', () => {
             tasks={tasks}
             selectedNodeId={selectedNodeId}
             onSelectNode={vi.fn()}
+            onSelectNodes={vi.fn()}
           />
         </CommandProvider>
       </QueryClientProvider>

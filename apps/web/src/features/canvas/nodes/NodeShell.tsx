@@ -9,7 +9,7 @@ export function NodeShell({ selected, children }: { selected?: boolean; children
 
   return (
     <div
-      className={`flex h-full w-full flex-col rounded-lg border bg-surface p-3 text-left shadow-surface ${
+      className={`group flex h-full w-full flex-col rounded-lg border bg-surface p-3 text-left shadow-surface ${
         selected ? 'border-accent' : 'border-separator'
       }`}
     >
@@ -22,12 +22,15 @@ export function NodeShell({ selected, children }: { selected?: boolean; children
           if (id) actions.updateSize(id, params.width, params.height)
         }}
       />
-      <Handle type="target" position={Position.Top} isConnectable={false} className="opacity-0" />
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+      />
       <Handle
         type="source"
         position={Position.Bottom}
-        isConnectable={false}
-        className="opacity-0"
+        className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
       />
       {children}
     </div>
