@@ -42,5 +42,15 @@ describe('automation REST', () => {
     })
     expect(kill.statusCode).toBe(200)
     expect(kill.json()).toEqual({ killSwitch: true, killSwitchForced: false })
+
+    const digest = await app.inject({
+      method: 'POST',
+      url: `/api/workspaces/${workspace.workspaceId}/digest`,
+    })
+    expect(digest.statusCode).toBe(200)
+    expect(digest.json().notice).toMatchObject({
+      kind: 'digest',
+      workspaceId: workspace.workspaceId,
+    })
   })
 })

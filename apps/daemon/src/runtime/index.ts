@@ -8,6 +8,8 @@ import type {
   TaskTransitionEvent,
 } from '@baton/protocol'
 import { randomUUID } from 'node:crypto'
+import { createDigestService } from '../automation/digest.js'
+import { createDigestScheduler, createTimeoutSchedule } from '../automation/scheduler.js'
 import { createAutomationService } from '../automation/service.js'
 import { createAutomationState } from '../automation/state.js'
 import type { Config } from '../config.js'
@@ -27,6 +29,7 @@ import {
   hasTaskForNode,
   insertNode,
   listTasksByStatus,
+  listWorkspaces,
   updateApprovalResponse,
   updateNode,
 } from '../db/repositories.js'
@@ -42,6 +45,8 @@ import { createSessionRunner, type SessionRunner } from './session-runner.js'
 import { validateQuestionAnswers } from './questions.js'
 import { createTaskService } from './task-service.js'
 import { createTransitionRunner } from './transition-runner.js'
+import { loadPolicy } from '../workspace/policy.js'
+import { resolveWorkspaceDir } from '../workspace/resolver.js'
 import { createSupervisorService } from '../supervisor/service.js'
 import type { SupervisorEngine } from '../supervisor/engine.js'
 import type { RuntimeHooks, StartSessionInput, TransitionOutcome } from './types.js'
@@ -152,6 +157,31 @@ export function createRuntime(deps: RuntimeDeps) {
     state: automationState,
     now,
     newId,
+  })
+  const digest = createDigestService({
+    db: deps.db,
+    config: deps.config,
+    eventStore,
+    broadcast: deps.broadcast,
+    now,
+    newId,
+  })
+  const digestScheduler = createDigestScheduler({
+    listWorkspaces: () =>
+      listWorkspaces(deps.db).map((workspace) => {
+        try {
+          const path = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+          return {
+            id: workspace.id,
+            trusted: workspace.trusted,
+            digestCron: loadPolicy(path).autopilot.digestCron,
+          }
+        } catch {
+          return { id: workspace.id, trusted: false, digestCron: '0 9,21 * * *' }
+        }
+      }),
+    generate: (workspaceId) => Promise.resolve(digest.generate(workspaceId, 'schedule')),
+    schedule: createTimeoutSchedule,
   })
   const supervisor = createSupervisorService({
     db: deps.db,
@@ -558,6 +588,7 @@ export function createRuntime(deps: RuntimeDeps) {
         return
       }
       booting = false
+      digestScheduler.start()
       schedulerHolder.value?.kick()
     },
     close: async () => {
@@ -565,6 +596,7 @@ export function createRuntime(deps: RuntimeDeps) {
         return
       }
       closing = true
+      digestScheduler.stop()
       supervisor.close()
       await verifyHolder.value?.close()
       await sessionHolder.value?.close()
@@ -596,7 +628,7 @@ export function createRuntime(deps: RuntimeDeps) {
     })
   }
 
-  return { ...runtime, scheduler: created, supervisor, automation }
+  return { ...runtime, scheduler: created, supervisor, automation, digest }
 }
 
 export type Runtime = ReturnType<typeof createRuntime>

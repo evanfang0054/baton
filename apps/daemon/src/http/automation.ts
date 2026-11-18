@@ -1,16 +1,18 @@
 import {
   AutomationPolicyPatch,
   AutomationSummary,
+  DigestGenerateResponse,
   KillSwitchInput,
   KillSwitchResponse,
 } from '@baton/protocol'
 import type { FastifyInstance } from 'fastify'
+import type { DigestService } from '../automation/digest.js'
 import type { AutomationService } from '../automation/service.js'
 import { appError } from '../errors.js'
 
 export function registerAutomationRoutes(
   app: FastifyInstance,
-  deps: { service: AutomationService },
+  deps: { service: AutomationService; digest: DigestService },
 ): void {
   app.get('/api/workspaces/:id/automation', async (req) => {
     const { id } = req.params as { id?: string }
@@ -34,5 +36,13 @@ export function registerAutomationRoutes(
       throw appError('invalid_payload', 'invalid kill switch payload', parsed.error.issues)
     }
     return KillSwitchResponse.parse(deps.service.setKillSwitch(parsed.data.enabled))
+  })
+
+  app.post('/api/workspaces/:id/digest', async (req) => {
+    const { id } = req.params as { id?: string }
+    if (!id) throw appError('invalid_payload', 'workspace id is required')
+    const notice = deps.digest.generate(id, 'manual')
+    if (!notice) throw appError('digest_generation_failed', 'digest generation failed')
+    return DigestGenerateResponse.parse({ notice })
   })
 }

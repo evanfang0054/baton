@@ -70,7 +70,10 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
   registerCanvasRoutes(app, { db: deps.db })
   registerEngineRoutes(app, { engines: deps.engines })
   registerTaskRoutes(app, { db: deps.db, logger: deps.logger })
-  registerAutomationRoutes(app, { service: deps.runtime.automation })
+  registerAutomationRoutes(app, {
+    service: deps.runtime.automation,
+    digest: deps.runtime.digest,
+  })
   registerNoticeRoutes(app, { db: deps.db, now: deps.now })
   registerAuditRoutes(app, { db: deps.db })
   registerSessionRoutes(app, { db: deps.db })
