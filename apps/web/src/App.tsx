@@ -144,6 +144,7 @@ export function App() {
               <WorkspaceTrustBadge
                 workspace={activeWorkspace}
                 onTrust={() => setTrustDialogOpen(true)}
+                onRevoked={() => setTrustPromptedFor(activeWorkspace.id)}
               />
               <WorkspaceTrustDialog
                 key={activeWorkspace.id}

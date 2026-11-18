@@ -50,7 +50,7 @@ describe('workspace trust UI', () => {
     })
   })
 
-  it('shows the badge and allows revoking trust', async () => {
+  it('requires confirmation before revoking trust', async () => {
     const calls: string[] = []
     vi.stubGlobal(
       'fetch',
@@ -59,14 +59,26 @@ describe('workspace trust UI', () => {
         return Response.json({ workspace: { ...workspace, trusted: false } })
       }),
     )
+    const onRevoked = vi.fn()
     wrap(
       <WorkspaceTrustBadge
         workspace={{ ...workspace, trusted: true, projectHooks: 'on', trustedAt: 2 }}
         onTrust={() => {}}
+        onRevoked={onRevoked}
       />,
     )
     expect(screen.getByText('已信任')).toBeInTheDocument()
+
     fireEvent.click(screen.getByRole('button', { name: '撤销信任' }))
+    expect(screen.getByText('确认撤销信任？')).toBeInTheDocument()
+    expect(calls).toEqual([])
+
+    fireEvent.click(screen.getByRole('button', { name: '返回' }))
+    expect(screen.queryByText('确认撤销信任？')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '撤销信任' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认撤销' }))
     await waitFor(() => expect(calls).toEqual(['/api/workspaces/w1/trust']))
+    await waitFor(() => expect(onRevoked).toHaveBeenCalled())
   })
 })

@@ -24,7 +24,7 @@ import { queryKeys } from '../../lib/query'
 import { CanvasActionsProvider } from './actions'
 import { CanvasToolbar } from './CanvasToolbar'
 import { CreateFileNodeDialog } from './CreateFileNodeDialog'
-import { mergeFlowNodes, toFlowEdges, toFlowNodes } from './model'
+import { mergeFlowNodes, nextNodePosition, toFlowEdges, toFlowNodes } from './model'
 import { AgentNode } from './nodes/AgentNode'
 import { FileNode } from './nodes/FileNode'
 import { TextNode } from './nodes/TextNode'
@@ -128,13 +128,15 @@ function FlowCanvas({
       x: rect.left + rect.width / 2,
       y: rect.top + rect.height / 2,
     })
-    // 连续新建时错开一点，避免所有节点重叠在视口中心。
-    const offset = (canvas?.nodes.length ?? 0) % 6
-    return {
-      x: point.x - DEFAULT_SIZE.w / 2 + offset * 32,
-      y: point.y - DEFAULT_SIZE.h / 2 + offset * 32,
-    }
-  }, [canvas?.nodes.length, screenToFlowPosition])
+    const topLeft = screenToFlowPosition({ x: rect.left, y: rect.top })
+    const bottomRight = screenToFlowPosition({ x: rect.right, y: rect.bottom })
+    return nextNodePosition(point, DEFAULT_SIZE, canvas?.nodes ?? [], 24, {
+      minX: topLeft.x,
+      minY: topLeft.y,
+      maxX: bottomRight.x,
+      maxY: bottomRight.y,
+    })
+  }, [canvas?.nodes, screenToFlowPosition])
 
   const createNode = useCallback(
     async (node: NodeCreateValue) => {

@@ -58,6 +58,7 @@ export function CreateTaskForm({
   const engines = useQuery({ queryKey: queryKeys.engines, queryFn: listEngines })
   const [engine, setEngine] = useState<Engine | null>(null)
   const [title, setTitle] = useState(defaultTitle)
+  const [titleEdited, setTitleEdited] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [verifyCommand, setVerifyCommand] = useState('')
   const [skipPermissions, setSkipPermissions] = useState(false)
@@ -68,6 +69,11 @@ export function CreateTaskForm({
     if (engine || !engines.data) return
     setEngine(preferredEngine(engines.data))
   }, [engine, engines.data])
+
+  // 重命名 Agent 节点后，未手动改过任务标题时跟随新标题。
+  useEffect(() => {
+    if (!titleEdited) setTitle(defaultTitle)
+  }, [defaultTitle, titleEdited])
 
   const selectedEngine = engines.data?.find((entry) => entry.engine === engine)
 
@@ -107,7 +113,10 @@ export function CreateTaskForm({
           aria-label="任务标题"
           placeholder="任务标题"
           value={title}
-          onChange={(event) => setTitle(event.target.value)}
+          onChange={(event) => {
+            setTitleEdited(true)
+            setTitle(event.target.value)
+          }}
           fullWidth
         />
         <TextArea

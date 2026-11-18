@@ -83,6 +83,46 @@ function renderPanel(
 }
 
 describe('NodePanel', () => {
+  it('edits text node content', async () => {
+    const textNode: ProtocolNode = {
+      ...agent,
+      id: 'n-text',
+      type: 'text',
+      data: { content: '原始上下文' },
+    }
+    const send = vi.fn().mockResolvedValue(undefined)
+    renderPanel(textNode, null, send)
+
+    const input = screen.getByLabelText('文本内容')
+    expect(input).toHaveValue('原始上下文')
+    fireEvent.change(input, { target: { value: '新的上下文' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存修改' }))
+
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({
+        type: 'node.update',
+        payload: { nodeId: 'n-text', patch: { data: { content: '新的上下文' } } },
+      }),
+    )
+  })
+
+  it('edits agent node title', async () => {
+    const send = vi.fn().mockResolvedValue(undefined)
+    renderPanel(agent, null, send)
+
+    const input = screen.getByLabelText('节点标题')
+    expect(input).toHaveValue('Agent 1')
+    fireEvent.change(input, { target: { value: '研究 Agent' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存修改' }))
+
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({
+        type: 'node.update',
+        payload: { nodeId: 'n1', patch: { data: { title: '研究 Agent' } } },
+      }),
+    )
+  })
+
   it('shows the create task form for an agent without a task', () => {
     renderPanel(agent, null)
     expect(screen.getByRole('heading', { name: '创建任务' })).toBeInTheDocument()

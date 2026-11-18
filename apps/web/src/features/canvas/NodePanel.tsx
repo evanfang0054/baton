@@ -1,6 +1,9 @@
 import type { Node as ProtocolNode, TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
+import { Input } from '@heroui/react/input'
+import { TextArea } from '@heroui/react/textarea'
+import { toast } from '@heroui/react/toast'
 import { useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -55,13 +58,50 @@ export function NodePanel({
   const [confirming, setConfirming] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const editableValue =
+    node.type === 'text' ? node.data.content : node.type === 'agent' ? node.data.title : ''
+  const [draft, setDraft] = useState(editableValue)
+  const [saving, setSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
   const taskActive = task ? !TERMINAL_STATUSES.has(task.status) : false
+
+  // 节点切换或服务端快照更新时，用最新值重置草稿，避免把上一个节点的内容带过来。
+  useEffect(() => {
+    setDraft(editableValue)
+    setEditError(null)
+  }, [node.id, editableValue])
 
   // 节点切换时清掉上一个节点的删除确认，避免误删新选中的节点。
   useEffect(() => {
     setConfirming(false)
     setError(null)
   }, [node.id])
+
+  const saveEdit = async () => {
+    if (node.type !== 'text' && node.type !== 'agent') return
+    const next = draft.trim()
+    if (!next || next === editableValue || saving) return
+    setSaving(true)
+    setEditError(null)
+    try {
+      await send({
+        type: 'node.update',
+        payload: {
+          nodeId: node.id,
+          patch: {
+            data: node.type === 'text' ? { content: draft } : { title: next },
+          },
+        },
+      })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : '节点更新失败'
+      setEditError(message)
+      toast.danger(message)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const remove = async () => {
     setPending(true)
@@ -71,11 +111,14 @@ export function NodePanel({
       await queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
       onDeleted()
     } catch (cause) {
-      if (cause instanceof CommandError && cause.code === 'node_in_use') {
-        setError('节点被任务引用，先处理任务')
-      } else {
-        setError(cause instanceof Error ? cause.message : '节点删除失败')
-      }
+      const message =
+        cause instanceof CommandError && cause.code === 'node_in_use'
+          ? '节点被任务引用，先处理任务'
+          : cause instanceof Error
+            ? cause.message
+            : '节点删除失败'
+      setError(message)
+      toast.danger(message)
     } finally {
       setPending(false)
       setConfirming(false)
@@ -95,9 +138,29 @@ export function NodePanel({
       </header>
 
       {node.type === 'text' ? (
-        <p className="rounded-lg border border-separator bg-background p-3 text-sm whitespace-pre-wrap text-foreground">
-          {node.data.content}
-        </p>
+        <div className="flex flex-col gap-2 rounded-lg border border-separator bg-background p-3">
+          <TextArea
+            aria-label="文本内容"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            rows={4}
+            fullWidth
+          />
+          <div className="flex justify-end">
+            <Button
+              variant="secondary"
+              isDisabled={saving || !draft.trim() || draft === node.data.content}
+              onPress={() => void saveEdit()}
+            >
+              保存修改
+            </Button>
+          </div>
+          {editError ? (
+            <p role="alert" className="text-sm text-danger">
+              {editError}
+            </p>
+          ) : null}
+        </div>
       ) : null}
       {node.type === 'file' ? (
         <div className="rounded-lg border border-separator bg-background p-3">
@@ -106,11 +169,35 @@ export function NodePanel({
         </div>
       ) : null}
       {node.type === 'agent' ? (
-        <div className="flex items-center gap-2">
-          <Chip size="sm" variant="soft" color="default">
-            {task?.engine ?? '未创建任务'}
-          </Chip>
-        </div>
+        <>
+          <div className="flex items-center gap-2">
+            <Chip size="sm" variant="soft" color="default">
+              {task?.engine ?? '未创建任务'}
+            </Chip>
+          </div>
+          <div className="flex flex-col gap-2 rounded-lg border border-separator bg-background p-3">
+            <Input
+              aria-label="节点标题"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              fullWidth
+            />
+            <div className="flex justify-end">
+              <Button
+                variant="secondary"
+                isDisabled={saving || !draft.trim() || draft === node.data.title}
+                onPress={() => void saveEdit()}
+              >
+                保存修改
+              </Button>
+            </div>
+            {editError ? (
+              <p role="alert" className="text-sm text-danger">
+                {editError}
+              </p>
+            ) : null}
+          </div>
+        </>
       ) : null}
 
       {node.type === 'agent' && task ? (

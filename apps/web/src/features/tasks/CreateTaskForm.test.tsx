@@ -17,23 +17,32 @@ function stubEngines(engines: unknown[]) {
   )
 }
 
-function renderForm(send = vi.fn().mockResolvedValue({ taskId: 't1' }), workspaceTrusted = false) {
+function renderForm(
+  send = vi.fn().mockResolvedValue({ taskId: 't1' }),
+  workspaceTrusted = false,
+  defaultTitle = 'Agent 1',
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const onCreated = vi.fn()
-  render(
+  const tree = (title: string) => (
     <QueryClientProvider client={client}>
       <CommandProvider send={send}>
         <CreateTaskForm
           nodeId="n1"
           workspaceId="w1"
           workspaceTrusted={workspaceTrusted}
-          defaultTitle="Agent 1"
+          defaultTitle={title}
           onCreated={onCreated}
         />
       </CommandProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   )
-  return { send, onCreated }
+  const view = render(tree(defaultTitle))
+  return {
+    send,
+    onCreated,
+    setDefaultTitle: (title: string) => view.rerender(tree(title)),
+  }
 }
 
 afterEach(() => {
@@ -101,6 +110,20 @@ describe('CreateTaskForm', () => {
         }),
       ),
     )
+  })
+
+  it('follows node title changes until the user edits the task title', async () => {
+    stubEngines([{ engine: 'fake', status: 'available' }])
+    const { setDefaultTitle } = renderForm()
+    await waitFor(() => expect(screen.getByLabelText('执行引擎')).toHaveValue('fake'))
+    expect(screen.getByLabelText('任务标题')).toHaveValue('Agent 1')
+
+    setDefaultTitle('登录页 Agent')
+    await waitFor(() => expect(screen.getByLabelText('任务标题')).toHaveValue('登录页 Agent'))
+
+    fireEvent.change(screen.getByLabelText('任务标题'), { target: { value: '自定义标题' } })
+    setDefaultTitle('另一个标题')
+    expect(screen.getByLabelText('任务标题')).toHaveValue('自定义标题')
   })
 
   it('falls back to the demo engine when Claude is unavailable', async () => {
