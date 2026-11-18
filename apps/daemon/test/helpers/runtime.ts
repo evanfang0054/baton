@@ -62,6 +62,7 @@ export function createTestRuntime(
     claudeMaxTurns: 30,
     claudeMaxBudgetUsd: 2,
     claudeProjectHooks: 'on',
+    allowBypassPermissions: false,
     killSwitch: false,
     ...options.config,
   }
@@ -131,6 +132,7 @@ export function createTestRuntime(
       contextNodeIds: ['text-1'],
       engine: 'fake',
       workspaceMode: 'main',
+      dangerouslySkipPermissions: false,
       ...overrides,
     }
     const result = runtime.createTask(input)

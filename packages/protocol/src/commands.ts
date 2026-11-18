@@ -24,6 +24,7 @@ export const TaskCreateInput = z.object({
   engine: Engine,
   workspaceMode: WorkspaceMode.default('main'),
   verifyCommand: z.string().min(1).optional(),
+  dangerouslySkipPermissions: z.boolean().default(false),
 })
 export type TaskCreateInput = z.infer<typeof TaskCreateInput>
 
@@ -46,6 +47,10 @@ export const ApprovalDecideInput = z.object({
   approvalId: Id,
   decision: ApprovalDecision,
   note: z.string().min(1).optional(),
+  /** AskUserQuestion：question text → 选项 label（多选逗号分隔）。 */
+  answers: z.record(z.string(), z.string()).optional(),
+  /** AskUserQuestion：用户输入的自由文本。 */
+  response: z.string().optional(),
 })
 export type ApprovalDecideInput = z.infer<typeof ApprovalDecideInput>
 

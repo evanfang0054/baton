@@ -13,6 +13,11 @@ class FakeTransport implements ClaudeTransport {
   private closed = false
   readonly sent: string[] = []
   readonly approvals: Array<{ requestId: string; decision: string; note?: string }> = []
+  readonly answers: Array<{
+    requestId: string
+    answers: Record<string, string>
+    response?: string
+  }> = []
 
   push(event: ClaudeEvent): void {
     const waiter = this.waiters.shift()
@@ -54,6 +59,14 @@ class FakeTransport implements ClaudeTransport {
     this.approvals.push({ requestId, decision, ...(note ? { note } : {}) })
   }
 
+  async answerQuestion(
+    requestId: string,
+    answers: Record<string, string>,
+    response?: string,
+  ): Promise<void> {
+    this.answers.push({ requestId, answers, ...(response ? { response } : {}) })
+  }
+
   async interrupt(): Promise<void> {
     this.close()
   }
@@ -69,6 +82,7 @@ const startInput = (): StartInput => ({
   permissionMode: 'manual',
   policy: PolicySchema.parse({}),
   workspaceTrust: { projectSettings: true, projectHooks: false },
+  bypassPermissions: false,
 })
 
 async function collect(run: { events: AsyncIterable<AgentEvent> }): Promise<AgentEvent[]> {
@@ -158,6 +172,27 @@ describe('ClaudeAdapter', () => {
     }
     expect(transport.sent).toEqual([])
     expect(finished).toBe(true)
+  })
+
+  it('routes structured answers through answerQuestion', async () => {
+    const transport = new FakeTransport()
+    const { run } = await makeRun(transport)
+    transport.push({ type: 'init', sessionId: 'session-1' })
+    transport.push({
+      type: 'approval_request',
+      requestId: 'req-q',
+      request: { toolName: 'AskUserQuestion', input: { questions: [] }, risk: 'high' },
+    })
+    transport.push({ type: 'outcome', outcome: 'blocked' })
+    const iterator = run.events[Symbol.asyncIterator]()
+    await iterator.next()
+    await iterator.next()
+
+    await run.answerQuestion('req-q', { '选哪个？': 'A' }, '补充说明')
+    expect(transport.answers).toEqual([
+      { requestId: 'req-q', answers: { '选哪个？': 'A' }, response: '补充说明' },
+    ])
+    await run.interrupt()
   })
 
   it('finishes immediately when a ready outcome arrives without a turn_result', async () => {

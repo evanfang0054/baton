@@ -20,7 +20,6 @@ export const BATON_REPORT_TOOL = 'mcp__baton__baton_report'
 
 /** v1 明确禁用的工具面；策略 deny 仍会再兜底一次。 */
 export const DISALLOWED_TOOLS = [
-  'AskUserQuestion',
   'EnterWorktree',
   'ExitWorktree',
   'CronCreate',
@@ -41,6 +40,7 @@ export interface ClaudeTransportInput {
   cwd: string
   workspaceTrust: WorkspaceTrustSnapshot
   projectHooksGlobal: boolean
+  bypassPermissions: boolean
   systemPromptAppend: string
   maxTurns: number
   maxBudgetUsd: number
@@ -60,6 +60,11 @@ export interface ClaudeTransport {
   events: AsyncIterable<ClaudeEvent>
   send(text: string): Promise<void>
   approve(requestId: string, decision: ApprovalDecision, note?: string): Promise<void>
+  answerQuestion(
+    requestId: string,
+    answers: Record<string, string>,
+    response?: string,
+  ): Promise<void>
   interrupt(): Promise<void>
   dispose(): Promise<void>
 }
@@ -129,8 +134,8 @@ export function buildClaudeOptions(input: ClaudeTransportInput): Options {
     settingSources: input.workspaceTrust.projectSettings ? ['user', 'project'] : ['user'],
     strictMcpConfig: !input.workspaceTrust.projectSettings,
     plugins: [],
-    permissionMode: 'default',
-    allowDangerouslySkipPermissions: false,
+    permissionMode: input.bypassPermissions ? 'bypassPermissions' : 'default',
+    allowDangerouslySkipPermissions: input.bypassPermissions,
     includePartialMessages: false,
     maxTurns: input.maxTurns,
     maxBudgetUsd: input.maxBudgetUsd,
@@ -144,7 +149,8 @@ export function buildClaudeOptions(input: ClaudeTransportInput): Options {
       allowManagedPermissionRulesOnly: true,
       ...(hooksEnabled ? {} : { disableAllHooks: true }),
       permissions: {
-        disableBypassPermissionsMode: 'disable',
+        // 跳过审批模式下必须移除这一项，否则 SDK 会拒绝 bypassPermissions。
+        ...(input.bypassPermissions ? {} : { disableBypassPermissionsMode: 'disable' as const }),
         blockReadsOutsideWorkingDirectories: true,
         blockWritesOutsideWorkingDirectories: true,
       },
@@ -366,6 +372,20 @@ export const createSdkClaudeTransport: ClaudeTransportFactory = async (input) =>
           ? { behavior: 'allow', updatedInput: entry.input }
           : { behavior: 'deny', message: note ?? 'denied by user' },
       )
+    },
+    answerQuestion: async (requestId, answers, response) => {
+      const entry = pending.get(requestId)
+      if (!entry) {
+        return
+      }
+      entry.resolve({
+        behavior: 'allow',
+        updatedInput: {
+          ...entry.input,
+          answers,
+          ...(response ? { response } : {}),
+        },
+      })
     },
     interrupt: async () => {
       for (const entry of pending.values()) {

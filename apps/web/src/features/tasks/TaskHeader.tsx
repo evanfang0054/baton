@@ -24,6 +24,11 @@ export function TaskHeader({
         <Chip size="sm" variant="soft" color="default">
           {task.engine}
         </Chip>
+        {task.dangerouslySkipPermissions ? (
+          <Chip size="sm" variant="soft" color="danger">
+            跳过权限确认
+          </Chip>
+        ) : null}
         {task.retryCount > 0 ? <span>重试 {task.retryCount}</span> : null}
         {waitingSince ? <WaitingTime since={waitingSince} /> : null}
       </div>

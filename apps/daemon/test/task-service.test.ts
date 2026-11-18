@@ -18,7 +18,7 @@ interface Setup {
   service: ReturnType<typeof createTaskService>
 }
 
-function setup(): Setup {
+function setup(options: { allowBypassPermissions?: boolean } = {}): Setup {
   const root = mkdtempSync(join(tmpdir(), 'baton-task-'))
   dirs.push(root)
   const database = createTestDb()
@@ -45,6 +45,7 @@ function setup(): Setup {
     claudeMaxTurns: 30,
     claudeMaxBudgetUsd: 2,
     claudeProjectHooks: 'on',
+    allowBypassPermissions: options.allowBypassPermissions ?? false,
     killSwitch: false,
   }
   const service = createTaskService({
@@ -65,6 +66,7 @@ function input(seeded: ReturnType<typeof seedTask>): TaskCreateInput {
     contextNodeIds: ['text-1'],
     engine: 'fake',
     workspaceMode: 'main',
+    dangerouslySkipPermissions: false,
   }
 }
 
@@ -120,6 +122,46 @@ describe('createTask', () => {
     if (!missing.ok) {
       expect(missing.error.code).toBe('node_not_found')
     }
+  })
+
+  it('requires the global switch and a trusted workspace for bypass', () => {
+    const disabled = setup()
+    const blocked = disabled.service.createTask({
+      ...input(disabled.seeded),
+      dangerouslySkipPermissions: true,
+    })
+    expect(blocked.ok).toBe(false)
+    if (!blocked.ok) {
+      expect(blocked.error.code).toBe('bypass_not_allowed')
+    }
+
+    const enabled = setup({ allowBypassPermissions: true })
+    const untrusted = enabled.service.createTask({
+      ...input(enabled.seeded),
+      dangerouslySkipPermissions: true,
+    })
+    expect(untrusted.ok).toBe(false)
+    if (!untrusted.ok) {
+      expect(untrusted.error.code).toBe('workspace_untrusted')
+    }
+  })
+
+  it('persists bypass and writes an audit entry', () => {
+    const { database, seeded, service } = setup({ allowBypassPermissions: true })
+    database.raw
+      .prepare('update workspace set trusted = 1, trusted_at = 1 where id = ?')
+      .run(seeded.workspaceId)
+
+    const result = service.createTask({
+      ...input(seeded),
+      dangerouslySkipPermissions: true,
+    })
+    expect(result).toEqual({ ok: true, taskId: 'task-new' })
+    expect(getTask(database.db, 'task-new')?.dangerouslySkipPermissions).toBe(true)
+    const audits = database.raw
+      .prepare("select action from audit where action = 'task.bypass_permissions'")
+      .all()
+    expect(audits).toHaveLength(1)
   })
 
   it('rejects an invalid policy file', () => {

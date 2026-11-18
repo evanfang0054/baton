@@ -225,6 +225,9 @@ export class FakeAdapter implements AgentAdapter {
         pending = null
         current.deferred.resolve(decision)
       },
+      answerQuestion: async () => {
+        throw new Error('fake adapter does not ask structured questions')
+      },
       send: async (delta) => {
         if (isClosed()) {
           throw new Error('fake adapter run is closed')

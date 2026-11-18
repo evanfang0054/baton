@@ -8,6 +8,7 @@ const startInput = (): StartInput => ({
   permissionMode: 'manual',
   policy: PolicySchema.parse({}),
   workspaceTrust: { projectSettings: false, projectHooks: false },
+  bypassPermissions: false,
 })
 
 async function waitFor(

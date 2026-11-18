@@ -34,6 +34,9 @@ const schemaNames = [
   'Event',
   'ApprovalRequest',
   'Approval',
+  'UserQuestionOption',
+  'UserQuestion',
+  'UserQuestionList',
   'Review',
   'Audit',
   'Notice',
@@ -90,6 +93,7 @@ describe('protocol exports', () => {
         return {
           events: (async function* () {})(),
           approve: async () => {},
+          answerQuestion: async () => {},
           send: async () => {},
           interrupt: async () => {},
           dispose: async () => {},
@@ -103,6 +107,7 @@ describe('protocol exports', () => {
       permissionMode: 'manual',
       policy: PolicySchema.parse({}),
       workspaceTrust: { projectSettings: false, projectHooks: false },
+      bypassPermissions: false,
     })
     expect(adapter.name).toBe('fake')
     await run.dispose()

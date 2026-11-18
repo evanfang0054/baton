@@ -31,6 +31,7 @@ pnpm dev
 |---|---|
 | `BATON_DATA_DIR`（默认 `~/.baton`） | SQLite、迁移记录、产物与日志 |
 | `BATON_WORKSPACES_ROOT`（默认 `$HOME`） | 工作区根目录；workspace 存相对路径，路径经过 jail 校验 |
+| `BATON_ALLOW_BYPASS_PERMISSIONS`（默认关闭） | 允许单个任务选择 `--dangerously-skip-permissions`；仍需 workspace 已信任 |
 | `~/.claude` | Claude Code 登录态、settings、skills 与历史；由本机 Claude Code 直接使用 |
 
 备份时至少覆盖 `BATON_DATA_DIR` 与需要保留的工作区；`~/.claude` 由 Claude Code 自己管理。
@@ -43,6 +44,15 @@ pnpm dev
 - 引擎探测：`GET /api/engines` 返回 `claude-sdk` 的 `available | unknown | unavailable`；`unknown` 表示无法读取 macOS Keychain，但仍允许尝试。
 - 预算：默认 `BATON_CLAUDE_MAX_TURNS=30`、`BATON_CLAUDE_MAX_BUDGET_USD=2`。
 - hooks：`BATON_CLAUDE_PROJECT_HOOKS=off` 可强制关闭所有项目 hooks，优先于 workspace 设置。
+
+## 跳过审批与结构化提问
+
+- 默认所有工具审批。需要无人值守时，设置 `BATON_ALLOW_BYPASS_PERMISSIONS=1`，然后在已信任工作区的建任务表单里勾选「跳过权限确认」。
+- 跳过审批按任务生效，创建时写 `task.bypass_permissions` 审计；任务详情显示「跳过权限确认」徽标。
+- 关闭全局开关只影响新任务；已创建的任务仍保留自身标志，重新入队时会再次校验。
+- 即使跳过审批，baton 仍会拦截工作区外的读写；显式 ask 规则与 `AskUserQuestion` 仍会进入审批。
+- `AskUserQuestion` 会以选项卡片展示；提交后答案存 `approval.response_json` 并回传给模型。拒绝则不提供答案。
+- 自动策略不会替 `AskUserQuestion` 作答：没有人工（或未来总管）答案时任务保持 `waiting_input`。
 
 ## 远程访问
 

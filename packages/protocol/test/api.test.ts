@@ -40,6 +40,7 @@ const task = {
   worktreePath: null,
   verifyCommand: null,
   retryCount: 0,
+  dangerouslySkipPermissions: false,
   createdAt: 1,
   updatedAt: 1,
   attention: 'none',

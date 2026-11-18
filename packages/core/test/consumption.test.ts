@@ -71,6 +71,7 @@ describe('context -> policy -> adapter wiring', () => {
           approve: async (requestId, decision) => {
             approvals.push([requestId, decision])
           },
+          answerQuestion: async () => {},
           send: async () => {},
           interrupt: async () => {},
           dispose: async () => {},
@@ -84,6 +85,7 @@ describe('context -> policy -> adapter wiring', () => {
       permissionMode: 'manual',
       policy: snapshot,
       workspaceTrust: { projectSettings: false, projectHooks: false },
+      bypassPermissions: false,
     })
 
     const decision = evaluateApproval(

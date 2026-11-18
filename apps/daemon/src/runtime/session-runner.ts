@@ -13,6 +13,7 @@ import {
 } from '@baton/protocol'
 import type { BroadcastEvent, EventStore } from '../db/event-store.js'
 import {
+  getApproval,
   getTask,
   insertApproval,
   insertAudit,
@@ -23,6 +24,7 @@ import {
 import type { Db } from '../db/types.js'
 import { appError, toAppError } from '../errors.js'
 import type { AdapterFactory } from './adapter-factory.js'
+import { ASK_USER_QUESTION_TOOL, parseStoredAnswers, validateQuestionAnswers } from './questions.js'
 import type { StartSessionInput, TransitionOutcome } from './types.js'
 
 export interface SessionRunnerDeps {
@@ -94,9 +96,13 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       }),
     )
 
-    const decision = evaluateApproval(policy, request, { killSwitch: deps.killSwitch ?? false })
-    const autoDecision = decision.decision
-    if (autoDecision === 'allow' || autoDecision === 'deny') {
+    // 结构化提问不能被策略自动放行：没有答案的 allow 会让 SDK 停在 pending。
+    const decision =
+      request.toolName === ASK_USER_QUESTION_TOOL
+        ? null
+        : evaluateApproval(policy, request, { killSwitch: deps.killSwitch ?? false })
+    if (decision !== null && (decision.decision === 'allow' || decision.decision === 'deny')) {
+      const autoDecision = decision.decision
       // 决策与审计必须同事务提交，否则崩溃窗口会出现“已放行但无审计”。
       deps.db.transaction((tx) => {
         updateApprovalDecision(tx, approvalId, autoDecision, 'auto', deps.now())
@@ -289,6 +295,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
         permissionMode: 'manual',
         policy: input.policy,
         workspaceTrust: input.workspaceTrust,
+        bypassPermissions: input.bypassPermissions,
       })
     } catch (error) {
       failTask(task.id, input.sessionId, error)
@@ -320,6 +327,28 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
         continue
       }
       active.requestIdByApprovalId.delete(approvalId)
+      const record = getApproval(deps.db, approvalId)
+      if (record?.request.toolName === ASK_USER_QUESTION_TOOL && decision === 'allow') {
+        const stored = parseStoredAnswers(record.response)
+        const checked = stored
+          ? validateQuestionAnswers(record.request, {
+              decision: 'allow',
+              answers: stored.answers,
+              ...(stored.response ? { response: stored.response } : {}),
+            })
+          : null
+        if (checked?.ok && checked.payload) {
+          await active.run.answerQuestion(
+            requestId,
+            checked.payload.answers,
+            checked.payload.response,
+          )
+          return
+        }
+        // 答案缺失时不能静默 allow：SDK 会停在无答案的 pending 上。
+        await active.run.approve(requestId, 'deny', 'question answers missing')
+        return
+      }
       await active.run.approve(requestId, decision, note)
       return
     }

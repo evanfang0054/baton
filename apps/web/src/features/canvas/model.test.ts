@@ -1,6 +1,6 @@
 import type { Node as ProtocolNode, TaskSummary } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
-import { mergeFlowNodes, toFlowEdges, toFlowNodes } from './model'
+import { mergeFlowNodes, nextNodePosition, toFlowEdges, toFlowNodes } from './model'
 
 const textNode: ProtocolNode = {
   id: 'n1',
@@ -43,6 +43,7 @@ const task: TaskSummary = {
   branch: null,
   worktreePath: null,
   verifyCommand: null,
+  dangerouslySkipPermissions: false,
   retryCount: 0,
   createdAt: 1,
   updatedAt: 1,
@@ -104,5 +105,54 @@ describe('canvas model', () => {
     const current = toFlowNodes([textNode], [])
     const merged = mergeFlowNodes(current, toFlowNodes([{ ...textNode, x: 5, y: 6 }], []))
     expect(merged[0]?.position).toEqual({ x: 5, y: 6 })
+  })
+
+  it('places new nodes around the center without overlapping', () => {
+    const size = { w: 320, h: 200 }
+    const center = { x: 500, y: 400 }
+    const first = nextNodePosition(center, size, [])
+    expect(first).toEqual({ x: 340, y: 300 })
+
+    const second = nextNodePosition(center, size, [{ ...first, ...size }])
+    expect(second).toEqual({ x: 684, y: 300 })
+
+    const third = nextNodePosition(center, size, [
+      { ...first, ...size },
+      { ...second, ...size },
+    ])
+    expect(third).toEqual({ x: -4, y: 300 })
+  })
+
+  it('falls back to a new row when all center columns are occupied', () => {
+    const size = { w: 320, h: 200 }
+    const center = { x: 500, y: 400 }
+    const occupied = [0, 1, -1, 2, -2].map((column) => ({
+      x: 340 + column * 344,
+      y: 300,
+      ...size,
+    }))
+    expect(nextNodePosition(center, size, occupied)).toEqual({ x: 340, y: 524 })
+  })
+
+  it('skips slots outside the visible canvas', () => {
+    const size = { w: 320, h: 200 }
+    const center = { x: 500, y: 400 }
+    const bounds = { minX: 100, minY: 100, maxX: 1100, maxY: 800 }
+    const first = nextNodePosition(center, size, [], 24, bounds)
+    const second = nextNodePosition(center, size, [{ ...first, ...size }], 24, bounds)
+    const third = nextNodePosition(
+      center,
+      size,
+      [
+        { ...first, ...size },
+        { ...second, ...size },
+      ],
+      24,
+      bounds,
+    )
+
+    expect(first).toEqual({ x: 340, y: 300 })
+    expect(second).toEqual({ x: 684, y: 300 })
+    expect(third).toEqual({ x: 340, y: 524 })
   })
 })

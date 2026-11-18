@@ -19,5 +19,7 @@ export const Approval = z.object({
   /** 待审批时为 null；记录决定者（user/auto）。 */
   decidedBy: z.string().nullable(),
   decidedAt: Timestamp.nullable(),
+  /** AskUserQuestion 的答案快照；普通工具审批为 null。 */
+  response: z.unknown().nullable(),
 })
 export type Approval = z.infer<typeof Approval>

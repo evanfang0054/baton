@@ -33,6 +33,77 @@ export function toFlowEdges(edges: ProtocolEdge[]): FlowEdge[] {
   }))
 }
 
+export interface NodeRect {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+export interface CanvasBounds {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+const COLUMN_ORDER = [0, 1, -1, 2, -2] as const
+const MAX_ROWS = 20
+
+function overlaps(candidate: NodeRect, other: NodeRect, gap: number): boolean {
+  return (
+    candidate.x < other.x + other.w + gap &&
+    candidate.x + candidate.w + gap > other.x &&
+    candidate.y < other.y + other.h + gap &&
+    candidate.y + candidate.h + gap > other.y
+  )
+}
+
+function withinBounds(candidate: NodeRect, bounds: CanvasBounds): boolean {
+  return (
+    candidate.x >= bounds.minX &&
+    candidate.y >= bounds.minY &&
+    candidate.x + candidate.w <= bounds.maxX &&
+    candidate.y + candidate.h <= bounds.maxY
+  )
+}
+
+/**
+ * 以视口中心为基准找最近的空位：先居中，再向右/左展开，最后换行。
+ * 避免连续新建的节点以 32px 级联叠在一起，导致“怎么会都在一坨”。
+ */
+export function nextNodePosition(
+  center: { x: number; y: number },
+  size: { w: number; h: number },
+  nodes: NodeRect[],
+  gap = 24,
+  bounds?: CanvasBounds,
+): { x: number; y: number } {
+  const baseX = center.x - size.w / 2
+  const baseY = center.y - size.h / 2
+  const stepX = size.w + gap
+  const stepY = size.h + gap
+
+  for (let row = 0; row < MAX_ROWS; row += 1) {
+    for (const column of COLUMN_ORDER) {
+      const candidate: NodeRect = {
+        x: baseX + column * stepX,
+        y: baseY + row * stepY,
+        w: size.w,
+        h: size.h,
+      }
+      if (bounds && !withinBounds(candidate, bounds)) {
+        continue
+      }
+      if (!nodes.some((node) => overlaps(candidate, node, gap))) {
+        return { x: candidate.x, y: candidate.y }
+      }
+    }
+  }
+
+  return { x: baseX, y: baseY }
+}
+
 /** 合并服务端快照；拖拽中的节点保留本地位置，避免任务刷新把节点拉回去。 */
 export function mergeFlowNodes(
   current: FlowNode<CanvasNodeData>[],

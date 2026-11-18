@@ -173,6 +173,7 @@ describe('repositories', () => {
       worktreePath: null,
       verifyCommand: null,
       retryCount: 0,
+      dangerouslySkipPermissions: false,
       createdAt: 3,
       updatedAt: 3,
     })

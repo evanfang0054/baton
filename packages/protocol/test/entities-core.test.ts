@@ -126,6 +126,7 @@ describe('core entities', () => {
       worktreePath: null,
       verifyCommand: null,
       retryCount: 0,
+      dangerouslySkipPermissions: false,
       createdAt: 1,
       updatedAt: 1,
     }

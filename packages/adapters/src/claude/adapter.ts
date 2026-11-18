@@ -51,6 +51,7 @@ export class ClaudeAdapter implements AgentAdapter {
       cwd: input.cwd,
       workspaceTrust: input.workspaceTrust,
       projectHooksGlobal: this.projectHooksGlobal,
+      bypassPermissions: input.bypassPermissions,
       systemPromptAppend: BATON_PROTOCOL_PROMPT,
       maxTurns: this.maxTurns,
       maxBudgetUsd: this.maxBudgetUsd,
@@ -144,6 +145,16 @@ export class ClaudeAdapter implements AgentAdapter {
           throw new Error('session_closed')
         }
         await transport.approve(requestId, decision, note)
+      },
+      answerQuestion: async (
+        requestId: string,
+        answers: Record<string, string>,
+        response?: string,
+      ) => {
+        if (closed) {
+          throw new Error('session_closed')
+        }
+        await transport.answerQuestion(requestId, answers, response)
       },
       send: async (text: string) => {
         if (closed) {
