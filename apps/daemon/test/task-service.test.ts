@@ -86,7 +86,7 @@ describe('createTask', () => {
     expect(task?.prompt).toContain('登录页需求')
   })
 
-  it('rejects worktree mode and non-fake engines', () => {
+  it('rejects worktree mode and the pty engine', () => {
     const { seeded, service } = setup()
     const worktree = service.createTask({ ...input(seeded), workspaceMode: 'worktree' })
     expect(worktree.ok).toBe(false)
@@ -95,9 +95,12 @@ describe('createTask', () => {
     }
 
     const claude = service.createTask({ ...input(seeded), engine: 'claude-sdk' })
-    expect(claude.ok).toBe(false)
-    if (!claude.ok) {
-      expect(claude.error.code).toBe('unsupported_engine')
+    expect(claude.ok).toBe(true)
+
+    const pty = service.createTask({ ...input(seeded), engine: 'pty' })
+    expect(pty.ok).toBe(false)
+    if (!pty.ok) {
+      expect(pty.error.code).toBe('unsupported_engine')
     }
   })
 

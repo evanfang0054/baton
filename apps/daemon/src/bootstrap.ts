@@ -10,6 +10,7 @@ import type { Db } from './db/types.js'
 import { createLogger, type Logger } from './log.js'
 import { createAdapterFactory } from './runtime/adapter-factory.js'
 import { reconcileOnBoot } from './runtime/boot.js'
+import { createEngineRegistry } from './runtime/engines.js'
 import { createRuntime, type Runtime } from './runtime/index.js'
 import { createWsHub, type WsHub } from './ws/hub.js'
 
@@ -31,11 +32,20 @@ export async function bootstrap(config: Config): Promise<BootstrapResult> {
   const newId = (): string => randomUUID()
   const logger = createLogger()
   const hub = createWsHub()
+  const engines = createEngineRegistry()
   const runtime = createRuntime({
     db: orm,
     config,
     broadcast: (event) => hub.broadcast(event),
-    adapters: createAdapterFactory(),
+    adapters: createAdapterFactory(
+      {},
+      {
+        maxTurns: config.claudeMaxTurns,
+        maxBudgetUsd: config.claudeMaxBudgetUsd,
+        projectHooksGlobal: config.claudeProjectHooks !== 'off',
+      },
+    ),
+    engines,
     now,
     newId,
     logger,
@@ -48,6 +58,7 @@ export async function bootstrap(config: Config): Promise<BootstrapResult> {
     const app = await buildApp(config, {
       db: orm,
       runtime,
+      engines,
       hub,
       logger,
       now,

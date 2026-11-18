@@ -1,5 +1,11 @@
 import { attentionFor, type TaskEffect } from '@baton/core'
-import type { Policy, Task, TaskStatus, TaskStatusCause, WorkspaceTrustSnapshot } from '@baton/protocol'
+import type {
+  Policy,
+  Task,
+  TaskStatus,
+  TaskStatusCause,
+  WorkspaceTrustSnapshot,
+} from '@baton/protocol'
 import {
   type ApprovalRecord,
   appendTaskFeedback,

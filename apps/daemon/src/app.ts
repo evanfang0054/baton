@@ -8,6 +8,7 @@ import type { Db } from './db/types.js'
 import { registerApiAuth } from './http/api-auth.js'
 import { registerAuth } from './http/auth.js'
 import { registerCanvasRoutes } from './http/canvas.js'
+import { registerEngineRoutes } from './http/engines.js'
 import { registerErrorHandler } from './http/errors.js'
 import { registerStatic } from './http/static.js'
 import { registerSessionRoutes } from './http/sessions.js'
@@ -15,6 +16,7 @@ import { registerTaskRoutes } from './http/tasks.js'
 import { registerWorkspaceRoutes } from './http/workspaces.js'
 import type { Logger } from './log.js'
 import type { Runtime } from './runtime/index.js'
+import type { EngineRegistry } from './runtime/engines.js'
 import type { WsHub } from './ws/hub.js'
 import { attachWs } from './ws/server.js'
 
@@ -25,6 +27,7 @@ const startedAt = Date.now()
 export interface AppDeps {
   db: Db
   runtime: Runtime
+  engines: EngineRegistry
   hub: WsHub
   logger: Logger
   now: () => number
@@ -59,6 +62,7 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
     newId: deps.newId,
   })
   registerCanvasRoutes(app, { db: deps.db })
+  registerEngineRoutes(app, { engines: deps.engines })
   registerTaskRoutes(app, { db: deps.db })
   registerSessionRoutes(app, { db: deps.db })
 

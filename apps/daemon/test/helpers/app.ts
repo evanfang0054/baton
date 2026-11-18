@@ -21,6 +21,7 @@ export async function buildTestApp(
   const app = await buildApp(handle.config, {
     db: handle.database.db,
     runtime: handle.runtime,
+    engines: handle.engines,
     hub,
     logger,
     now: handle.now,

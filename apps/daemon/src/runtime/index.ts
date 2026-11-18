@@ -32,6 +32,7 @@ import { appError, toAppError } from '../errors.js'
 import type { Logger } from '../log.js'
 import { createVerifyRunner, type VerifyRunner } from '../verify/runner.js'
 import type { AdapterFactory } from './adapter-factory.js'
+import type { EngineRegistry } from './engines.js'
 import { createScheduler, type Scheduler } from './scheduler.js'
 import { createSessionRunner, type SessionRunner } from './session-runner.js'
 import { createTaskService } from './task-service.js'
@@ -43,6 +44,7 @@ export interface RuntimeDeps {
   config: Config
   broadcast: (event: BroadcastEvent) => void
   adapters?: AdapterFactory
+  engines?: EngineRegistry
   startSession?: (input: StartSessionInput) => void | Promise<void>
   interruptSession?: (taskId: string) => void | Promise<void>
   resolveApproval?: (
@@ -157,6 +159,20 @@ export function createRuntime(deps: RuntimeDeps) {
   }
 
   function enqueue(taskId: string): TransitionOutcome {
+    const task = getTask(deps.db, taskId)
+    if (task && deps.engines) {
+      const status = deps.engines.get(task.engine)
+      if (status.status === 'unavailable') {
+        return {
+          ok: false,
+          error: appError(
+            'engine_unavailable',
+            status.reason ?? `engine ${task.engine} is unavailable`,
+            { engine: task.engine, status: status.status },
+          ),
+        }
+      }
+    }
     return applyTransition(taskId, { type: 'enqueue' })
   }
 

@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import type { Config } from '../../src/config.js'
 import type { BroadcastEvent } from '../../src/db/event-store.js'
 import { createAdapterFactory, type AdapterFactory } from '../../src/runtime/adapter-factory.js'
+import { createEngineRegistry, type EngineRegistry } from '../../src/runtime/engines.js'
 import { createRuntime, type Runtime } from '../../src/runtime/index.js'
 import type { StartSessionInput } from '../../src/runtime/types.js'
 import { createTestDb, seedTask, type SeededTask, type TestDb } from './db.js'
@@ -15,6 +16,7 @@ export interface TestRuntimeHandle {
   seeded: SeededTask
   root: string
   config: Config
+  engines: EngineRegistry
   now: () => number
   newId: () => string
   events: BroadcastEvent[]
@@ -34,6 +36,7 @@ export function createTestRuntime(
     adapters?: AdapterFactory
     config?: Partial<Config>
     broadcast?: (event: BroadcastEvent) => void
+    engines?: EngineRegistry
   } = {},
 ): TestRuntimeHandle {
   const root = mkdtempSync(join(tmpdir(), 'baton-runtime-'))
@@ -73,9 +76,18 @@ export function createTestRuntime(
   const now = (): number => tick++
   const newId = (): string => `id-${++id}`
 
+  const engines =
+    options.engines ??
+    createEngineRegistry({
+      env: {},
+      home: root,
+      sdkMeta: () => ({ available: true, version: 'test' }),
+    })
+
   const runtime = createRuntime({
     db: database.db,
     config,
+    engines,
     broadcast:
       options.broadcast ??
       ((event) => {
@@ -134,6 +146,7 @@ export function createTestRuntime(
     seeded,
     root,
     config,
+    engines,
     now,
     newId,
     events,
