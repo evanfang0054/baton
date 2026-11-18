@@ -1073,3 +1073,26 @@ Expected: 输出为空。
 git add docs/plans/2026-11-18-m1-6b-context-web.md
 git commit -m "docs(plan): M1-6b Web 计划完成记录"
 ```
+
+---
+
+## 完成记录（2026-11-18）
+
+- **提交**：`c702ce7` 选择状态、`2fccef6` 多选/连线、`0acaec4` chips、`45355e3` 详情快照、`9bead6e` 多选稳定、`61b9017` e2e、`3f3ca60` 连接手柄、`431583d` 证据。
+- **验证**：`pnpm verify:full` 全绿（3 个 Playwright 用例）；`pnpm pack:check` 输出 `pack-check ok`。
+- **ego-lite 证据**：`docs/evidence/2026-11-18-m1-6b-canvas-context/`。真实 Claude 同时识别 `ALPHA-42` 与 `BETA-17`，并说明二者由一条 `context` 有向边相连；详情快照显示 2 个注入 + 1 条关系。
+- **实现偏离与坑**：
+  - 自定义节点必须显式 `isConnectable`，否则 React Flow 会给 handle 设 `pointer-events: none`，拖拽只会平移画布。
+  - `onSelectionChange` 会持续推送新数组；`setSelection` 在 ID 未变时返回原 state，避免 React 最大更新深度。
+  - 选中同步只在目标尚未选中时补选中，否则 Cmd/Ctrl 多选会被收敛成单选。
+  - 多选采用 `selectionKeyCode="Shift"`，保留默认左键平移；没有开 `selectionOnDrag`。
+  - 测试转换器对字面量 `context` 键/JSX prop 有解析问题：组件 prop 改用 `snapshot`，fixture 用计算属性；测试文件名避免与同目录模块同名（`app.test.ts`、`model.test.ts`、`CreateTaskForm.test.tsx` 已改名）。
+  - 真实任务内的 verify 因宿主机 pnpm shim 路径不可用退出 1；证据 README 已如实记录，人工按 Claude 输出与快照验收通过。
+
+## 审查修复（2026-11-18）
+
+- **P1 键盘删除绕过服务端**：`onBeforeDelete` 阻止 React Flow 直接删节点，并过滤挂在被保护节点上的边；节点删除仍只走 NodePanel。e2e 增加 Delete 键守卫。
+- **P2 反选覆盖上下文**：`onNodeClick` 忽略 Cmd/Ctrl/Shift 点击，多选/反选不再把 sticky 上下文收敛成单个节点。
+- **P2 快照损坏与老任务混淆**：`TaskDetailResponse.contextInvalid` 透传仓储解析结果；详情卡片区分“快照不可用”与“上线前未记录”。
+- **P3 批量**：关系 key 带类型、关系徽标、节点类型中文标签与深度、chips 图标/计数/清空、`edge.delete` 异常兜底（含 router 级 `internal_error`）、UNIQUE 约束错误码精确匹配、`logger.warn`、`getTaskRow`/`compareText`/`seedTextNode` 复用、删除死代码 `hasEdgeForNode`。
+- **验证**：`pnpm verify:full` 全绿（3 个 Playwright 用例）；`pnpm pack:check` 输出 `pack-check ok`；`rest-api` 新增 `contextInvalid` 断言。

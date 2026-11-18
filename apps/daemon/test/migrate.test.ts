@@ -63,6 +63,7 @@ describe('migrateDb', () => {
     ).toEqual([
       'approval_session_request_idx',
       'audit_ts_idx',
+      'edge_unique_idx',
       'event_ordinal_idx',
       'event_session_seq_idx',
       'node_canvas_idx',
@@ -210,6 +211,75 @@ describe('migrateDb', () => {
     })
     expect(appended.ordinal).toBe(2)
     expect(store.replay(0).rows).toHaveLength(2)
+    db.close()
+  })
+
+  it('dedupes edges before creating the unique index', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'baton-edge-dedupe-'))
+    dirs.push(dir)
+    const oldMigrations = join(dir, 'old-migrations')
+    mkdirSync(join(oldMigrations, 'meta'), { recursive: true })
+    for (const name of [
+      '0000_married_hannibal_king.sql',
+      '0001_cheerful_xavin.sql',
+      '0002_glorious_cardiac.sql',
+      '0003_workspace_trust.sql',
+      '0004_permissions_and_questions.sql',
+    ]) {
+      copyFileSync(join(migrationsDir, name), join(oldMigrations, name))
+    }
+    const fullJournal = JSON.parse(
+      readFileSync(join(migrationsDir, 'meta', '_journal.json'), 'utf8'),
+    ) as {
+      entries: Array<{
+        idx: number
+        version: string
+        when: number
+        tag: string
+        breakpoints: boolean
+      }>
+    }
+    writeFileSync(
+      join(oldMigrations, 'meta', '_journal.json'),
+      JSON.stringify({
+        version: '7',
+        dialect: 'sqlite',
+        entries: fullJournal.entries.filter((entry) => entry.idx <= 4),
+      }),
+    )
+
+    process.env.BATON_MIGRATIONS_DIR = oldMigrations
+    const db = openDb(join(dir, 'old.db'))
+    migrateDb(db)
+    db.prepare(
+      `insert into workspace (id, name, rel_path, created_at) values ('w1', 'demo', 'demo', 1)`,
+    ).run()
+    db.prepare(
+      `insert into canvas (id, workspace_id, viewport_json) values ('c1', 'w1', '{"x":0,"y":0,"zoom":1}')`,
+    ).run()
+    for (const id of ['n1', 'n2']) {
+      db.prepare(
+        `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
+         values (?, 'c1', 'text', 0, 0, 320, 200, null, '{"content":"x"}', 1, 1)`,
+      ).run(id)
+    }
+    db.prepare(
+      `insert into edge (id, canvas_id, source_id, target_id, type) values
+       ('e1', 'c1', 'n1', 'n2', 'context'),
+       ('e2', 'c1', 'n1', 'n2', 'context')`,
+    ).run()
+
+    process.env.BATON_MIGRATIONS_DIR = migrationsDir
+    migrateDb(db)
+
+    const rows = db.prepare(`select id from edge order by id`).all() as Array<{ id: string }>
+    expect(rows).toEqual([{ id: 'e1' }])
+    expect(
+      db
+        .prepare(`select name from sqlite_master where type = 'index' and name = 'edge_unique_idx'`)
+        .get(),
+    ).toEqual({ name: 'edge_unique_idx' })
+    expect(columns(db, 'task').find((column) => column.name === 'context_json')?.notnull).toBe(0)
     db.close()
   })
 })

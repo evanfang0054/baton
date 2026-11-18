@@ -1,6 +1,12 @@
-import type { Node as ProtocolNode, TaskSummary } from '@baton/protocol'
+import type { Edge as ProtocolEdge, Node as ProtocolNode, TaskSummary } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
-import { mergeFlowNodes, nextNodePosition, toFlowEdges, toFlowNodes } from './model'
+import {
+  isValidConnection,
+  mergeFlowNodes,
+  nextNodePosition,
+  toFlowEdges,
+  toFlowNodes,
+} from './model'
 
 const textNode: ProtocolNode = {
   id: 'n1',
@@ -74,7 +80,7 @@ describe('canvas model', () => {
     expect(toFlowNodes([image], [])[0]?.type).toBe('default')
   })
 
-  it('maps protocol edges to read-only flow edges', () => {
+  it('maps protocol edges to mutable flow edges', () => {
     const edges = toFlowEdges([
       { id: 'e1', canvasId: 'c1', sourceId: 'n1', targetId: 'n2', type: 'context' },
     ])
@@ -82,10 +88,28 @@ describe('canvas model', () => {
       id: 'e1',
       source: 'n1',
       target: 'n2',
-      selectable: false,
-      focusable: false,
-      deletable: false,
+      selectable: true,
+      focusable: true,
+      deletable: true,
     })
+  })
+
+  it('rejects self loops, duplicates and empty endpoints', () => {
+    const edges: ProtocolEdge[] = [
+      { id: 'e1', canvasId: 'c1', sourceId: 'n1', targetId: 'n2', type: 'context' },
+    ]
+    expect(isValidConnection({ source: 'n1', target: 'n1' }, edges)).toBe(false)
+    expect(isValidConnection({ source: 'n1', target: 'n2' }, edges)).toBe(false)
+    expect(isValidConnection({ source: null, target: 'n2' }, edges)).toBe(false)
+    expect(isValidConnection({ source: 'n1', target: null }, edges)).toBe(false)
+  })
+
+  it('allows the reverse direction and new pairs', () => {
+    const edges: ProtocolEdge[] = [
+      { id: 'e1', canvasId: 'c1', sourceId: 'n1', targetId: 'n2', type: 'context' },
+    ]
+    expect(isValidConnection({ source: 'n2', target: 'n1' }, edges)).toBe(true)
+    expect(isValidConnection({ source: 'n1', target: 'n3' }, edges)).toBe(true)
   })
 
   it('keeps the local position of a node that is being dragged', () => {

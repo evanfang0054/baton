@@ -1,6 +1,7 @@
 export * from './common.js'
 export * from './enums.js'
 export * from './errors.js'
+export * from './context.js'
 export * from './policy.js'
 export * from './entities/index.js'
 export * from './transitions.js'

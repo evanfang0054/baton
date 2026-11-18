@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { Config } from '../src/config.js'
 import { getTask } from '../src/db/repositories.js'
 import { createTaskService } from '../src/runtime/task-service.js'
-import { createTestDb, seedTask, type TestDb } from './helpers/db.js'
+import { createTestDb, seedTask, seedTextNode, type TestDb } from './helpers/db.js'
 
 const dirs: string[] = []
 const dbs: TestDb[] = []
@@ -26,12 +26,7 @@ function setup(options: { allowBypassPermissions?: boolean } = {}): Setup {
   const seeded = seedTask(database.raw)
   const workspacePath = join(root, seeded.relPath)
   mkdirSync(workspacePath, { recursive: true })
-  database.raw
-    .prepare(
-      `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
-       values ('text-1', ?, 'text', 10, 10, 320, 200, null, ?, 1, 1)`,
-    )
-    .run(seeded.canvasId, JSON.stringify({ content: '登录页需求' }))
+  seedTextNode(database.raw, seeded.canvasId, 'text-1', '登录页需求')
 
   const config: Config = {
     host: '127.0.0.1',
@@ -86,6 +81,27 @@ describe('createTask', () => {
     expect(task?.prompt).toContain('<task>把登录页改成暗黑模式</task>')
     expect(task?.prompt).toContain('<node id="text-1"')
     expect(task?.prompt).toContain('登录页需求')
+  })
+
+  it('persists a context snapshot from the same assembly', () => {
+    const { database, seeded, service } = setup()
+    const result = service.createTask(input(seeded))
+    expect(result).toEqual({ ok: true, taskId: 'task-new' })
+
+    const row = database.raw
+      .prepare('select context_json from task where id = ?')
+      .get('task-new') as { context_json: string }
+    const snapshot = JSON.parse(row.context_json) as {
+      included: Array<{ id: string; title: string }>
+      dropped: unknown[]
+      relations: unknown[]
+      relationsTruncated: boolean
+    }
+    expect(snapshot.included.map((item) => item.id)).toEqual(['text-1'])
+    expect(snapshot.included[0]?.title).toBe('登录页需求')
+    expect(snapshot.dropped).toEqual([])
+    expect(snapshot.relations).toEqual([])
+    expect(snapshot.relationsTruncated).toBe(false)
   })
 
   it('rejects worktree mode and the pty engine', () => {

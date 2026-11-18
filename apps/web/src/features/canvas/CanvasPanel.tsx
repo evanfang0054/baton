@@ -1,4 +1,5 @@
 import type { CanvasResponse, NodeCreateValue, TaskSummary } from '@baton/protocol'
+import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -7,6 +8,7 @@ import {
   ReactFlowProvider,
   useNodesState,
   useReactFlow,
+  type Connection,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import {
@@ -21,10 +23,18 @@ import {
 import type { ForwardedRef } from 'react'
 import { useCommand } from '../../lib/command-context'
 import { queryKeys } from '../../lib/query'
+import { CommandError } from '../../lib/ws'
+import type { SelectionNode } from '../../stores/app'
 import { CanvasActionsProvider } from './actions'
 import { CanvasToolbar } from './CanvasToolbar'
 import { CreateFileNodeDialog } from './CreateFileNodeDialog'
-import { mergeFlowNodes, nextNodePosition, toFlowEdges, toFlowNodes } from './model'
+import {
+  isValidConnection,
+  mergeFlowNodes,
+  nextNodePosition,
+  toFlowEdges,
+  toFlowNodes,
+} from './model'
 import { AgentNode } from './nodes/AgentNode'
 import { FileNode } from './nodes/FileNode'
 import { TextNode } from './nodes/TextNode'
@@ -41,6 +51,7 @@ interface CanvasPanelProps {
   tasks: TaskSummary[]
   selectedNodeId: string | null
   onSelectNode: (nodeId: string | null) => void
+  onSelectNodes: (nodes: SelectionNode[]) => void
 }
 
 const nodeTypes = { text: TextNode, file: FileNode, agent: AgentNode }
@@ -61,6 +72,7 @@ function FlowCanvas({
   tasks,
   selectedNodeId,
   onSelectNode,
+  onSelectNodes,
   handleRef,
 }: CanvasPanelProps & {
   handleRef: ForwardedRef<CanvasPanelHandle>
@@ -70,6 +82,7 @@ function FlowCanvas({
   const containerRef = useRef<HTMLDivElement>(null)
   const { screenToFlowPosition, fitView, zoomIn, zoomOut } = useReactFlow()
   const [fileDialogOpen, setFileDialogOpen] = useState(false)
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
 
   const flowNodes = useMemo(() => {
     if (!canvas) return []
@@ -88,16 +101,18 @@ function FlowCanvas({
   }, [flowNodes])
 
   // React Flow 自己维护选中态；外部清空 selectedNodeId（如打开任务、关闭节点详情）时
-  // 同步清掉它的选中标记，避免画布上残留高亮。
+  // 同步清掉它的选中标记，避免画布上残留高亮。只在目标尚未选中时补选中，
+  // 否则会把 Cmd/Ctrl 多选收敛成单选。
   useEffect(() => {
     setNodes((current) => {
-      const target = selectedNodeId ?? null
-      const isSynced =
-        target === null
-          ? current.every((node) => !node.selected)
-          : current.length > 0 &&
-            current.every((node) => Boolean(node.selected) === (node.id === target))
-      return isSynced ? current : current.map((node) => ({ ...node, selected: node.id === target }))
+      if (selectedNodeId === null) {
+        return current.every((node) => !node.selected)
+          ? current
+          : current.map((node) => (node.selected ? { ...node, selected: false } : node))
+      }
+      const target = current.find((node) => node.id === selectedNodeId)
+      if (!target || target.selected) return current
+      return current.map((node) => ({ ...node, selected: node.id === selectedNodeId }))
     })
   }, [selectedNodeId, setNodes])
 
@@ -120,6 +135,49 @@ function FlowCanvas({
     },
     [refreshCanvas, send],
   )
+
+  const connect = useCallback(
+    async (connection: Connection) => {
+      if (!canvas || !isValidConnection(connection, canvas.edges)) return
+      try {
+        await send({
+          type: 'edge.create',
+          payload: {
+            sourceId: connection.source,
+            targetId: connection.target,
+            type: 'context',
+          },
+        })
+      } catch (cause) {
+        toast.danger(cause instanceof Error ? cause.message : '连线创建失败')
+      } finally {
+        await refreshCanvas()
+      }
+    },
+    [canvas, refreshCanvas, send],
+  )
+
+  const removeEdges = useCallback(
+    async (deleted: Array<{ id: string }>) => {
+      for (const edge of deleted) {
+        try {
+          await send({ type: 'edge.delete', payload: { edgeId: edge.id } })
+        } catch (cause) {
+          if (cause instanceof CommandError && cause.code === 'edge_not_found') continue
+          toast.danger(cause instanceof Error ? cause.message : '连线删除失败')
+          break
+        }
+      }
+      setSelectedEdgeId(null)
+      await refreshCanvas()
+    },
+    [refreshCanvas, send],
+  )
+
+  const deleteSelectedEdge = useCallback(() => {
+    const edge = canvas?.edges.find((item) => item.id === selectedEdgeId)
+    if (edge) void removeEdges([{ id: edge.id }])
+  }, [canvas?.edges, removeEdges, selectedEdgeId])
 
   const centerPosition = useCallback(() => {
     const rect = containerRef.current?.getBoundingClientRect()
@@ -220,6 +278,13 @@ function FlowCanvas({
         onZoomIn={() => void zoomIn()}
         onZoomOut={() => void zoomOut()}
       />
+      {selectedEdgeId ? (
+        <div className="absolute top-3 right-3 z-10">
+          <Button variant="danger" onPress={deleteSelectedEdge}>
+            删除连线
+          </Button>
+        </div>
+      ) : null}
       {nodes.length === 0 ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="rounded-xl border border-dashed border-separator px-6 py-10 text-sm text-muted">
@@ -239,11 +304,41 @@ function FlowCanvas({
           }}
           // 用 onNodeClick 而不是 onSelectionChange：后者会在外部清空选中后
           // 把 React Flow 的旧选中反复推回 store，触发更新死循环。
-          onNodeClick={(_, node) => onSelectNode(node.id)}
-          onPaneClick={() => onSelectNode(null)}
-          nodesConnectable={false}
-          edgesFocusable={false}
-          deleteKeyCode={null}
+          onNodeClick={(event, node) => {
+            // Cmd/Ctrl/Shift 点击是多选/反选，不要覆盖单选面板状态。
+            if (event.metaKey || event.ctrlKey || event.shiftKey) return
+            onSelectNode(node.id)
+          }}
+          onSelectionChange={({ nodes: selected }) =>
+            onSelectNodes(selected.map((node) => ({ id: node.id, type: node.data.node.type })))
+          }
+          onPaneClick={() => {
+            setSelectedEdgeId(null)
+            onSelectNode(null)
+          }}
+          onEdgeClick={(_, edge) => setSelectedEdgeId(edge.id)}
+          selectionKeyCode="Shift"
+          multiSelectionKeyCode={['Meta', 'Control']}
+          nodesConnectable
+          edgesFocusable
+          deleteKeyCode={['Backspace', 'Delete']}
+          isValidConnection={(connection) => isValidConnection(connection, canvas.edges)}
+          onConnect={(connection) => void connect(connection)}
+          onEdgesDelete={(deleted) => void removeEdges(deleted)}
+          // 节点删除必须走 NodePanel 的确认入口；键盘删除只允许删边，
+          // 并连带过滤掉挂在被保护节点上的边，避免“边删了、节点没删”。
+          onBeforeDelete={async ({ nodes: deletingNodes, edges: deletingEdges }) => {
+            if (deletingNodes.length === 0) {
+              return { nodes: [], edges: deletingEdges }
+            }
+            const blocked = new Set(deletingNodes.map((node) => node.id))
+            return {
+              nodes: [],
+              edges: deletingEdges.filter(
+                (edge) => !blocked.has(edge.source) && !blocked.has(edge.target),
+              ),
+            }
+          }}
           defaultViewport={canvas.canvas.viewport}
           minZoom={0.2}
           maxZoom={2}

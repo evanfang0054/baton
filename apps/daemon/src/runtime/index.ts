@@ -13,6 +13,7 @@ import { createEventStore, type BroadcastEvent, type WsEventRow } from '../db/ev
 import {
   countActiveTasks,
   countLiveSessions,
+  deleteEdgesForNode,
   deleteNode,
   getApproval,
   getCanvas,
@@ -21,7 +22,6 @@ import {
   getReviewByTask,
   getSession,
   getTask,
-  hasEdgeForNode,
   hasTaskForNode,
   insertNode,
   listTasksByStatus,
@@ -33,6 +33,7 @@ import { appError, toAppError } from '../errors.js'
 import type { Logger } from '../log.js'
 import { createVerifyRunner, type VerifyRunner } from '../verify/runner.js'
 import type { AdapterFactory } from './adapter-factory.js'
+import { createEdge, deleteEdge } from './edge-service.js'
 import type { EngineRegistry } from './engines.js'
 import { createScheduler, type Scheduler } from './scheduler.js'
 import { createSessionRunner, type SessionRunner } from './session-runner.js'
@@ -469,17 +470,21 @@ export function createRuntime(deps: RuntimeDeps) {
             }),
           }
         }
-        if (hasEdgeForNode(deps.db, existing.id)) {
-          return {
-            ok: false,
-            error: appError('node_in_use', 'node is referenced by an edge', {
-              nodeId: existing.id,
-              reference: 'edge',
-            }),
-          }
-        }
-        deps.db.transaction((tx) => deleteNode(tx, existing.id))
+        deps.db.transaction((tx) => {
+          deleteEdgesForNode(tx, existing.id)
+          deleteNode(tx, existing.id)
+        })
         return { ok: true, ack: { nodeId: existing.id } }
+      }
+      case 'edge.create': {
+        const result = createEdge({ db: deps.db, newId }, message.payload)
+        return result.ok
+          ? { ok: true, ack: { edgeId: result.edgeId } }
+          : { ok: false, error: result.error }
+      }
+      case 'edge.delete': {
+        const result = deleteEdge({ db: deps.db }, message.payload)
+        return result.ok ? { ok: true, ack: {} } : { ok: false, error: result.error }
       }
       case 'resume': {
         const result = replay(message.payload.sinceSeq)

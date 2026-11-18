@@ -27,10 +27,24 @@ export function toFlowEdges(edges: ProtocolEdge[]): FlowEdge[] {
     id: edge.id,
     source: edge.sourceId,
     target: edge.targetId,
-    selectable: false,
-    focusable: false,
-    deletable: false,
+    selectable: true,
+    focusable: true,
+    deletable: true,
   }))
+}
+
+export function isValidConnection(
+  connection: { source: string | null; target: string | null },
+  edges: ProtocolEdge[],
+): boolean {
+  if (!connection.source || !connection.target) return false
+  if (connection.source === connection.target) return false
+  return !edges.some(
+    (edge) =>
+      edge.sourceId === connection.source &&
+      edge.targetId === connection.target &&
+      edge.type === 'context',
+  )
 }
 
 export interface NodeRect {

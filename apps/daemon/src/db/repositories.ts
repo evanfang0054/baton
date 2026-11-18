@@ -1,11 +1,13 @@
 import {
   Approval,
   Canvas,
+  ContextSnapshot,
   Edge,
   Node,
   Review,
   Session,
   Task,
+  TaskDetail,
   Workspace,
   type ApprovalDecision,
   type ApprovalRequest,
@@ -253,21 +255,56 @@ export function deleteNode(tx: Tx, id: string): void {
   tx.delete(node).where(eq(node.id, id)).run()
 }
 
+export function getEdge(db: Db, id: string): Edge | null {
+  const row = db.select().from(edge).where(eq(edge.id, id)).get()
+  return row ? toEdge(row) : null
+}
+
+export function findEdge(
+  db: Db,
+  input: { canvasId: string; sourceId: string; targetId: string; type: string },
+): Edge | null {
+  const row = db
+    .select()
+    .from(edge)
+    .where(
+      and(
+        eq(edge.canvasId, input.canvasId),
+        eq(edge.sourceId, input.sourceId),
+        eq(edge.targetId, input.targetId),
+        eq(edge.type, input.type),
+      ),
+    )
+    .get()
+  return row ? toEdge(row) : null
+}
+
+export function insertEdge(tx: Tx, value: Edge): void {
+  tx.insert(edge)
+    .values({
+      id: value.id,
+      canvasId: value.canvasId,
+      sourceId: value.sourceId,
+      targetId: value.targetId,
+      type: value.type,
+    })
+    .run()
+}
+
+export function deleteEdgeById(tx: Tx, id: string): void {
+  tx.delete(edge).where(eq(edge.id, id)).run()
+}
+
+export function deleteEdgesForNode(tx: Tx, nodeId: string): void {
+  tx.delete(edge)
+    .where(or(eq(edge.sourceId, nodeId), eq(edge.targetId, nodeId)))
+    .run()
+}
+
 export function hasTaskForNode(db: Db, nodeId: string): boolean {
   return (
     db.select({ id: task.id }).from(task).where(eq(task.nodeId, nodeId)).limit(1).get() !==
     undefined
-  )
-}
-
-export function hasEdgeForNode(db: Db, nodeId: string): boolean {
-  return (
-    db
-      .select({ id: edge.id })
-      .from(edge)
-      .where(or(eq(edge.sourceId, nodeId), eq(edge.targetId, nodeId)))
-      .limit(1)
-      .get() !== undefined
   )
 }
 
@@ -300,9 +337,37 @@ export function listEdges(db: Db, canvasId: string): Edge[] {
   return db.select().from(edge).where(eq(edge.canvasId, canvasId)).all().map(toEdge)
 }
 
+function getTaskRow(db: Db, id: string) {
+  return db.select().from(task).where(eq(task.id, id)).get()
+}
+
 export function getTask(db: Db, id: string): Task | null {
-  const row = db.select().from(task).where(eq(task.id, id)).get()
+  const row = getTaskRow(db, id)
   return row ? toTask(row) : null
+}
+
+export function getTaskDetail(
+  db: Db,
+  id: string,
+): { task: TaskDetail; contextInvalid: boolean } | null {
+  const row = getTaskRow(db, id)
+  if (!row) return null
+  const base = toTask(row)
+  if (!row.contextJson) {
+    return { task: TaskDetail.parse({ ...base, context: null }), contextInvalid: false }
+  }
+  try {
+    const parsed = ContextSnapshot.safeParse(JSON.parse(row.contextJson) as unknown)
+    if (!parsed.success) {
+      return { task: TaskDetail.parse({ ...base, context: null }), contextInvalid: true }
+    }
+    return {
+      task: TaskDetail.parse({ ...base, context: parsed.data }),
+      contextInvalid: false,
+    }
+  } catch {
+    return { task: TaskDetail.parse({ ...base, context: null }), contextInvalid: true }
+  }
 }
 
 export function listTasks(db: Db, filter: { workspaceId: string; status?: TaskStatus }): Task[] {
@@ -322,7 +387,7 @@ export function listTasksByStatus(db: Db, statuses: TaskStatus[]): Task[] {
     .map(toTask)
 }
 
-export function insertTask(tx: Tx, input: Task): void {
+export function insertTask(tx: Tx, input: Task, contextJson: string | null = null): void {
   tx.insert(task)
     .values({
       id: input.id,
@@ -339,6 +404,7 @@ export function insertTask(tx: Tx, input: Task): void {
       verifyCommand: input.verifyCommand,
       retryCount: input.retryCount,
       dangerouslySkipPermissions: input.dangerouslySkipPermissions,
+      contextJson,
       createdAt: input.createdAt,
       updatedAt: input.updatedAt,
     })

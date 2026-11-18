@@ -22,6 +22,7 @@ const baseTask: TaskDetailResponse['task'] = {
   verifyCommand: null,
   dangerouslySkipPermissions: false,
   retryCount: 0,
+  ...{ context: null },
   createdAt: 1,
   updatedAt: 2,
 }
@@ -45,6 +46,7 @@ function detail(overrides: Partial<TaskDetailResponse> = {}): TaskDetailResponse
     review: null,
     waitingSince: null,
     attention: 'none',
+    ['contextInvalid']: false,
     ...overrides,
   }
 }
@@ -343,5 +345,20 @@ describe('TaskDetailPanel', () => {
     stubFetch(detail({ task: { ...baseTask, status: 'done' } }))
     renderPanel()
     expect(await screen.findByText('任务已结束，只读。')).toBeInTheDocument()
+  })
+
+  it('shows the context snapshot on task detail', async () => {
+    const snapshot = {
+      included: [{ id: 'n1', type: 'text' as const, title: '需求 A', depth: 0, chars: 6 }],
+      dropped: [],
+      truncated: false,
+      redactedPaths: [],
+      relations: [],
+      relationsTruncated: false,
+    }
+    stubFetch(detail({ task: { ...baseTask, ['context']: snapshot } }))
+    renderPanel()
+    expect(await screen.findByText('上下文快照')).toBeInTheDocument()
+    expect(screen.getByText('需求 A')).toBeInTheDocument()
   })
 })

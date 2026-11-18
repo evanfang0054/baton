@@ -110,6 +110,9 @@ const fixtures = [
       },
     },
   ],
+  ['edge.create', { sourceId: 'n1', targetId: 'n2' }],
+  ['edge.create', { sourceId: 'n1', targetId: 'n2', type: 'context' }],
+  ['edge.delete', { edgeId: 'e1' }],
 ] as const
 
 describe('ClientMessage', () => {

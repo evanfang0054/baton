@@ -124,25 +124,37 @@ export function createTaskService(deps: TaskServiceDeps) {
 
       const now = deps.now()
       const taskId = deps.newId()
+      const snapshot = {
+        included: assembled.included,
+        dropped: assembled.dropped,
+        truncated: assembled.truncated,
+        redactedPaths: assembled.redactedPaths,
+        relations: assembled.relations,
+        relationsTruncated: assembled.relationsTruncated,
+      }
       deps.db.transaction((tx) => {
-        insertTask(tx, {
-          id: taskId,
-          workspaceId: workspace.id,
-          nodeId: input.nodeId,
-          title: input.title,
-          prompt: assembled.prompt,
-          status: 'todo',
-          waitingReason: null,
-          engine: input.engine,
-          workspaceMode: input.workspaceMode,
-          branch: null,
-          worktreePath: null,
-          verifyCommand: input.verifyCommand ?? null,
-          retryCount: 0,
-          dangerouslySkipPermissions: input.dangerouslySkipPermissions,
-          createdAt: now,
-          updatedAt: now,
-        })
+        insertTask(
+          tx,
+          {
+            id: taskId,
+            workspaceId: workspace.id,
+            nodeId: input.nodeId,
+            title: input.title,
+            prompt: assembled.prompt,
+            status: 'todo',
+            waitingReason: null,
+            engine: input.engine,
+            workspaceMode: input.workspaceMode,
+            branch: null,
+            worktreePath: null,
+            verifyCommand: input.verifyCommand ?? null,
+            retryCount: 0,
+            dangerouslySkipPermissions: input.dangerouslySkipPermissions,
+            createdAt: now,
+            updatedAt: now,
+          },
+          JSON.stringify(snapshot),
+        )
         if (input.dangerouslySkipPermissions) {
           insertAudit(tx, {
             id: deps.newId(),

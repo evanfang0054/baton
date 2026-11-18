@@ -1,3 +1,4 @@
+import type { Node as ProtocolNode } from '@baton/protocol'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -21,6 +22,7 @@ function renderForm(
   send = vi.fn().mockResolvedValue({ taskId: 't1' }),
   workspaceTrusted = false,
   defaultTitle = 'Agent 1',
+  contextNodes: ProtocolNode[] = [],
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const onCreated = vi.fn()
@@ -32,6 +34,7 @@ function renderForm(
           workspaceId="w1"
           workspaceTrusted={workspaceTrusted}
           defaultTitle={title}
+          contextNodes={contextNodes}
           onCreated={onCreated}
         />
       </CommandProvider>
@@ -134,5 +137,54 @@ describe('CreateTaskForm', () => {
     renderForm()
     await waitFor(() => expect(screen.getByLabelText('执行引擎')).toHaveValue('fake'))
     expect(screen.getByRole('option', { name: /Claude Code/ })).toBeDisabled()
+  })
+
+  it('shows context chips and sends their ids', async () => {
+    stubEngines([{ engine: 'fake', status: 'available' }])
+    const send = vi.fn().mockResolvedValue({ taskId: 't1' })
+    const contextNodes: ProtocolNode[] = [
+      {
+        id: 't1',
+        canvasId: 'c1',
+        type: 'text',
+        x: 0,
+        y: 0,
+        w: 320,
+        h: 200,
+        groupId: null,
+        data: { content: '需求 A' },
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      {
+        id: 't2',
+        canvasId: 'c1',
+        type: 'file',
+        x: 0,
+        y: 0,
+        w: 320,
+        h: 200,
+        groupId: null,
+        data: { path: 'docs/a.md', name: 'a.md' },
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]
+    renderForm(send, false, 'Agent 1', contextNodes)
+    expect(screen.getByText('需求 A')).toBeInTheDocument()
+    expect(screen.getByText('a.md')).toBeInTheDocument()
+    expect(screen.getByText('已选 2 个')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '清空' })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByLabelText('执行引擎')).toHaveValue('fake'))
+    fireEvent.change(screen.getByLabelText('任务说明'), { target: { value: '开始' } })
+    fireEvent.click(screen.getByRole('button', { name: '创建任务' }))
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'task.create',
+          payload: expect.objectContaining({ contextNodeIds: ['t1', 't2'] }),
+        }),
+      ),
+    )
   })
 })

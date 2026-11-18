@@ -56,6 +56,7 @@ function renderPanel(
           task={taskSummary}
           workspaceId="w1"
           workspaceTrusted={false}
+          contextNodes={[]}
           onOpenTask={vi.fn()}
           onDeleted={onDeleted}
           onClose={vi.fn()}
@@ -72,6 +73,7 @@ function renderPanel(
             task={nextTask}
             workspaceId="w1"
             workspaceTrusted={false}
+            contextNodes={[]}
             onOpenTask={vi.fn()}
             onDeleted={onDeleted}
             onClose={vi.fn()}

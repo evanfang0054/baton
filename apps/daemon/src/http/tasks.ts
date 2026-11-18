@@ -3,19 +3,20 @@ import { TaskDetailResponse, TaskListQuery, TaskListResponse, type Task } from '
 import type { FastifyInstance } from 'fastify'
 import {
   getReviewByTask,
-  getTask,
+  getTaskDetail,
   listApprovalsByTask,
   listSessionsByTask,
   listTasks,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
+import type { Logger } from '../log.js'
 
 function waitingSinceFor(task: Task): number | null {
   return task.status === 'waiting_input' || task.status === 'review' ? task.updatedAt : null
 }
 
-export function registerTaskRoutes(app: FastifyInstance, deps: { db: Db }): void {
+export function registerTaskRoutes(app: FastifyInstance, deps: { db: Db; logger: Logger }): void {
   app.get('/api/tasks', async (req) => {
     const parsed = TaskListQuery.safeParse(req.query)
     if (!parsed.success) {
@@ -34,17 +35,24 @@ export function registerTaskRoutes(app: FastifyInstance, deps: { db: Db }): void
     if (!params.id) {
       throw appError('invalid_payload', 'task id is required')
     }
-    const task = getTask(deps.db, params.id)
-    if (!task) {
+    const detail = getTaskDetail(deps.db, params.id)
+    if (!detail) {
       throw appError('task_not_found', 'task not found', { taskId: params.id })
     }
-    const waitingSince = waitingSinceFor(task)
+    if (detail.contextInvalid) {
+      deps.logger.warn(
+        { event: 'context_snapshot_invalid', taskId: params.id },
+        'context snapshot invalid',
+      )
+    }
+    const task = detail.task
     return TaskDetailResponse.parse({
       task,
+      contextInvalid: detail.contextInvalid,
       sessions: listSessionsByTask(deps.db, task.id),
       approvals: listApprovalsByTask(deps.db, task.id),
       review: getReviewByTask(deps.db, task.id),
-      waitingSince,
+      waitingSince: waitingSinceFor(task),
       attention: attentionFor(task.status, task.waitingReason),
     })
   })

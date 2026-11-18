@@ -17,7 +17,7 @@
 - [ ] **6. 迁移 0005**：`task.context_json` nullable；迁移先去重同 `(canvas_id, source_id, target_id, type)` 的边，再建唯一索引；fixture DB 升级测试覆盖「含重复边 → 迁移成功且索引存在」。
 - [ ] **7. 关系范围**：`assembleContext` 返回 `relations` 与 `relationsTruncated`；候选边满足 `sourceId` 或 `targetId` 属于 `included ∪ {targetNodeId}`；目标 Agent 不作为内容注入，但直接连到它的边必须出现在关系列表。
 - [ ] **8. 关系渲染**：仅当关系非空时输出 `<relations>`；未截断时不输出 `truncated` 属性，截断时输出 `<relations truncated="true">`；每条边固定属性顺序 `from, to, type, from_title, to_title`；所有 title 做 XML 转义；无内容泄漏给未注入端点（只给 title）。
-- [ ] **9. 排序与预算**：关系按「两端都注入优先，其次 `from`、`to`、`type` 升序」；最多 200 条，且每条 `<edge .../>` 行的 UTF-16 长度之和（不含缩进与换行）不超过 4000；200/201 与 4000/4001 边界测试通过；关系字符不占用内容 48k 预算。
+- [ ] **9. 排序与预算**：关系按「两端都注入优先，其次 `from`、`to`、`type` 升序」；最多 200 条，且每条 `<edge .../>` 行的 UTF-16 长度之和（不含缩进与换行）不超过 4000；4k 字符边界行为测试通过；200 条为防御上限，由 `RELATION_LIMITS` 常量断言锁定；关系字符不占用内容 48k 预算。
 - [ ] **10. 标题规则**：text 取首个非空行截 60 字符；file 取 `data.name`；image 取 `data.alt ?? 'image'`；agent 取 `data.title`；group 取 `data.label`；review 回落 `review`；快照 `included` 的 `title` 与 prompt 中 `<node title>` 一致。
 - [ ] **11. 快照内容**：`included` 含 `id/type/title/depth/chars`；`dropped` 含 `reason` 与可选 `title`；`redactedPaths` 保留相对路径；`relations` 含 `from/to/type/fromTitle/toTitle/includedFrom/includedTo`。
 - [ ] **12. daemon 边服务**：新增 `edge-service`，`runtime/index.ts` 只做命令分发；创建/删除均在事务内完成；并发重复插入由唯一索引兜底并映射为 `edge_duplicate`。
