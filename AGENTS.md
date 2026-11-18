@@ -55,7 +55,6 @@ pnpm test           # 单元与集成测试
 pnpm lint           # ESLint
 pnpm format         # Prettier
 pnpm build          # packages → daemon → web
-pnpm docker:smoke   # 构建镜像并跑健康检查
 ```
 
 这些脚本是本地与 CI 的**同一份契约**。尚未实现时先补脚本，不要另起一套命令。
@@ -78,7 +77,7 @@ pnpm docker:smoke   # 构建镜像并跑健康检查
 ## Git 规范
 
 - Commit：`<type>(<scope>): <subject>`，类型 `feat|fix|docs|style|refactor|perf|test|chore|build|ci`
-- Scope：`daemon|web|core|adapter|protocol|ui|docker|ci|docs`
+- Scope：`daemon|web|core|adapter|protocol|ui|ci|docs`
 - 分支：trunk-based。`main` 受保护，短分支 `feat/…`、`fix/…`，squash 合并，禁止 force push。
 - 评审：1 人 approve，作者合并；必需检查 `verify (22)`、`verify (24)`、`pack-check`、`e2e`、`build`。
 - 不提交生成物、`dist`、`node_modules`、`.env`。
@@ -99,9 +98,7 @@ baton/
 │   └── ui/              # 共享 React 组件
 ├── docs/{specs,adr,runbooks}
 ├── DESIGN.md            # web 视觉唯一真源（暗色主题 / token / 组件规范）
-├── .github/workflows/
-├── compose.yaml
-└── Dockerfile
+└── .github/workflows/
 ```
 
 ## AI 协作指令
@@ -249,10 +246,11 @@ baton/
 ## 部署运维
 
 - npm：`@evanfang0054/baton`，`npx @evanfang0054/baton` 启动。
-- Docker：`docker compose up -d`，单端口 `7317`，数据卷 `/data`，工作区 `/workspace`。
+- v1 不使用 Docker 分发；真实引擎以 host-native 运行，直接复用本机 Claude Code 登录态与配置。
+- 默认只监听 `127.0.0.1`；远程访问由用户自行用 Tailscale / Caddy / Nginx 反向代理 `7317`，并设置 `BATON_TOKEN`。
 - 关键环境变量：`BATON_HOST`、`BATON_PORT`、`BATON_TOKEN`、`BATON_TOKEN_FILE`、`BATON_DATA_DIR`、`BATON_WORKSPACES_ROOT`、`ANTHROPIC_API_KEY`。
 - 健康检查：`GET /api/health`（不鉴权，只返回状态与版本）。
-- 容器非 root、根文件系统只读、`cap_drop: ALL`、不挂 docker.sock。
+- 数据目录默认 `~/.baton`；工作区根默认 `$HOME`。
 
 ## 特殊约定
 

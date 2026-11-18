@@ -31,7 +31,7 @@
 
 ## 四、事实基线
 
-- 本地 Node 22 + pnpm 10；Docker 镜像用 Node 24（DSH CLI 要求 ≥ 24.9）。
+- 本地 Node 22 + pnpm 10；CI 覆盖 Node 22/24；DSH CLI 要求 ≥ 24.9（post-v1）。v1 不使用 Docker 分发。
 - DSH 是 Cordis/Node 插件体系，没有 Python SDK；`@deepseek-ai/dsh` 是 CLI，`@deepseek-ai/dsh-headless` 是 one-shot runner。
 - Claude Code 的结构化流与授权回调走 `@anthropic-ai/claude-agent-sdk`，PTY 仅作兜底。
 - 详细设计与决策见 `docs/specs/2026-11-16-baton-architecture-design.md`。

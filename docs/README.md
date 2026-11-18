@@ -5,7 +5,11 @@
 | `specs/` | 设计规格。非平凡改动先有 spec，再有实现 |
 | `contracts/` | 每个里程碑的 Definition of Done，开工前谈定 |
 | `adr/` | 架构决策记录。只记录难以回退、且需要向后来者解释原因的决定 |
-| `runbooks/` | 运维手册：Docker 部署、故障排查、数据备份与恢复 |
+| `runbooks/` | 运维手册：本地启动、故障排查、数据备份与恢复 |
+
+## 现行 runbook
+
+- [本地运行与运维](runbooks/local.md)
 
 ## 现行 spec
 
@@ -20,6 +24,7 @@
 
 - [0001 不做完整事件溯源，task.status 作为投影](adr/0001-no-full-event-sourcing.md)
 - [0002 web 组件库选择 HeroUI v3](adr/0002-heroui-component-library.md)
+- [0003 v1 移除 Docker 分发](adr/0003-drop-docker-from-v1.md)
 
 ## 现行 contract
 
@@ -47,3 +52,4 @@
 - spec 一旦进入实现阶段不再大改；方案变更以新的 spec 或 ADR 追加，并回链旧文档。
 - 每个 spec 的 frontmatter 必须含 `spec_topic`、`decision_summary`、`design_approved`、`user_approved_at`、`gates`。
 - 草案与讨论记录（如 `baton.ai/`）不进仓库，只作为背景材料引用。
+- Docker 已从 v1 移除（ADR 0003）；历史 plan/contract 中的 Docker 条目仅作为当时的实施记录保留。

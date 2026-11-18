@@ -13,6 +13,8 @@ gates: [user-review-passed]
 > 一个本地优先的 Agent 调度驾驶舱：画布是共享内存，看板是状态投影，总管只负责派活与验收。
 >
 > 实现增量：M1-5a 任务注意力语义见 `docs/specs/2026-11-17-m1-attention-semantics-design.md`。
+>
+> **v1 变更（2026-11-17）**：Docker 分发已从 v1 移除，见 `docs/adr/0003-drop-docker-from-v1.md`。§6.3、§6.4 的 `docker.yml`、§6.5 的 GHCR 行、§7 中 M0/M3 的 Docker 相关交付与风险表中的镜像相关条目按该 ADR 失效；npm 为 v1 唯一分发渠道。
 
 ## 0. 文档信息
 
