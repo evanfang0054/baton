@@ -12,6 +12,7 @@ import { registerEngineRoutes } from './http/engines.js'
 import { registerErrorHandler } from './http/errors.js'
 import { registerStatic } from './http/static.js'
 import { registerSessionRoutes } from './http/sessions.js'
+import { registerSupervisorRoutes } from './http/supervisor.js'
 import { registerTaskRoutes } from './http/tasks.js'
 import { registerWorkspaceRoutes } from './http/workspaces.js'
 import type { Logger } from './log.js'
@@ -65,6 +66,7 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
   registerEngineRoutes(app, { engines: deps.engines })
   registerTaskRoutes(app, { db: deps.db, logger: deps.logger })
   registerSessionRoutes(app, { db: deps.db })
+  registerSupervisorRoutes(app, { dataDir: config.dataDir, policyVersion: 'm2-1-v0' })
 
   await attachWs(app, config, deps.runtime, deps.hub)
 
