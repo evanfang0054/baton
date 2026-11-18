@@ -55,6 +55,23 @@ describe('loadConfig', () => {
     expect(() => loadConfig([], { BATON_MAX_LIVE_SESSIONS: '0' })).toThrow()
   })
 
+  it('defaults Claude budget and hooks, and reads overrides', () => {
+    const base = loadConfig([], {})
+    expect(base.claudeMaxTurns).toBe(30)
+    expect(base.claudeMaxBudgetUsd).toBe(2)
+    expect(base.claudeProjectHooks).toBe('on')
+
+    const overridden = loadConfig([], {
+      BATON_CLAUDE_MAX_TURNS: '10',
+      BATON_CLAUDE_MAX_BUDGET_USD: '0.5',
+      BATON_CLAUDE_PROJECT_HOOKS: 'off',
+    })
+    expect(overridden.claudeMaxTurns).toBe(10)
+    expect(overridden.claudeMaxBudgetUsd).toBe(0.5)
+    expect(overridden.claudeProjectHooks).toBe('off')
+    expect(() => loadConfig([], { BATON_CLAUDE_MAX_TURNS: '0' })).toThrow()
+  })
+
   it('reads the global kill switch from BATON_KILL_SWITCH', () => {
     expect(loadConfig([], {}).killSwitch).toBe(false)
     expect(loadConfig([], { BATON_KILL_SWITCH: '1' }).killSwitch).toBe(true)
