@@ -65,7 +65,15 @@ export function RealtimeProvider({
     }
 
     const client = createWsClient({
-      onStatus: setWsStatus,
+      onStatus: (status) => {
+        setWsStatus(status)
+        if (status === 'online') {
+          // daemon 重启或首屏失败后，用一次重连把 REST 快照补齐。
+          void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces })
+          void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+          void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+        }
+      },
       onEvent: (event) => {
         if (event.type === 'session.event') {
           const sessionId = event.payload.sessionId

@@ -88,5 +88,7 @@ depends_on: [2026-11-18-m1-7a-adapter-wiring.md]
 
 - 已修复首次失败：`settingSources: []` 会切断本机 OAuth；改为不可信 workspace 保留 `['user']`（ADR 0004）。
 - adapter 级真实闭环已验证：`pong` → `baton_report` → `session.outcome=ready` → `RUN_FINISHED`。
-- 未执行完整 UI 真实闭环（建任务 → 工具审批 → blocked → reply → verify → review）；需在本机启动 daemon 后按 `docs/runbooks/local.md` 手动验收。
-- CI 与自动化链路不依赖真实 API。
+- ego-lite 真实 UI 闭环已走通：新建工作区 → trust → Claude 任务 → Write 审批 → verify → 验收 → 已完成；刷新后数据保留；取消后无 SDK 残留进程。
+- QA 发现并修复：审批 resolve 死锁、ready 收尾挂起、`AskUserQuestion`、停滞态回复框、状态/引擎/会话文案、WS 重连刷新、非 git diff 说明。
+- 证据：`docs/evidence/2026-11-17-m1-7-claude/qa-2026-11-18.md`。
+- 残余限制：SDK 对安全 Bash 可能自带放行；模型偶尔不调用 `baton_report`，按设计收敛为 stalled。

@@ -137,6 +137,7 @@ describe('RealtimeProvider', () => {
     renderProvider(client)
     const socket = FakeSocket.instances[0]!
     socket.open()
+    invalidate.mockClear()
 
     socket.message({
       v: 1,
