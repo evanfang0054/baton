@@ -1,11 +1,13 @@
 import {
   Approval,
   Canvas,
+  ContextSnapshot,
   Edge,
   Node,
   Review,
   Session,
   Task,
+  TaskDetail,
   Workspace,
   type ApprovalDecision,
   type ApprovalRequest,
@@ -351,6 +353,30 @@ export function getTask(db: Db, id: string): Task | null {
   return row ? toTask(row) : null
 }
 
+export function getTaskDetail(
+  db: Db,
+  id: string,
+): { task: TaskDetail; contextInvalid: boolean } | null {
+  const row = db.select().from(task).where(eq(task.id, id)).get()
+  if (!row) return null
+  const base = toTask(row)
+  if (!row.contextJson) {
+    return { task: TaskDetail.parse({ ...base, context: null }), contextInvalid: false }
+  }
+  try {
+    const parsed = ContextSnapshot.safeParse(JSON.parse(row.contextJson) as unknown)
+    if (!parsed.success) {
+      return { task: TaskDetail.parse({ ...base, context: null }), contextInvalid: true }
+    }
+    return {
+      task: TaskDetail.parse({ ...base, context: parsed.data }),
+      contextInvalid: false,
+    }
+  } catch {
+    return { task: TaskDetail.parse({ ...base, context: null }), contextInvalid: true }
+  }
+}
+
 export function listTasks(db: Db, filter: { workspaceId: string; status?: TaskStatus }): Task[] {
   const where = filter.status
     ? and(eq(task.workspaceId, filter.workspaceId), eq(task.status, filter.status))
@@ -368,7 +394,7 @@ export function listTasksByStatus(db: Db, statuses: TaskStatus[]): Task[] {
     .map(toTask)
 }
 
-export function insertTask(tx: Tx, input: Task): void {
+export function insertTask(tx: Tx, input: Task, contextJson: string | null = null): void {
   tx.insert(task)
     .values({
       id: input.id,
@@ -385,6 +411,7 @@ export function insertTask(tx: Tx, input: Task): void {
       verifyCommand: input.verifyCommand,
       retryCount: input.retryCount,
       dangerouslySkipPermissions: input.dangerouslySkipPermissions,
+      contextJson,
       createdAt: input.createdAt,
       updatedAt: input.updatedAt,
     })

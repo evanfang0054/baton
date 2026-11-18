@@ -63,7 +63,7 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
   })
   registerCanvasRoutes(app, { db: deps.db })
   registerEngineRoutes(app, { engines: deps.engines })
-  registerTaskRoutes(app, { db: deps.db })
+  registerTaskRoutes(app, { db: deps.db, logger: deps.logger })
   registerSessionRoutes(app, { db: deps.db })
 
   await attachWs(app, config, deps.runtime, deps.hub)

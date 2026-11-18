@@ -176,6 +176,54 @@ describe('REST API', () => {
     expect(body.tasks[0]?.waitingSince).toBe(43)
   })
 
+  it('returns context snapshots only on task detail and degrades invalid JSON', async () => {
+    const { app, handle } = await setup()
+    const snapshot = {
+      included: [{ id: 'n1', type: 'text', title: '需求', depth: 0, chars: 6 }],
+      dropped: [],
+      truncated: false,
+      redactedPaths: [],
+      relations: [],
+      relationsTruncated: false,
+    }
+
+    const list = await app.inject({
+      method: 'GET',
+      url: `/api/tasks?workspaceId=${handle.seeded.workspaceId}`,
+      headers: auth,
+    })
+    const listBody = list.json() as { tasks: Array<Record<string, unknown>> }
+    expect(listBody.tasks[0]).not.toHaveProperty('context')
+
+    const oldDetail = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${handle.seeded.taskId}`,
+      headers: auth,
+    })
+    expect((oldDetail.json() as { task: { context: unknown } }).task.context).toBeNull()
+
+    handle.database.raw
+      .prepare('update task set context_json = ? where id = ?')
+      .run(JSON.stringify(snapshot), handle.seeded.taskId)
+    const withSnapshot = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${handle.seeded.taskId}`,
+      headers: auth,
+    })
+    expect((withSnapshot.json() as { task: { context: unknown } }).task.context).toEqual(snapshot)
+
+    handle.database.raw
+      .prepare('update task set context_json = ? where id = ?')
+      .run('{', handle.seeded.taskId)
+    const invalid = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${handle.seeded.taskId}`,
+      headers: auth,
+    })
+    expect(invalid.statusCode).toBe(200)
+    expect((invalid.json() as { task: { context: unknown } }).task.context).toBeNull()
+  })
+
   it('returns session events history', async () => {
     const { app, handle } = await setup()
     if (!handle.seeded.sessionId) throw new Error('expected session')
