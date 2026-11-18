@@ -30,7 +30,7 @@ M1-6a 已合并，任务控制台具备看板、详情、审批/回复/验收、
 - `apps/daemon/src/runtime/task-service.ts` 建任务时拒绝非 `fake`。
 - `apps/web/src/features/canvas/CanvasPanel.tsx` 与 `CreateTaskForm.tsx` 写死 `engine: 'fake'`。
 
-官方 `@anthropic-ai/claude-agent-sdk` 0.3.326 已具备 `query()`、流式输入、`canUseTool`、`resume`、in-process MCP 工具与结构化 `result`，可以覆盖 M1-7 的大部分引擎复杂度。主架构与宪法已锁定：Claude Code 走该 SDK，PTY 仅兜底；SDK 为非 OSI 许可，只作依赖，不 fork、不再分发源码。
+官方 `@anthropic-ai/claude-agent-sdk` 0.3.327（2026-11-17 最新）已具备 `query()`、流式输入、`canUseTool`、`resume`、in-process MCP 工具与结构化 `result`，可以覆盖 M1-7 的大部分引擎复杂度。主架构与宪法已锁定：Claude Code 走该 SDK，PTY 仅兜底；SDK 为非 OSI 许可，只作依赖，不 fork、不再分发源码。
 
 同时，二阶分析发现四个必须先处理的系统性问题：
 
@@ -66,7 +66,7 @@ M1-6a 已合并，任务控制台具备看板、详情、审批/回复/验收、
 |---|---|---|---|
 | D1 | 接入方式 | 直接官方 SDK + 窄 `ClaudeTransport` seam | 宪法已锁定；seam 只用于测试与隔离 SDK 类型，不做多引擎 registry |
 | D2 | SDK 入口 | `@anthropic-ai/claude-agent-sdk/core` + `@modelcontextprotocol/sdk`（MIT） | baton 已有 zod 4；`/core` 复用同一 zod，避免双实例；减小 eager load |
-| D3 | 版本 | pin 精确版本（实现时取最新 0.3.x），`THIRD_PARTY_NOTICES.md` 记录 | 0.3.x 变化快，禁止 `^` 漂移 |
+| D3 | 版本 | pin `0.3.327`（实现开始时再查最新；有更新则用最新并回写）+ `@modelcontextprotocol/sdk@1.32.2` | 0.3.x 变化快，禁止 `^` 漂移；MCP SDK 为 MIT |
 | D4 | 运行位置 | host-native only；Docker 已移除 | 容器无法可靠复用宿主登录态/配置（ADR 0003） |
 | D5 | workspace trust | DB 字段 + 首次打开弹窗 + 可撤销 + 审计；默认不信任 | 项目 settings 是供应链面；必须显式确认 |
 | D6 | trust 内容 | 信任后加载 CLAUDE.md/skills/MCP；hooks 由 `projectHooks` 单独控制，默认关 | hooks 可绕过 `canUseTool`；必须单独授权 |
@@ -352,6 +352,15 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 - `systemPrompt`：`{ type:'preset', preset:'claude_code', append: batonProtocol }`。
 - 预算：`maxTurns=30`、`maxBudgetUsd=2`；env `BATON_CLAUDE_MAX_TURNS`、`BATON_CLAUDE_MAX_BUDGET_USD`。
 
+### 9.1 版本策略
+
+- `@anthropic-ai/claude-agent-sdk@0.3.327`：2026-11-17 最新；与 0.3.326 的导出 API 对比无差异。
+- `@modelcontextprotocol/sdk@1.32.2`：MIT，满足 `/core` 入口的 `^1.29`。
+- `package.json` 使用精确版本，不用 `^`；pnpm lockfile 固定。
+- 实现开始时再查一次 npm registry；若已有更新，升级到最新版本，并在本 spec 与 `THIRD_PARTY_NOTICES.md` 回写实际版本。
+- 升级流程：adapter fixture → daemon 集成 → 本机 ego-lite 真实验收；不自动升级。
+- 启动日志记录实际 SDK 版本；`CLAUDE_AGENT_SDK_CLIENT_APP=baton/<baton-version>`。
+
 ## 10. Web UX
 
 - **Trust**：首次打开/创建 workspace 弹窗；默认不信任；header 显示「未信任/已信任」徽标；可撤销；hooks 开关默认关。
@@ -416,7 +425,7 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 
 | 风险 | 影响 | 缓解 |
 |---|---|---|
-| SDK 0.3.x 变化快 | 适配器返工 | pin 精确版本；transport seam；升级前跑 fixture |
+| SDK 0.3.x 变化快 | 适配器返工 | pin `0.3.327`；transport seam；升级前跑 fixture |
 | project hooks/plugins 绕过审批 | 安全边界失效 | hooks 默认关；trust 弹窗明确列出 hooks/plugins；全局 kill switch |
 | project MCP 执行命令 | 供应链风险 | 只在可信 workspace 加载；未知 MCP 工具 ask/deny |
 | blocked 占用 live 进程 | 内存/进程压力 | `maxLiveSessions=5`；7b 再做 idle eviction/resume |
@@ -429,7 +438,7 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 
 1. **Slice 0**：本 spec + contract + S2 spike（审批挂起、blocked→reply、`baton_report`）；Go/No-Go。
 2. **Slice 1**：并发与对账——`countActiveTasks`/`countLiveSessions`/scheduler/boot + 状态机扩展 + 测试。
-3. **Slice 2**：adapter——transport/adapter/mapping/outcome + fixture 测试。
+3. **Slice 2**：adapter——transport/adapter/mapping/outcome + fixture 测试；依赖 `@anthropic-ai/claude-agent-sdk@0.3.327`（实现时再查最新）与 `@modelcontextprotocol/sdk@1.32.2`。
 4. **Slice 3**：daemon 接线——engine allowlist、auth/engines API、trust 字段/API/审计、`StartInput.workspaceTrust`。
 5. **Slice 4**：web——trust 弹窗/徽标、引擎选择、多审批卡、截断提示。
 6. **Slice 5**：真实验收——ego-lite 闭环、Playwright fake 全链路、文档/notices。
