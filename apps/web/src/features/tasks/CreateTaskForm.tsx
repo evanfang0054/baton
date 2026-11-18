@@ -1,4 +1,4 @@
-import type { Engine, EngineStatus } from '@baton/protocol'
+import type { Engine, EngineStatus, Node as ProtocolNode } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Input } from '@heroui/react/input'
 import { TextArea } from '@heroui/react/textarea'
@@ -7,6 +7,8 @@ import { useEffect, useState } from 'react'
 import { listEngines } from '../../lib/api'
 import { useCommand } from '../../lib/command-context'
 import { queryKeys } from '../../lib/query'
+import { useAppStore } from '../../stores/app'
+import { nodeTitle } from '../canvas/node-title'
 
 const engineNames: Record<Engine, string> = {
   'claude-sdk': 'Claude Code',
@@ -45,16 +47,19 @@ export function CreateTaskForm({
   workspaceId,
   workspaceTrusted,
   defaultTitle,
+  contextNodes = [],
   onCreated,
 }: {
   nodeId: string
   workspaceId: string
   workspaceTrusted: boolean
   defaultTitle: string
+  contextNodes?: ProtocolNode[]
   onCreated: (taskId: string) => void
 }) {
   const send = useCommand()
   const queryClient = useQueryClient()
+  const removeContextNode = useAppStore((state) => state.removeContextNode)
   const engines = useQuery({ queryKey: queryKeys.engines, queryFn: listEngines })
   const [engine, setEngine] = useState<Engine | null>(null)
   const [title, setTitle] = useState(defaultTitle)
@@ -77,6 +82,8 @@ export function CreateTaskForm({
 
   const selectedEngine = engines.data?.find((entry) => entry.engine === engine)
 
+  const contextNodeIds = contextNodes.filter((node) => node.id !== nodeId).map((node) => node.id)
+
   const submit = async () => {
     if (!title.trim() || !prompt.trim() || pending || !engine) return
     setPending(true)
@@ -89,7 +96,7 @@ export function CreateTaskForm({
           nodeId,
           title: title.trim(),
           prompt: prompt.trim(),
-          contextNodeIds: [],
+          contextNodeIds,
           engine,
           workspaceMode: 'main',
           dangerouslySkipPermissions: skipPermissions && workspaceTrusted,
@@ -109,6 +116,31 @@ export function CreateTaskForm({
     <section className="rounded-lg border border-separator bg-background p-3">
       <h3 className="text-sm font-medium">创建任务</h3>
       <div className="mt-2 flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2" data-testid="context-chips">
+          {contextNodes.length > 0 ? (
+            contextNodes.map((node) => (
+              <span
+                key={node.id}
+                className="inline-flex items-center gap-1 rounded-full border border-separator px-2 py-1 text-xs"
+              >
+                {nodeTitle(node)}
+                <button
+                  type="button"
+                  aria-label={`移除 ${nodeTitle(node)}`}
+                  className="text-muted hover:text-danger"
+                  onClick={() => removeContextNode(node.id)}
+                >
+                  ×
+                </button>
+              </span>
+            ))
+          ) : (
+            <p className="text-xs text-muted">按住 Shift 框选画布节点，或在打开面板前先多选。</p>
+          )}
+        </div>
+        {contextNodes.length > 0 ? (
+          <p className="text-xs text-muted">连线依赖会自动包含，可在任务详情核对。</p>
+        ) : null}
         <Input
           aria-label="任务标题"
           placeholder="任务标题"

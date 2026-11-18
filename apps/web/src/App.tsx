@@ -36,6 +36,7 @@ export function App() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId)
   const activeTaskId = useAppStore((state) => state.activeTaskId)
   const selectedNodeId = useAppStore((state) => state.selectedNodeId)
+  const contextNodeIds = useAppStore((state) => state.contextNodeIds)
   const boardExpanded = useAppStore((state) => state.boardExpanded)
   const boardPinned = useAppStore((state) => state.boardPinned)
   const wsStatus = useAppStore((state) => state.wsStatus)
@@ -60,6 +61,10 @@ export function App() {
     queryFn: () => getCanvas(activeWorkspaceId!),
     enabled: Boolean(activeWorkspaceId),
   })
+  const contextNodes = useMemo(
+    () => (canvas.data?.nodes ?? []).filter((node) => contextNodeIds.includes(node.id)),
+    [canvas.data?.nodes, contextNodeIds],
+  )
   const counts = useMemo(() => {
     const list = tasks.data ?? []
     return {
@@ -236,6 +241,7 @@ export function App() {
               task={nodeTask ?? null}
               workspaceId={activeWorkspaceId}
               workspaceTrusted={activeWorkspace?.trusted ?? false}
+              contextNodes={contextNodes}
               onOpenTask={(id) => {
                 setSelectedNode(null)
                 setTask(id)

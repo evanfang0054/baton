@@ -12,6 +12,7 @@ import { queryKeys } from '../../lib/query'
 import { CommandError } from '../../lib/ws'
 import { CreateTaskForm } from '../tasks/CreateTaskForm'
 import { TaskSummaryCard } from '../tasks/TaskSummaryCard'
+import { nodeTitle } from './node-title'
 
 const typeLabels: Record<ProtocolNode['type'], string> = {
   text: '文本',
@@ -29,18 +30,12 @@ const panelClass = [
   'border-l border-separator bg-surface p-4',
 ].join(' ')
 
-function titleOf(node: ProtocolNode): string {
-  if (node.type === 'agent') return node.data.title
-  if (node.type === 'file') return node.data.name
-  if (node.type === 'text') return '文本节点'
-  return node.type
-}
-
 export function NodePanel({
   node,
   task,
   workspaceId,
   workspaceTrusted,
+  contextNodes,
   onOpenTask,
   onDeleted,
   onClose,
@@ -49,6 +44,7 @@ export function NodePanel({
   task: TaskSummary | null
   workspaceId: string
   workspaceTrusted: boolean
+  contextNodes: ProtocolNode[]
   onOpenTask: (taskId: string) => void
   onDeleted: () => void
   onClose: () => void
@@ -130,7 +126,7 @@ export function NodePanel({
       <header className="flex items-start justify-between gap-2">
         <div>
           <p className="text-xs text-muted">{typeLabels[node.type]}</p>
-          <h2 className="mt-1 text-base font-medium text-foreground">{titleOf(node)}</h2>
+          <h2 className="mt-1 text-base font-medium text-foreground">{nodeTitle(node)}</h2>
         </div>
         <Button variant="ghost" aria-label="关闭节点详情" onPress={onClose} className="h-8 w-8 p-0">
           <X size={16} />
@@ -217,6 +213,7 @@ export function NodePanel({
           workspaceId={workspaceId}
           workspaceTrusted={workspaceTrusted}
           defaultTitle={node.data.title}
+          contextNodes={contextNodes}
           onCreated={onOpenTask}
         />
       ) : null}
