@@ -21,6 +21,7 @@
 - [2026-11-17 M1-6a 任务控制台设计](specs/2026-11-17-m1-web-console-design.md)
 - [2026-11-17 M1-7a Claude 适配器与安全基线设计](specs/2026-11-17-m1-claude-adapter-design.md)
 - [2026-11-18 M1-6b 画布上下文与关系设计](specs/2026-11-18-m1-6b-canvas-context-design.md)
+- [2026-11-18 M2-1 总管 Router v0 设计](specs/2026-11-18-m2-supervisor-design.md)
 
 ## 现行 ADR
 
