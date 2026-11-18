@@ -698,3 +698,9 @@ git commit -m "docs(evidence): M1-7a 性能热路径基线"
 - `openDb` 补 `synchronous=NORMAL`；`appendSessionEvent` 只序列化一次；`BroadcastEvent.payloadJson` + `buildWsFrame` 复用 WS payload。
 - tests：db-pragmas、event-store、replay、ws 全绿；daemon 115 tests。
 - A/B（file DB，5k events，FULL vs NORMAL）：569 vs 470ms；1209 vs 699ms。NORMAL 在同一对比较快；绝对值受磁盘/GC 影响大，evidence 只记录相对趋势。
+
+### Task 3（2026-11-17）
+
+- 新增 `isAppendOnly`；`appendSessionEvents` / `mergeSessionPage` 在严格递增时直接 append，乱序才回退 Set + sort。
+- tests：session-cache 4 tests；web 69 tests 全绿。
+- 说明：helper 与实现同一步落地；旧实现没有该导出，等价于测试前置失败。

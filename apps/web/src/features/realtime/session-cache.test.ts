@@ -1,6 +1,11 @@
 import type { SessionEventsResponse } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
-import { appendSessionEvent, appendSessionEvents, mergeSessionPage } from './session-cache'
+import {
+  appendSessionEvent,
+  appendSessionEvents,
+  isAppendOnly,
+  mergeSessionPage,
+} from './session-cache'
 
 const empty: SessionEventsResponse = {
   sessionId: 's1',
@@ -19,6 +24,17 @@ function record(seq: number) {
 }
 
 describe('session cache', () => {
+  it('detects ordered appends and rejects gaps/duplicates', () => {
+    expect(isAppendOnly(empty, [record(1), record(2)])).toBe(true)
+    expect(isAppendOnly(empty, [record(2), record(1)])).toBe(false)
+
+    const seeded = { ...empty, events: [record(1)] }
+    expect(isAppendOnly(seeded, [record(2), record(3)])).toBe(true)
+    expect(isAppendOnly(seeded, [record(1)])).toBe(false)
+    expect(isAppendOnly(seeded, [record(3)])).toBe(true)
+    expect(isAppendOnly(seeded, [])).toBe(false)
+  })
+
   it('appends, sorts and de-dupes by seq without moving the page cursor', () => {
     const once = appendSessionEvents(empty, [record(2), record(1)])
     expect(once?.events.map((event) => event.seq)).toEqual([1, 2])
