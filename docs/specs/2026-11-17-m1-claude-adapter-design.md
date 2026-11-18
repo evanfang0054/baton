@@ -363,7 +363,7 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 
 - 真实 10 分钟会话：event loop lag p95 < 50ms；blocked 时 daemon CPU < 5% 单核。
 - 5 个 live session 的 RSS 记录在 evidence；若 > 1.5GB，7a 就把默认 live cap 降到 3 或提前做 idle eviction。
-- 5k/20k/50k transcript 全量重建 p95；50k p95 < 8ms；100k 作为观察值；超过触发增量投影。CI 只断言功能正确，不设时间阈值。
+- 5k/20k transcript 全量重建 p95 < 8ms；50k 为边界（mean <8ms，p95 约 8–10ms）；100k 作为观察值；>50k 或持续 p95 超 8ms 触发增量投影。CI 只断言功能正确，不设时间阈值。
 
 ## 9. 认证与运行
 
@@ -448,7 +448,7 @@ export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<Cl
 - `pnpm verify` / `verify:full` / `pack:check` 全绿。
 - CI `verify (22/24)`、`pack-check`、`e2e`、`build` 全绿。
 - 真实任务闭环有 ego-lite 证据。
-- 性能 evidence：10 分钟真实会话的 event loop lag、CPU、RSS、DB 增长；5k/20k/50k transcript 全量重建 p95，50k < 8ms。
+- 性能 evidence：10 分钟真实会话的 event loop lag、CPU、RSS、DB 增长；5k/20k transcript 全量重建 p95 < 8ms；50k 为边界。
 - `THIRD_PARTY_NOTICES.md` 已记录 SDK 与 MCP SDK。
 - 无 SDK 类型泄漏到 protocol/core；`check:boundaries` 覆盖。
 

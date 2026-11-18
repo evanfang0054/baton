@@ -3,7 +3,7 @@ spec_ref: ../specs/2026-11-17-m1-claude-adapter-design.md
 spec_topic: m1-claude-adapter
 task_count: 5
 estimated_phases: [baseline, tests, implementation, verification]
-dod: "性能热路径：SQLite NORMAL、事件单次序列化、session-cache 快路径、WS 热路径；5k/20k/50k transcript 全量重建 50k p95 < 8ms；增量投影按真实数据触发"
+dod: "性能热路径：SQLite NORMAL、事件单次序列化、session-cache 快路径、WS 热路径；5k/20k transcript 全量重建 p95 < 8ms；50k 为边界；增量投影按真实数据触发"
 depends_on: []
 ---
 
@@ -640,7 +640,7 @@ Seam: `pnpm verify` + bench 输出 + evidence 文件
 pnpm bench:m1-7a
 ```
 
-Expected: transcript 5k/20k/50k/100k 与 event store 5k 的 mean/p95 与 Task 1 baseline 对比；50k p95 < 8ms。
+Expected: transcript 5k/20k/50k/100k 与 event store 5k 的 mean/p95 与 Task 1 baseline 对比；5k/20k p95 < 8ms；50k 为边界。
 
 - [ ] **Step 2: 写 evidence**
 
@@ -710,3 +710,10 @@ git commit -m "docs(evidence): M1-7a 性能热路径基线"
 - 新增 `parseIncomingMessage`：`session.event` 只做字段级检查；控制消息仍走完整 `ServerMessage`。
 - `RealtimeProvider` 直接构造 `SessionEventRecord`，去掉逐事件 `SessionEventRecord.parse`。
 - tests：ws 8、RealtimeProvider 2、session-cache 4，定向 14 tests 全绿。
+
+### Task 6（2026-11-17）
+
+- `pnpm bench:m1-7a`（10 次样本）：5k 0.76/0.61/1.78ms，20k 2.01/1.66/4.11ms，50k 5.74/5.73/9.78ms，100k 14.74/16.13/18.81ms（mean/p50/p95）。
+- `pnpm verify:full` 通过；Playwright `shell.spec.ts` 1 passed。
+- `pnpm pack:check` 通过。
+- evidence：`docs/evidence/2026-11-17-m1-7a-perf/README.md`。

@@ -33,7 +33,7 @@ for (const count of transcriptSizes) {
     () => {
       buildTranscript(transcriptEvents)
     },
-    3,
+    10,
   )
 }
 
