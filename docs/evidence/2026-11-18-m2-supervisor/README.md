@@ -2,24 +2,30 @@
 
 - 日期：2026-11-18
 - 分支：`feat/m2-supervisor-v0`
-- 状态：**阻塞**（本机没有 `~/.baton/supervisor.json`，也没有可用的模型 API key）
+- 状态：**部分完成**（真实模型服务级链路已跑通；UI/ego-lite 验收待补）
 - 已完成：Playwright mocked 回归、真实 AI SDK 引擎对本地 OpenAI-compatible mock 的流式与
-  tool-call 测试、`pnpm verify:full`、`pnpm pack:check`
-- 待完成：真实模型跑通创建任务、开工引导、状态查询、刷新恢复与幂等
+  tool-call 测试、真实模型服务级建任务链路、`pnpm verify:full`、`pnpm pack:check`
+- 待完成：ego-lite UI 验收（任务卡、打开任务、刷新恢复、幂等、注入、开工引导）
 
-## 为什么阻塞
+## 真实模型服务级验收
 
-真实链路需要仓库外的模型配置：
+- 模型：`deepseek-flash`（配置来自仓库外 `~/.baton/supervisor.json`，权限 0600；不记录 baseUrl/key）
+- 方式：临时 SQLite + 临时 workspace，使用真实 `createAiSdkSupervisorEngine` 和
+  `createSupervisorService`；选中一个文本节点和一个 Agent，输入明确建任务指令
+- 结果：
+  - `supervisor.delta` / `supervisor.tool` / `supervisor.message` 均产生
+  - `create_task` 工具调用成功，`decision.kind=create_task`
+  - 新任务状态 `todo`，未自动开工
+  - `origin.source=supervisor-chat`，`triggerId=real-1`，上下文 1 个
+  - 单轮耗时约 1.8–2.6 秒
 
-```json
-{ "baseUrl": "https://<provider>/v1", "apiKey": "<key>", "model": "<model>" }
-```
+### 本轮发现并修复的缺陷
 
-本机未创建该文件，环境变量中也没有可复用的模型 key。按脱敏约定，本文不记录任何真实
-baseUrl、key、账号或本机绝对路径。
-
-配置模板与说明见 `docs/runbooks/supervisor-config.md`；本机已生成空的
-`~/.baton/supervisor.json`（0600），填入三项后即可继续验收。
+首轮真实模型调用曾报 `AI_InvalidPromptError: messages must not be empty`。
+原因是 `supervisor/service.ts` 在组装历史时过滤掉了刚刚写入的 user message，
+首次对话 history 为空；mock/脚本引擎不消费 messages，所以单测没有暴露。
+已改为保留当前 user message，并在 `supervisor-service.test.ts` 增加
+`messages` 包含 `user:给这个 Agent 建个任务` 的回归断言。
 
 ## 已完成的模拟调试
 
@@ -29,6 +35,17 @@ baseUrl、key、账号或本机绝对路径。
 - `apps/web/e2e/supervisor.spec.ts`：REST/WS 全 mock，覆盖建任务、attention 查询、
   要求开工引导、未配置提示。
 - 以上仅证明链路与契约，不证明真实模型的指令遵循与工具选择质量。
+
+## 配置
+
+真实链路需要仓库外的模型配置：
+
+```json
+{ "baseUrl": "https://<provider>/v1", "apiKey": "<key>", "model": "<model>" }
+```
+
+配置模板与说明见 `docs/runbooks/supervisor-config.md`；本机文件为
+`~/.baton/supervisor.json`（0600）。按脱敏约定，本文不记录 baseUrl、key、账号或本机绝对路径。
 
 ## 恢复验收的步骤
 
@@ -57,11 +74,13 @@ baseUrl、key、账号或本机绝对路径。
 
 | 场景 | 预期 | 证据 |
 |---|---|---|
-| 从画布上下文建任务 | 任务卡 + `todo`，无自动开工 | 待补 |
-| 真实模型任务 origin | `supervisor-chat` + triggerId + policyVersion | 待补 |
+| 从画布上下文建任务（服务级） | `create_task` 工具返回 + `todo`，无自动开工 | 真实模型已通过 |
+| 真实模型任务 origin（服务级） | `supervisor-chat` + triggerId + policyVersion | source/triggerId 已验证；policyVersion 待补取证 |
+| 从画布上下文建任务（UI） | 任务卡出现、按钮是「打开任务」 | 待补 ego-lite |
+| 打开任务详情 | `origin` 显示来源/triggerId/policyVersion | 待补（当前详情面板未展示 origin，需要先补 UI 或改用 API 断言） |
 | attention 查询 | 返回 taskId 与看板状态一致 | 待补 |
 | 要求开工/通过 | 拒绝或引导，状态不变 | 待补 |
 | prompt 注入 | 不改变工具白名单，状态不变 | 待补 |
 | 刷新与重复发送 | 对话保留，重复发送不重复建任务 | 待补 |
 
-在完成上述步骤前，不把本目录视为真实验收通过。
+服务级真实模型链路已通过；在完成 UI/ego-lite 步骤前，不把本目录视为完整真实验收通过。

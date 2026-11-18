@@ -5,7 +5,7 @@ task_count: 3
 estimated_phases: [tests, verification, evidence]
 dod: "Playwright 覆盖建任务/查状态/引导/未配置/流式；ego-lite 真实模型跑通并留证；verify:full 与 pack:check 全绿"
 depends_on: [2026-11-18-m2-supervisor-web.md]
-status: blocked
+status: in_progress
 ---
 
 # M2-1 总管 Router v0：验收与证据实施计划（Plan 4/4）
@@ -382,7 +382,7 @@ Seam: `docs/evidence/2026-11-18-m2-supervisor/README.md`
 - Create: `docs/evidence/2026-11-18-m2-supervisor/README.md`
 - Create: `docs/evidence/2026-11-18-m2-supervisor/*.png`
 
-- [ ] **Step 1: 配置真实模型**
+- [x] **Step 1: 配置真实模型**
 
 在仓库外创建 `~/.baton/supervisor.json`（0600）：
 
@@ -392,11 +392,12 @@ Seam: `docs/evidence/2026-11-18-m2-supervisor/README.md`
 
 不要提交该文件；不要截图配置文件。
 
-> **2026-11-18 阻塞记录**：本机不存在可用的 `~/.baton/supervisor.json`，环境也没有模型 key；
-> 已生成空模板（0600）并写入配置说明 `docs/runbooks/supervisor-config.md`，
-> 验收步骤与证据占位在 `docs/evidence/2026-11-18-m2-supervisor/README.md`。
-> 已用 `apps/daemon/test/supervisor-engine-mock.test.ts` 对真实 AI SDK 引擎做本地
-> OpenAI-compatible mock 调试，但未用 mock 冒充真实模型验收。
+> **2026-11-18 进展**：用户已配置仓库外模型文件（0600，模型 `deepseek-flash`）。
+> 已完成连通性、tool calling 与真实 `createAiSdkSupervisorEngine` + `createSupervisorService`
+> 服务级建任务验收：`todo`、`create_task` 成功、`origin.source=supervisor-chat`、上下文 1 个。
+> 本轮修复了首轮 history 过滤掉当前 user message 导致 AI SDK 报
+> `messages must not be empty` 的缺陷。UI/ego-lite 步骤（Step 2/3/4）仍待补；
+> 证据见 `docs/evidence/2026-11-18-m2-supervisor/README.md`。
 
 - [ ] **Step 2: 启动 daemon**
 
@@ -483,14 +484,19 @@ git commit -m "docs(plan): M2-1 总管计划完成记录"
 ## 完成记录
 
 - 日期：2026-11-18
-- 关键 commit：`b907b7b`（多选目标修复）、`73bc197`（supervisor e2e）、本记录 commit（计划与证据索引）
+- 关键 commit：`b907b7b`（多选目标修复）、`73bc197`（supervisor e2e）、`af86dfe`（mock 引擎测试）、
+  `cc4201d`（配置 runbook）、本记录 commit（真实模型修复与证据）
 - `pnpm verify:full` 结果：退出码 0；Playwright 6 passed；typecheck / lint / format / boundaries / protocol / 单测 / build 全过
 - `pnpm pack:check`：`pack-check ok`
-- ego-lite 证据：**未完成**。本机缺少 `~/.baton/supervisor.json` 与模型 key，已在
-  `docs/evidence/2026-11-18-m2-supervisor/README.md` 记录阻塞原因、复现步骤与证据占位；
-  未用 mock/脚本引擎冒充真实模型验收。
+- 真实模型：`deepseek-flash` 连通性、tool calling、服务级建任务链路通过；
+  `decision.kind=create_task`、任务 `todo`、`origin.source=supervisor-chat`、上下文 1 个
+- ego-lite 证据：**未完成**。服务级真实模型链路已通过，但 UI 任务卡、打开任务、刷新恢复、
+  幂等、注入与开工引导尚未用 ego-lite 取证；证据状态见
+  `docs/evidence/2026-11-18-m2-supervisor/README.md`。
 - 偏离与坑：
   - 计划中的 `supervisor.message` mock 缺少必填 `id`，落地时补齐，否则 ServerMessage 校验会丢弃。
   - 多选文本 + Agent 时仍应识别唯一 Agent 目标；App 从“总选中数=1”改为“Agent 数=1”。
   - `grep apiKey|baseUrl apps/web/src` 曾命中配置提示文案，已改为不含字段名。
   - 系统 Chrome 启动偶发超过 30s 导致 `journey` 首次失败；复跑通过，未改全局超时。
+  - 真实模型首轮暴露 `AI_InvalidPromptError: messages must not be empty`：service 组装历史时
+    过滤掉了当前 user message；已修复并加回归断言。脚本引擎不消费 messages，之前未发现。
