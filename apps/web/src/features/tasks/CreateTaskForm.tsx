@@ -28,6 +28,18 @@ function preferredEngine(engines: EngineStatus[]): Engine | null {
   return engines.find((entry) => entry.engine === 'fake')?.engine ?? null
 }
 
+function engineReasonText(reason: string | undefined): string {
+  if (!reason) return ''
+  if (reason.includes('Keychain cannot be probed')) {
+    return '复用本机 Claude Code 登录态（Keychain 无法探测）'
+  }
+  if (reason.includes('credential found in environment')) return '已检测到环境变量凭据'
+  if (reason.includes('Claude Code credentials found')) return '已检测到本机 Claude Code 凭据'
+  if (reason.includes('Claude Agent SDK is not installed')) return '未安装 Claude Agent SDK'
+  if (reason.includes('not supported in v1')) return 'v1 不支持此引擎'
+  return reason
+}
+
 export function CreateTaskForm({
   nodeId,
   workspaceId,
@@ -128,7 +140,7 @@ export function CreateTaskForm({
               </option>
             ))}
           </select>
-          {selectedEngine?.reason ? <span>{selectedEngine.reason}</span> : null}
+          {selectedEngine?.reason ? <span>{engineReasonText(selectedEngine.reason)}</span> : null}
         </label>
         {engines.isError ? (
           <p role="alert" className="text-sm text-danger">

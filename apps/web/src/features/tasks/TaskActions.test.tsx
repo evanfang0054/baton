@@ -4,12 +4,16 @@ import { describe, expect, it, vi } from 'vitest'
 import { CommandProvider } from '../../lib/command-context'
 import { TaskActions } from './TaskActions'
 
-function renderActions(status: 'todo' | 'queued' | 'running', send = vi.fn()) {
+function renderActions(
+  status: 'todo' | 'queued' | 'running' | 'waiting_input' | 'review',
+  send = vi.fn(),
+  attention: 'none' | 'needs_attention' = 'none',
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
       <CommandProvider send={send.mockResolvedValue(undefined)}>
-        <TaskActions taskId="t1" workspaceId="w1" status={status} />
+        <TaskActions taskId="t1" workspaceId="w1" status={status} attention={attention} />
       </CommandProvider>
     </QueryClientProvider>,
   )
@@ -41,12 +45,24 @@ describe('TaskActions', () => {
     )
   })
 
-  it('renders nothing for waiting or terminal states', () => {
+  it('re-enqueues a stalled task', async () => {
+    const send = renderActions('waiting_input', vi.fn(), 'needs_attention')
+    expect(screen.getByText(/任务已停滞/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '重新入队' }))
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({
+        type: 'task.enqueue',
+        payload: { taskId: 't1' },
+      }),
+    )
+  })
+
+  it('renders nothing for review status', () => {
     const client = new QueryClient()
     const { container } = render(
       <QueryClientProvider client={client}>
         <CommandProvider send={vi.fn()}>
-          <TaskActions taskId="t1" workspaceId="w1" status="review" />
+          <TaskActions taskId="t1" workspaceId="w1" status="review" attention="needs_review" />
         </CommandProvider>
       </QueryClientProvider>,
     )

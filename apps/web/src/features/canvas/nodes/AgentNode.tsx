@@ -14,7 +14,7 @@ export function AgentNode({ data, selected }: CanvasFlowNodeProps) {
       <p className="mt-2 line-clamp-2 text-sm font-medium text-foreground">{agent?.title ?? ''}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Chip size="sm" variant="soft" color="default">
-          {agent?.engine ?? 'fake'}
+          {data.task?.engine ?? '未创建任务'}
         </Chip>
         {data.task ? <StatusChip status={data.task.status} /> : null}
       </div>

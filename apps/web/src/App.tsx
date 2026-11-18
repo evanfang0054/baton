@@ -138,7 +138,7 @@ export function App() {
               writeUrlState({ workspaceId: id, taskId: null })
             }}
           />
-          <ConnectionStatus />
+          {activeWorkspaceId ? <ConnectionStatus /> : null}
           {activeWorkspace ? (
             <>
               <WorkspaceTrustBadge

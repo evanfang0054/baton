@@ -23,7 +23,7 @@ const config: Record<
     color: 'accent',
     icon: <LoaderCircle size={12} className="animate-spin" />,
   },
-  waiting_input: { label: '待审核', color: 'warning', icon: <Clock size={12} /> },
+  waiting_input: { label: '待处理', color: 'warning', icon: <Clock size={12} /> },
   review: { label: '待验收', color: 'accent', icon: <CheckSquare size={12} /> },
   done: { label: '已完成', color: 'success', icon: <Check size={12} /> },
   failed: { label: '失败', color: 'danger', icon: <XCircle size={12} /> },

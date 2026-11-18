@@ -13,6 +13,13 @@ import { TaskActions } from './TaskActions'
 import { TaskHeader } from './TaskHeader'
 import { Transcript } from './Transcript'
 
+const sessionStatusLabels: Record<string, string> = {
+  running: '进行中',
+  waiting_input: '等待输入',
+  ended: '已结束',
+  failed: '失败',
+}
+
 export function TaskDetailPanel() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId)
   const activeTaskId = useAppStore((state) => state.activeTaskId)
@@ -135,7 +142,7 @@ function DetailContent({
         )
       ) : null}
 
-      {task.status === 'waiting_input' && !needsApproval ? (
+      {task.status === 'waiting_input' && detail.attention === 'needs_reply' ? (
         <ReplyComposer taskId={task.id} onDone={onDone} />
       ) : null}
 
@@ -147,7 +154,12 @@ function DetailContent({
         )
       ) : null}
 
-      <TaskActions taskId={task.id} workspaceId={workspaceId} status={task.status} />
+      <TaskActions
+        taskId={task.id}
+        workspaceId={workspaceId}
+        status={task.status}
+        attention={detail.attention}
+      />
 
       {['done', 'failed', 'cancelled'].includes(task.status) ? (
         <p className="shrink-0 text-sm text-muted">任务已结束，只读。</p>
@@ -166,7 +178,7 @@ function DetailContent({
             {detail.sessions.length === 0 ? <option value="">暂无会话</option> : null}
             {detail.sessions.map((session, index) => (
               <option key={session.id} value={session.id}>
-                会话 {index + 1} · {session.status}
+                会话 {index + 1} · {sessionStatusLabels[session.status] ?? session.status}
               </option>
             ))}
           </select>

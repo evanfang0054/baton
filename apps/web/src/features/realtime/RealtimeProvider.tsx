@@ -69,6 +69,17 @@ export function RealtimeProvider({
       onEvent: (event) => {
         if (event.type === 'session.event') {
           const sessionId = event.payload.sessionId
+          const inner = event.payload.event
+          // task.status 可能因重连/订阅时序丢失；关键会话事件也触发一次任务刷新。
+          if (
+            (inner.type === 'CUSTOM' &&
+              (inner.name === 'approval.request' || inner.name === 'session.outcome')) ||
+            inner.type === 'RUN_STARTED' ||
+            inner.type === 'RUN_FINISHED' ||
+            inner.type === 'RUN_ERROR'
+          ) {
+            invalidate()
+          }
           if (typeof event.payload.seq !== 'number') {
             // 旧 ws_event 行没有 session seq；回退到 REST 重新拉取。
             void queryClient.invalidateQueries({

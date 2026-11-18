@@ -106,7 +106,7 @@ export function NodePanel({
       {node.type === 'agent' ? (
         <div className="flex items-center gap-2">
           <Chip size="sm" variant="soft" color="default">
-            {node.data.engine}
+            {task?.engine ?? '未创建任务'}
           </Chip>
         </div>
       ) : null}
