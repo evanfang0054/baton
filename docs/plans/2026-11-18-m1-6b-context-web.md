@@ -1088,3 +1088,11 @@ git commit -m "docs(plan): M1-6b Web 计划完成记录"
   - 多选采用 `selectionKeyCode="Shift"`，保留默认左键平移；没有开 `selectionOnDrag`。
   - 测试转换器对字面量 `context` 键/JSX prop 有解析问题：组件 prop 改用 `snapshot`，fixture 用计算属性；测试文件名避免与同目录模块同名（`app.test.ts`、`model.test.ts`、`CreateTaskForm.test.tsx` 已改名）。
   - 真实任务内的 verify 因宿主机 pnpm shim 路径不可用退出 1；证据 README 已如实记录，人工按 Claude 输出与快照验收通过。
+
+## 审查修复（2026-11-18）
+
+- **P1 键盘删除绕过服务端**：`onBeforeDelete` 阻止 React Flow 直接删节点，并过滤挂在被保护节点上的边；节点删除仍只走 NodePanel。e2e 增加 Delete 键守卫。
+- **P2 反选覆盖上下文**：`onNodeClick` 忽略 Cmd/Ctrl/Shift 点击，多选/反选不再把 sticky 上下文收敛成单个节点。
+- **P2 快照损坏与老任务混淆**：`TaskDetailResponse.contextInvalid` 透传仓储解析结果；详情卡片区分“快照不可用”与“上线前未记录”。
+- **P3 批量**：关系 key 带类型、关系徽标、节点类型中文标签与深度、chips 图标/计数/清空、`edge.delete` 异常兜底（含 router 级 `internal_error`）、UNIQUE 约束错误码精确匹配、`logger.warn`、`getTaskRow`/`compareText`/`seedTextNode` 复用、删除死代码 `hasEdgeForNode`。
+- **验证**：`pnpm verify:full` 全绿（3 个 Playwright 用例）；`pnpm pack:check` 输出 `pack-check ok`；`rest-api` 新增 `contextInvalid` 断言。
