@@ -147,7 +147,7 @@ export function createWsClient(options: WsClientOptions) {
       }
       const event = parseIncomingMessage(parsed)
       if (!event) return
-      if (typeof event.seq === 'number') lastSeq = event.seq
+      if ('seq' in event && typeof event.seq === 'number') lastSeq = event.seq
       if (event.type === 'ack') {
         const entry = pending.get(event.payload.commandId)
         if (entry) {

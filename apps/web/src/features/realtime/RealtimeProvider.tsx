@@ -1,4 +1,8 @@
-import type { SessionEventRecord, SessionEventsResponse } from '@baton/protocol'
+import type {
+  SessionEventRecord,
+  SessionEventsResponse,
+  SupervisorMessagesResponse,
+} from '@baton/protocol'
 import { toast } from '@heroui/react/toast'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
@@ -6,6 +10,7 @@ import { CommandProvider, offlineCommand, type CommandSender } from '../../lib/c
 import { queryKeys } from '../../lib/query'
 import { createWsClient } from '../../lib/ws'
 import { useAppStore } from '../../stores/app'
+import { useSupervisorStreamStore } from '../supervisor/stream-store'
 import { appendSessionEvents } from './session-cache'
 
 const INVALIDATING_EVENTS = new Set(['task.status', 'approval.request', 'verify.result'])
@@ -41,6 +46,7 @@ export function RealtimeProvider({
     // 每个 chunk 都写缓存会触发 transcript 全量重投影；按帧合并写入。
     const pendingEvents = new Map<string, SessionEventRecord[]>()
     let flushTimer: number | undefined
+    const finalizeTimers: number[] = []
     const flush = () => {
       flushTimer = undefined
       for (const [sessionId, records] of pendingEvents) {
@@ -67,12 +73,19 @@ export function RealtimeProvider({
     const client = createWsClient({
       onStatus: (status) => {
         setWsStatus(status)
-        if (status === 'online') {
-          // daemon 重启或首屏失败后，用一次重连把 REST 快照补齐。
-          void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces })
-          void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
-          void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+        if (status !== 'online') {
+          // 断线后不会再有 delta/finish；清掉在途流式态，避免输入框永久 busy。
+          useSupervisorStreamStore.getState().reset()
+          return
         }
+        // daemon 重启或首屏失败后，用一次重连把 REST 快照补齐。
+        void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.supervisorStatus })
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.supervisorMessages(workspaceId),
+        })
       },
       onEvent: (event) => {
         if (event.type === 'session.event') {
@@ -104,6 +117,41 @@ export function RealtimeProvider({
           enqueueEvent(sessionId, record)
           return
         }
+        if (event.type === 'supervisor.delta' || event.type === 'supervisor.tool') {
+          useSupervisorStreamStore.getState().apply(event.payload)
+          return
+        }
+        if (event.type === 'supervisor.message') {
+          const finalize = () => {
+            useSupervisorStreamStore.getState().finish()
+            const key = queryKeys.supervisorMessages(workspaceId)
+            queryClient.setQueryData<SupervisorMessagesResponse>(key, (previous) =>
+              previous && !previous.messages.some((message) => message.id === event.payload.id)
+                ? { ...previous, messages: [...previous.messages, event.payload] }
+                : previous,
+            )
+            // 让 REST 校正 nextBefore / threadId 等分页字段。
+            void queryClient.invalidateQueries({ queryKey: key })
+            // create_task 不经过 task.status 事件；任务列表/看板必须在这里刷新。
+            void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+            const taskId = event.payload.decision?.taskId
+            if (taskId) {
+              void queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+            }
+          }
+          // 模型可能把一大段文本一次性吐出来；让流式气泡先按帧展示完，
+          // 再切到最终消息，避免肉眼看到“整段闪现”。短回复几乎没有延迟。
+          const streaming = useSupervisorStreamStore.getState().status === 'streaming'
+          const delay = streaming
+            ? Math.min(900, Math.max(120, Math.round(event.payload.content.length * 2)))
+            : 0
+          if (delay > 0) {
+            finalizeTimers.push(window.setTimeout(finalize, delay))
+          } else {
+            finalize()
+          }
+          return
+        }
         if (event.type === 'error') {
           toast.danger(event.payload.message)
           return
@@ -116,6 +164,7 @@ export function RealtimeProvider({
       client.close()
       if (invalidateTimer) window.clearTimeout(invalidateTimer)
       if (flushTimer) window.clearTimeout(flushTimer)
+      for (const timer of finalizeTimers) window.clearTimeout(timer)
     }
   }, [workspaceId, queryClient, setWsStatus])
 

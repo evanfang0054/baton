@@ -123,8 +123,12 @@ beforeEach(() => {
   useAppStore.setState({
     activeWorkspaceId: null,
     activeTaskId: null,
+    selectedNodeId: null,
+    selectedNodeIds: [],
+    contextNodeIds: [],
     boardExpanded: false,
     boardPinned: false,
+    rightPanel: 'supervisor',
     wsStatus: 'offline',
     lastSeq: 0,
   })
@@ -144,7 +148,8 @@ describe('App shell', () => {
     expect(screen.getByText('baton')).toBeInTheDocument()
     expect(await screen.findByTestId('board-rail')).toBeInTheDocument()
     expect(screen.getByTestId('canvas')).toBeInTheDocument()
-    expect(screen.getByTestId('task-detail')).toBeInTheDocument()
+    expect(screen.getByTestId('right-panel')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '总管' })).toHaveAttribute('aria-selected', 'true')
     await waitFor(() => expect(screen.getAllByText('尚未选择工作区').length).toBeGreaterThan(0))
   })
 

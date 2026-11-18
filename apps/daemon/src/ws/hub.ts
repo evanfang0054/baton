@@ -5,6 +5,7 @@ import { sendSafely } from './send.js'
 export interface WsHub {
   register(socket: WebSocket): void
   broadcast(event: BroadcastEvent): void
+  broadcastRaw(frame: string): void
   close(): void
 }
 
@@ -22,6 +23,11 @@ export function createWsHub(): WsHub {
     },
     broadcast(event) {
       const frame = buildWsFrame(event)
+      for (const socket of sockets) {
+        sendSafely(socket, frame)
+      }
+    },
+    broadcastRaw(frame) {
       for (const socket of sockets) {
         sendSafely(socket, frame)
       }

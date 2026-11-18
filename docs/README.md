@@ -10,6 +10,7 @@
 ## 现行 runbook
 
 - [本地运行与运维](runbooks/local.md)
+- [总管模型配置](runbooks/supervisor-config.md)
 
 ## 现行 spec
 
@@ -21,6 +22,7 @@
 - [2026-11-17 M1-6a 任务控制台设计](specs/2026-11-17-m1-web-console-design.md)
 - [2026-11-17 M1-7a Claude 适配器与安全基线设计](specs/2026-11-17-m1-claude-adapter-design.md)
 - [2026-11-18 M1-6b 画布上下文与关系设计](specs/2026-11-18-m1-6b-canvas-context-design.md)
+- [2026-11-18 M2-1 总管 Router v0 设计](specs/2026-11-18-m2-supervisor-design.md)
 
 ## 现行 ADR
 
@@ -40,6 +42,7 @@
 - [M1-6a 任务控制台](contracts/M1-web-console.contract.md)
 - [M1-7a Claude 适配器与安全基线](contracts/M1-claude-adapter.contract.md)
 - [M1-6b 画布上下文与关系](contracts/M1-6b-canvas-context.contract.md)
+- [M2-1 总管 Router v0](contracts/M2-supervisor-v0.contract.md)
 
 ## 现行 plan
 
@@ -58,6 +61,14 @@
 - [M1-7a Web UX 与验收实施计划](plans/2026-11-18-m1-7a-web-acceptance.md)
 - [M1-6b 后端实施计划](plans/2026-11-18-m1-6b-context-core.md)
 - [M1-6b Web 实施计划](plans/2026-11-18-m1-6b-context-web.md)
+- [M2-1 总管契约层实施计划](plans/2026-11-18-m2-supervisor-contracts.md)
+- [M2-1 总管 daemon 实施计划](plans/2026-11-18-m2-supervisor-daemon.md)
+- [M2-1 总管 Web 实施计划](plans/2026-11-18-m2-supervisor-web.md)
+- [M2-1 总管验收实施计划](plans/2026-11-18-m2-supervisor-acceptance.md)
+
+## 验收证据
+
+- [M2-1 总管真实链路验收（阻塞，待模型配置）](evidence/2026-11-18-m2-supervisor/README.md)
 
 ## 约定
 

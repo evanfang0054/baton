@@ -1,5 +1,5 @@
 import { assembleContext } from '@baton/core'
-import type { AppError, TaskCreateInput } from '@baton/protocol'
+import type { AppError, TaskCreateInput, TaskOrigin } from '@baton/protocol'
 import type { Config } from '../config.js'
 import {
   getCanvasByWorkspace,
@@ -24,8 +24,14 @@ export interface TaskServiceDeps {
 
 export type CreateTaskResult = { ok: true; taskId: string } | { ok: false; error: AppError }
 
+export interface CreateTaskOptions {
+  /** 只允许 daemon 内部（总管）传入；web 的 task.create 不传。 */
+  origin?: TaskOrigin
+  audit?: { actor: string; action: string; detail: Record<string, unknown> }
+}
+
 export function createTaskService(deps: TaskServiceDeps) {
-  function createTask(input: TaskCreateInput): CreateTaskResult {
+  function createTask(input: TaskCreateInput, options: CreateTaskOptions = {}): CreateTaskResult {
     try {
       const workspace = getWorkspace(deps.db, input.workspaceId)
       if (!workspace) {
@@ -154,7 +160,17 @@ export function createTaskService(deps: TaskServiceDeps) {
             updatedAt: now,
           },
           JSON.stringify(snapshot),
+          options.origin ? JSON.stringify(options.origin) : null,
         )
+        if (options.audit) {
+          insertAudit(tx, {
+            id: deps.newId(),
+            ts: now,
+            actor: options.audit.actor,
+            action: options.audit.action,
+            detail: options.audit.detail,
+          })
+        }
         if (input.dangerouslySkipPermissions) {
           insertAudit(tx, {
             id: deps.newId(),

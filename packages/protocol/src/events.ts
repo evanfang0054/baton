@@ -4,6 +4,7 @@ import { DiffStat, Id, Timestamp } from './common.js'
 import { ApprovalRequest } from './entities/approval.js'
 import { Attention, SessionOutcome, TaskStatus, WaitingReason } from './enums.js'
 import { AppError } from './errors.js'
+import { SupervisorMessage } from './supervisor.js'
 
 const EventBase = z.object({
   v: z.literal(1),
@@ -108,6 +109,36 @@ export const VerifyResultEvent = ReplayableBase.extend({
 })
 export type VerifyResultEvent = z.infer<typeof VerifyResultEvent>
 
+export const SupervisorDeltaEvent = EventBase.extend({
+  type: z.literal('supervisor.delta'),
+  payload: z.object({
+    threadId: Id,
+    messageId: Id,
+    delta: z.string(),
+  }),
+})
+export type SupervisorDeltaEvent = z.infer<typeof SupervisorDeltaEvent>
+
+export const SupervisorToolEvent = EventBase.extend({
+  type: z.literal('supervisor.tool'),
+  payload: z.object({
+    threadId: Id,
+    messageId: Id,
+    toolCallId: z.string().min(1),
+    name: z.string().min(1),
+    phase: z.enum(['start', 'end']),
+    ok: z.boolean().optional(),
+    summary: z.string().optional(),
+  }),
+})
+export type SupervisorToolEvent = z.infer<typeof SupervisorToolEvent>
+
+export const SupervisorMessageEvent = EventBase.extend({
+  type: z.literal('supervisor.message'),
+  payload: SupervisorMessage,
+})
+export type SupervisorMessageEvent = z.infer<typeof SupervisorMessageEvent>
+
 export const ServerMessage = z.discriminatedUnion('type', [
   AckEvent,
   ErrorEvent,
@@ -115,5 +146,8 @@ export const ServerMessage = z.discriminatedUnion('type', [
   SessionEvent,
   ApprovalRequestEvent,
   VerifyResultEvent,
+  SupervisorDeltaEvent,
+  SupervisorToolEvent,
+  SupervisorMessageEvent,
 ])
 export type ServerMessage = z.infer<typeof ServerMessage>

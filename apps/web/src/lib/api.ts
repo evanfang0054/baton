@@ -3,6 +3,8 @@ import {
   CanvasResponse,
   EngineListResponse,
   SessionEventsResponse,
+  SupervisorMessagesResponse,
+  SupervisorStatusResponse,
   TaskDetailResponse,
   TaskListResponse,
   WorkspaceCreateInput,
@@ -100,4 +102,14 @@ export async function listSessionEvents(sessionId: string, sinceSeq = 0, limit =
   return SessionEventsResponse.parse(
     await request(`/api/sessions/${encodeURIComponent(sessionId)}/events?${query}`),
   )
+}
+
+export async function getSupervisorStatus() {
+  return SupervisorStatusResponse.parse(await request('/api/supervisor/status'))
+}
+
+export async function getSupervisorMessages(workspaceId: string, before?: string, limit = 50) {
+  const query = new URLSearchParams({ workspaceId, limit: String(limit) })
+  if (before) query.set('before', before)
+  return SupervisorMessagesResponse.parse(await request(`/api/supervisor/messages?${query}`))
 }

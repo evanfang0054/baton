@@ -70,6 +70,13 @@ describe('canvas model', () => {
     expect(flow[1]?.data.task).toEqual(task)
   })
 
+  it('shows the newest task when an agent has task history', () => {
+    const older: TaskSummary = { ...task, id: 't0', status: 'done', createdAt: 1 }
+    const newer: TaskSummary = { ...task, id: 't2', createdAt: 2 }
+    const flow = toFlowNodes([agentNode], [newer, older])
+    expect(flow[0]?.data.task?.id).toBe('t2')
+  })
+
   it('falls back to the default node type for non-6a nodes', () => {
     const image: ProtocolNode = {
       ...textNode,

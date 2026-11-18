@@ -22,7 +22,7 @@ const baseTask: TaskDetailResponse['task'] = {
   verifyCommand: null,
   dangerouslySkipPermissions: false,
   retryCount: 0,
-  ...{ context: null },
+  ...{ context: null, origin: null },
   createdAt: 1,
   updatedAt: 2,
 }
@@ -47,6 +47,7 @@ function detail(overrides: Partial<TaskDetailResponse> = {}): TaskDetailResponse
     waitingSince: null,
     attention: 'none',
     ['contextInvalid']: false,
+    ['originInvalid']: false,
     ...overrides,
   }
 }
@@ -89,22 +90,51 @@ function renderPanel(send = vi.fn().mockResolvedValue(undefined)) {
   return { send, client }
 }
 
-beforeEach(() => {
-  useAppStore.setState({
-    activeWorkspaceId: 'w1',
-    activeTaskId: 't1',
-    boardExpanded: false,
-    boardPinned: false,
-    wsStatus: 'offline',
-    lastSeq: 0,
-  })
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
-
 describe('TaskDetailPanel', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      activeWorkspaceId: 'w1',
+      activeTaskId: 't1',
+      boardExpanded: false,
+      boardPinned: false,
+      wsStatus: 'offline',
+      lastSeq: 0,
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('shows supervisor origin for a task created by the supervisor', async () => {
+    stubFetch(
+      detail({
+        task: {
+          ...baseTask,
+          origin: {
+            source: 'supervisor-chat',
+            triggerId: 'r1',
+            threadId: 'th1',
+            actor: { id: 'local-user', kind: 'human', source: 'supervisor-chat' },
+            workspaceId: 'w1',
+            targetNodeId: 'n1',
+            contextNodeIds: ['t1'],
+            policyVersion: 'policy-1',
+            promptVersion: 'prompt-1',
+            createdAt: 1,
+          },
+        },
+      }),
+    )
+    renderPanel()
+
+    expect(await screen.findByText('来源')).toBeInTheDocument()
+    expect(screen.getByText('总管对话')).toBeInTheDocument()
+    expect(screen.getByText('r1')).toBeInTheDocument()
+    expect(screen.getByText('policy-1')).toBeInTheDocument()
+    expect(screen.getByText('prompt-1')).toBeInTheDocument()
+  })
+
   it('shows a todo task, enqueues it and invalidates its queries', async () => {
     stubFetch(detail())
     const { send, client } = renderPanel()
