@@ -73,16 +73,19 @@ export function RealtimeProvider({
     const client = createWsClient({
       onStatus: (status) => {
         setWsStatus(status)
-        if (status === 'online') {
-          // daemon 重启或首屏失败后，用一次重连把 REST 快照补齐。
-          void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces })
-          void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
-          void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
-          void queryClient.invalidateQueries({ queryKey: queryKeys.supervisorStatus })
-          void queryClient.invalidateQueries({
-            queryKey: queryKeys.supervisorMessages(workspaceId),
-          })
+        if (status !== 'online') {
+          // 断线后不会再有 delta/finish；清掉在途流式态，避免输入框永久 busy。
+          useSupervisorStreamStore.getState().reset()
+          return
         }
+        // daemon 重启或首屏失败后，用一次重连把 REST 快照补齐。
+        void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.supervisorStatus })
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.supervisorMessages(workspaceId),
+        })
       },
       onEvent: (event) => {
         if (event.type === 'session.event') {
@@ -136,8 +139,8 @@ export function RealtimeProvider({
               void queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
             }
           }
-          // 模型可能把一大段文本一次性吐出来；让流式气泡先按帧展示完，再切到最终消息，
-          // 避免肉眼看到“整段闪现”。短回复几乎没有延迟。
+          // 模型可能把一大段文本一次性吐出来；让流式气泡先按帧展示完，
+          // 再切到最终消息，避免肉眼看到“整段闪现”。短回复几乎没有延迟。
           const streaming = useSupervisorStreamStore.getState().status === 'streaming'
           const delay = streaming
             ? Math.min(900, Math.max(120, Math.round(event.payload.content.length * 2)))

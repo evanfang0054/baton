@@ -25,9 +25,9 @@ const typeLabels: Record<ProtocolNode['type'], string> = {
   group: '分组',
 }
 
+const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-accent'
+
 function contextLabel(node: ProtocolNode): string {
-  const explicit = (node as ProtocolNode & { title?: unknown }).title
-  if (typeof explicit === 'string' && explicit.length > 0) return explicit
   try {
     return nodeTitle(node)
   } catch {
@@ -40,11 +40,13 @@ export function SupervisorComposer({
   contextNodes,
   targetAgent,
   initialText = '',
+  initialTextKey = 0,
 }: {
   workspaceId: string
   contextNodes: ProtocolNode[]
   targetAgent: SupervisorTargetAgent | null
   initialText?: string
+  initialTextKey?: number
 }) {
   const send = useCommand()
   const queryClient = useQueryClient()
@@ -58,8 +60,9 @@ export function SupervisorComposer({
   const busy = sending || stream.status === 'streaming'
 
   useEffect(() => {
+    // 同一个快捷提示可能被再次选中；用 key 让写入生效，而不是依赖文本变化。
     if (initialText) setText(initialText)
-  }, [initialText])
+  }, [initialText, initialTextKey])
 
   const submit = async () => {
     const value = text.trim()
@@ -143,7 +146,7 @@ export function SupervisorComposer({
                 type="button"
                 aria-label={`移除上下文 ${label}`}
                 onClick={() => removeContextNode(node.id)}
-                className="rounded p-0.5 text-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-accent"
+                className={`rounded p-0.5 text-muted hover:text-foreground ${FOCUS_RING}`}
               >
                 <X size={12} aria-hidden="true" />
               </button>
@@ -161,7 +164,7 @@ export function SupervisorComposer({
           <button
             type="button"
             onClick={clearContext}
-            className="text-xs text-muted underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+            className={`text-xs text-muted underline-offset-2 hover:text-foreground hover:underline ${FOCUS_RING}`}
           >
             清空上下文
           </button>

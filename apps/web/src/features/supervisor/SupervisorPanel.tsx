@@ -28,7 +28,8 @@ export function SupervisorPanel({
   const [olderBefore, setOlderBefore] = useState<string | null>(null)
   const [olderLoaded, setOlderLoaded] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
-  const [quickPrompt, setQuickPrompt] = useState('')
+  const [retrying, setRetrying] = useState(false)
+  const [quickPrompt, setQuickPrompt] = useState({ text: '', seq: 0 })
 
   const status = useQuery({
     queryKey: queryKeys.supervisorStatus,
@@ -44,7 +45,7 @@ export function SupervisorPanel({
     setOlderMessages([])
     setOlderBefore(null)
     setOlderLoaded(false)
-    setQuickPrompt('')
+    setQuickPrompt({ text: '', seq: 0 })
     useSupervisorStreamStore.getState().reset()
   }, [workspaceId])
 
@@ -79,8 +80,11 @@ export function SupervisorPanel({
   }
 
   const resend = async (userMessage: SupervisorMessage) => {
-    if (!workspaceId) return
+    if (!workspaceId || retrying || stream.status === 'streaming') return
     const meta = userMessage.meta
+    setRetrying(true)
+    // 与输入框保持一致：重试后立刻进入“正在思考”，避免重复点击再发一轮。
+    useSupervisorStreamStore.getState().waitForReply()
     try {
       await send({
         type: 'supervisor.send',
@@ -93,7 +97,10 @@ export function SupervisorPanel({
         },
       })
     } catch (cause) {
+      useSupervisorStreamStore.getState().reset()
       toast.danger(cause instanceof Error ? cause.message : '重试失败')
+    } finally {
+      setRetrying(false)
     }
   }
 
@@ -177,7 +184,9 @@ export function SupervisorPanel({
           onLoadOlder={() => void loadOlder()}
           onRetry={(message) => void retry(message)}
           onRetryIncomplete={() => incomplete && void resend(incomplete)}
-          onPickQuickPrompt={setQuickPrompt}
+          onPickQuickPrompt={(text) =>
+            setQuickPrompt((previous) => ({ text, seq: previous.seq + 1 }))
+          }
         />
       ) : null}
       {workspaceId && history.data ? (
@@ -185,7 +194,8 @@ export function SupervisorPanel({
           workspaceId={workspaceId}
           contextNodes={contextNodes}
           targetAgent={targetAgent}
-          initialText={quickPrompt}
+          initialText={quickPrompt.text}
+          initialTextKey={quickPrompt.seq}
         />
       ) : null}
     </div>

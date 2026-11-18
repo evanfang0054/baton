@@ -33,6 +33,8 @@ function preview(value: unknown): string {
   return text.length > 4000 ? `${text.slice(0, 4000)}\n…` : text
 }
 
+const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-accent'
+
 export function SupervisorToolCard({ tool }: { tool: SupervisorToolView }) {
   const [open, setOpen] = useState(false)
   const Icon = icons[tool.name] ?? Wrench
@@ -52,7 +54,7 @@ export function SupervisorToolCard({ tool }: { tool: SupervisorToolView }) {
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center gap-2 rounded-lg p-2 text-left text-xs focus-visible:outline-2 focus-visible:outline-accent"
+        className={`flex w-full items-center gap-2 rounded-lg p-2 text-left text-xs ${FOCUS_RING}`}
       >
         <Icon size={14} className="shrink-0 text-muted" />
         <span className="min-w-0 truncate font-mono text-foreground">{tool.name}</span>

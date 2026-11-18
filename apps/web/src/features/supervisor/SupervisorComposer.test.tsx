@@ -34,7 +34,7 @@ describe('SupervisorComposer', () => {
   it('sends context and target in the payload', async () => {
     const send = vi.fn().mockResolvedValue({ threadId: 'th1', messageId: 'm1' })
     const { client } = renderComposer(send, {
-      contextNodes: [{ id: 'n1', type: 'text', title: '需求 A' } as never],
+      contextNodes: [{ id: 'n1', type: 'text', data: { content: '需求 A' } } as never],
       targetAgent: { id: 'a1', title: 'Agent 1' },
     })
     client.setQueryData<SupervisorMessagesResponse>(queryKeys.supervisorMessages('w1'), {
