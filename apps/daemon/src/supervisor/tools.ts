@@ -140,12 +140,14 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     },
 
     get_task: {
-      description: '读取一个任务的元数据、session 摘要与 review 摘要；不返回 transcript 或日志。',
+      description:
+        '读取一个任务的元数据、session 摘要与 review 摘要；' + '不返回 transcript 或日志。',
       parameters: getTaskInput,
-      async execute(input) {
+      async execute(input, ctx) {
         const parsed = getTaskInput.parse(input)
         const detail = getTaskDetail(deps.db, parsed.taskId)
-        if (!detail) {
+        // 总管只能看到当前 workspace 的任务，避免跨工作区读取。
+        if (!detail || detail.task.workspaceId !== ctx.workspaceId) {
           throw appError('task_not_found', 'task not found', { taskId: parsed.taskId })
         }
         const task = detail.task
@@ -186,7 +188,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     },
 
     create_task: {
-      description: '用户明确要求建任务时，把当前选择交给目标 Agent；只创建到 todo，不开工。',
+      description: '用户明确要求建任务时，把当前选择交给目标 Agent；' + '只创建到 todo，不开工。',
       parameters: createTaskInput,
       async execute(input, ctx) {
         const parsed = createTaskInput.parse(input)

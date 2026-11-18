@@ -1,5 +1,5 @@
-import { attentionFor } from '@baton/core'
-import { TaskDetailResponse, TaskListQuery, TaskListResponse, type Task } from '@baton/protocol'
+import { attentionFor, waitingSinceFor } from '@baton/core'
+import { TaskDetailResponse, TaskListQuery, TaskListResponse } from '@baton/protocol'
 import type { FastifyInstance } from 'fastify'
 import {
   getReviewByTask,
@@ -11,10 +11,6 @@ import {
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
 import type { Logger } from '../log.js'
-
-function waitingSinceFor(task: Task): number | null {
-  return task.status === 'waiting_input' || task.status === 'review' ? task.updatedAt : null
-}
 
 export function registerTaskRoutes(app: FastifyInstance, deps: { db: Db; logger: Logger }): void {
   app.get('/api/tasks', async (req) => {

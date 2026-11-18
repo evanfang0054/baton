@@ -1,3 +1,4 @@
+import { SUPERVISOR_POLICY } from '@baton/core'
 import type { SupervisorMessage, ToolCallRecord } from '@baton/protocol'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { stepCountIs, streamText, tool, type ToolSet } from 'ai'
@@ -53,8 +54,8 @@ export function createAiSdkSupervisorEngine(config: SupervisorConfig): Superviso
           content: message.content,
         })),
         tools: sdkTools,
-        stopWhen: stepCountIs(4),
-        maxOutputTokens: 2000,
+        stopWhen: stepCountIs(SUPERVISOR_POLICY.maxSteps),
+        maxOutputTokens: SUPERVISOR_POLICY.maxOutputTokens,
         abortSignal: signal,
       })
 

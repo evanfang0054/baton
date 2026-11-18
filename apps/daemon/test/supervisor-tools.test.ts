@@ -123,4 +123,11 @@ describe('supervisor tools', () => {
     expect(detail).not.toHaveProperty('transcript')
     expect(detail).not.toHaveProperty('logs')
   })
+
+  it('hides tasks that belong to another workspace', async () => {
+    const { seeded, tools } = setup()
+    await expect(
+      tools.get_task.execute({ taskId: seeded.taskId }, { ...ctx(seeded), workspaceId: 'other' }),
+    ).rejects.toMatchObject({ code: 'task_not_found' })
+  })
 })

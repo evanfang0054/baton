@@ -5,7 +5,7 @@ import {
   SupervisorThread,
   ToolCallRecord,
 } from '@baton/protocol'
-import { and, desc, eq, lt, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, lt, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { supervisorDecision, supervisorMessage, supervisorThread } from '../db/schema.js'
 import type { Db } from '../db/types.js'
@@ -283,11 +283,19 @@ export function createSupervisorStore(deps: SupervisorStoreDeps): SupervisorStor
       const page = rows.slice(0, limit)
       const nextBefore = hasMore ? page[page.length - 1]?.id : undefined
 
-      const decisions = deps.db
-        .select()
-        .from(supervisorDecision)
-        .where(eq(supervisorDecision.threadId, threadId))
-        .all()
+      const decisions =
+        page.length > 0
+          ? deps.db
+              .select()
+              .from(supervisorDecision)
+              .where(
+                inArray(
+                  supervisorDecision.messageId,
+                  page.map((row) => row.id),
+                ),
+              )
+              .all()
+          : []
       const byMessage = new Map<string, SupervisorDecision>()
       for (const row of decisions) {
         const decision = toDecision(row)

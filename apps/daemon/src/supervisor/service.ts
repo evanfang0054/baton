@@ -10,7 +10,7 @@ import {
 } from '@baton/protocol'
 import { getCanvasByWorkspace, getWorkspace, listNodes } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
-import { appError, toAppError } from '../errors.js'
+import { appError, isAppError } from '../errors.js'
 import type { Logger } from '../log.js'
 import type { TaskService } from '../runtime/task-service.js'
 import { loadSupervisorConfig, type SupervisorConfig } from './config.js'
@@ -70,6 +70,18 @@ function nodeTitle(node: Node): string {
     case 'review':
       return 'review'
   }
+}
+
+function trimHistory(messages: SupervisorMessage[], maxChars = 32_000): SupervisorMessage[] {
+  let total = 0
+  const kept: SupervisorMessage[] = []
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]!
+    if (kept.length > 0 && total + message.content.length > maxChars) break
+    total += message.content.length
+    kept.unshift(message)
+  }
+  return kept
 }
 
 function candidateCard(input: {
@@ -133,33 +145,36 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     messageId: string,
     threadId: string,
   ): BoundTool {
+    let callSeq = 0
     return {
       description: tool.description,
       parameters: tool.parameters,
       async execute(input) {
-        emit('supervisor.tool', `${messageId}:${name}`, {
+        // 同一轮可能多次调用同一工具；每次执行必须有独立 id，否则前端会合并工具卡。
+        const toolCallId = `${messageId}:${name}:${++callSeq}`
+        emit('supervisor.tool', toolCallId, {
           threadId,
           messageId,
-          toolCallId: name,
+          toolCallId,
           name,
           phase: 'start',
         })
         try {
           const result = await tool.execute(input)
-          emit('supervisor.tool', `${messageId}:${name}`, {
+          emit('supervisor.tool', toolCallId, {
             threadId,
             messageId,
-            toolCallId: name,
+            toolCallId,
             name,
             phase: 'end',
             ok: true,
           })
           return result
         } catch (error) {
-          emit('supervisor.tool', `${messageId}:${name}`, {
+          emit('supervisor.tool', toolCallId, {
             threadId,
             messageId,
-            toolCallId: name,
+            toolCallId,
             name,
             phase: 'end',
             ok: false,
@@ -173,7 +188,6 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
 
   async function runTurn(input: {
     threadId: string
-    userMessageId: string
     assistantMessageId: string
     request: SupervisorSendInput
     config: SupervisorConfig
@@ -185,6 +199,11 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     let buffer = ''
     let flushTimer: NodeJS.Timeout | undefined
     const flush = () => {
+      // 定时器已触发或这次是主动 flush：必须复位，否则后续 delta 不会再排队。
+      if (flushTimer) {
+        clearTimeout(flushTimer)
+        flushTimer = undefined
+      }
       if (!buffer) return
       emit('supervisor.delta', input.assistantMessageId, {
         threadId: input.threadId,
@@ -260,7 +279,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           input.threadId,
         ),
       }
-      const history = store.listMessages(input.threadId, 21).messages.slice(-20)
+      const history = trimHistory(store.listMessages(input.threadId, 21).messages.slice(-20))
       const engine = deps.engine ?? createAiSdkSupervisorEngine(input.config)
       const result = await engine.run({
         system: `${SUPERVISOR_PROMPT}\n\n${candidateCard({
@@ -316,7 +335,13 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       })
       emit('supervisor.message', turn.message.id, turn.message)
     } catch (error) {
-      const failure = toAppError(error)
+      // 模型/网关错误必须把原因带到 UI；toAppError 的兜底文案会把诊断信息吞掉。
+      const failure = isAppError(error)
+        ? error
+        : appError(
+            'supervisor_model_error',
+            error instanceof Error ? error.message : 'unexpected error',
+          )
       try {
         const turn = store.insertAssistantTurn({
           threadId: input.threadId,
@@ -356,6 +381,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           threadId: input.threadId,
           triggerId: input.request.requestId,
           code: failure.code,
+          message: failure.message,
           durationMs: deps.now() - input.startedAt,
         },
         'supervisor turn failed',
@@ -400,7 +426,6 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       const assistantMessageId = deps.newId()
       const run = runTurn({
         threadId: thread.id,
-        userMessageId: inserted.message.id,
         assistantMessageId,
         request: input,
         config: loaded.config,
