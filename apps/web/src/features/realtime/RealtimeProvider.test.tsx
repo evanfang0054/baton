@@ -138,6 +138,7 @@ describe('RealtimeProvider', () => {
     const initial: SupervisorMessagesResponse = { threadId: 'th1', messages: [] }
     client.setQueryData(queryKeys.supervisorMessages('w1'), initial)
     renderProvider(client)
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
     const socket = FakeSocket.instances[0]!
     socket.open()
 
@@ -191,6 +192,7 @@ describe('RealtimeProvider', () => {
     )
     expect(useSupervisorStreamStore.getState().status).toBe('idle')
     expect(useSupervisorStreamStore.getState().text).toBe('')
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.tasks('w1') })
   })
 
   it('coalesces invalidations and surfaces broadcast errors as toasts', async () => {

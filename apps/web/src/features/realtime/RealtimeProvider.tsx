@@ -127,6 +127,12 @@ export function RealtimeProvider({
           )
           // 让 REST 校正 nextBefore / threadId 等分页字段。
           void queryClient.invalidateQueries({ queryKey: key })
+          // create_task 不经过 task.status 事件；任务列表/看板必须在这里刷新。
+          void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+          const taskId = event.payload.decision?.taskId
+          if (taskId) {
+            void queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+          }
           return
         }
         if (event.type === 'error') {

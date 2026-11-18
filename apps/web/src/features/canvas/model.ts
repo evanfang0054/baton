@@ -12,7 +12,13 @@ export function toFlowNodes(
   nodes: ProtocolNode[],
   tasks: TaskSummary[],
 ): FlowNode<CanvasNodeData>[] {
-  const taskByNode = new Map(tasks.map((task) => [task.nodeId, task]))
+  // 同一 Agent 可能有多条历史任务；节点徽标必须显示最新创建的一条。
+  const taskByNode = new Map<string, TaskSummary>()
+  for (const task of tasks) {
+    if (!task.nodeId) continue
+    const current = taskByNode.get(task.nodeId)
+    if (!current || task.createdAt > current.createdAt) taskByNode.set(task.nodeId, task)
+  }
   return nodes.map((node) => ({
     id: node.id,
     type: CUSTOM_TYPES.has(node.type) ? node.type : 'default',
