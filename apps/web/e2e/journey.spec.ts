@@ -84,6 +84,7 @@ test('trusts a workspace and resolves an approval card', async ({ page }) => {
               branch: null,
               worktreePath: null,
               verifyCommand: null,
+              dangerouslySkipPermissions: false,
               retryCount: 0,
               createdAt: 1,
               updatedAt: 2,
@@ -110,6 +111,7 @@ test('trusts a workspace and resolves an approval card', async ({ page }) => {
             branch: null,
             worktreePath: null,
             verifyCommand: null,
+            dangerouslySkipPermissions: false,
             retryCount: 0,
             createdAt: 1,
             updatedAt: 2,
@@ -124,6 +126,7 @@ test('trusts a workspace and resolves an approval card', async ({ page }) => {
                   decision: 'allow',
                   decidedBy: 'user',
                   decidedAt: 3,
+                  response: null,
                 },
               ]
             : [
@@ -134,6 +137,7 @@ test('trusts a workspace and resolves an approval card', async ({ page }) => {
                   decision: null,
                   decidedBy: null,
                   decidedAt: null,
+                  response: null,
                 },
               ],
           review: null,
