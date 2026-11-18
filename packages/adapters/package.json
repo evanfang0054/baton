@@ -5,12 +5,20 @@
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./claude": "./src/claude/index.ts",
+    "./claude-meta": "./src/claude/meta.ts",
+    "./fake": "./src/fake.ts"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@baton/protocol": "workspace:*"
+    "@anthropic-ai/claude-agent-sdk": "0.3.327",
+    "@baton/protocol": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.2"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
