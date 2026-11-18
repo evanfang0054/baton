@@ -340,30 +340,38 @@ export interface AutomationGate {
   killSwitch: boolean
 }
 
+export function canAutopilot(gate: AutomationGate): boolean {
+  return gate.workspaceTrusted === true && gate.killSwitch === false
+}
+
 export function effectiveAutopilot(policy: Policy, gate: AutomationGate): Policy['autopilot'] {
   return {
     ...policy.autopilot,
-    enabled: policy.autopilot.enabled && gate.workspaceTrusted && !gate.killSwitch,
+    enabled: policy.autopilot.enabled && canAutopilot(gate),
   }
 }
 ```
 
-`policy/types.ts` 的 `PolicyContext` 增加 `workspaceTrusted: boolean`；`policy/evaluate.ts` 的 `auto` 条件增加 `ctx.workspaceTrusted`。
+`policy/types.ts` 的 `PolicyContext` 增加 `workspaceTrusted?: boolean`；`policy/evaluate.ts` 的 `auto` 条件用 `canAutopilot({ workspaceTrusted: ctx.workspaceTrusted === true, killSwitch: ctx.killSwitch })`。
 
 `state-machine/types.ts` 的 `TransitionContext` 增加：
 
 ```ts
-readonly workspaceTrusted: boolean
-readonly killSwitch: boolean
+readonly workspaceTrusted?: boolean
+readonly killSwitch?: boolean
 ```
+
+Plan 1 先以“缺省即 fail-closed”保持全量 verify 绿：`workspaceTrusted` 缺省按 false，`killSwitch` 缺省按 true；Plan 2 再传真实值。
 
 `state-machine/transition.ts` 的 `verify_fail` 分支改为：
 
 ```ts
 if (
   ctx.autopilot.enabled &&
-  ctx.workspaceTrusted &&
-  !ctx.killSwitch &&
+  canAutopilot({
+    workspaceTrusted: ctx.workspaceTrusted === true,
+    killSwitch: ctx.killSwitch ?? true,
+  }) &&
   ctx.retryCount < ctx.autopilot.retryMax
 ) {
   // 原 queued 分支不变

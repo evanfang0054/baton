@@ -24,14 +24,16 @@ function toRef(task: Task): DigestTaskRef {
   }
 }
 
-function byLongestWait(a: DigestTaskRef, b: DigestTaskRef): number {
-  return (b.waitingSince ?? 0) - (a.waitingSince ?? 0)
+function byWaitingSinceAsc(a: DigestTaskRef, b: DigestTaskRef): number {
+  return (a.waitingSince ?? 0) - (b.waitingSince ?? 0)
 }
 
 /** 只读任务摘要；不得把 prompt、context、transcript 带进 digest。 */
 export function buildDigest(input: DigestInput): DigestReport {
   const tasks = input.tasks.filter((task) => task.workspaceId === input.workspaceId)
   const refs = tasks.map(toRef)
+  const reasonById = new Map(tasks.map((task) => [task.id, task.waitingReason]))
+  const taskIds = new Set(tasks.map((task) => task.id))
 
   const snapshot = {
     total: tasks.length,
@@ -61,25 +63,24 @@ export function buildDigest(input: DigestInput): DigestReport {
 
   const ready = refs
     .filter((task) => task.status === 'review')
-    .sort(byLongestWait)
+    .sort(byWaitingSinceAsc)
     .slice(0, 20)
   const blocked = refs
-    .filter((task) => task.status === 'waiting_input' && task.attention !== 'none')
-    .filter((task) => tasks.find((row) => row.id === task.id)?.waitingReason !== 'dropped')
-    .sort(byLongestWait)
+    .filter((task) => task.status === 'waiting_input' && reasonById.get(task.id) !== 'dropped')
+    .sort(byWaitingSinceAsc)
     .slice(0, 20)
   const dropped = refs
-    .filter((task) => tasks.find((row) => row.id === task.id)?.waitingReason === 'dropped')
-    .sort(byLongestWait)
+    .filter((task) => reasonById.get(task.id) === 'dropped')
+    .sort(byWaitingSinceAsc)
     .slice(0, 20)
 
   const waitingRefs = refs.filter(
     (task) => task.status === 'waiting_input' || task.status === 'review',
   )
-  const oldestWaiting = waitingRefs.sort(byLongestWait)[0] ?? null
+  const oldestWaiting = waitingRefs.sort(byWaitingSinceAsc)[0] ?? null
 
-  const completed = [...input.completedAtByTask.values()].filter(
-    (at) => at >= input.windowStart,
+  const completed = [...input.completedAtByTask.entries()].filter(
+    ([taskId, at]) => taskIds.has(taskId) && at >= input.windowStart,
   ).length
 
   return {

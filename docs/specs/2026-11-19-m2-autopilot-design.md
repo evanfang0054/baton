@@ -254,7 +254,7 @@ export const NoticeListQuery = z.object({
   workspaceId: Id.optional(),
   kind: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
-  before: Timestamp.optional(),
+  before: z.coerce.number().int().nonnegative().optional(),
 })
 export const NoticeListResponse = z.object({
   notices: z.array(Notice),
@@ -264,9 +264,12 @@ export const NoticeListResponse = z.object({
 export const DigestGenerateResponse = z.object({ notice: Notice })
 
 export const AuditListQuery = z.object({
-  actionPrefix: z.string().optional(),
+  actionPrefix: z
+    .string()
+    .regex(/^[a-z.]{1,64}$/)
+    .optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  before: Timestamp.optional(),
+  before: z.coerce.number().int().nonnegative().optional(),
 })
 export const AuditListResponse = z.object({
   entries: z.array(Audit),
@@ -335,8 +338,8 @@ export function effectiveAutopilot(policy: Policy, gate: AutomationGate): Policy
 }
 ```
 
-- `PolicyContext` 增加 `workspaceTrusted: boolean`；`evaluateApproval` 的 auto 条件增加 `ctx.workspaceTrusted`。
-- `TransitionContext` 增加 `workspaceTrusted: boolean`、`killSwitch: boolean`；`verify_fail` 的重试分支同时检查两者。
+- `PolicyContext` 增加 `workspaceTrusted?: boolean`；`evaluateApproval` 的 auto 条件增加 `workspaceTrusted === true`。
+- `TransitionContext` 增加 `workspaceTrusted?: boolean`、`killSwitch?: boolean`；`verify_fail` 的重试分支要求 `workspaceTrusted === true && killSwitch === false`。Plan 1 先以“缺省即 fail-closed”保持全量 verify 绿，Plan 2 再传真实值。
 - 所有 core 测试使用同一口径；矩阵覆盖 `enabled × trusted × killSwitch`。
 - daemon 不再自己拼规则，只传事实。
 

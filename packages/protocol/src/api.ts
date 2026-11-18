@@ -119,7 +119,7 @@ export const NoticeListQuery = z.object({
   workspaceId: Id.optional(),
   kind: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
-  before: Timestamp.optional(),
+  before: z.coerce.number().int().nonnegative().optional(),
 })
 export type NoticeListQuery = z.infer<typeof NoticeListQuery>
 
@@ -133,9 +133,12 @@ export const DigestGenerateResponse = z.object({ notice: Notice })
 export type DigestGenerateResponse = z.infer<typeof DigestGenerateResponse>
 
 export const AuditListQuery = z.object({
-  actionPrefix: z.string().optional(),
+  actionPrefix: z
+    .string()
+    .regex(/^[a-z.]{1,64}$/)
+    .optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  before: Timestamp.optional(),
+  before: z.coerce.number().int().nonnegative().optional(),
 })
 export type AuditListQuery = z.infer<typeof AuditListQuery>
 

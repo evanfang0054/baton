@@ -6,6 +6,7 @@ import type {
 } from '@baton/protocol'
 import { effects } from './effects.js'
 import { canAcceptUserInput } from './attention.js'
+import { canAutopilot } from '../automation/effective.js'
 import type { TaskEffect, TransitionContext, TransitionResult } from './types.js'
 
 const TERMINAL: ReadonlySet<TaskStatus> = new Set(['done', 'failed', 'cancelled'])
@@ -191,8 +192,10 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
         )
         if (
           ctx.autopilot.enabled &&
-          ctx.workspaceTrusted &&
-          !ctx.killSwitch &&
+          canAutopilot({
+            workspaceTrusted: ctx.workspaceTrusted === true,
+            killSwitch: ctx.killSwitch ?? true,
+          }) &&
           ctx.retryCount < ctx.autopilot.retryMax
         ) {
           return ok(

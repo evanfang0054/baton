@@ -5,10 +5,14 @@ export interface AutomationGate {
   killSwitch: boolean
 }
 
-/** 自动化的唯一安全口径：项目配置、workspace 信任与全局 kill switch 同时满足。 */
+/** 自动化的唯一安全口径：workspace 信任且 kill switch 明确关闭。 */
+export function canAutopilot(gate: AutomationGate): boolean {
+  return gate.workspaceTrusted === true && gate.killSwitch === false
+}
+
 export function effectiveAutopilot(policy: Policy, gate: AutomationGate): Policy['autopilot'] {
   return {
     ...policy.autopilot,
-    enabled: policy.autopilot.enabled && gate.workspaceTrusted && !gate.killSwitch,
+    enabled: policy.autopilot.enabled && canAutopilot(gate),
   }
 }

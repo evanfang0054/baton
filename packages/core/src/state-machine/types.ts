@@ -14,8 +14,9 @@ export interface TransitionContext {
   readonly runningCount: number
   readonly maxConcurrency: number
   readonly autopilot: { readonly enabled: boolean; readonly retryMax: number }
-  readonly workspaceTrusted: boolean
-  readonly killSwitch: boolean
+  /** 缺省按未信任/未关闭处理，Plan 2 接线后传真实值。 */
+  readonly workspaceTrusted?: boolean
+  readonly killSwitch?: boolean
   readonly waitingReason: WaitingReason | null
 }
 

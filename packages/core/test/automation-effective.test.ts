@@ -19,16 +19,18 @@ const request = {
 
 describe('effective autopilot', () => {
   it.each([
-    { trusted: true, killSwitch: false, enabled: true },
-    { trusted: false, killSwitch: false, enabled: false },
-    { trusted: true, killSwitch: true, enabled: false },
-  ])('enabled=$enabled when trusted=$trusted killSwitch=$killSwitch', (c) => {
-    expect(
-      effectiveAutopilot(policy, {
-        workspaceTrusted: c.trusted,
-        killSwitch: c.killSwitch,
-      }).enabled,
-    ).toBe(c.enabled)
+    { enabled: true, trusted: true, killSwitch: false, expected: true },
+    { enabled: false, trusted: true, killSwitch: false, expected: false },
+    { enabled: true, trusted: false, killSwitch: false, expected: false },
+    { enabled: true, trusted: true, killSwitch: true, expected: false },
+    { enabled: true, trusted: false, killSwitch: true, expected: false },
+  ])('enabled=$expected when policy=$enabled trusted=$trusted killSwitch=$killSwitch', (c) => {
+    const effective = effectiveAutopilot(
+      { ...policy, autopilot: { ...policy.autopilot, enabled: c.enabled } },
+      { workspaceTrusted: c.trusted, killSwitch: c.killSwitch },
+    )
+    expect(effective.enabled).toBe(c.expected)
+    expect(effective.retryMax).toBe(policy.autopilot.retryMax)
   })
 
   it('does not auto-approve in an untrusted workspace', () => {

@@ -66,7 +66,69 @@ describe('buildDigest', () => {
     expect(digest.changes.autoAllowed).toBe(1)
     expect(digest.changes.autoDenied).toBe(1)
     expect(digest.changes.retried).toBe(1)
+    expect(digest.snapshot.attention).toEqual({
+      needsApproval: 1,
+      needsReply: 1,
+      needsAttention: 0,
+      needsReview: 1,
+    })
+    expect(digest.oldestWaiting?.id).toBe('t3')
     expect(JSON.stringify(digest)).not.toContain('SECRET_PROMPT')
+    expect(digest).toMatchSnapshot()
+  })
+
+  it('handles an empty workspace', () => {
+    const digest = buildDigest({
+      workspaceId: 'w1',
+      now: 100,
+      windowStart: 0,
+      policyVersion: 'abc123abc123',
+      tasks: [],
+      autoDecisions: [],
+      retryAudits: [],
+      completedAtByTask: new Map(),
+    })
+    expect(digest.snapshot.total).toBe(0)
+    expect(digest.ready).toEqual([])
+    expect(digest.blocked).toEqual([])
+    expect(digest.dropped).toEqual([])
+    expect(digest.oldestWaiting).toBeNull()
+  })
+
+  it('orders by oldest wait and includes window boundaries', () => {
+    const digest = buildDigest({
+      workspaceId: 'w1',
+      now: 100,
+      windowStart: 50,
+      policyVersion: 'abc123abc123',
+      tasks: [
+        {
+          ...base,
+          id: 'new',
+          title: '新等待',
+          status: 'waiting_input',
+          waitingReason: 'approval',
+          createdAt: 50,
+          updatedAt: 90,
+        },
+        {
+          ...base,
+          id: 'old',
+          title: '旧等待',
+          status: 'waiting_input',
+          waitingReason: 'approval',
+          createdAt: 50,
+          updatedAt: 60,
+        },
+      ],
+      autoDecisions: [],
+      retryAudits: [],
+      completedAtByTask: new Map(),
+    })
+    expect(digest.blocked.map((task) => task.id)).toEqual(['old', 'new'])
+    expect(digest.oldestWaiting?.id).toBe('old')
+    expect(digest.changes.created).toBe(2)
+    expect(digest.changes.updated).toBe(2)
   })
 
   it('caps arrays at 20 and ignores tasks outside the workspace', () => {
