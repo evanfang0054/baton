@@ -1,8 +1,8 @@
 import type { DiffFile, DiffSnapshot } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
+import { Modal } from '@heroui/react/modal'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect } from 'react'
-import { getReviewDiff } from '../../lib/api'
+import { ApiError, getReviewDiff } from '../../lib/api'
 import { queryKeys } from '../../lib/query'
 
 const MAX_RENDER_LINES = 2000
@@ -83,47 +83,41 @@ export function DiffViewer({ reviewId, onClose }: { reviewId: string; onClose: (
     staleTime: Infinity,
   })
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  const errorCode = query.error instanceof ApiError ? query.error.code : null
 
-  const errorCode =
-    query.error && typeof query.error === 'object' && 'code' in query.error
-      ? String((query.error as { code?: unknown }).code)
-      : null
+  const dialogClass = [
+    'flex h-[100dvh] w-screen max-w-none flex-col rounded-none p-0',
+    'border border-separator bg-surface shadow-overlay',
+    'md:h-auto md:max-h-[90vh] md:w-full md:max-w-3xl md:rounded-lg',
+  ].join(' ')
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-0 md:p-4">
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-label="改动详情"
-        className="flex h-[100dvh] max-h-none w-full max-w-3xl flex-col rounded-none border border-separator bg-surface shadow-overlay md:h-auto md:max-h-[90vh] md:rounded-lg"
-      >
-        <header className="flex shrink-0 items-center justify-between border-b border-separator p-3">
-          <h2 className="text-sm font-medium">改动详情</h2>
-          <Button size="sm" variant="tertiary" onPress={onClose}>
-            关闭
-          </Button>
-        </header>
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          {query.isLoading ? (
-            <p className="text-sm text-muted">加载中…</p>
-          ) : errorCode === 'diff_unavailable' ? (
-            <p className="text-sm text-muted">该验收记录没有 diff 快照，仅保留统计。</p>
-          ) : query.isError ? (
-            <p role="alert" className="text-sm text-danger">
-              加载改动失败
-            </p>
-          ) : query.data ? (
-            <DiffContent snapshot={query.data} />
-          ) : null}
-        </div>
-      </section>
-    </div>
+    <Modal isOpen onOpenChange={(open) => (!open ? onClose() : undefined)}>
+      <Modal.Backdrop>
+        <Modal.Container>
+          <Modal.Dialog aria-label="改动详情" className={dialogClass}>
+            <Modal.Header className="flex items-center justify-between border-b border-separator p-3">
+              <Modal.Heading className="text-sm font-medium">改动详情</Modal.Heading>
+              <Button size="sm" variant="tertiary" onPress={onClose}>
+                关闭
+              </Button>
+            </Modal.Header>
+            <Modal.Body className="min-h-0 flex-1 overflow-y-auto p-3">
+              {query.isLoading ? (
+                <p className="text-sm text-muted">加载中…</p>
+              ) : errorCode === 'diff_unavailable' ? (
+                <p className="text-sm text-muted">该验收记录没有 diff 快照，仅保留统计。</p>
+              ) : query.isError ? (
+                <p role="alert" className="text-sm text-danger">
+                  加载改动失败
+                </p>
+              ) : query.data ? (
+                <DiffContent snapshot={query.data} />
+              ) : null}
+            </Modal.Body>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
   )
 }

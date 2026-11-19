@@ -45,12 +45,12 @@ export function WorktreeCard({
         <span className="font-mono text-xs text-muted">baton/{taskId.slice(0, 8)}</span>
       </div>
       <p className="mt-1 text-xs text-muted">
-        任务在独立目录执行；清理只移除工作树，分支和改动会保留。
+        任务在独立目录执行；清理只移除工作树，分支会保留，未提交改动会丢弃。
       </p>
       {canCleanup ? (
         confirming ? (
           <div className="mt-2 flex items-center justify-between gap-2">
-            <p className="text-xs text-warning">确认清理工作树？分支会保留。</p>
+            <p className="text-xs text-warning">确认清理工作树？分支会保留，未提交改动会丢弃。</p>
             <div className="flex gap-2">
               <Button size="sm" variant="tertiary" onPress={() => setConfirming(false)}>
                 返回

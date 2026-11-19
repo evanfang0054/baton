@@ -19,13 +19,7 @@ import { TaskHistory } from './TaskHistory'
 import { TaskOriginCard } from './TaskOriginCard'
 import { Transcript } from './Transcript'
 import { WorktreeCard } from './WorktreeCard'
-
-const sessionStatusLabels: Record<string, string> = {
-  running: '进行中',
-  waiting_input: '等待输入',
-  ended: '已结束',
-  failed: '失败',
-}
+import { sessionStatusLabel } from './labels'
 
 export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId)
@@ -224,7 +218,7 @@ function DetailContent({
       <WorktreeCard
         taskId={task.id}
         worktreePath={task.worktreePath}
-        canCleanup={!mobile && !['running', 'waiting_input', 'verifying'].includes(task.status)}
+        canCleanup={!mobile && ['review', 'done', 'cancelled', 'failed'].includes(task.status)}
         onDone={onDone}
       />
 
@@ -295,7 +289,7 @@ function DetailContent({
             {detail.sessions.length === 0 ? <option value="">暂无会话</option> : null}
             {detail.sessions.map((session, index) => (
               <option key={session.id} value={session.id}>
-                会话 {index + 1} · {sessionStatusLabels[session.status] ?? session.status}
+                会话 {index + 1} · {sessionStatusLabel(session.status)}
               </option>
             ))}
           </select>

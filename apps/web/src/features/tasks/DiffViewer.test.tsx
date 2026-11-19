@@ -1,10 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getReviewDiff } from '../../lib/api'
+import { ApiError, getReviewDiff } from '../../lib/api'
 import { DiffViewer } from './DiffViewer'
 
-vi.mock('../../lib/api', () => ({ getReviewDiff: vi.fn() }))
+vi.mock('../../lib/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../lib/api')>()
+  return { ...actual, getReviewDiff: vi.fn() }
+})
 
 function wrap() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -74,7 +77,9 @@ describe('DiffViewer', () => {
   })
 
   it('shows the unavailable state for old reviews', async () => {
-    vi.mocked(getReviewDiff).mockRejectedValue({ code: 'diff_unavailable' })
+    vi.mocked(getReviewDiff).mockRejectedValue(
+      new ApiError(404, 'diff_unavailable', 'diff unavailable'),
+    )
     wrap()
     expect(await screen.findByText(/没有 diff 快照/)).toBeInTheDocument()
   })

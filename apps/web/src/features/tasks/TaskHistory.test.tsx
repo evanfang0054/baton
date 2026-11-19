@@ -61,6 +61,35 @@ describe('TaskHistory', () => {
     expect(onOpenDiff).toHaveBeenCalledWith('r1')
   })
 
+  it('loads older status events with the cursor', async () => {
+    vi.mocked(getTaskHistory)
+      .mockResolvedValueOnce({
+        taskId: 't1',
+        statusEvents: [
+          { ordinal: 5, ts: 5, status: 'review', previousStatus: 'verifying', retryCount: 0 },
+        ],
+        sessions: [],
+        reviews: [],
+        nextBeforeOrdinal: 5,
+      })
+      .mockResolvedValueOnce({
+        taskId: 't1',
+        statusEvents: [
+          { ordinal: 2, ts: 2, status: 'queued', previousStatus: 'todo', retryCount: 0 },
+        ],
+        sessions: [],
+        reviews: [],
+      })
+    wrap()
+
+    fireEvent.click(screen.getByRole('button', { name: '历史' }))
+    expect(await screen.findByText('待验收')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '加载更多' }))
+
+    expect(await screen.findByText('排队')).toBeInTheDocument()
+    expect(vi.mocked(getTaskHistory)).toHaveBeenLastCalledWith('t1', 5)
+  })
+
   it('shows an empty state', async () => {
     vi.mocked(getTaskHistory).mockResolvedValue({
       taskId: 't1',
