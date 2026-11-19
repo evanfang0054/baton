@@ -130,6 +130,25 @@ describe('event store', () => {
     expect(rest.hasMore).toBe(false)
   })
 
+  it('stores task_id for task.status events', () => {
+    const database = db()
+    const store = createEventStore(database.db, deps)
+    const seeded = seedTask(database.raw)
+    const appended = database.db.transaction((tx) =>
+      store.appendTaskStatus(tx, {
+        taskId: seeded.taskId,
+        status: 'queued',
+        previousStatus: 'todo',
+        retryCount: 0,
+        updatedAt: 1,
+      }),
+    )
+    const row = database.raw
+      .prepare('select task_id from ws_event where ordinal = ?')
+      .get(appended.ordinal) as { task_id: string | null }
+    expect(row.task_id).toBe(seeded.taskId)
+  })
+
   it('reports max ordinal and rolls back a duplicate session seq', () => {
     const database = db()
     const store = createEventStore(database.db, deps)

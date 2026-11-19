@@ -108,7 +108,13 @@ function toRow(row: typeof wsEvent.$inferSelect): WsEventRow {
 export function createEventStore(db: Db, deps: EventStoreDeps) {
   function appendWsJson(
     tx: Tx,
-    input: { type: ServerMessage['type']; payload: unknown; payloadJson: string; ts: number },
+    input: {
+      type: ServerMessage['type']
+      payload: unknown
+      payloadJson: string
+      ts: number
+      taskId?: string | null
+    },
   ): BroadcastEvent {
     const id = deps.newId()
     const result = tx
@@ -118,6 +124,7 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
         type: input.type,
         payloadJson: input.payloadJson,
         ts: input.ts,
+        taskId: input.taskId ?? null,
       })
       .run()
     return {
@@ -131,11 +138,14 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
   }
 
   function appendWs(tx: Tx, input: WsEventDraft): BroadcastEvent {
+    const taskId =
+      input.type === 'task.status' && 'taskId' in input.payload ? input.payload.taskId : null
     return appendWsJson(tx, {
       type: input.type,
       payload: input.payload,
       payloadJson: JSON.stringify(input.payload),
       ts: input.ts,
+      taskId,
     })
   }
 
