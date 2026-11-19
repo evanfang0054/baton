@@ -324,7 +324,7 @@ export function App() {
                   writeUrlState({ workspaceId: activeWorkspaceId, taskId: null })
                 }}
               >
-                <TaskDetailPanel />
+                <TaskDetailPanel mobile />
               </MobileTaskDetail>
             ) : null}
           </div>

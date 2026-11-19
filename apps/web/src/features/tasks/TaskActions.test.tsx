@@ -8,12 +8,19 @@ function renderActions(
   status: 'todo' | 'queued' | 'running' | 'waiting_input' | 'review',
   send = vi.fn(),
   attention: 'none' | 'needs_attention' = 'none',
+  sticky = false,
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
       <CommandProvider send={send.mockResolvedValue(undefined)}>
-        <TaskActions taskId="t1" workspaceId="w1" status={status} attention={attention} />
+        <TaskActions
+          taskId="t1"
+          workspaceId="w1"
+          status={status}
+          attention={attention}
+          sticky={sticky}
+        />
       </CommandProvider>
     </QueryClientProvider>,
   )
@@ -21,6 +28,13 @@ function renderActions(
 }
 
 describe('TaskActions', () => {
+  it('renders a sticky footer when requested', () => {
+    renderActions('todo', vi.fn(), 'none', true)
+    expect(screen.getByText('任务已创建，尚未开工。').closest('section')?.className).toContain(
+      'sticky',
+    )
+  })
+
   it('enqueues a todo task', async () => {
     const send = renderActions('todo')
     fireEvent.click(screen.getByRole('button', { name: '立即开工' }))
