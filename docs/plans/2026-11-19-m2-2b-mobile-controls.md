@@ -5,7 +5,7 @@ task_count: 7
 estimated_phases: [tests, implementation, verification]
 dod: "移动端可建任务、建/编辑节点、总管带目标/上下文、自动化设置与 kill switch、workspace 信任/创建、固定节点位置；桌面/平板回归"
 depends_on: [2026-11-19-m2-2b-mobile-foundation.md, 2026-11-19-m2-2b-mobile-tasks.md]
-status: pending
+status: completed
 ---
 
 # M2-2b 移动端响应式控制台：控制面实施计划（Plan 3/4）
@@ -1408,3 +1408,15 @@ git commit -m "docs(plan): 记录 M2-2b 控制面执行结果"
 ## Execution Handoff
 
 Plan 3 已落 `docs/plans/2026-11-19-m2-2b-mobile-controls.md`。执行方式同 Plan 1：subagent-driven（推荐）或 inline。
+
+## 执行记录（2026-11-19）
+
+- 7 个 task 全部完成；每个 task 独立提交。
+- 验证：web 单测 162；`pnpm verify` exit 0；移动壳/任务 e2e 5 条全绿。
+- 控制面：`NodePicker`、移动建任务表单（已有/新建 Agent + 上下文 + 创建并开工）、移动节点列表/表单（text/file/agent）、总管目标/上下文 picker、更多菜单、自动化设置/信任/创建工作区全屏、kill switch。
+- 偏离：
+  - `node.create` 的 `NodeCreateValue` 需要显式 `groupId: null`；已在建任务和节点表单补齐。
+  - `CreateWorkspaceDialog` 只在移动端传受控 `open`，桌面保留内部触发按钮。
+  - `MobileMoreMenu` 增加 `automationSlot`，直接复用 `AutomationStatus`，避免另造移动 kill switch。
+  - 新增/编辑 web 测试后仍需清 `node_modules/.vitest-cache` 与各 package 的 `.vite`；否则偶发 Vitest runner 缓存错误。
+- 未做：Plan 4、真实 Claude 验收、移动访问 runbook。
