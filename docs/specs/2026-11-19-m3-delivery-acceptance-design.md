@@ -374,7 +374,7 @@ verify 命令结束后、应用 transition 之前：
 
 - 建任务表单（桌面 `CreateTaskForm` 与移动 `MobileCreateTaskForm`）增加“使用独立工作树”开关，默认关；workspace 不是 git 仓库时禁用并提示。
 - 任务详情显示“独立工作树 · `baton/<taskId>`”徽标；不显示绝对路径。
-- 详情提供“清理工作树”动作，确认文案说明“分支会保留，改动不会丢失”；活跃任务隐藏/禁用。
+- 详情提供“清理工作树”动作，确认文案说明“分支会保留，未提交改动会丢弃”；仅 `review` / `done` / `cancelled` / `failed` 可用，避免与 todo/queued 启动竞态。
 
 ### 8.5 移动端
 
@@ -502,4 +502,5 @@ verify 命令结束后、应用 transition 之前：
 ## 14. 评审记录
 
 - 2026-11-19：用户逐项确认下一迭代范围（M3-1 三件套）、diff 快照入库与懒加载、worktree 默认关/保留/手动清理、retry→queued / reopen→todo、历史复用 `ws_event.task_id`、总管不扩权、verify PATH 先诊断；设计通过。
+- 2026-11-19 实现验收修正：`git worktree remove --force` 会丢弃未提交改动，清理确认文案改为“分支保留、未提交改动丢弃”；清理仅对 `review`/`done`/`cancelled`/`failed` 开放，避免与 todo/queued 启动竞态；verify PATH 诊断不再把完整 PATH 写入 review/WS/UI。
 - 待评审：本 spec 正文。评审通过后写 contract（DoD）与 4 个实施计划。

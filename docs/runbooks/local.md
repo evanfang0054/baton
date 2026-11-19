@@ -58,7 +58,7 @@ pnpm dev
 
 - verify 在 daemon 进程的 PATH 中执行；从 GUI/launchd 启动时可能缺少 shell 里的 pnpm / node shim。
 - 先用 `command -v node`、`command -v pnpm` 对照 daemon 用户环境；必要时用绝对路径或调整启动方式。
-- verify 以 126/127 或“命令未找到”失败时，任务详情会附带 PATH 诊断；诊断只输出 PATH，不含 token/API key。
+- verify 以 126/127 或“命令未找到”失败时，任务详情会附带诊断；诊断只说明 PATH 目录数量，不输出具体路径、token 或 API key。
 - 不要把 `ANTHROPIC_API_KEY`、`BATON_TOKEN` 等凭据写进 verify 命令或截图。
 
 ## 远程访问
@@ -79,5 +79,5 @@ v1 不自带 TLS 或远程网关。需要从其他设备访问时：
 | 工作区路径报错 | `relPath` 必须是 `BATON_WORKSPACES_ROOT` 下的子目录；检查软链与权限 |
 | 端口占用 | 用 `BATON_PORT` 或 `--port` 换端口 |
 | Claude 引擎不可用 | 确认本机 `claude` 已登录，或设置 `ANTHROPIC_API_KEY`；查看 daemon 日志中的 engine preflight 结果 |
-| verify 报“命令未找到” | 检查 daemon 的 PATH 是否包含 node/pnpm shim；任务详情会附带 PATH 诊断，详见“verify 命令与 PATH” |
+| verify 报“命令未找到” | 检查 daemon 的 PATH 是否包含 node/pnpm shim；任务详情只显示 PATH 目录数量，详见“verify 命令与 PATH” |
 | worktree 任务启动失败 | 确认 workspace 是 git 仓库、有至少一次提交；`BATON_DATA_DIR/worktrees` 需要可写 |

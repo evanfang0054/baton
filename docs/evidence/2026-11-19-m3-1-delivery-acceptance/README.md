@@ -65,19 +65,32 @@
 
 ## 4. UI（ego-lite）
 
-- 桌面：任务详情显示“独立工作树 · `baton/f115cc06`”徽标、验收卡“查看改动”、展开历史时间线。
+- 桌面：任务详情显示“独立工作树 · `baton/<taskId 前 8 位>`”徽标、验收卡“查看改动”、展开历史时间线。
 - DiffViewer：文件列表（`README.md` / 修改 / +1 -0）与统一 diff（`+BATON-OK`）。
 - 移动端（390×844）：任务详情可查看历史与 diff；DiffViewer 为只读全屏 sheet；移动端不提供“清理工作树”入口。
 - 通过验收后移动端 footer 显示“任务已结束，可以重新打开继续处理。”与“重新打开”。
 - 截图隐私：`06-mobile-done.png` 为隐藏会话日志后的截图；所有截图已检查，不含用户名、宿主信息、token 或真实绝对路径。
 
-## 5. 自动化回归
+## 5. 评审修复后复验
 
-- `pnpm verify:full`：typecheck、lint、单元/集成测试、build、Playwright 全量通过。
+合入前代码评审发现并修复以下问题，随后重建 web/daemon 并重新跑通真实 Claude + ego-lite：
+
+- migration 0009 回填路径改为 `$.taskId`，测试 fixture 改为真实 payload 形状。
+- worktree 创建/落库异常收敛为 `failed`，不再让任务停在 `running`。
+- 清理仅允许 `review` / `done` / `cancelled` / `failed`；确认文案明确“未提交改动会丢弃”。
+- worktree 复用、清理、verify 统一 realpath jail；diff 捕获增加文件数上限并并行取 patch。
+- verify 失败诊断不再写入完整 PATH。
+- 任务历史支持 `beforeOrdinal` 加载更多；任务详情不再解析整份 diff 计算 `diffAvailable`。
+- DiffViewer 改用 HeroUI Modal；截图已按修复后的 UI 重新采集。
+
+## 6. 自动化回归
+
+- `pnpm verify:full`：typecheck、lint、单元/集成测试、build、Playwright 全量通过（32 条）。
 - 新增 `verify-runner` 并行隔离测试：两个 worktree 任务在不同目录执行，主工作区干净，diff 只含各自文件。
+- 新增 migration 回填、worktree 异常收敛、worktree 复用 jail、历史分页、PATH 诊断不泄露等回归测试。
 - 既有 Playwright 用例覆盖 diff 入口、worktree 清理、retry/reopen/history、移动端 footer。
 
-## 6. 残留风险
+## 7. 残留风险
 
 - 真实 Claude 的模型与 SDK 版本未记录；行为可能随宿主 Claude Code 升级变化。
 - 并行隔离样本为两个任务，未覆盖更大并发与大量文件。
