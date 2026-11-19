@@ -5,7 +5,7 @@ task_count: 5
 estimated_phases: [verification, evidence, docs]
 dod: "Playwright 多视口全量 + 控制面 e2e；ego-lite H5 真实 Claude 闭环；移动访问 runbook；性能记录；全量命令与 CI 全绿"
 depends_on: [2026-11-19-m2-2b-mobile-foundation.md, 2026-11-19-m2-2b-mobile-tasks.md, 2026-11-19-m2-2b-mobile-controls.md]
-status: pending
+status: completed
 ---
 
 # M2-2b 移动端响应式控制台：验收实施计划（Plan 4/4）
@@ -462,3 +462,17 @@ PR 前检查：
 ## Execution Handoff
 
 Plan 4 已落 `docs/plans/2026-11-19-m2-2b-mobile-acceptance.md`。执行方式：subagent-driven（推荐）或 inline。
+
+## 执行记录（2026-11-19）
+
+- 5 个 task 全部完成；控制面 e2e、多视口矩阵、真实 Claude 闭环、runbook、证据与索引均落地。
+- 验证：web 单测 164（新增 2 条 Agent 引擎回归）；Playwright 24 条全绿；`pnpm verify` exit 0；`pnpm pack:check` ok；`pnpm check:secrets` no leaks。
+- 视口矩阵：360 / 390 / 768 / 1280 全绿；移动无画布与横向溢出，平板保留画布并收起看板。
+- 真实 Claude：手机建工作区/节点/任务 → `Write` 审批 → verify exit 0 → 手机验收通过 `done`；另跑一次失败 verify（exit 1）→ 手机打回并填写反馈。
+- bundle：JS 978.64 kB，Vite gzip 300.80 kB；全 JS gzip 297,218 bytes。
+- 偏离：
+  - 真实审批 transcript 含本机绝对路径，`03-approval.png` 改用 Playwright 相对路径 fixture；真实审批仍在两次真实任务中执行。
+  - 本地 5173 被无关进程占用，全量 e2e 用临时配置在 5199 跑完；仓库 Playwright 配置未改。
+  - 修复移动建任务默认引擎：从 Agent 节点继承 `engine`，并在切换 Agent 时同步；新增 2 条组件测试。
+  - 打回后 core 实际是 `queued` 并立即入队为 `running`，与计划文字「回到 todo/queued」不完全一致；已记入证据残留风险。
+- 未做：不涉及后端/协议改动；未 push/PR，等待用户确认。
