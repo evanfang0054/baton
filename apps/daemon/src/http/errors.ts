@@ -20,6 +20,7 @@ const STATUS_BY_CODE: Record<string, number> = {
   task_not_found: 404,
   approval_not_found: 404,
   review_not_found: 404,
+  diff_unavailable: 404,
   session_not_found: 404,
   notice_not_found: 404,
   digest_generation_failed: 500,

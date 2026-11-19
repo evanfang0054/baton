@@ -8,6 +8,7 @@ import {
 import type { FastifyInstance } from 'fastify'
 import {
   getReviewByTask,
+  getReviewDiff,
   getTaskDetail,
   listApprovalsByTask,
   listAudit,
@@ -59,7 +60,9 @@ export function registerTaskRoutes(app: FastifyInstance, deps: { db: Db; logger:
       originInvalid: detail.originInvalid,
       sessions: listSessionsByTask(deps.db, task.id),
       approvals: listApprovalsByTask(deps.db, task.id),
-      review: review ? { ...review, diffAvailable: false } : null,
+      review: review
+        ? { ...review, diffAvailable: Boolean(getReviewDiff(deps.db, review.id)) }
+        : null,
       waitingSince: waitingSinceFor(task),
       attention: attentionFor(task.status, task.waitingReason),
     })

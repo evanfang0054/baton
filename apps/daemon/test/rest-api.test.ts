@@ -1,9 +1,10 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import type { DiffSnapshot, Review } from '@baton/protocol'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { TestApp } from './helpers/app.js'
 import { buildTestApp } from './helpers/app.js'
-import { updateTaskState } from '../src/db/repositories.js'
+import { insertReview, updateReviewDiff, updateTaskState } from '../src/db/repositories.js'
 
 const apps: TestApp[] = []
 const auth = { authorization: 'Bearer secret' }
@@ -322,5 +323,69 @@ describe('REST API', () => {
       headers: auth,
     })
     expect(invalid.statusCode).toBe(400)
+  })
+
+  it('returns review diff snapshots and marks diffAvailable', async () => {
+    const { app, handle } = await setup()
+    const review: Review = {
+      id: 'r-diff',
+      taskId: handle.seeded.taskId,
+      verdict: null,
+      verifyExitCode: 0,
+      verifyOutput: 'ok',
+      diffStat: { filesChanged: 1, insertions: 1, deletions: 0 },
+      decidedAt: null,
+    }
+    const snapshot: DiffSnapshot = {
+      v: 1,
+      capturedAt: 1,
+      baseRef: 'HEAD',
+      truncated: false,
+      files: [
+        {
+          path: 'a.txt',
+          status: 'modified',
+          insertions: 1,
+          deletions: 0,
+          patch: '@@ -1 +1 @@\n-old\n+new',
+        },
+      ],
+    }
+    handle.database.db.transaction((tx) => insertReview(tx, review))
+    updateReviewDiff(handle.database.db, review.id, snapshot)
+
+    const diff = await app.inject({
+      method: 'GET',
+      url: `/api/reviews/${review.id}/diff`,
+      headers: auth,
+    })
+    expect(diff.statusCode).toBe(200)
+    expect((diff.json() as { snapshot: DiffSnapshot }).snapshot.files[0]?.path).toBe('a.txt')
+
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${handle.seeded.taskId}`,
+      headers: auth,
+    })
+    expect((detail.json() as { review: { diffAvailable: boolean } }).review.diffAvailable).toBe(
+      true,
+    )
+
+    const missing = await app.inject({
+      method: 'GET',
+      url: '/api/reviews/missing/diff',
+      headers: auth,
+    })
+    expect(missing.statusCode).toBe(404)
+
+    const oldReview: Review = { ...review, id: 'r-old' }
+    handle.database.db.transaction((tx) => insertReview(tx, oldReview))
+    const unavailable = await app.inject({
+      method: 'GET',
+      url: `/api/reviews/${oldReview.id}/diff`,
+      headers: auth,
+    })
+    expect(unavailable.statusCode).toBe(404)
+    expect((unavailable.json() as { code: string }).code).toBe('diff_unavailable')
   })
 })
