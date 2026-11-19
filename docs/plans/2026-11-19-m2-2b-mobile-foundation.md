@@ -5,7 +5,7 @@ task_count: 9
 estimated_phases: [tests, implementation, verification]
 dod: "响应式壳与断点、移动导航、<768 无画布、平板压缩布局、桌面不变、check:secrets 生效；pnpm verify 与新增 Playwright 全绿"
 depends_on: []
-status: active
+status: completed
 ---
 
 # M2-2b 移动端响应式控制台：基础壳实施计划（Plan 1/4）
@@ -1353,3 +1353,18 @@ Plan 1 已落 `docs/plans/2026-11-19-m2-2b-mobile-foundation.md`。两种执行�
 
 1. **Subagent-Driven（推荐）**：每个 task 派一个新 subagent，任务间审查。
 2. **Inline Execution**：本会话按 `executing-plans` 批量执行，检查点审查。
+
+## 执行记录（2026-11-19）
+
+- 分支：`feat/m2-2b-mobile-console`（基于 `docs/m2-2b-mobile-console-spec`）。
+- 9 个 task 全部完成；每个 task 独立提交。
+- 验证：`pnpm verify` exit 0；`pnpm verify:full` exit 0，15 条 Playwright 全绿；web 单测 150。
+- 移动壳：`<768` 无 `CanvasPanel` / `BoardRail` / `RightPanel`；390 宽度无横向溢出；平板 820 保留画布、看板默认收起。
+- `check:secrets`：gitleaks 8.30.1，164 commits 全历史扫描无泄漏；负例用 GitHub PAT 形状 token 验证命中。
+- bundle：web JS 296.41 KB gzip（低于 400KB 触发线）。
+- 偏离：
+  - `mobileTab` 测试追加到现有 `store.test.ts`，未新建 `app.test.ts`。
+  - `MobileBoardList` 标题去掉多余尾随空格，测试按无空格断言。
+  - `MobileNav` e2e 使用 `exact: true` 区分“总管”和“让总管建任务”。
+  - `check:secrets` 负例从 AWS 示例 key 改为 GitHub PAT；gitleaks 对前者不报。
+- 未做：Plan 2/3/4、真实 Claude 验收、移动访问 runbook。
