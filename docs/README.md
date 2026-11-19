@@ -77,6 +77,7 @@
 - [M2-2a 验收实施计划](plans/2026-11-19-m2-autopilot-acceptance.md)
 - [M2-2b 移动端响应式控制台：基础壳实施计划](plans/2026-11-19-m2-2b-mobile-foundation.md)
 - [M2-2b 移动端响应式控制台：任务与闸门实施计划](plans/2026-11-19-m2-2b-mobile-tasks.md)
+- [M2-2b 移动端响应式控制台：控制面实施计划](plans/2026-11-19-m2-2b-mobile-controls.md)
 
 ## 验收证据
 
