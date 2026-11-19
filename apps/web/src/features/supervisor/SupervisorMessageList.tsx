@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { SupervisorEmptyState } from './SupervisorEmptyState'
 import { SupervisorMessage } from './SupervisorMessage'
 import { SupervisorToolCard } from './SupervisorToolCard'
-import type { SupervisorStreamProjection } from './supervisor-model'
+import { toPlainText, type SupervisorStreamProjection } from './supervisor-model'
 
 function StreamingMessage({ stream }: { stream: SupervisorStreamProjection }) {
   const targetRef = useRef(stream.text)
@@ -37,7 +37,7 @@ function StreamingMessage({ stream }: { stream: SupervisorStreamProjection }) {
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         {visible ? (
           <p className="whitespace-pre-wrap break-words text-sm text-foreground">
-            {visible}
+            {toPlainText(visible)}
             <span
               aria-hidden="true"
               className="ml-0.5 inline-block h-4 w-1 animate-pulse bg-accent align-middle motion-reduce:animate-none"

@@ -4,6 +4,7 @@ import { Button } from '@heroui/react/button'
 import { AlertTriangle } from 'lucide-react'
 import { SupervisorTaskCard } from './SupervisorTaskCard'
 import { SupervisorToolCard, type SupervisorToolView } from './SupervisorToolCard'
+import { toPlainText } from './supervisor-model'
 
 const roleLabels: Record<SupervisorMessageRecord['role'], string> = {
   user: '你',
@@ -41,7 +42,7 @@ export function SupervisorMessage({
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         {message.content ? (
           <p className="whitespace-pre-wrap break-words text-sm text-foreground">
-            {message.content}
+            {toPlainText(message.content)}
           </p>
         ) : null}
         {message.status === 'error' && message.error ? (

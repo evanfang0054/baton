@@ -6,6 +6,11 @@ const MAX_FILE_PATCH = 128 * 1024
 const MAX_TOTAL_PATCH = 512 * 1024
 const MAX_FILES = 200
 
+// 自动化设置会把策略写进 workspace；untracked 的策略文件不是 Agent 的交付内容，
+// 不应出现在验收 diff 里（M2 D1：workspace 配置不污染 diff）。已 tracked 的策略
+// 文件被修改时仍然保留，避免掩盖真实改动。
+const UI_POLICY_PATH = '.baton/policy.json'
+
 interface ChangedFile {
   path: string
   oldPath?: string
@@ -48,6 +53,7 @@ function parseStatus(output: string): ChangedFile[] {
       continue
     }
     if (code === '??') {
+      if (path === UI_POLICY_PATH) continue
       files.push({ path, status: 'added', untracked: true })
       continue
     }

@@ -135,6 +135,18 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
 
     const reviewId = deps.newId()
     deps.verifyMeta.set(reviewId, result.durationMs)
+    // 验收卡与 diff 视图必须对同一份证据给出同一组统计；快照包含 untracked 新增文件，
+    // 而 executor 的 git diff --numstat 只统计 tracked 行数。
+    const diffStat = snapshot
+      ? snapshot.files.reduce(
+          (acc, file) => ({
+            filesChanged: acc.filesChanged + 1,
+            insertions: acc.insertions + file.insertions,
+            deletions: acc.deletions + file.deletions,
+          }),
+          { filesChanged: 0, insertions: 0, deletions: 0 },
+        )
+      : result.diffStat
     const event: TaskTransitionEvent =
       result.exitCode === 0
         ? {
@@ -142,14 +154,14 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
             reviewId,
             exitCode: 0,
             output: result.output,
-            diffStat: result.diffStat,
+            diffStat,
           }
         : {
             type: 'verify_fail',
             reviewId,
             exitCode: result.exitCode,
             output: result.output,
-            diffStat: result.diffStat,
+            diffStat,
           }
     const outcome = deps.applyTransition(taskId, event)
     if (!outcome.ok) {

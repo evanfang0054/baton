@@ -333,8 +333,8 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
         }
         preparedPath = prepared.path
         workspacePath = prepared.path
-        if (task.worktreePath !== prepared.path) {
-          updateTaskWorktreePath(deps.db, task.id, prepared.path, deps.now())
+        if (task.worktreePath !== prepared.path || task.branch !== prepared.branch) {
+          updateTaskWorktreePath(deps.db, task.id, prepared.path, deps.now(), prepared.branch)
         }
       } catch {
         // 创建或落库失败都要把任务收敛到 failed；

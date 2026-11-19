@@ -186,4 +186,28 @@ describe('canvas model', () => {
     expect(second).toEqual({ x: 684, y: 300 })
     expect(third).toEqual({ x: 340, y: 524 })
   })
+
+  it('keeps new nodes from overlapping when the viewport has no free slot', () => {
+    const size = { w: 320, h: 200 }
+    const center = { x: 500, y: 400 }
+    const bounds = { minX: 100, minY: 100, maxX: 1100, maxY: 800 }
+    // 视口只容得下两行；两行都被占满后，旧实现会退回中心点并与已有节点重叠。
+    const occupied = [0, 1].flatMap((row) =>
+      [0, 1, -1, 2, -2].map((column) => ({
+        x: 340 + column * 344,
+        y: 300 + row * 224,
+        ...size,
+      })),
+    )
+
+    const position = nextNodePosition(center, size, occupied, 24, bounds)
+    const overlapsAny = occupied.some(
+      (node) =>
+        position.x < node.x + node.w + 24 &&
+        position.x + size.w + 24 > node.x &&
+        position.y < node.y + node.h + 24 &&
+        position.y + size.h + 24 > node.y,
+    )
+    expect(overlapsAny).toBe(false)
+  })
 })

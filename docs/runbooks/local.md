@@ -47,7 +47,7 @@ pnpm dev
 
 ## 跳过审批与结构化提问
 
-- 默认所有工具审批。需要无人值守时，设置 `BATON_ALLOW_BYPASS_PERMISSIONS=1`，然后在已信任工作区的建任务表单里勾选「跳过权限确认」。
+- 默认审批写操作与 Bash；只读工具（Read/Grep/Glob）由 Claude 的 default 权限模式直接放行。需要无人值守时，设置 `BATON_ALLOW_BYPASS_PERMISSIONS=1`，然后在已信任工作区的建任务表单里勾选「跳过权限确认」。
 - 跳过审批按任务生效，创建时写 `task.bypass_permissions` 审计；任务详情显示「跳过权限确认」徽标。
 - 关闭全局开关只影响新任务；已创建的任务仍保留自身标志，重新入队时会再次校验。
 - 即使跳过审批，baton 仍会拦截工作区外的读写；显式 ask 规则与 `AskUserQuestion` 仍会进入审批。

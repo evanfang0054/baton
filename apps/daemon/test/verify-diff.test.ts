@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execa } from 'execa'
@@ -43,6 +43,30 @@ describe('captureDiff', () => {
     expect(byPath.get('new.txt')?.status).toBe('added')
     expect(byPath.get('b.txt')?.status).toBe('deleted')
     expect(snapshot.truncated).toBe(false)
+  })
+
+  it('ignores the untracked policy file written by automation settings', async () => {
+    const repo = await makeRepo()
+    writeFileSync(join(repo, 'README.md'), 'base\n')
+    await commitAll(repo)
+
+    mkdirSync(join(repo, '.baton'))
+    writeFileSync(join(repo, '.baton/policy.json'), '{"approval":{}}\n')
+    writeFileSync(join(repo, 'new.txt'), 'new\n')
+
+    const snapshot = await captureDiff(repo, () => 1)
+    expect(snapshot.files.map((file) => file.path)).toEqual(['new.txt'])
+  })
+
+  it('still reports changes to a tracked policy file', async () => {
+    const repo = await makeRepo()
+    mkdirSync(join(repo, '.baton'))
+    writeFileSync(join(repo, '.baton/policy.json'), '{"approval":{}}\n')
+    await commitAll(repo)
+    writeFileSync(join(repo, '.baton/policy.json'), '{"approval":{"default":"deny"}}\n')
+
+    const snapshot = await captureDiff(repo, () => 1)
+    expect(snapshot.files.map((file) => file.path)).toEqual(['.baton/policy.json'])
   })
 
   it('marks binary files without a patch', async () => {

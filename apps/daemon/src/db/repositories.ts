@@ -476,8 +476,12 @@ export function updateTaskWorktreePath(
   id: string,
   worktreePath: string | null,
   updatedAt: number,
+  branch?: string | null,
 ): void {
-  db.update(task).set({ worktreePath, updatedAt }).where(eq(task.id, id)).run()
+  db.update(task)
+    .set({ worktreePath, ...(branch === undefined ? {} : { branch }), updatedAt })
+    .where(eq(task.id, id))
+    .run()
 }
 
 export function getTaskPolicy(db: Db, id: string): Policy | null {
