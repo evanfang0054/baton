@@ -421,6 +421,13 @@ describe('transition runner', () => {
     expect(outcome.status).toBe('queued')
     expect(handle.runtime.getTask(taskId)?.retryCount).toBe(0)
     expect(handle.runtime.getTask(taskId)?.prompt).toContain('<feedback>\n再试一次\n</feedback>')
+    const audit = handle.database.raw
+      .prepare("select detail_json from audit where action = 'task.retry' and actor = 'human'")
+      .get() as { detail_json: string }
+    expect(JSON.parse(audit.detail_json)).toMatchObject({
+      taskId,
+      policyVersion: expect.any(String),
+    })
   })
 
   it('reopens a done task with a reopen note and resets retryCount', () => {
