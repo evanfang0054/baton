@@ -26,6 +26,7 @@
 - [2026-11-18 M2-1 总管 Router v0 设计](specs/2026-11-18-m2-supervisor-design.md)
 - [2026-11-19 M2-2a 无人值守与汇报设计](specs/2026-11-19-m2-autopilot-design.md)
 - [2026-11-19 M2-2b 移动端响应式控制台设计](specs/2026-11-19-m2-2b-mobile-console-design.md)
+- [2026-11-19 M3-1 交付验收增强设计](specs/2026-11-19-m3-delivery-acceptance-design.md)
 
 ## 现行 ADR
 
