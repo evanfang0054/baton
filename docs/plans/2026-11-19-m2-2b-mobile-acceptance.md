@@ -475,4 +475,4 @@ Plan 4 已落 `docs/plans/2026-11-19-m2-2b-mobile-acceptance.md`。执行方式�
   - 本地 5173 被无关进程占用，全量 e2e 用临时配置在 5199 跑完；仓库 Playwright 配置未改。
   - 修复移动建任务默认引擎：从 Agent 节点继承 `engine`，并在切换 Agent 时同步；新增 2 条组件测试。
   - 打回后 core 实际是 `queued` 并立即入队为 `running`，与计划文字「回到 todo/queued」不完全一致；已记入证据残留风险。
-- 未做：不涉及后端/协议改动；未 push/PR，等待用户确认。
+- 未做：不涉及后端/协议改动；分支已 push 到 `origin/feat/m2-2b-mobile-console`，PR 创建因本机 `gh` token 失效阻塞，重新登录后补建。
