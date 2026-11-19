@@ -111,24 +111,21 @@ Run: `chmod +x scripts/check-secrets.sh`
 
 - [ ] **Step 3: 负例验证脚本能失败**
 
-不要把完整密钥写进仓库；用拼接构造文档示例 key：
+不要把完整密钥写进仓库；在临时目录里生成一个 GitHub PAT 形状的假 token：
 
 ```bash
 tmp="$(mktemp -d)"
-git -C "$tmp" init -q
-key="AKIA$(printf 'IOSFODNN7EXAMPLE')"
-printf 'AWS_ACCESS_KEY_ID=%s\n' "$key" > "$tmp/leak.txt"
-git -C "$tmp" add .
-git -C "$tmp" -c user.email=test@example.com -c user.name=Test commit -qm leak
+token="ghp_$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 36)"
+printf 'GITHUB_TOKEN=%s\n' "$token" > "$tmp/leak.txt"
 set +e
-gitleaks detect --source "$tmp" --redact --log-opts="--all"
-status=$?
+gitleaks dir "$tmp" --redact
+code=$?
 set -e
 rm -rf "$tmp"
-test "$status" -ne 0
+test "$code" -ne 0
 ```
 
-Expected: `status != 0`。
+Expected: `code != 0`（gitleaks 命中 `github-pat`）。
 
 - [ ] **Step 4: 跑仓库全历史基线**
 
