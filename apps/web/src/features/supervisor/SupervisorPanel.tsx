@@ -19,10 +19,14 @@ export function SupervisorPanel({
   workspaceId,
   contextNodes,
   targetAgent,
+  mobile = false,
+  nodes = [],
 }: {
   workspaceId: string | null
   contextNodes: ProtocolNode[]
   targetAgent: SupervisorTargetAgent | null
+  mobile?: boolean
+  nodes?: ProtocolNode[]
 }) {
   const send = useCommand()
   const stream = useSupervisorStream()
@@ -209,6 +213,8 @@ export function SupervisorPanel({
           targetAgent={targetAgent}
           initialText={quickPrompt.text}
           initialTextKey={quickPrompt.seq}
+          mobile={mobile}
+          nodes={nodes}
         />
       ) : null}
     </div>
