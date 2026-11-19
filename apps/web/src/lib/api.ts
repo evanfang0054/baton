@@ -8,12 +8,15 @@ import {
   EngineListResponse,
   KillSwitchResponse,
   NoticeListResponse,
+  ReviewDiffResponse,
   SessionEventsResponse,
   SupervisorMessagesResponse,
   SupervisorStatusResponse,
   TaskAutomationSummary,
   TaskDetailResponse,
+  TaskHistoryResponse,
   TaskListResponse,
+  WorkspaceCapabilitiesResponse,
   WorkspaceCreateInput,
   WorkspaceCreateResponse,
   WorkspaceListResponse,
@@ -82,6 +85,18 @@ export async function updateWorkspaceTrust(workspaceId: string, input: Workspace
       body: JSON.stringify(input),
     }),
   ).workspace
+}
+
+export async function getWorkspaceCapabilities(workspaceId: string) {
+  return WorkspaceCapabilitiesResponse.parse(
+    await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/capabilities`),
+  )
+}
+
+export async function cleanupWorktree(taskId: string) {
+  return request(`/api/tasks/${encodeURIComponent(taskId)}/worktree/cleanup`, {
+    method: 'POST',
+  })
 }
 
 export async function listEngines() {
@@ -179,4 +194,18 @@ export async function listAudit(actionPrefix = 'automation.', limit = 20) {
   const query = new URLSearchParams({ limit: String(limit) })
   if (actionPrefix) query.set('actionPrefix', actionPrefix)
   return AuditListResponse.parse(await request(`/api/audit?${query}`)).entries
+}
+
+export async function getReviewDiff(reviewId: string) {
+  return ReviewDiffResponse.parse(
+    await request(`/api/reviews/${encodeURIComponent(reviewId)}/diff`),
+  ).snapshot
+}
+
+export async function getTaskHistory(taskId: string, beforeOrdinal?: number) {
+  const query = new URLSearchParams({ limit: '200' })
+  if (beforeOrdinal !== undefined) query.set('beforeOrdinal', String(beforeOrdinal))
+  return TaskHistoryResponse.parse(
+    await request(`/api/tasks/${encodeURIComponent(taskId)}/history?${query}`),
+  )
 }

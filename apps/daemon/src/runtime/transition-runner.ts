@@ -9,11 +9,13 @@ import {
   getTask,
   getTaskPolicy,
   getWorkspace,
+  insertAudit,
   updateTaskPolicy,
   updateTaskState,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError, toAppError } from '../errors.js'
+import { hashPolicy } from '../automation/version.js'
 import { loadPolicy } from '../workspace/policy.js'
 import { resolveWorkspaceDir } from '../workspace/resolver.js'
 import { planAndApplyEffects, type EffectPlan } from './effects.js'
@@ -82,6 +84,18 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
           policy = DEFAULT_POLICY
         }
       }
+    } else if (event.type === 'retry' || event.type === 'reopen') {
+      if (!workspace) {
+        return fail('workspace_not_found', 'workspace not found', {
+          workspaceId: task.workspaceId,
+        })
+      }
+      try {
+        workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+        policy = loadPolicy(workspacePath)
+      } catch (error) {
+        return { ok: false, error: toAppError(error) }
+      }
     }
 
     const result = transition(
@@ -114,7 +128,22 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
     try {
       plan = deps.db.transaction((tx) => {
         updateTaskState(tx, task.id, result.status, result.retryCount, result.waitingReason, now)
-        if (event.type === 'start') updateTaskPolicy(tx, task.id, policy)
+        if (event.type === 'start' || event.type === 'retry' || event.type === 'reopen') {
+          updateTaskPolicy(tx, task.id, policy)
+        }
+        if (event.type === 'retry' || event.type === 'reopen') {
+          insertAudit(tx, {
+            id: deps.newId(),
+            ts: now,
+            actor: 'human',
+            action: `task.${event.type}`,
+            detail: {
+              taskId: task.id,
+              workspaceId: task.workspaceId,
+              policyVersion: hashPolicy(policy),
+            },
+          })
+        }
         return planAndApplyEffects(
           tx,
           {

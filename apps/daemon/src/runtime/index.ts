@@ -231,6 +231,7 @@ export function createRuntime(deps: RuntimeDeps) {
       now,
       newId,
       verifyMeta,
+      ...(deps.logger ? { logger: deps.logger } : {}),
     })
   }
 
@@ -366,6 +367,20 @@ export function createRuntime(deps: RuntimeDeps) {
         return ackFromOutcome(enqueue(message.payload.taskId))
       case 'task.cancel':
         return ackFromOutcome(cancel(message.payload.taskId, message.payload.reason))
+      case 'task.retry':
+        return ackFromOutcome(
+          applyTransition(message.payload.taskId, {
+            type: 'retry',
+            ...(message.payload.note ? { note: message.payload.note } : {}),
+          }),
+        )
+      case 'task.reopen':
+        return ackFromOutcome(
+          applyTransition(message.payload.taskId, {
+            type: 'reopen',
+            ...(message.payload.note ? { note: message.payload.note } : {}),
+          }),
+        )
       case 'session.reply': {
         const task = getTask(deps.db, message.payload.taskId)
         if (!task) {
@@ -634,6 +649,7 @@ export function createRuntime(deps: RuntimeDeps) {
   if (deps.adapters) {
     sessionHolder.value = createSessionRunner({
       db: deps.db,
+      dataDir: deps.config.dataDir,
       adapters: deps.adapters,
       eventStore,
       broadcast: deps.broadcast,

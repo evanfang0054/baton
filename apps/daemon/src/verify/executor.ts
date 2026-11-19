@@ -113,10 +113,11 @@ export async function runVerifyCommand(
   timer.unref()
 
   try {
+    const env = sanitizeEnv(process.env)
     subprocess = execa(input.command, {
       shell: true,
       cwd: input.workspacePath,
-      env: sanitizeEnv(process.env),
+      env,
       detached: true,
       reject: false,
       cancelSignal: controller.signal,
@@ -125,15 +126,17 @@ export async function runVerifyCommand(
       timeout: input.timeoutSec * 1000,
     })
     const result = await subprocess
-    const output = truncateOutput(
-      `${result.stdout ?? ''}\n${result.stderr ?? ''}`,
-      input.maxOutputBytes,
+    const exitCode =
+      result.timedOut || result.isCanceled || controller.signal.aborted
+        ? 124
+        : (result.exitCode ?? 127)
+    const output = withPathHint(
+      truncateOutput(`${result.stdout ?? ''}\n${result.stderr ?? ''}`, input.maxOutputBytes),
+      exitCode,
+      env,
     )
     return {
-      exitCode:
-        result.timedOut || result.isCanceled || controller.signal.aborted
-          ? 124
-          : (result.exitCode ?? 127),
+      exitCode,
       output,
       diffStat: await readDiffStat(input.workspacePath),
       durationMs: Date.now() - started,
@@ -143,7 +146,11 @@ export async function runVerifyCommand(
     const message = error instanceof Error ? error.message : 'verify command failed'
     return {
       exitCode,
-      output: truncateOutput(message, input.maxOutputBytes),
+      output: withPathHint(
+        truncateOutput(message, input.maxOutputBytes),
+        exitCode,
+        sanitizeEnv(process.env),
+      ),
       diffStat: await readDiffStat(input.workspacePath),
       durationMs: Date.now() - started,
     }
@@ -151,4 +158,20 @@ export async function runVerifyCommand(
     clearTimeout(timer)
     input.signal?.removeEventListener('abort', forwardAbort)
   }
+}
+
+function withPathHint(output: string, exitCode: number, env: NodeJS.ProcessEnv): string {
+  const missing = exitCode === 126 || exitCode === 127 || /\bcommand not found\b/i.test(output)
+  if (!missing) {
+    return output
+  }
+  // PATH 常含带用户名的绝对路径，不能写进 review、WS 或 UI；只给目录数量便于判断环境。
+  const pathEntries = (env.PATH ?? '').split(':').filter(Boolean).length
+  return [
+    output.trimEnd(),
+    '',
+    '[baton] 命令未找到。请确认 verify 命令在 daemon 的 PATH 中可用。',
+    `[baton] 当前 daemon PATH 包含 ${pathEntries} 个目录；具体路径已省略。`,
+    '详见 docs/runbooks/local.md 的“verify 命令与 PATH”一节。',
+  ].join('\n')
 }

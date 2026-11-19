@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { Id, Timestamp } from './common.js'
 import { Attention, Engine, TaskStatus } from './enums.js'
+import { TaskStatusCause } from './events.js'
 import {
   Approval,
   Audit,
@@ -36,6 +37,9 @@ export type WorkspaceTrustInput = z.infer<typeof WorkspaceTrustInput>
 
 export const WorkspaceTrustResponse = z.object({ workspace: Workspace })
 export type WorkspaceTrustResponse = z.infer<typeof WorkspaceTrustResponse>
+
+export const WorkspaceCapabilitiesResponse = z.object({ worktree: z.boolean() })
+export type WorkspaceCapabilitiesResponse = z.infer<typeof WorkspaceCapabilitiesResponse>
 
 export const EngineStatus = z.object({
   engine: Engine,
@@ -94,17 +98,72 @@ export const SessionEventsResponse = z.object({
 })
 export type SessionEventsResponse = z.infer<typeof SessionEventsResponse>
 
+export const DiffFile = z.object({
+  path: z.string(),
+  oldPath: z.string().optional(),
+  status: z.enum(['modified', 'added', 'deleted', 'renamed', 'binary']),
+  insertions: z.number().int().nonnegative(),
+  deletions: z.number().int().nonnegative(),
+  patch: z.string(),
+})
+export type DiffFile = z.infer<typeof DiffFile>
+
+export const DiffSnapshot = z.object({
+  v: z.literal(1),
+  capturedAt: Timestamp,
+  baseRef: z.literal('HEAD'),
+  truncated: z.boolean(),
+  files: z.array(DiffFile),
+})
+export type DiffSnapshot = z.infer<typeof DiffSnapshot>
+
+export const ReviewView = Review.extend({ diffAvailable: z.boolean() })
+export type ReviewView = z.infer<typeof ReviewView>
+
+export const ReviewDiffResponse = z.object({
+  reviewId: Id,
+  taskId: Id,
+  snapshot: DiffSnapshot,
+})
+export type ReviewDiffResponse = z.infer<typeof ReviewDiffResponse>
+
 export const TaskDetailResponse = z.object({
   task: TaskDetail,
   contextInvalid: z.boolean().default(false),
   originInvalid: z.boolean().default(false),
   sessions: z.array(Session),
   approvals: z.array(Approval),
-  review: Review.nullable(),
+  review: ReviewView.nullable(),
   waitingSince: Timestamp.nullable(),
   attention: Attention,
 })
 export type TaskDetailResponse = z.infer<typeof TaskDetailResponse>
+
+export const TaskHistoryQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(500).default(200),
+  beforeOrdinal: z.coerce.number().int().nonnegative().optional(),
+})
+export type TaskHistoryQuery = z.infer<typeof TaskHistoryQuery>
+
+export const TaskStatusHistoryItem = z.object({
+  ordinal: z.number().int().nonnegative(),
+  ts: Timestamp,
+  status: TaskStatus,
+  previousStatus: TaskStatus,
+  retryCount: z.number().int().nonnegative(),
+  cause: TaskStatusCause.optional(),
+  attention: Attention.optional(),
+})
+export type TaskStatusHistoryItem = z.infer<typeof TaskStatusHistoryItem>
+
+export const TaskHistoryResponse = z.object({
+  taskId: Id,
+  statusEvents: z.array(TaskStatusHistoryItem),
+  sessions: z.array(Session),
+  reviews: z.array(ReviewView),
+  nextBeforeOrdinal: z.number().int().nonnegative().optional(),
+})
+export type TaskHistoryResponse = z.infer<typeof TaskHistoryResponse>
 
 export const KillSwitchInput = z.object({ enabled: z.boolean() })
 export type KillSwitchInput = z.infer<typeof KillSwitchInput>

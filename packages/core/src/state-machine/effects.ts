@@ -35,6 +35,7 @@ export const effects = {
     verdict,
   }),
   appendFeedback: (feedback: string): TaskEffect => ({ type: 'appendFeedback', feedback }),
+  appendReopenNote: (note: string): TaskEffect => ({ type: 'appendReopenNote', note }),
   incrementRetry: (): TaskEffect => ({ type: 'incrementRetry' }),
   interruptSession: (reason?: string): TaskEffect => ({
     type: 'interruptSession',

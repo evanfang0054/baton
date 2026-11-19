@@ -538,6 +538,8 @@ volumes:
 | **M2 自动化与 DSH** | 2 周 | 自动重试、白名单自动批准、定时汇报、DSH headless spike、移动端只读 | 无人值守连续跑 3 个任务并产出汇报；手机上能通过/打回 |
 | **M3 体验与分发** | 2 周 | worktree 开关、diff 视图、slim 镜像/单二进制、DSH 插件壳 | 两种分发方式均可安装；worktree 模式下并行两任务不冲突 |
 
+> **M3 范围更新（2026-11-19）**：ADR 0003 已移除 Docker；M3 第一阶段为 M3-1 交付验收增强（diff 快照与查看、worktree 隔离、retry/reopen 与任务历史），见 `docs/specs/2026-11-19-m3-delivery-acceptance-design.md`。分发与 DSH 后置。
+
 每个里程碑的"完成"以**干净机器上的演示脚本**为准，不以"代码写完"为准。
 
 ---

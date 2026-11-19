@@ -14,6 +14,7 @@ import { registerCanvasRoutes } from './http/canvas.js'
 import { registerEngineRoutes } from './http/engines.js'
 import { registerErrorHandler } from './http/errors.js'
 import { registerNoticeRoutes } from './http/notices.js'
+import { registerReviewRoutes } from './http/reviews.js'
 import { registerStatic } from './http/static.js'
 import { registerSessionRoutes } from './http/sessions.js'
 import { registerSupervisorRoutes } from './http/supervisor.js'
@@ -70,7 +71,14 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
   })
   registerCanvasRoutes(app, { db: deps.db })
   registerEngineRoutes(app, { engines: deps.engines })
-  registerTaskRoutes(app, { db: deps.db, logger: deps.logger })
+  registerTaskRoutes(app, {
+    db: deps.db,
+    config,
+    logger: deps.logger,
+    now: deps.now,
+    newId: deps.newId,
+  })
+  registerReviewRoutes(app, { db: deps.db })
   registerAutomationRoutes(app, {
     service: deps.runtime.automation,
     digest: deps.runtime.digest,

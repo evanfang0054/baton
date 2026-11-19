@@ -1,4 +1,5 @@
 import {
+  WorkspaceCapabilitiesResponse,
   WorkspaceCreateInput,
   WorkspaceCreateResponse,
   WorkspaceListResponse,
@@ -22,6 +23,7 @@ import {
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
 import { resolveWorkspaceDir } from '../workspace/resolver.js'
+import { isGitRepo } from '../workspace/worktree.js'
 
 export interface WorkspaceRoutesDeps {
   db: Db
@@ -108,5 +110,18 @@ export function registerWorkspaceRoutes(app: FastifyInstance, deps: WorkspaceRou
 
     deps.onTrustChanged?.()
     return WorkspaceTrustResponse.parse({ workspace: getWorkspace(deps.db, current.id) })
+  })
+
+  app.get('/api/workspaces/:id/capabilities', async (req) => {
+    const { id } = req.params as { id?: string }
+    if (!id) {
+      throw appError('invalid_payload', 'workspace id is required')
+    }
+    const workspace = getWorkspace(deps.db, id)
+    if (!workspace) {
+      throw appError('workspace_not_found', 'workspace not found', { workspaceId: id })
+    }
+    const workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+    return WorkspaceCapabilitiesResponse.parse({ worktree: await isGitRepo(workspacePath) })
   })
 }

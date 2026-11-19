@@ -14,6 +14,7 @@ import { appError, toAppError } from '../errors.js'
 import { buildContextContent } from '../workspace/context.js'
 import { loadPolicy } from '../workspace/policy.js'
 import { resolveWorkspaceDir } from '../workspace/resolver.js'
+import { isGitRepoSync } from '../workspace/worktree.js'
 
 export interface TaskServiceDeps {
   db: Db
@@ -42,11 +43,12 @@ export function createTaskService(deps: TaskServiceDeps) {
           }),
         }
       }
-      if (input.workspaceMode !== 'main') {
+      const workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+      if (input.workspaceMode === 'worktree' && !isGitRepoSync(workspacePath)) {
         return {
           ok: false,
-          error: appError('unsupported_workspace_mode', 'worktree mode is not available', {
-            workspaceMode: input.workspaceMode,
+          error: appError('worktree_unavailable', 'workspace is not a git repository', {
+            workspaceId: workspace.id,
           }),
         }
       }
@@ -80,7 +82,6 @@ export function createTaskService(deps: TaskServiceDeps) {
         }
       }
 
-      const workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
       const canvas = getCanvasByWorkspace(deps.db, workspace.id)
       if (!canvas) {
         return {

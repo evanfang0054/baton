@@ -53,7 +53,7 @@ export async function bootstrap(config: Config): Promise<BootstrapResult> {
   })
 
   runtime.beginBoot()
-  reconcileOnBoot({ db: orm, applyTransition: runtime.applyTransition, now, newId, logger })
+  reconcileOnBoot({ db: orm, config, applyTransition: runtime.applyTransition, now, newId, logger })
 
   try {
     const app = await buildApp(config, {

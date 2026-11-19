@@ -1,5 +1,6 @@
 import type { Attention, TaskStatus } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
+import { TextArea } from '@heroui/react/textarea'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { queryKeys } from '../../lib/query'
@@ -20,8 +21,10 @@ export function TaskActions({
 }) {
   const queryClient = useQueryClient()
   const [confirming, setConfirming] = useState(false)
+  const [note, setNote] = useState('')
   const action = useCommandAction(async () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.taskHistory(taskId) })
     await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
     setConfirming(false)
   })
@@ -69,6 +72,61 @@ export function TaskActions({
                 重新入队
               </Button>
             </div>
+          </div>
+        )}
+        {action.error ? (
+          <p role="alert" className="mt-2 text-sm text-danger">
+            {action.error}
+          </p>
+        ) : null}
+      </section>
+    )
+  }
+
+  if (status === 'failed' || status === 'done' || status === 'cancelled') {
+    const retry = status === 'failed'
+    const label = retry ? '重试' : '重新打开'
+    const noteLabel = retry ? '重试备注' : '重开备注'
+    const payload = {
+      taskId,
+      ...(note.trim() ? { note: note.trim() } : {}),
+    }
+    return (
+      <section className={sectionClass}>
+        {confirming ? (
+          <div className="flex flex-col gap-2">
+            <TextArea
+              aria-label={noteLabel}
+              placeholder="可选：说明这次要继续做什么"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              fullWidth
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="tertiary" onPress={() => setConfirming(false)}>
+                返回
+              </Button>
+              <Button
+                variant="primary"
+                isDisabled={action.pending}
+                onPress={() =>
+                  action.run(
+                    retry ? { type: 'task.retry', payload } : { type: 'task.reopen', payload },
+                  )
+                }
+              >
+                确认{label}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-muted">
+              {retry ? '任务失败，可以重试。' : '任务已结束，可以重新打开继续处理。'}
+            </p>
+            <Button variant={retry ? 'primary' : 'tertiary'} onPress={() => setConfirming(true)}>
+              {label}
+            </Button>
           </div>
         )}
         {action.error ? (

@@ -35,6 +35,7 @@ export type TaskEffect =
     }
   | { type: 'persistReviewVerdict'; reviewId: string; verdict: ReviewVerdict }
   | { type: 'appendFeedback'; feedback: string }
+  | { type: 'appendReopenNote'; note: string }
   | { type: 'incrementRetry' }
   | { type: 'interruptSession'; reason?: string }
   | { type: 'sendToSession'; text: string }

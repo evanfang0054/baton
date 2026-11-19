@@ -152,6 +152,17 @@ export function planAndApplyEffects(tx: Tx, ctx: EffectContext, effects: TaskEff
         )
         break
       }
+      case 'appendReopenNote': {
+        appendTaskPromptBlock(
+          tx,
+          ctx.task.id,
+          'reopen_note',
+          effect.note,
+          MAX_FEEDBACK_CHARS,
+          ctx.now,
+        )
+        break
+      }
       case 'incrementRetry': {
         insertAudit(tx, {
           id: ctx.newId(),

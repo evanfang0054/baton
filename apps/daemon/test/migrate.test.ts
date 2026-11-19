@@ -80,6 +80,7 @@ describe('migrateDb', () => {
       'task_workspace_idx',
       'workspace_rel_path_unique',
       'ws_event_id_unique',
+      'ws_event_task_ordinal_idx',
       'ws_event_ts_idx',
     ])
     expect(columns(db2, 'review').find((column) => column.name === 'verdict')?.notnull).toBe(0)

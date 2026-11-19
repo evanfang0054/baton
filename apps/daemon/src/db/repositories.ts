@@ -3,16 +3,19 @@ import {
   Audit,
   Canvas,
   ContextSnapshot,
+  DiffSnapshot,
   Edge,
   Node,
   Notice,
   Policy,
   PolicySchema,
   Review,
+  ReviewView,
   Session,
   Task,
   TaskDetail,
   TaskOrigin,
+  TaskStatusEvent,
   Workspace,
   type ApprovalDecision,
   type ApprovalRequest,
@@ -21,6 +24,7 @@ import {
   type SessionStatus,
   type SessionEventRecord,
   type TaskStatus,
+  type TaskStatusHistoryItem,
   type WaitingReason,
 } from '@baton/protocol'
 import { and, asc, desc, eq, gt, gte, inArray, lt, or, sql } from 'drizzle-orm'
@@ -37,6 +41,7 @@ import {
   setting,
   task,
   workspace,
+  wsEvent,
 } from './schema.js'
 import type { Db, Tx } from './types.js'
 
@@ -466,6 +471,15 @@ export function updateTaskPolicy(tx: Tx, id: string, policy: Policy): void {
     .run()
 }
 
+export function updateTaskWorktreePath(
+  db: Pick<Db, 'update'>,
+  id: string,
+  worktreePath: string | null,
+  updatedAt: number,
+): void {
+  db.update(task).set({ worktreePath, updatedAt }).where(eq(task.id, id)).run()
+}
+
 export function getTaskPolicy(db: Db, id: string): Policy | null {
   const row = db.select({ policyJson: task.policyJson }).from(task).where(eq(task.id, id)).get()
   if (!row?.policyJson) return null
@@ -489,7 +503,7 @@ export function appendTaskFeedback(
 export function appendTaskPromptBlock(
   tx: Tx,
   id: string,
-  tag: 'feedback' | 'user_reply',
+  tag: 'feedback' | 'user_reply' | 'reopen_note',
   content: string,
   maxChars: number,
   updatedAt: number,
@@ -555,6 +569,64 @@ export function listSessionsByTask(db: Pick<Db, 'select'>, taskId: string): Sess
     .orderBy(asc(session.startedAt))
     .all()
     .map(toSession)
+}
+
+export function listReviewsByTask(db: Db, taskId: string): ReviewView[] {
+  return db
+    .select()
+    .from(review)
+    .where(eq(review.taskId, taskId))
+    .orderBy(desc(sql`rowid`))
+    .all()
+    .map((row) => {
+      const parsed = toReview(row)
+      return parsed ? { ...parsed, diffAvailable: row.diffJson !== null } : null
+    })
+    .filter((item): item is ReviewView => item !== null)
+}
+
+export function listTaskStatusHistory(
+  db: Db,
+  taskId: string,
+  limit: number,
+  beforeOrdinal?: number,
+): { items: TaskStatusHistoryItem[]; nextBeforeOrdinal?: number } {
+  const rows = db
+    .select()
+    .from(wsEvent)
+    .where(
+      and(
+        eq(wsEvent.taskId, taskId),
+        eq(wsEvent.type, 'task.status'),
+        beforeOrdinal !== undefined ? lt(wsEvent.ordinal, beforeOrdinal) : undefined,
+      ),
+    )
+    .orderBy(desc(wsEvent.ordinal))
+    .limit(limit + 1)
+    .all()
+  const hasMore = rows.length > limit
+  const page = hasMore ? rows.slice(0, limit) : rows
+  const items: TaskStatusHistoryItem[] = []
+  for (const row of page) {
+    try {
+      const payload = TaskStatusEvent.shape.payload.parse(JSON.parse(row.payloadJson))
+      items.push({
+        ordinal: row.ordinal,
+        ts: row.ts,
+        status: payload.status,
+        previousStatus: payload.previousStatus,
+        retryCount: payload.retryCount,
+        ...(payload.cause ? { cause: payload.cause } : {}),
+        ...(payload.attention ? { attention: payload.attention } : {}),
+      })
+    } catch {
+      // 旧行或坏 JSON 不应让整页历史不可用。
+    }
+  }
+  return {
+    items,
+    ...(hasMore ? { nextBeforeOrdinal: page[page.length - 1]!.ordinal } : {}),
+  }
 }
 
 export function listSessionsByStatus(db: Db, statuses: SessionStatus[]): Session[] {
@@ -685,6 +757,31 @@ export function getReviewByTask(db: Db, taskId: string): Review | null {
 export function getReview(db: Db, id: string): Review | null {
   const row = db.select().from(review).where(eq(review.id, id)).get()
   return row ? toReview(row) : null
+}
+
+export function updateReviewDiff(db: Db, id: string, snapshot: DiffSnapshot): void {
+  db.update(review)
+    .set({ diffJson: JSON.stringify(snapshot) })
+    .where(eq(review.id, id))
+    .run()
+}
+
+export function getReviewDiff(db: Db, id: string): DiffSnapshot | null {
+  const row = db.select({ diffJson: review.diffJson }).from(review).where(eq(review.id, id)).get()
+  if (!row?.diffJson) {
+    return null
+  }
+  try {
+    return DiffSnapshot.parse(JSON.parse(row.diffJson))
+  } catch {
+    return null
+  }
+}
+
+/** 详情只需要“有没有快照”；不要为算一个布尔值解析 512KB 的 diff 正文。 */
+export function hasReviewDiff(db: Db, id: string): boolean {
+  const row = db.select({ diffJson: review.diffJson }).from(review).where(eq(review.id, id)).get()
+  return Boolean(row?.diffJson)
 }
 
 export function updateReviewVerdict(

@@ -191,8 +191,12 @@ export const wsEvent = sqliteTable(
     type: text('type').notNull(),
     payloadJson: text('payload_json').notNull(),
     ts: integer('ts').notNull(),
+    taskId: text('task_id'),
   },
-  (t) => [index('ws_event_ts_idx').on(t.ts)],
+  (t) => [
+    index('ws_event_ts_idx').on(t.ts),
+    index('ws_event_task_ordinal_idx').on(t.taskId, t.ordinal),
+  ],
 )
 
 export const approval = sqliteTable(
@@ -223,6 +227,7 @@ export const review = sqliteTable(
     verifyExitCode: integer('verify_exit_code'),
     verifyOutput: text('verify_output'),
     diffStatJson: text('diff_stat_json'),
+    diffJson: text('diff_json'),
     decidedAt: integer('decided_at'),
   },
   (t) => [index('review_task_idx').on(t.taskId)],

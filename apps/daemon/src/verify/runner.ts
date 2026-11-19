@@ -1,13 +1,16 @@
 import { resolveVerifyCommand } from '@baton/core'
-import type { TaskTransitionEvent } from '@baton/protocol'
+import type { DiffSnapshot, TaskTransitionEvent } from '@baton/protocol'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Config } from '../config.js'
-import { getTask, getWorkspace } from '../db/repositories.js'
+import { getTask, getWorkspace, updateReviewDiff } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
+import type { Logger } from '../log.js'
 import type { TransitionOutcome } from '../runtime/types.js'
 import { loadPolicy } from '../workspace/policy.js'
 import { resolveWorkspaceDir } from '../workspace/resolver.js'
+import { isInsideDataDir } from '../workspace/worktree.js'
+import { captureDiff } from './diff.js'
 import { runVerifyCommand, type VerifyCommandRunResult } from './executor.js'
 
 export interface VerifyRunnerDeps {
@@ -17,6 +20,7 @@ export interface VerifyRunnerDeps {
   now: () => number
   newId: () => string
   verifyMeta: Map<string, number>
+  logger?: Logger
 }
 
 export interface VerifyRunner {
@@ -70,14 +74,23 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
     }
 
     let result: VerifyCommandRunResult
+    let workspacePath: string | null = null
     const workspace = getWorkspace(deps.db, task.workspaceId)
     if (!workspace) {
       result = failure(127, 'workspace not found')
     } else {
       try {
-        const workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+        workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+        if (
+          task.workspaceMode === 'worktree' &&
+          task.worktreePath &&
+          !isInsideDataDir(deps.config.dataDir, task.worktreePath)
+        ) {
+          throw new Error('worktree path escapes data dir')
+        }
+        const executionPath = task.worktreePath ?? workspacePath
         const policy = loadPolicy(workspacePath)
-        const pkg = readPackageJson(workspacePath)
+        const pkg = readPackageJson(executionPath)
         const resolved = resolveVerifyCommand({
           taskCommand: task.verifyCommand ?? undefined,
           policyCommand: policy.verify.command,
@@ -89,7 +102,7 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
         } else {
           result = await runVerifyCommand({
             command: resolved.command,
-            workspacePath,
+            workspacePath: executionPath,
             timeoutSec: policy.verify.timeoutSec,
             maxOutputBytes: policy.verify.maxOutputBytes,
             signal,
@@ -103,6 +116,21 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
     const current = getTask(deps.db, taskId)
     if (!current || current.status !== 'verifying') {
       return
+    }
+
+    let snapshot: DiffSnapshot | null = null
+    if (workspacePath) {
+      const capturePath = current.worktreePath ?? workspacePath
+      if (!current.worktreePath || isInsideDataDir(deps.config.dataDir, current.worktreePath)) {
+        try {
+          snapshot = await captureDiff(capturePath, deps.now)
+        } catch (error) {
+          deps.logger?.warn(
+            { event: 'diff_capture_failed', taskId, error: String(error) },
+            'diff capture failed',
+          )
+        }
+      }
     }
 
     const reviewId = deps.newId()
@@ -126,6 +154,10 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
     const outcome = deps.applyTransition(taskId, event)
     if (!outcome.ok) {
       deps.verifyMeta.delete(reviewId)
+      return
+    }
+    if (snapshot) {
+      updateReviewDiff(deps.db, reviewId, snapshot)
     }
   }
 

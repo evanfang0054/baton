@@ -241,9 +241,20 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
       }
       return invalid(ctx, event)
 
-    case 'done':
     case 'failed':
+      if (event.type === 'retry') {
+        const extra: TaskEffect[] = event.note ? [effects.appendFeedback(event.note)] : []
+        extra.push(effects.enqueueTask())
+        return ok('queued', 0, extra)
+      }
+      return invalid(ctx, event)
+
+    case 'done':
     case 'cancelled':
+      if (event.type === 'reopen') {
+        const extra = event.note ? [effects.appendReopenNote(event.note)] : []
+        return ok('todo', 0, extra)
+      }
       return invalid(ctx, event)
 
     default:

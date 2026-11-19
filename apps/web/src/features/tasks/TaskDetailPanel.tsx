@@ -11,18 +11,15 @@ import { ContextSnapshotCard } from './ContextSnapshotCard'
 import { QuestionCard } from './QuestionCard'
 import { ReplyComposer } from './ReplyComposer'
 import { ReviewCard } from './ReviewCard'
+import { DiffViewer } from './DiffViewer'
 import { TaskActions } from './TaskActions'
 import { TaskAutomationCard } from './TaskAutomationCard'
 import { TaskHeader } from './TaskHeader'
+import { TaskHistory } from './TaskHistory'
 import { TaskOriginCard } from './TaskOriginCard'
 import { Transcript } from './Transcript'
-
-const sessionStatusLabels: Record<string, string> = {
-  running: '进行中',
-  waiting_input: '等待输入',
-  ended: '已结束',
-  failed: '失败',
-}
+import { WorktreeCard } from './WorktreeCard'
+import { sessionStatusLabel } from './labels'
 
 export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId)
@@ -66,6 +63,7 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
     const taskId = detail.data?.task.id
     if (!taskId) return
     await queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.taskHistory(taskId) })
     if (activeWorkspaceId) {
       await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(activeWorkspaceId) })
     }
@@ -104,7 +102,9 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
                 showActions={false}
               />
             </div>
-            {['todo', 'queued', 'running'].includes(detail.data.task.status) ||
+            {['todo', 'queued', 'running', 'failed', 'done', 'cancelled'].includes(
+              detail.data.task.status,
+            ) ||
             (detail.data.task.status === 'waiting_input' &&
               detail.data.attention === 'needs_attention') ? (
               <div
@@ -181,6 +181,7 @@ function DetailContent({
   const task = detail.task
   const pendingApprovals = [...detail.approvals].reverse().filter((item) => item.decision === null)
   const needsApproval = detail.attention === 'needs_approval'
+  const [historyDiffReviewId, setHistoryDiffReviewId] = useState<string | null>(null)
 
   return (
     <>
@@ -213,6 +214,18 @@ function DetailContent({
       ) : (
         <TaskAutomationCard taskId={task.id} />
       )}
+
+      <WorktreeCard
+        taskId={task.id}
+        worktreePath={task.worktreePath}
+        canCleanup={!mobile && ['review', 'done', 'cancelled', 'failed'].includes(task.status)}
+        onDone={onDone}
+      />
+
+      <TaskHistory taskId={task.id} onOpenDiff={setHistoryDiffReviewId} />
+      {historyDiffReviewId ? (
+        <DiffViewer reviewId={historyDiffReviewId} onClose={() => setHistoryDiffReviewId(null)} />
+      ) : null}
 
       {task.status === 'waiting_input' && needsApproval ? (
         pendingApprovals.length > 0 ? (
@@ -252,8 +265,8 @@ function DetailContent({
         />
       ) : null}
 
-      {['done', 'failed', 'cancelled'].includes(task.status) ? (
-        <p className="shrink-0 text-sm text-muted">任务已结束，只读。</p>
+      {['done', 'failed', 'cancelled'].includes(task.status) && !showActions ? (
+        <p className="shrink-0 text-sm text-muted">任务已结束。</p>
       ) : null}
 
       <div
@@ -276,7 +289,7 @@ function DetailContent({
             {detail.sessions.length === 0 ? <option value="">暂无会话</option> : null}
             {detail.sessions.map((session, index) => (
               <option key={session.id} value={session.id}>
-                会话 {index + 1} · {sessionStatusLabels[session.status] ?? session.status}
+                会话 {index + 1} · {sessionStatusLabel(session.status)}
               </option>
             ))}
           </select>

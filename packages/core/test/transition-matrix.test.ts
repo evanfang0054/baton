@@ -34,6 +34,8 @@ const EVENTS: TaskTransitionEvent[] = [
   { type: 'verify_fail', reviewId: 'r1', exitCode: 1, output: 'bad', diffStat: oneDiff },
   { type: 'approve', reviewId: 'r1' },
   { type: 'reject', reviewId: 'r1', feedback: 'fix' },
+  { type: 'retry' },
+  { type: 'reopen' },
   { type: 'cancel', reason: 'user' },
   { type: 'error', message: 'boom' },
 ]
@@ -145,6 +147,18 @@ const EXPECTED: Record<string, { status: TaskStatus; effects: TaskEffect[] }> = 
       emit('queued', { reviewId: 'r1' }),
     ],
   },
+  'failed:retry': {
+    status: 'queued',
+    effects: [{ type: 'enqueueTask' }, emit('queued')],
+  },
+  'done:reopen': {
+    status: 'todo',
+    effects: [emit('todo')],
+  },
+  'cancelled:reopen': {
+    status: 'todo',
+    effects: [emit('todo')],
+  },
   'todo:cancel': { status: 'cancelled', effects: [emit('cancelled')] },
   'queued:cancel': { status: 'cancelled', effects: [emit('cancelled')] },
   'running:cancel': {
@@ -164,8 +178,8 @@ describe('transition matrix', () => {
     expect(STATUSES).toEqual([...TaskStatus.options])
   })
 
-  it('covers 9 statuses x 14 events with exact target and effects', () => {
-    expect(STATUSES.length * EVENTS.length).toBe(126)
+  it('covers 9 statuses x 16 events with exact target and effects', () => {
+    expect(STATUSES.length * EVENTS.length).toBe(144)
     for (const status of STATUSES) {
       for (const event of EVENTS) {
         const key = `${status}:${event.type}`
@@ -181,5 +195,25 @@ describe('transition matrix', () => {
         }
       }
     }
+  })
+
+  it('retry resets retryCount and appends a feedback note', () => {
+    const result = expectOk(
+      transition(ctx('failed', { retryCount: 2 }), { type: 'retry', note: '再试一次' }),
+    )
+    expect(result.retryCount).toBe(0)
+    expect(result.effects).toEqual([
+      { type: 'appendFeedback', feedback: '再试一次' },
+      { type: 'enqueueTask' },
+      emit('queued'),
+    ])
+  })
+
+  it('reopen resets retryCount and appends a reopen note', () => {
+    const result = expectOk(
+      transition(ctx('done', { retryCount: 2 }), { type: 'reopen', note: '继续修边界' }),
+    )
+    expect(result.retryCount).toBe(0)
+    expect(result.effects).toEqual([{ type: 'appendReopenNote', note: '继续修边界' }, emit('todo')])
   })
 })

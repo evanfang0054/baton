@@ -1,9 +1,12 @@
-import { mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import type { DiffSnapshot, Review } from '@baton/protocol'
+import { execa } from 'execa'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { TestApp } from './helpers/app.js'
 import { buildTestApp } from './helpers/app.js'
-import { updateTaskState } from '../src/db/repositories.js'
+import { insertReview, updateReviewDiff, updateTaskState } from '../src/db/repositories.js'
+import { createWorktree } from '../src/workspace/worktree.js'
 
 const apps: TestApp[] = []
 const auth = { authorization: 'Bearer secret' }
@@ -322,5 +325,198 @@ describe('REST API', () => {
       headers: auth,
     })
     expect(invalid.statusCode).toBe(400)
+  })
+
+  it('returns review diff snapshots and marks diffAvailable', async () => {
+    const { app, handle } = await setup()
+    const review: Review = {
+      id: 'r-diff',
+      taskId: handle.seeded.taskId,
+      verdict: null,
+      verifyExitCode: 0,
+      verifyOutput: 'ok',
+      diffStat: { filesChanged: 1, insertions: 1, deletions: 0 },
+      decidedAt: null,
+    }
+    const snapshot: DiffSnapshot = {
+      v: 1,
+      capturedAt: 1,
+      baseRef: 'HEAD',
+      truncated: false,
+      files: [
+        {
+          path: 'a.txt',
+          status: 'modified',
+          insertions: 1,
+          deletions: 0,
+          patch: '@@ -1 +1 @@\n-old\n+new',
+        },
+      ],
+    }
+    handle.database.db.transaction((tx) => insertReview(tx, review))
+    updateReviewDiff(handle.database.db, review.id, snapshot)
+
+    const diff = await app.inject({
+      method: 'GET',
+      url: `/api/reviews/${review.id}/diff`,
+      headers: auth,
+    })
+    expect(diff.statusCode).toBe(200)
+    expect((diff.json() as { snapshot: DiffSnapshot }).snapshot.files[0]?.path).toBe('a.txt')
+
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${handle.seeded.taskId}`,
+      headers: auth,
+    })
+    expect((detail.json() as { review: { diffAvailable: boolean } }).review.diffAvailable).toBe(
+      true,
+    )
+
+    const missing = await app.inject({
+      method: 'GET',
+      url: '/api/reviews/missing/diff',
+      headers: auth,
+    })
+    expect(missing.statusCode).toBe(404)
+
+    const oldReview: Review = { ...review, id: 'r-old' }
+    handle.database.db.transaction((tx) => insertReview(tx, oldReview))
+    const unavailable = await app.inject({
+      method: 'GET',
+      url: `/api/reviews/${oldReview.id}/diff`,
+      headers: auth,
+    })
+    expect(unavailable.statusCode).toBe(404)
+    expect((unavailable.json() as { code: string }).code).toBe('diff_unavailable')
+  })
+
+  it('returns task history with status events and reviews', async () => {
+    const { app, handle } = await setup()
+    handle.runtime.applyTransition(handle.seeded.taskId, { type: 'enqueue' })
+
+    const review: Review = {
+      id: 'r-history',
+      taskId: handle.seeded.taskId,
+      verdict: null,
+      verifyExitCode: 0,
+      verifyOutput: 'ok',
+      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+      decidedAt: null,
+    }
+    const snapshot: DiffSnapshot = {
+      v: 1,
+      capturedAt: 1,
+      baseRef: 'HEAD',
+      truncated: false,
+      files: [],
+    }
+    handle.database.db.transaction((tx) => insertReview(tx, review))
+    updateReviewDiff(handle.database.db, review.id, snapshot)
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${handle.seeded.taskId}/history?limit=10`,
+      headers: auth,
+    })
+    expect(response.statusCode).toBe(200)
+    const body = response.json() as {
+      statusEvents: Array<{ ordinal: number; status: string }>
+      sessions: unknown[]
+      reviews: Array<{ id: string; diffAvailable: boolean }>
+    }
+    expect(body.statusEvents.some((event) => event.status === 'queued')).toBe(true)
+    expect(body.reviews[0]).toMatchObject({ id: 'r-history', diffAvailable: true })
+
+    const latest = body.statusEvents[0]!.ordinal
+    const page = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${handle.seeded.taskId}/history?limit=10&beforeOrdinal=${latest}`,
+      headers: auth,
+    })
+    const pageBody = page.json() as { statusEvents: Array<{ ordinal: number }> }
+    expect(pageBody.statusEvents.some((event) => event.ordinal === latest)).toBe(false)
+  })
+
+  it('cleans a worktree but keeps the branch and reports capabilities', async () => {
+    const { app, handle } = await setup()
+    const workspace = join(handle.root, handle.seeded.relPath)
+
+    const before = await app.inject({
+      method: 'GET',
+      url: `/api/workspaces/${handle.seeded.workspaceId}/capabilities`,
+      headers: auth,
+    })
+    expect(before.json()).toEqual({ worktree: false })
+
+    await execa('git', ['-C', workspace, 'init', '-q'])
+    await execa('git', ['-C', workspace, 'config', 'user.email', 'test@example.com'])
+    await execa('git', ['-C', workspace, 'config', 'user.name', 'test'])
+    await execa('git', ['-C', workspace, 'commit', '--allow-empty', '-qm', 'init'])
+
+    const after = await app.inject({
+      method: 'GET',
+      url: `/api/workspaces/${handle.seeded.workspaceId}/capabilities`,
+      headers: auth,
+    })
+    expect(after.json()).toEqual({ worktree: true })
+
+    const created = await createWorktree({
+      dataDir: handle.root,
+      workspacePath: workspace,
+      taskId: handle.seeded.taskId,
+    })
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+    handle.database.raw
+      .prepare(
+        "update task set status = 'review', workspace_mode = 'worktree', worktree_path = ? where id = ?",
+      )
+      .run(created.path, handle.seeded.taskId)
+
+    const cleanup = await app.inject({
+      method: 'POST',
+      url: `/api/tasks/${handle.seeded.taskId}/worktree/cleanup`,
+      headers: auth,
+    })
+    expect(cleanup.statusCode).toBe(200)
+    expect(existsSync(created.path)).toBe(false)
+    expect(
+      (
+        handle.database.raw
+          .prepare('select worktree_path from task where id = ?')
+          .get(handle.seeded.taskId) as { worktree_path: string | null }
+      ).worktree_path,
+    ).toBeNull()
+    const branch = await execa('git', [
+      '-C',
+      workspace,
+      'branch',
+      '--list',
+      `baton/${handle.seeded.taskId}`,
+    ])
+    expect(branch.stdout).toContain(`baton/${handle.seeded.taskId}`)
+
+    handle.database.raw
+      .prepare("update task set status = 'queued' where id = ?")
+      .run(handle.seeded.taskId)
+    const queued = await app.inject({
+      method: 'POST',
+      url: `/api/tasks/${handle.seeded.taskId}/worktree/cleanup`,
+      headers: auth,
+    })
+    expect(queued.statusCode).toBe(409)
+    expect((queued.json() as { code: string }).code).toBe('task_active')
+
+    handle.database.raw
+      .prepare("update task set status = 'running' where id = ?")
+      .run(handle.seeded.taskId)
+    const active = await app.inject({
+      method: 'POST',
+      url: `/api/tasks/${handle.seeded.taskId}/worktree/cleanup`,
+      headers: auth,
+    })
+    expect(active.statusCode).toBe(409)
+    expect((active.json() as { code: string }).code).toBe('task_active')
   })
 })

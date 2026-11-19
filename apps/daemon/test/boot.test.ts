@@ -47,6 +47,7 @@ describe('reconcileOnBoot', () => {
 
     reconcileOnBoot({
       db: handle.database.db,
+      config: handle.config,
       applyTransition: handle.runtime.applyTransition,
       now: () => 99,
       newId: () => 'audit-boot',
@@ -68,5 +69,29 @@ describe('reconcileOnBoot', () => {
       .prepare("select action from audit where action = 'approval.expired'")
       .get() as { action: string } | undefined
     expect(audit?.action).toBe('approval.expired')
+  })
+
+  it('fails an active worktree task when its directory is missing', () => {
+    const handle = setup()
+    const taskId = handle.createTask({ title: 'worktree' })
+    handle.database.raw
+      .prepare(
+        [
+          "update task set status = 'running',",
+          "workspace_mode = 'worktree',",
+          "worktree_path = '/nonexistent/worktree' where id = ?",
+        ].join(' '),
+      )
+      .run(taskId)
+
+    reconcileOnBoot({
+      db: handle.database.db,
+      config: handle.config,
+      applyTransition: handle.runtime.applyTransition,
+      now: () => 99,
+      newId: () => 'audit-boot',
+    })
+
+    expect(handle.runtime.getTask(taskId)?.status).toBe('failed')
   })
 })

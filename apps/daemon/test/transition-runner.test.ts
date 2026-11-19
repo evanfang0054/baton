@@ -407,4 +407,43 @@ describe('transition runner', () => {
     await handle.runtime.settle()
     expect(handle.runtime.getTask(taskId)?.status).toBe('running')
   })
+
+  it('retries a failed task with a feedback note and resets retryCount', () => {
+    const handle = setup({ maxConcurrency: 0 })
+    const taskId = handle.createTask()
+    handle.database.raw
+      .prepare("update task set status = 'failed', retry_count = 2 where id = ?")
+      .run(taskId)
+
+    const outcome = handle.runtime.applyTransition(taskId, { type: 'retry', note: '再试一次' })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.status).toBe('queued')
+    expect(handle.runtime.getTask(taskId)?.retryCount).toBe(0)
+    expect(handle.runtime.getTask(taskId)?.prompt).toContain('<feedback>\n再试一次\n</feedback>')
+    const audit = handle.database.raw
+      .prepare("select detail_json from audit where action = 'task.retry' and actor = 'human'")
+      .get() as { detail_json: string }
+    expect(JSON.parse(audit.detail_json)).toMatchObject({
+      taskId,
+      policyVersion: expect.any(String),
+    })
+  })
+
+  it('reopens a done task with a reopen note and resets retryCount', () => {
+    const handle = setup()
+    const taskId = handle.createTask()
+    handle.database.raw
+      .prepare("update task set status = 'done', retry_count = 2 where id = ?")
+      .run(taskId)
+
+    const outcome = handle.runtime.applyTransition(taskId, { type: 'reopen', note: '继续修' })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.status).toBe('todo')
+    expect(handle.runtime.getTask(taskId)?.retryCount).toBe(0)
+    expect(handle.runtime.getTask(taskId)?.prompt).toContain(
+      '<reopen_note>\n继续修\n</reopen_note>',
+    )
+  })
 })

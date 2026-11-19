@@ -6,7 +6,8 @@
 
 ## 状态
 
-M1-6a 任务控制台已完成：可安装、可启动、可打包；M1-7 接入真实 Claude Code。v1 不使用 Docker。
+M2 已收口：总管 Router v0、无人值守与汇报、移动端响应式控制台。
+M3-1 交付验收增强（diff 视图、worktree 隔离、retry/reopen 与任务历史）已实现，分支 `feat/m3-1-diff` 待合并。v1 不使用 Docker。
 
 ## 本地运行
 

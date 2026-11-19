@@ -1,7 +1,8 @@
 import { FakeAdapter } from '@baton/adapters'
 import type { AgentAdapter } from '@baton/protocol'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { execa } from 'execa'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Config } from '../src/config.js'
 import { listApprovalsByTask, getApproval } from '../src/db/repositories.js'
@@ -189,5 +190,44 @@ describe('session runner', () => {
     handle.runtime.applyTransition(taskId, { type: 'enqueue' })
     await waitFor(() => handle.runtime.getTask(taskId)?.status === 'waiting_input')
     expect(handle.runtime.getTask(taskId)?.waitingReason).toBe('stalled')
+  })
+
+  it('starts a worktree task in its worktree', async () => {
+    const handle = setup()
+    const workspace = join(handle.root, handle.seeded.relPath)
+    await execa('git', ['-C', workspace, 'init', '-q'])
+    await execa('git', ['-C', workspace, 'config', 'user.email', 'test@example.com'])
+    await execa('git', ['-C', workspace, 'config', 'user.name', 'test'])
+    writeFileSync(join(workspace, 'a.txt'), 'x')
+    await execa('git', ['-C', workspace, 'add', '-A'])
+    await execa('git', ['-C', workspace, 'commit', '-qm', 'init'])
+
+    const taskId = handle.createTask({ workspaceMode: 'worktree' })
+    handle.runtime.applyTransition(taskId, { type: 'enqueue' })
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'waiting_input')
+
+    const task = handle.runtime.getTask(taskId)!
+    expect(task.worktreePath).toBeTruthy()
+    expect(existsSync(task.worktreePath!)).toBe(true)
+    expect(task.worktreePath).toContain('/worktrees/')
+  })
+
+  it('fails a task when worktree preparation throws', async () => {
+    const handle = setup()
+    const workspace = join(handle.root, handle.seeded.relPath)
+    await execa('git', ['-C', workspace, 'init', '-q'])
+    await execa('git', ['-C', workspace, 'config', 'user.email', 'test@example.com'])
+    await execa('git', ['-C', workspace, 'config', 'user.name', 'test'])
+    writeFileSync(join(workspace, 'a.txt'), 'x')
+    await execa('git', ['-C', workspace, 'add', '-A'])
+    await execa('git', ['-C', workspace, 'commit', '-qm', 'init'])
+    // dataDir/worktrees 被普通文件占住，mkdirSync 抛错，任务必须收敛到 failed。
+    writeFileSync(join(handle.root, 'worktrees'), 'block')
+
+    const taskId = handle.createTask({ workspaceMode: 'worktree' })
+    handle.runtime.applyTransition(taskId, { type: 'enqueue' })
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'failed')
+
+    expect(handle.runtime.getTask(taskId)?.worktreePath).toBeNull()
   })
 })

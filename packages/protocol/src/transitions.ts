@@ -41,6 +41,8 @@ export const TaskTransitionEvent = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('approve'), reviewId: Id }),
   z.object({ type: z.literal('reject'), reviewId: Id, feedback: z.string().min(1) }),
+  z.object({ type: z.literal('retry'), note: z.string().min(1).max(16_384).optional() }),
+  z.object({ type: z.literal('reopen'), note: z.string().min(1).max(16_384).optional() }),
   z.object({ type: z.literal('cancel'), reason: z.string().min(1).optional() }),
   z.object({ type: z.literal('error'), message: z.string().min(1) }),
 ])
