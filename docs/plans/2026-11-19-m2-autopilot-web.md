@@ -5,7 +5,7 @@ task_count: 5
 estimated_phases: [tests, implementation, verification]
 dod: "web 自动化设置、顶栏状态/kill switch、digest 卡、任务自动化卡、看板批量开工与对应测试完成；pnpm verify:full 全绿"
 depends_on: [2026-11-19-m2-autopilot-daemon.md]
-status: blocked
+status: completed
 ---
 
 # M2-2a 无人值守与汇报：web 实施计划（Plan 3/4）
@@ -53,7 +53,7 @@ Seam: `getAutomation` / `updateAutomationPolicy` / `setKillSwitch` / `listNotice
 - Produces: `getAutomation(workspaceId)`、`updateAutomationPolicy(workspaceId, patch)`、`setKillSwitch(enabled)`、`listNotices(workspaceId, opts)`、`readNotice(id)`、`generateDigest(workspaceId)`、`getTaskAutomation(taskId)`、`listAudit(actionPrefix)`。
 - Consumes: `AutomationSummary`、`AutomationPolicyPatch`、`KillSwitchResponse`、`NoticeListResponse`、`DigestGenerateResponse`、`TaskAutomationSummary`、`AuditListResponse`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `apps/web/src/lib/api-automation.test.ts`：
 
@@ -95,12 +95,12 @@ describe('automation api', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/web exec vitest run src/lib/api-automation.test.ts`
 Expected: FAIL，函数未导出。
 
-- [ ] **Step 3: 实现 API 与 query keys**
+- [x] **Step 3: 实现 API 与 query keys**
 
 `api.ts` 按现有 `request` 模式追加：
 
@@ -158,12 +158,12 @@ if (event.type === 'notice') {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pnpm --filter @baton/web exec vitest run src/lib/api-automation.test.ts`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/lib apps/web/src/features/realtime
@@ -191,7 +191,7 @@ Seam: 顶栏「自动化运行中/已暂停/关闭」可切换；设置弹窗可
 - Produces: `<AutomationStatus state={{ mode: 'off'|'on'|'paused'; killSwitchForced: boolean }} onPause={() => void} onOpenSettings={() => void} />`；`<AutomationSettingsDialog workspaceId open onOpenChange />`。
 - Consumes: `getAutomation/updateAutomationPolicy/setKillSwitch/listAudit`、`queryKeys.automation`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `AutomationStatus.test.tsx`：
 
@@ -265,12 +265,12 @@ describe('AutomationSettingsDialog', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/web exec vitest run src/features/automation`
 Expected: FAIL，组件不存在。
 
-- [ ] **Step 3: 实现 AutomationStatus**
+- [x] **Step 3: 实现 AutomationStatus**
 
 - 三态文案：`自动化关闭` / `自动化运行中` / `自动化已暂停`。
 - 运行中显示「暂停自动化」按钮；暂停立即调 `setKillSwitch(true)`，toast + invalidate。
@@ -278,7 +278,7 @@ Expected: FAIL，组件不存在。
 - env 强制时显示「由环境变量强制暂停」并禁用按钮。
 - 只用 `DESIGN.md` token：`bg-surface`、`border-separator`、`text-muted`、`bg-warning`、`bg-success`。
 
-- [ ] **Step 4: 实现 AutomationSettingsDialog**
+- [x] **Step 4: 实现 AutomationSettingsDialog**
 
 - 使用 `useQuery(queryKeys.automation(workspaceId), getAutomation)`。
 - 表单字段：`autopilot.enabled` Switch、`retryMax` NumberInput（0–10）、`autoApproveMaxRisk` Select（low/medium）。
@@ -288,18 +288,18 @@ Expected: FAIL，组件不存在。
 - 最近变更：`listAudit('automation.')`，展示 action/time/actor。
 - 文案固定：「修改只影响新启动的会话；运行中的任务使用启动时的策略快照。」「高风险操作永远不会自动批准。」
 
-- [ ] **Step 5: 接入 App.tsx**
+- [x] **Step 5: 接入 App.tsx**
 
 - header 右侧渲染 `<AutomationStatus workspaceId={activeWorkspaceId} ... />`。
 - App 持有 `settingsOpen` state；点击状态或 workspace 菜单「自动化设置」打开 `AutomationSettingsDialog`。
 - `WorkspaceSwitcher` 增加 `onOpenAutomation?: () => void`，菜单项「自动化设置」。
 
-- [ ] **Step 6: 运行测试**
+- [x] **Step 6: 运行测试**
 
 Run: `pnpm --filter @baton/web exec vitest run src/features/automation`
 Expected: PASS。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web/src/features/automation apps/web/src/App.tsx apps/web/src/features/workspaces
@@ -326,7 +326,7 @@ Seam: 总管面板顶部出现最新 digest；生成/已读/历史可用
 - Produces: `<DigestCard workspaceId? notice? onRead onOpenTask onGenerate />`；`RightPanel` 增加 `hasUnreadNotice`。
 - Consumes: `listNotices/readNotice/generateDigest`、`Notice`、`DigestReport`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `DigestCard.test.tsx`：
 
@@ -369,12 +369,12 @@ describe('DigestCard', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/web exec vitest run src/features/supervisor/DigestCard.test.tsx`
 Expected: FAIL，组件不存在。
 
-- [ ] **Step 3: 实现 DigestCard**
+- [x] **Step 3: 实现 DigestCard**
 
 - props 支持两种模式：传入 `notice` 用于测试；或传 `workspaceId` 内部查询。
 - 内容：标题「本轮汇报」+ 生成时间 + 未读圆点；计数 chips；变化行；最长等待；前 3 个 blocked 任务（点击 `onOpenTask(taskId)`）。
@@ -383,18 +383,18 @@ Expected: FAIL，组件不存在。
 - `aria-live="polite"` 只播报计数摘要；不逐字。
 - 只用 DESIGN token，不写 hex。
 
-- [ ] **Step 4: 接入 SupervisorPanel**
+- [x] **Step 4: 接入 SupervisorPanel**
 
 - `SupervisorPanel` 顶部渲染 `<DigestCard workspaceId={workspaceId} onOpenTask={...} />`。
 - `onOpenTask` 使用 `useAppStore.setTask` + `setRightPanel('task')`。
 - `RightPanel` 增加 `hasUnreadNotice` prop，在「总管」tab 显示小圆点；由 App 查询 notices 计算。
 
-- [ ] **Step 5: 运行测试**
+- [x] **Step 5: 运行测试**
 
 Run: `pnpm --filter @baton/web exec vitest run src/features/supervisor src/features/right-panel`
 Expected: PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/web/src/features/supervisor apps/web/src/features/right-panel apps/web/src/App.tsx
@@ -420,7 +420,7 @@ Seam: 任务详情出现自动批准/拒绝/重试记录
 - Produces: `<TaskAutomationCard taskId />`。
 - Consumes: `getTaskAutomation(taskId)`、`queryKeys.taskAutomation`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```tsx
 import { render, screen } from '@testing-library/react'
@@ -454,12 +454,12 @@ describe('TaskAutomationCard', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/web exec vitest run src/features/tasks/TaskAutomationCard.test.tsx`
 Expected: FAIL，组件不存在。
 
-- [ ] **Step 3: 实现 TaskAutomationCard**
+- [x] **Step 3: 实现 TaskAutomationCard**
 
 - 查询 `getTaskAutomation`；loading / error / empty 三态。
 - 汇总：自动批准/拒绝次数、重试次数、最近 verify 退出码、lastPolicyVersion。
@@ -467,12 +467,12 @@ Expected: FAIL，组件不存在。
 - 空态：「本任务没有自动决策」。
 - 放在 `TaskDetailPanel` 的 `TaskOriginCard` 之后、review 之前。
 
-- [ ] **Step 4: 运行测试**
+- [x] **Step 4: 运行测试**
 
 Run: `pnpm --filter @baton/web exec vitest run src/features/tasks`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/features/tasks
@@ -500,7 +500,7 @@ Seam: 看板多选 2 个 `todo` 任务，点击「开工 2 个」，两条 `task
 - Produces: 看板选择模式、`onBatchStart` 内部调用 `task.enqueue`；`TaskCard` 增加 `selectable/selected/onToggle`。
 - Consumes: `useCommand`、`task.enqueue`、`queryKeys.tasks`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `TaskBoard.batch.test.tsx`：
 
@@ -532,12 +532,12 @@ describe('TaskBoard batch start', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/web exec vitest run src/features/tasks/TaskBoard.batch.test.tsx`
 Expected: FAIL，按钮/选择模式不存在。
 
-- [ ] **Step 3: 实现选择模式**
+- [x] **Step 3: 实现选择模式**
 
 - `TaskBoard` 内部 state：`selecting: boolean`、`selected: Set<string>`。
 - header 按钮「批量开工」进入选择模式；「取消」退出；「全选待办」。
@@ -546,7 +546,7 @@ Expected: FAIL，按钮/选择模式不存在。
 - 完成后 toast「已开工 X 个，Y 个失败」；invalidate tasks；清空选择。
 - 上限 20：超过时禁用并提示。
 
-- [ ] **Step 4: Playwright mock**
+- [x] **Step 4: Playwright mock**
 
 `apps/web/e2e/automation.spec.ts`：
 
@@ -555,7 +555,7 @@ Expected: FAIL，按钮/选择模式不存在。
 - `page.routeWebSocket` 捕获 `task.enqueue` 次数；断言 2 次。
 - 不依赖本机 daemon。
 
-- [ ] **Step 5: 运行 web 与全量验证**
+- [x] **Step 5: 运行 web 与全量验证**
 
 ```bash
 pnpm --filter @baton/web test
@@ -567,7 +567,7 @@ pnpm format:check
 
 Expected: 全部退出码 0。
 
-- [ ] **Step 6: 记录完成情况**
+- [x] **Step 6: 记录完成情况**
 
 在本计划末尾追加：
 
@@ -580,7 +580,7 @@ Expected: 全部退出码 0。
 - 未解决风险：
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web docs/plans/2026-11-19-m2-autopilot-web.md
@@ -588,4 +588,11 @@ git commit -m "feat(web): 看板批量开工与自动化 UI 验收"
 ```
 
 ---
+
+## 完成记录（2026-11-19）
+
+- 关键 commit：`267880a` 自动化 API/query keys/notice 实时分发；`ae8bdfd` 自动化设置弹窗与顶栏 kill switch；`0027f89` 总管 digest 卡与未读提示；`e2d2d5a` 任务自动化记录卡；随后一个 commit 提交看板批量开工与 Playwright 验收。
+- 测试结果：web 36 files / 137 tests；`pnpm verify:full` 退出码 0，Playwright 9 tests 全绿（含 automation 3 条：设置/kill switch、digest 已读与生成、批量开工 + 任务自动化卡）。
+- 与计划的偏差：`WorkspaceSwitcher` 未新增「自动化设置」菜单项——它是原生 select，塞入动作项会破坏语义；顶栏三个状态都提供「设置」入口，覆盖同一需求。`AutomationStatus` 直接接收 `AutomationSummary`（而非计划里的 `state/mode` 形状），避免上层重复推导。暂停后的恢复放在设置弹窗内（kill switch banner + 「恢复自动化」），与「恢复按钮打开设置弹窗」一致。
+- 未解决风险：批量开工逐条发送，部分失败只 toast 汇总，不重试；Digest 卡在无 workspace 时静默不渲染；`pnpm --filter @baton/web exec vitest run` 偶发 "failed to find current suite"，清 `node_modules/.vitest-cache` 与 `apps/web/node_modules/.vite` 后恢复（既有环境问题，非本次代码引入）。
 
