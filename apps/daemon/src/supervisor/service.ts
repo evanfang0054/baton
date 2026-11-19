@@ -1,21 +1,48 @@
-import { SUPERVISOR_POLICY, supervisorPolicyVersion } from '@baton/core'
 import {
+  buildTaskOrigin,
+  canDelegatedAcceptance,
+  SUPERVISOR_POLICY,
+  supervisorPolicyVersion,
+} from '@baton/core'
+import {
+  Node,
   SupervisorTaskCard,
   type AppError,
   type Engine as EngineValue,
-  type Node,
+  type Policy,
+  type Review,
   type SupervisorMessage,
   type SupervisorMessagesResponse,
   type SupervisorSendInput,
   type SupervisorStatusResponse,
+  type TaskDetail,
+  type TaskOrigin,
+  type TaskTransitionEvent,
+  type TaskStatus,
+  type WaitingReason,
 } from '@baton/protocol'
-import { getCanvasByWorkspace, getWorkspace, listNodes } from '../db/repositories.js'
+import {
+  getCanvasByWorkspace,
+  getAssistantTranscriptText,
+  getLastAssistantText,
+  getReviewByTask,
+  getTaskDetail,
+  getWorkspace,
+  insertAudit,
+  insertNode,
+  listNodes,
+  listSessionsByTask,
+} from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError, isAppError } from '../errors.js'
 import type { Logger } from '../log.js'
 import type { TaskService } from '../runtime/task-service.js'
+import type { TransitionOutcome } from '../runtime/types.js'
+import { loadPolicy } from '../workspace/policy.js'
+import { resolveWorkspaceDir } from '../workspace/resolver.js'
 import { loadSupervisorConfig, type SupervisorConfig } from './config.js'
 import { createAiSdkSupervisorEngine, type SupervisorEngine } from './engine.js'
+import { buildVerifierPrompt, parseVerdict } from './observe.js'
 import { PROMPT_VERSION, SUPERVISOR_PROMPT } from './prompt.js'
 import { createSupervisorStore } from './store.js'
 import {
@@ -36,12 +63,21 @@ export interface SupervisorServiceDeps {
   taskService: TaskService
   defaultEngine: EngineValue
   enqueueTask: (taskId: string) => EnqueueTaskResult
+  applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
+  workspacesRoot: string
+  killSwitch: () => boolean
   engine?: SupervisorEngine
   now: () => number
   newId: () => string
   logger?: Logger
   broadcastRaw?: (frame: string) => void
   track?: (action: () => void | Promise<void>) => void
+}
+
+export interface ObserveTaskInput {
+  taskId: string
+  status: TaskStatus
+  waitingReason: WaitingReason | null
 }
 
 function xmlEscape(value: string): string {
@@ -192,6 +228,394 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           throw error
         }
       },
+    }
+  }
+
+  function notify(threadId: string, key: string, content: string): void {
+    try {
+      const result = store.insertNotification({ threadId, dedupeKey: key, content })
+      if (!result.duplicate) emit('supervisor.message', result.message.id, result.message)
+    } catch (error) {
+      deps.logger?.warn(
+        {
+          event: 'supervisor.notify_failed',
+          threadId,
+          message: error instanceof Error ? error.message : 'unknown error',
+        },
+        'supervisor notification failed',
+      )
+    }
+  }
+
+  function acceptanceGate(workspaceId: string): { allowed: boolean; reason: string } {
+    const workspace = getWorkspace(deps.db, workspaceId)
+    if (!workspace) return { allowed: false, reason: '工作区不存在' }
+    try {
+      const path = resolveWorkspaceDir(deps.workspacesRoot, workspace.relPath)
+      const policy: Policy = loadPolicy(path)
+      const allowed = canDelegatedAcceptance(policy, {
+        workspaceTrusted: workspace.trusted,
+        killSwitch: deps.killSwitch(),
+      })
+      if (allowed) return { allowed: true, reason: '' }
+      if (!policy.autopilot.enabled) return { allowed: false, reason: '自动驾驶未开启' }
+      if (!policy.autopilot.delegatedAcceptance) {
+        return { allowed: false, reason: '总管代验收未开启' }
+      }
+      return { allowed: false, reason: '工作区未信任或 kill switch 已开启' }
+    } catch {
+      return { allowed: false, reason: '策略读取失败' }
+    }
+  }
+
+  function createVerifierAgent(task: TaskDetail): { id: string; title: string } {
+    const canvas = getCanvasByWorkspace(deps.db, task.workspaceId)
+    if (!canvas) throw appError('canvas_not_found', 'canvas not found', { taskId: task.id })
+    const nodes = listNodes(deps.db, canvas.id)
+    const y = nodes.reduce((max, node) => Math.max(max, node.y + node.h), 40) + 24
+    const title = `验收员 · ${task.title}`.slice(0, 80)
+    const ts = deps.now()
+    const node = Node.parse({
+      id: deps.newId(),
+      canvasId: canvas.id,
+      type: 'agent',
+      x: 80,
+      y,
+      w: 320,
+      h: 200,
+      groupId: null,
+      data: { title, engine: deps.defaultEngine, taskId: null },
+      createdAt: ts,
+      updatedAt: ts,
+    })
+    deps.db.transaction((tx) => insertNode(tx, node))
+    return { id: node.id, title }
+  }
+
+  function diffText(review: Review): string {
+    return review.diffStat
+      ? `${review.diffStat.filesChanged} 个文件，+${review.diffStat.insertions}/-${review.diffStat.deletions}`
+      : '没有 diff 快照'
+  }
+
+  /**
+   * 总管不亲自验收：为这一轮 review 派一个新的验收 Agent 任务。
+   * 验收员只拿任务元数据、verify/diff 摘要和工人最后回复，不拿完整 transcript。
+   */
+  function dispatchVerifier(task: TaskDetail, origin: TaskOrigin, review: Review): void {
+    const dedupeKey = `observe:dispatch:${task.id}:${review.id}`
+    if (store.hasNotification(origin.threadId, dedupeKey)) return
+    if (task.workspaceMode === 'worktree') {
+      notify(
+        origin.threadId,
+        `observe:review:${task.id}:${review.id}`,
+        `任务「${task.title}」进入待验收。worktree 任务暂不支持自动验收，需要你确认。`,
+      )
+      return
+    }
+
+    let agent: { id: string; title: string }
+    try {
+      agent = createVerifierAgent(task)
+    } catch (error) {
+      notify(
+        origin.threadId,
+        `observe:review:${task.id}:${review.id}`,
+        `任务「${task.title}」进入待验收，但验收员 Agent 创建失败：${
+          error instanceof Error ? error.message : '未知错误'
+        }。`,
+      )
+      return
+    }
+
+    const session = listSessionsByTask(deps.db, task.id).at(-1)
+    const workerOutput = session ? getLastAssistantText(deps.db, session.id) : ''
+    const prompt = buildVerifierPrompt({
+      title: task.title,
+      taskId: task.id,
+      prompt: task.prompt,
+      workerOutput,
+      verifyExitCode: review.verifyExitCode,
+      diffStat: review.diffStat,
+    })
+    const created = deps.taskService.createTask(
+      {
+        workspaceId: task.workspaceId,
+        nodeId: agent.id,
+        title: `验收：${task.title}`.slice(0, 80),
+        prompt,
+        contextNodeIds: [],
+        engine: deps.defaultEngine,
+        workspaceMode: 'main',
+        dangerouslySkipPermissions: false,
+      },
+      {
+        origin: buildTaskOrigin({
+          source: 'supervisor-review',
+          triggerId: origin.triggerId,
+          threadId: origin.threadId,
+          workspaceId: task.workspaceId,
+          targetNodeId: agent.id,
+          contextNodeIds: [],
+          policyVersion,
+          promptVersion: PROMPT_VERSION,
+          createdAt: deps.now(),
+          actorKind: 'system',
+          reviewOfTaskId: task.id,
+          reviewOfReviewId: review.id,
+        }),
+        audit: {
+          actor: 'supervisor',
+          action: 'supervisor.review.dispatch',
+          detail: {
+            targetTaskId: task.id,
+            reviewId: review.id,
+            verifierAgentId: agent.id,
+            policyVersion,
+          },
+        },
+      },
+    )
+    if (!created.ok) {
+      notify(
+        origin.threadId,
+        `observe:review:${task.id}:${review.id}`,
+        `任务「${task.title}」进入待验收，但验收任务创建失败：${created.error.message}。`,
+      )
+      return
+    }
+
+    const enqueued = deps.enqueueTask(created.taskId)
+    const startNote = enqueued.ok ? '验收员已开工。' : `验收员开工失败：${enqueued.error.message}。`
+    notify(
+      origin.threadId,
+      dedupeKey,
+      `任务「${task.title}」进入待验收。\n` +
+        `verify 退出码：${review.verifyExitCode ?? '未执行'}；diff：${diffText(review)}。\n` +
+        `我已派出新 Agent「${agent.title}」去验收，${startNote}结果出来我再汇报。`,
+    )
+  }
+
+  /** 验收员任务进入 review：读出 VERDICT，关闭验收任务，再按授权决定是否通过目标任务。 */
+  function finishVerifier(task: TaskDetail): void {
+    const origin = task.origin
+    if (!origin?.reviewOfTaskId || !origin.reviewOfReviewId) return
+    const verifierReview = getReviewByTask(deps.db, task.id)
+    if (!verifierReview) {
+      recoverVerifier(task, '验收员任务没有 review 记录')
+      return
+    }
+    const session = listSessionsByTask(deps.db, task.id).at(-1)
+    const output = session ? getAssistantTranscriptText(deps.db, session.id) : ''
+    const parsed = parseVerdict(output)
+
+    // 验收员任务本身不需要人再验收；它的产出就是结论。
+    const closed = deps.applyTransition(task.id, {
+      type: 'approve',
+      reviewId: verifierReview.id,
+    })
+    if (!closed.ok) {
+      deps.logger?.warn(
+        { event: 'supervisor.verifier_close_failed', taskId: task.id, code: closed.error.code },
+        'failed to close verifier task',
+      )
+    }
+    concludeVerifier(task, parsed, origin)
+  }
+
+  /**
+   * Claude 有时结束回合但没上报 outcome，任务会停在 waiting_input(stalled)。
+   * 只要 transcript 里已有明确 VERDICT，就按结论收口，避免总管链路被卡住。
+   */
+  function recoverVerifier(task: TaskDetail, fallbackReason: string): void {
+    const origin = task.origin
+    if (!origin?.reviewOfTaskId || !origin.reviewOfReviewId) return
+    const session = listSessionsByTask(deps.db, task.id).at(-1)
+    const output = session ? getAssistantTranscriptText(deps.db, session.id) : ''
+    const parsed = parseVerdict(output)
+    if (parsed.verdict === 'unknown') {
+      notify(
+        origin.threadId,
+        `observe:verifier:${task.id}:waiting`,
+        `验收员任务「${task.title}」${fallbackReason}，且没有给出 VERDICT；目标任务仍未自动通过。`,
+      )
+      return
+    }
+    // waiting_input / 无 review 的验收员任务无法 approve；用 cancel 收口，结论仍按 transcript 处理。
+    const closed = deps.applyTransition(task.id, {
+      type: 'cancel',
+      reason: 'verifier verdict recovered from transcript',
+    })
+    if (!closed.ok) {
+      deps.logger?.warn(
+        { event: 'supervisor.verifier_cancel_failed', taskId: task.id, code: closed.error.code },
+        'failed to close stalled verifier task',
+      )
+    }
+    concludeVerifier(task, parsed, origin)
+  }
+
+  function concludeVerifier(
+    task: TaskDetail,
+    parsed: ReturnType<typeof parseVerdict>,
+    origin: TaskOrigin,
+  ): void {
+    const threadId = origin.threadId
+    const targetTaskId = origin.reviewOfTaskId
+    const reviewId = origin.reviewOfReviewId
+    if (!targetTaskId || !reviewId) return
+    const conclusion =
+      parsed.verdict === 'pass' ? 'PASS' : parsed.verdict === 'fail' ? 'FAIL' : '没有给出明确结论'
+
+    const targetDetail = getTaskDetail(deps.db, targetTaskId)
+    if (!targetDetail) {
+      notify(
+        threadId,
+        `observe:verdict:${task.id}`,
+        `验收员结论：${conclusion}。目标任务已不存在。\n${parsed.reason}`,
+      )
+      return
+    }
+    const target = targetDetail.task
+    const currentReview = getReviewByTask(deps.db, target.id)
+    if (target.status !== 'review' || !currentReview || currentReview.id !== reviewId) {
+      notify(
+        threadId,
+        `observe:verdict:${task.id}`,
+        `验收员任务「${task.title}」结论：${conclusion}。\n` +
+          `目标任务「${target.title}」已是 ${target.status} 或进入了新轮次，本次结论不再自动处理。\n` +
+          parsed.reason,
+      )
+      return
+    }
+
+    if (parsed.verdict !== 'pass') {
+      notify(
+        threadId,
+        `observe:verdict:${task.id}`,
+        `验收员任务「${task.title}」结论：${conclusion}，未自动通过。\n${parsed.reason}\n` +
+          `目标任务「${target.title}」仍在待验收，你可以打回或让我重试。`,
+      )
+      return
+    }
+
+    // 项目 verify 没过时，验收员的主观 PASS 不能推翻机器证据。
+    if (currentReview.verifyExitCode !== 0) {
+      notify(
+        threadId,
+        `observe:verdict:${task.id}`,
+        `验收员任务「${task.title}」结论：PASS，但目标任务 verify 退出码为 ${
+          currentReview.verifyExitCode ?? '未执行'
+        }，没有自动通过。\n目标任务「${target.title}」仍在待验收。`,
+      )
+      return
+    }
+
+    const gate = acceptanceGate(target.workspaceId)
+    if (!gate.allowed) {
+      notify(
+        threadId,
+        `observe:verdict:${task.id}`,
+        `验收员任务「${task.title}」结论：PASS，但${gate.reason}，没有自动通过。\n` +
+          `目标任务「${target.title}」仍在待验收。\n${parsed.reason}`,
+      )
+      return
+    }
+
+    const accepted = deps.applyTransition(target.id, {
+      type: 'approve',
+      reviewId,
+    })
+    if (!accepted.ok) {
+      notify(
+        threadId,
+        `observe:verdict:${task.id}`,
+        `验收员结论 PASS，但自动通过失败：${accepted.error.message}。\n目标任务「${target.title}」仍在待验收。`,
+      )
+      return
+    }
+
+    deps.db.transaction((tx) =>
+      insertAudit(tx, {
+        id: deps.newId(),
+        ts: deps.now(),
+        actor: 'supervisor',
+        action: 'supervisor.review.accept',
+        detail: {
+          taskId: target.id,
+          reviewId,
+          verifierTaskId: task.id,
+          policyVersion,
+        },
+      }),
+    )
+    notify(
+      threadId,
+      `observe:verdict:${task.id}`,
+      `验收员任务「${task.title}」结论：PASS，已把「${target.title}」标记为完成。\n${parsed.reason}`,
+    )
+  }
+
+  function observeTask(input: ObserveTaskInput): void {
+    const detail = getTaskDetail(deps.db, input.taskId)
+    const task = detail?.task
+    const origin = task?.origin
+    if (!task || !origin) return
+
+    if (origin.source === 'supervisor-review') {
+      if (input.status === 'review') {
+        finishVerifier(task)
+        return
+      }
+      if (input.status === 'failed') {
+        notify(
+          origin.threadId,
+          `observe:verifier:${task.id}:failed`,
+          `验收员任务「${task.title}」执行失败，目标任务仍未自动通过。请查看任务详情。`,
+        )
+        return
+      }
+      if (input.status === 'waiting_input' && input.waitingReason !== 'approval') {
+        recoverVerifier(task, `停在等待输入（${input.waitingReason ?? '未知原因'}）`)
+      }
+      return
+    }
+
+    if (origin.source !== 'supervisor-chat') return
+
+    if (input.status === 'review') {
+      const review = getReviewByTask(deps.db, task.id)
+      if (!review) return
+      const gate = acceptanceGate(task.workspaceId)
+      if (gate.allowed) {
+        dispatchVerifier(task, origin, review)
+        return
+      }
+      notify(
+        origin.threadId,
+        `observe:review:${task.id}:${review.id}`,
+        `任务「${task.title}」进入待验收。\n` +
+          `verify 退出码：${review.verifyExitCode ?? '未执行'}；diff：${diffText(review)}。\n` +
+          `${gate.reason}，需要你确认。`,
+      )
+      return
+    }
+
+    if (input.status === 'failed') {
+      notify(
+        origin.threadId,
+        `observe:failed:${task.id}`,
+        `任务「${task.title}」执行失败，需要你看一下任务详情。`,
+      )
+      return
+    }
+
+    if (input.status === 'waiting_input' && input.waitingReason !== 'approval') {
+      notify(
+        origin.threadId,
+        `observe:waiting:${task.id}:${input.waitingReason ?? 'unknown'}`,
+        `任务「${task.title}」停下等待输入（${input.waitingReason ?? '未知原因'}）。`,
+      )
     }
   }
 
@@ -433,6 +857,9 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
 
   return {
     policyVersion,
+
+    /** runtime 在 task 状态转移提交后调用；只做通知与验收员派发，不改任务状态。 */
+    observeTask,
 
     send(input: SupervisorSendInput): SupervisorSendResult {
       const loaded = loadSupervisorConfig(deps.dataDir)

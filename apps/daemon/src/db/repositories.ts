@@ -345,6 +345,52 @@ export function listSessionEvents(
   }
 }
 
+/**
+ * 取最近一条 assistant 文本消息的尾部。
+ * 验收员把 VERDICT 放在最后一行，因此从最新事件倒推并保留尾部。
+ */
+export function getLastAssistantText(db: Db, sessionId: string, maxChars = 6000): string {
+  return getAssistantTranscriptText(db, sessionId, maxChars, 'last')
+}
+
+/**
+ * 取整个 session 的 assistant 文本；`last` 只保留最后一条消息。
+ * 验收员有时把 VERDICT 写在倒数第二条，解析时要能看到全文。
+ */
+export function getAssistantTranscriptText(
+  db: Db,
+  sessionId: string,
+  maxChars = 6000,
+  mode: 'last' | 'all' = 'all',
+): string {
+  const rows = db
+    .select({ seq: event.seq, payloadJson: event.payloadJson })
+    .from(event)
+    .where(and(eq(event.sessionId, sessionId), eq(event.type, 'TEXT_MESSAGE_CONTENT')))
+    .orderBy(asc(event.seq))
+    .all()
+  if (rows.length === 0) return ''
+
+  const byMessage = new Map<string, string[]>()
+  for (const row of rows) {
+    try {
+      const payload = JSON.parse(row.payloadJson) as {
+        messageId?: unknown
+        delta?: unknown
+      }
+      if (typeof payload.messageId !== 'string' || typeof payload.delta !== 'string') continue
+      const chunks = byMessage.get(payload.messageId) ?? []
+      chunks.push(payload.delta)
+      byMessage.set(payload.messageId, chunks)
+    } catch {
+      continue
+    }
+  }
+  const texts = [...byMessage.values()].map((chunks) => chunks.join(''))
+  const selected = mode === 'last' ? (texts.at(-1) ?? '') : texts.join('\n')
+  return selected.slice(-maxChars)
+}
+
 export function listEdges(db: Db, canvasId: string): Edge[] {
   return db.select().from(edge).where(eq(edge.canvasId, canvasId)).all().map(toEdge)
 }

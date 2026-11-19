@@ -1,6 +1,6 @@
 ---
 spec_topic: m4-supervisor-secretary
-decision_summary: "总管从只建待办升级为可创建节点/任务并开工；完成感知与代验收作为第二阶段，需要 workspace 级显式授权"
+decision_summary: "总管可创建节点/任务并开工；完成感知已实现；代验收由总管派独立验收 Agent，按 PASS 与授权决定是否自动通过"
 design_approved: false
 gates: []
 spec_ref: 2026-11-18-m2-supervisor-design.md
@@ -34,11 +34,12 @@ M2 的 Router v0 是刻意保守的：只暴露 `list_tasks` / `get_task` / `cre
 6. 工具卡如实显示 `待办` / `已开工`，并以最后一次调用为准。
 7. 总管仍然不能替用户验收/打回/重试；高风险操作仍按策略审批。
 
-**目标（Phase 2，待确认）**
+**目标（Phase 2，已实现）**
 
-1. 总管感知自己创建的 task 进入 `review` / `failed` / `waiting_input`，在对话里给出一条汇总。
-2. 可选“代验收”：满足证据门槛时，总管可以替老板通过，并写审计；人仍可 reopen。
-3. 可选“代审批”：在 workspace 显式授权下，按策略自动批准；deny 仍然优先。
+1. 总管感知自己创建的 task 进入 `review` / `failed` / `waiting_input`，在对话里追加一条汇总。
+2. 代验收：总管**不亲自验收**，而是派一个新的验收 Agent 任务检查产出；验收员最后一行给出 `VERDICT: PASS/FAIL`。
+3. 只有 workspace 显式开启 `autopilot.delegatedAcceptance`、verify 退出码为 0、验收员 PASS 时，总管才自动通过，并写审计；人仍可 reopen。
+4. 验收员自身进入 review 时由系统自动关闭，不再递归派验收员。
 
 **非目标**
 
@@ -56,8 +57,8 @@ M2 的 Router v0 是刻意保守的：只暴露 `list_tasks` / `get_task` / `cre
 | D3 | 目标 Agent | 优先 `targetNodeId` → 当前选择 → 自动创建 | 解决“还要我先建 Agent”的摩擦 |
 | D4 | 开工 | 默认 `start=false`；用户明确说开工时 `start=true` | 保持“无要求不开工”的安全边界 |
 | D5 | 同一轮去重 | 同一轮只保留一个任务；todo 阶段允许改标题 | 模型可能先建错再补，不能留下两张工单 |
-| D6 | 完成感知 | Phase 2；只在需要人（review/failed/waiting_input）时投递一条汇总 | 控制注意力成本，不做每条事件都通知 |
-| D7 | 代验收 | Phase 2，workspace 级显式开启；仅限总管创建的 task；verify 通过且 diff 在阈值内；写审计；可 reopen | 老板需要结果，但不能让模型无声结束任何任务 |
+| D6 | 完成感知 | 已实现；只在 `review` / `failed` / `waiting_input`（非审批）时追加模板消息，不额外跑模型 | 控制注意力成本，不做每条事件都通知 |
+| D7 | 代验收 | 已实现；总管派独立验收 Agent，验收员 PASS + verify 0 + workspace 显式开启才自动通过；写审计；可 reopen | 老板需要结果，但验收不能由总管自己说了算 |
 | D8 | 代审批 | 已实现：`autopilot.delegatedAuthority` 对总管任务放开高风险（deny 优先，trust/kill switch 约束，写审计） | 用户 2026-11-20 明确选择“高风险也自动批” |
 
 ## 4. 协议与工具增量（Phase 1）
@@ -79,30 +80,35 @@ enqueueTaskInput = { taskId: string }
 
 `SupervisorTaskCard.status` 从 `'todo'` 扩为 `'todo' | 'queued'`，UI 对应显示“待办/已开工”。这是向 M2 卡片形状的兼容扩展（旧值仍是合法值）。
 
-## 5. 完成感知与代验收（Phase 2，待确认）
+## 5. 完成感知与代验收（Phase 2，已实现）
 
 ### 5.1 完成感知
 
-- runtime 在 task 状态转移后调用 `supervisor.observeTask(taskId, status)`。
-- 只处理 `origin.source === 'supervisor-chat'` 的 task。
-- 只在 `review` / `failed` / `waiting_input(stalled)` 时向 thread 追加一条 assistant 汇总（不额外跑一次模型）。
-- 汇总内容：taskId、标题、状态、verify 退出码、diff 统计、下一步按钮。
-- 不写 transcript 正文，不把 diff 正文投给模型。
+- runtime 在 task 状态转移提交后调用 `supervisor.observeTask({ taskId, status, waitingReason })`。
+- 只处理 `origin.source === 'supervisor-chat'` 与 `supervisor-review` 的任务。
+- 在 `review` / `failed` / `waiting_input`（排除审批）时向 thread 追加一条 assistant 模板消息，不额外跑模型。
+- 消息用 `(threadId, triggerId)` 去重，内容只含 taskId、标题、verify 退出码、diff 统计与下一步；不写 transcript 正文。
+- UI 收到 `supervisor.message`：无 `decision` 的消息是观察者通知，不能误关正在流式的总管气泡。
 
-### 5.2 代验收
+### 5.2 代验收（验收员模式）
 
 - workspace policy 增加 `autopilot.delegatedAcceptance: boolean`（默认 false）。
-- 条件全部满足才允许：
-  1. workspace trusted；
-  2. kill switch 关闭；
-  3. task.origin.source === 'supervisor-chat'；
-  4. task.status === 'review'；
-  5. review.verifyExitCode === 0；
-  6. diff 在阈值内（例如 ≤ 200 行 / 20 文件）；
-  7. 没有未决 approval 或 question。
-- 代验收写 `audit`（actor=supervisor，action=supervisor.review.accept，detail 含 taskId/policyVersion）。
-- 人仍可 reopen；reopen 后该 task 不再自动验收，除非人再次明确要求。
-- 人类创建的 task 永远不代验收。
+- 任务进入 review 且满足授权时，总管创建：
+  1. 一个新的 Agent 节点（标题 `验收员 · <任务标题>`）；
+  2. 一个新的任务，`origin.source=supervisor-review`，并通过 `reviewOfTaskId` / `reviewOfReviewId` 绑定目标轮次；
+  3. 任务 prompt 只带任务元数据、verify/diff 摘要和工人最后回复（截断），不把完整 transcript 交给总管；
+  4. 任务立即开工。
+- 验收员独立检查 git diff、运行只读校验，最后一行必须输出 `VERDICT: PASS` 或 `VERDICT: FAIL`。
+- 验收员任务进入 review 时：
+  1. 系统自动关闭验收员任务（它不需要人再验收）；
+  2. 解析最后一条 assistant 文本，取最后一次 VERDICT；
+  3. 若目标仍停在**同一轮** review、验收员 PASS、目标 verify 退出码为 0、workspace trusted、kill switch 关闭、`autopilot.enabled` 与 `delegatedAcceptance` 都为 true，则自动 approve 目标；
+  4. 写 `supervisor.review.dispatch` 与 `supervisor.review.accept` 审计；
+  5. 把验收结论、依据和是否已通过汇总到总管 thread。
+- FAIL / 无结论 / verify 非 0 / 授权关闭 / 目标已被处理时，只汇总，不自动通过。
+- 验收员回合结束但没上报 outcome 而停在 `waiting_input(stalled)` 时，若 transcript 已有明确 VERDICT，就用 `cancel` 收口验收员任务并继续按结论处理；这避免模型漏报 outcome 卡死整条验收链。
+- 人仍可 reopen；reopen 后的新轮次需要新的验收员，旧结论不会误批新尝试。
+- worktree 任务暂不自动验收，只通知人确认（验收员运行在 main workspace，看不到隔离 worktree）。
 
 ### 5.3 代审批（已实现）
 
@@ -123,14 +129,15 @@ enqueueTaskInput = { taskId: string }
 - 工具结果与卡片不包含本机绝对路径、token 或 diff 正文。
 - 所有自动动作可审计、可停止、可 reopen。
 
-## 7. 开放问题（需要老板确认）
+## 7. 开放问题
 
-1. 是否开启 Phase 2 的“代验收”？建议先只做“完成汇总”，观察一周再开自动通过。
-2. 完成汇总是否需要触发一次模型总结，还是只追加一条模板消息？前者更智能但更贵。
+1. ~~是否开启 Phase 2 的“代验收”？~~ 已由用户 2026-11-20 确认：要自动验收，且验收由总管派新的 Agent 完成。
+2. ~~完成汇总是否触发一次模型总结？~~ 采用模板消息，避免额外模型成本；总管下一次对话仍可通过 `get_task` 查询状态。
 
 ## 8. 验证
 
 - Phase 1：`pnpm verify`；`supervisor-tools` 覆盖 create_text/create_agent、auto agent、start、标题纠正、enqueue 守卫。
-- 手工验收：对总管说“用 create_agent 新建 Agent「文档助手」，然后建任务「给 README 增加一节用法说明」，直接开工”，应出现 Agent 节点、任务卡显示“已开工”。
-- 代审批：core 单测覆盖高风险自动放行、人类任务不生效、deny 优先、kill switch/未信任不放行；UI 单测覆盖“总管全权”开关保存。
-- Phase 2 实现后：补 runtime 观察、policy 开关、代验收审计与 reopen 的集成测试。
+- 完成感知：`supervisor-service` 覆盖 review 通知、未授权不派验收员、授权后派验收员、验收员 PASS 自动通过并写审计、FAIL 不通过。
+- 验收员协议：`supervisor-observe` 覆盖 VERDICT 解析（含全角冒号/多次出现）与 prompt 证据。
+- 代审批：core 单测覆盖高风险自动放行、人类任务不生效、deny 优先、kill switch/未信任不放行；UI 单测覆盖“总管全权”与“总管代验收”开关保存。
+- 手工验收：对总管说“做 XX，直接开工”，应依次出现：任务卡 → 完成通知 → 新验收员 Agent/任务 → 验收结论与自动通过汇总。

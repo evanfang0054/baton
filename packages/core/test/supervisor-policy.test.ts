@@ -5,7 +5,15 @@ import { SUPERVISOR_POLICY, supervisorPolicyVersion } from '../src/supervisor/po
 describe('supervisor policy', () => {
   it('locks the v0 tool whitelist and explicit mode', () => {
     expect(SUPERVISOR_POLICY.mode).toBe('explicit')
-    expect(SUPERVISOR_POLICY.allowedTools).toEqual(['list_tasks', 'get_task', 'create_task'])
+    expect(SUPERVISOR_POLICY.allowedTools).toEqual([
+      'list_tasks',
+      'get_task',
+      'create_task',
+      'enqueue_task',
+      'create_text',
+      'create_agent',
+      'create_edge',
+    ])
     expect(supervisorPolicyVersion(SUPERVISOR_POLICY, 'v1')).toMatch(/^[a-f0-9]{12}$/)
   })
 
@@ -32,5 +40,29 @@ describe('supervisor policy', () => {
       kind: 'human',
       source: 'supervisor-chat',
     })
+  })
+
+  it('marks verifier tasks as system actors tied to the reviewed attempt', () => {
+    const origin = buildTaskOrigin({
+      source: 'supervisor-review',
+      triggerId: 'r1',
+      threadId: 'th1',
+      workspaceId: 'w1',
+      targetNodeId: 'a2',
+      contextNodeIds: [],
+      policyVersion: 'p1',
+      promptVersion: 'v1',
+      createdAt: 2,
+      actorKind: 'system',
+      reviewOfTaskId: 't1',
+      reviewOfReviewId: 'rv1',
+    })
+    expect(origin.actor).toEqual({
+      id: 'local-user',
+      kind: 'system',
+      source: 'supervisor-review',
+    })
+    expect(origin.reviewOfTaskId).toBe('t1')
+    expect(origin.reviewOfReviewId).toBe('rv1')
   })
 })

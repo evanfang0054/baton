@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { TaskTransitionEvent } from '@baton/protocol'
 import { getTask } from '../src/db/repositories.js'
 import { createTaskService } from '../src/runtime/task-service.js'
 import type { SupervisorEngine } from '../src/supervisor/engine.js'
@@ -16,14 +17,27 @@ afterEach(() => {
   dbs.splice(0).forEach((entry) => entry.raw.close())
 })
 
-function setup(engine: SupervisorEngine) {
+function setup(
+  engine: SupervisorEngine,
+  options: { trusted?: boolean; delegatedAcceptance?: boolean } = {},
+) {
   const root = mkdtempSync(join(tmpdir(), 'baton-svc-'))
   dirs.push(root)
   const database = createTestDb()
   dbs.push(database)
-  const seeded = seedTask(database.raw, { withSession: false })
+  const seeded = seedTask(database.raw, {
+    withSession: false,
+    trusted: options.trusted === true,
+  })
   seedTextNode(database.raw, seeded.canvasId, 'text-1', '需求 A')
   mkdirSync(join(root, seeded.relPath), { recursive: true })
+  if (options.delegatedAcceptance) {
+    mkdirSync(join(root, seeded.relPath, '.baton'), { recursive: true })
+    writeFileSync(
+      join(root, seeded.relPath, '.baton', 'policy.json'),
+      JSON.stringify({ autopilot: { enabled: true, delegatedAcceptance: true } }),
+    )
+  }
   writeFileSync(
     join(root, 'supervisor.json'),
     JSON.stringify({ baseUrl: 'https://example.com/v1', apiKey: 'sk-test', model: 'demo' }),
@@ -50,6 +64,7 @@ function setup(engine: SupervisorEngine) {
     newId: () => 'task-new',
   })
   const frames: string[] = []
+  const transitions: Array<{ taskId: string; event: TaskTransitionEvent }> = []
   let sequence = 0
   const service = createSupervisorService({
     db: database.db,
@@ -57,6 +72,20 @@ function setup(engine: SupervisorEngine) {
     taskService,
     defaultEngine: 'claude-sdk',
     enqueueTask: () => ({ ok: true, status: 'queued' }),
+    applyTransition: (taskId, event) => {
+      transitions.push({ taskId, event })
+      return {
+        ok: true,
+        taskId,
+        status: 'done',
+        previousStatus: 'review',
+        retryCount: 0,
+        waitingReason: null,
+        events: [],
+      }
+    },
+    workspacesRoot: root,
+    killSwitch: () => false,
     engine,
     now: () => 10,
     newId: () => `id-${++sequence}`,
@@ -66,7 +95,7 @@ function setup(engine: SupervisorEngine) {
     },
     logger: { warn() {}, error() {}, info() {} } as never,
   })
-  return { database, seeded, service, frames }
+  return { database, seeded, service, frames, transitions }
 }
 
 describe('supervisor service', () => {
@@ -133,5 +162,227 @@ describe('supervisor service', () => {
       .prepare("select status from supervisor_message where role='assistant'")
       .get() as { status: string }
     expect(row.status).toBe('error')
+  })
+
+  function seedSupervisorReview(database: TestDb, seeded: ReturnType<typeof seedTask>) {
+    const origin = {
+      source: 'supervisor-chat',
+      triggerId: 'r1',
+      threadId: 'th1',
+      actor: { id: 'local-user', kind: 'human', source: 'supervisor-chat' },
+      workspaceId: seeded.workspaceId,
+      targetNodeId: seeded.nodeId,
+      contextNodeIds: [],
+      policyVersion: 'p1',
+      promptVersion: 'v1',
+      createdAt: 1,
+    }
+    database.raw
+      .prepare(
+        `insert into supervisor_thread (id, workspace_id, source, created_at, updated_at)
+         values ('th1', ?, 'supervisor-chat', 1, 1)`,
+      )
+      .run(seeded.workspaceId)
+    database.raw
+      .prepare("update task set status = 'review', origin_json = ?, updated_at = 2 where id = ?")
+      .run(JSON.stringify(origin), seeded.taskId)
+    database.raw
+      .prepare(
+        `insert into review (id, task_id, verdict, verify_exit_code, verify_output, diff_stat_json, decided_at)
+         values ('rv1', ?, null, 0, 'ok', ?, null)`,
+      )
+      .run(seeded.taskId, JSON.stringify({ filesChanged: 1, insertions: 2, deletions: 0 }))
+    return origin
+  }
+
+  function seedVerifierTask(
+    database: TestDb,
+    seeded: ReturnType<typeof seedTask>,
+    targetOrigin: ReturnType<typeof seedSupervisorReview>,
+    verdict: 'PASS' | 'FAIL',
+    status: 'review' | 'waiting_input' = 'review',
+  ): string {
+    const origin = {
+      source: 'supervisor-review',
+      triggerId: targetOrigin.triggerId,
+      threadId: targetOrigin.threadId,
+      actor: { id: 'local-user', kind: 'system', source: 'supervisor-review' },
+      workspaceId: seeded.workspaceId,
+      targetNodeId: seeded.nodeId,
+      contextNodeIds: [],
+      policyVersion: 'p1',
+      promptVersion: 'v1',
+      reviewOfTaskId: seeded.taskId,
+      reviewOfReviewId: 'rv1',
+      createdAt: 3,
+    }
+    database.raw
+      .prepare(
+        `insert into task (
+           id, workspace_id, node_id, title, prompt, status, engine, workspace_mode,
+           branch, worktree_path, verify_command, retry_count, dangerously_skip_permissions,
+           origin_json, created_at, updated_at
+         ) values ('verifier-1', ?, ?, '验收：demo', '<task>验收</task>', ?, 'fake',
+           'main', null, null, null, 0, 0, ?, 3, 3)`,
+      )
+      .run(seeded.workspaceId, seeded.nodeId, status, JSON.stringify(origin))
+    database.raw
+      .prepare(
+        `insert into session (id, task_id, adapter, engine_session_id, status, started_at, ended_at)
+         values ('vs1', 'verifier-1', 'fake', null, 'ended', 3, 4)`,
+      )
+      .run()
+    const events = ['验收完成，检查了 diff。', `\nVERDICT: ${verdict}`]
+    events.forEach((delta, index) => {
+      database.raw
+        .prepare(
+          `insert into event (id, session_id, ordinal, seq, type, payload_json, ts)
+           values (?, 'vs1', ?, ?, 'TEXT_MESSAGE_CONTENT', ?, 4)`,
+        )
+        .run(
+          `ev-${index}`,
+          100 + index,
+          index + 1,
+          JSON.stringify({
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'm1',
+            delta,
+          }),
+        )
+    })
+    database.raw
+      .prepare(
+        `insert into review (id, task_id, verdict, verify_exit_code, verify_output, diff_stat_json, decided_at)
+         values ('rv-verifier', 'verifier-1', null, 0, 'ok', ?, null)`,
+      )
+      .run(JSON.stringify({ filesChanged: 0, insertions: 0, deletions: 0 }))
+    return 'verifier-1'
+  }
+
+  it('notifies the supervisor when a task needs review without dispatching a verifier', () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        throw new Error('unused')
+      },
+    }
+    const { database, seeded, service } = setup(engine)
+    seedSupervisorReview(database, seeded)
+
+    service.observeTask({ taskId: seeded.taskId, status: 'review', waitingReason: null })
+
+    const messages = service.history(seeded.workspaceId, 50).messages
+    expect(messages.at(-1)?.content).toContain('进入待验收')
+    expect(messages.at(-1)?.content).toContain('需要你确认')
+    expect(database.raw.prepare('select count(*) as n from task').get()).toEqual({ n: 1 })
+  })
+
+  it('dispatches a fresh verifier agent when delegated acceptance is on', () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        throw new Error('unused')
+      },
+    }
+    const { database, seeded, service, frames } = setup(engine, {
+      trusted: true,
+      delegatedAcceptance: true,
+    })
+    seedSupervisorReview(database, seeded)
+
+    service.observeTask({ taskId: seeded.taskId, status: 'review', waitingReason: null })
+
+    const rows = database.raw
+      .prepare('select id, node_id, origin_json from task order by created_at')
+      .all() as Array<{ id: string; node_id: string; origin_json: string | null }>
+    expect(rows).toHaveLength(2)
+    const verifier = rows[1]!
+    expect(JSON.parse(verifier.origin_json!)).toMatchObject({
+      source: 'supervisor-review',
+      reviewOfTaskId: seeded.taskId,
+      reviewOfReviewId: 'rv1',
+      actor: { kind: 'system' },
+    })
+    const node = database.raw
+      .prepare('select data_json from node where id = ?')
+      .get(verifier.node_id) as { data_json: string }
+    expect(JSON.parse(node.data_json).title).toContain('验收员')
+    const messages = service.history(seeded.workspaceId, 50).messages
+    expect(messages.at(-1)?.content).toContain('派出新 Agent')
+    expect(frames.some((frame) => frame.includes('supervisor.message'))).toBe(true)
+  })
+
+  it('accepts the target when the verifier returns PASS and writes audit', () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        throw new Error('unused')
+      },
+    }
+    const { database, seeded, service, transitions } = setup(engine, {
+      trusted: true,
+      delegatedAcceptance: true,
+    })
+    const targetOrigin = seedSupervisorReview(database, seeded)
+    const verifierTaskId = seedVerifierTask(database, seeded, targetOrigin, 'PASS')
+
+    service.observeTask({ taskId: verifierTaskId, status: 'review', waitingReason: null })
+
+    expect(transitions.map((entry) => entry.taskId)).toEqual([verifierTaskId, seeded.taskId])
+    expect(transitions[1]?.event).toMatchObject({ type: 'approve', reviewId: 'rv1' })
+    const audit = database.raw
+      .prepare("select action from audit where action = 'supervisor.review.accept'")
+      .get() as { action: string } | undefined
+    expect(audit?.action).toBe('supervisor.review.accept')
+    const messages = service.history(seeded.workspaceId, 50).messages
+    expect(messages.at(-1)?.content).toContain('已把「demo」标记为完成')
+  })
+
+  it('leaves the target in review when the verifier returns FAIL', () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        throw new Error('unused')
+      },
+    }
+    const { database, seeded, service, transitions } = setup(engine, {
+      trusted: true,
+      delegatedAcceptance: true,
+    })
+    const targetOrigin = seedSupervisorReview(database, seeded)
+    const verifierTaskId = seedVerifierTask(database, seeded, targetOrigin, 'FAIL')
+
+    service.observeTask({ taskId: verifierTaskId, status: 'review', waitingReason: null })
+
+    expect(transitions.map((entry) => entry.taskId)).toEqual([verifierTaskId])
+    expect(
+      database.raw
+        .prepare("select count(*) as n from audit where action = 'supervisor.review.accept'")
+        .get(),
+    ).toEqual({ n: 0 })
+    const messages = service.history(seeded.workspaceId, 50).messages
+    expect(messages.at(-1)?.content).toContain('未自动通过')
+  })
+
+  it('recovers a stalled verifier verdict and accepts the target', () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        throw new Error('unused')
+      },
+    }
+    const { database, seeded, service, transitions } = setup(engine, {
+      trusted: true,
+      delegatedAcceptance: true,
+    })
+    const targetOrigin = seedSupervisorReview(database, seeded)
+    const verifierTaskId = seedVerifierTask(database, seeded, targetOrigin, 'PASS', 'waiting_input')
+
+    service.observeTask({
+      taskId: verifierTaskId,
+      status: 'waiting_input',
+      waitingReason: 'stalled',
+    })
+
+    expect(transitions.map((entry) => entry.taskId)).toEqual([verifierTaskId, seeded.taskId])
+    expect(transitions[0]?.event).toMatchObject({ type: 'cancel' })
+    expect(transitions[1]?.event).toMatchObject({ type: 'approve', reviewId: 'rv1' })
+    const messages = service.history(seeded.workspaceId, 50).messages
+    expect(messages.at(-1)?.content).toContain('标记为完成')
   })
 })

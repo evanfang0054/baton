@@ -2,6 +2,12 @@ import type { AppError, Policy, TaskStatus, WaitingReason } from '@baton/protoco
 import type { WorkspaceTrustSnapshot } from '@baton/protocol'
 import type { BroadcastEvent } from '../db/event-store.js'
 
+export interface TaskObservation {
+  taskId: string
+  status: TaskStatus
+  waitingReason: WaitingReason | null
+}
+
 export interface StartSessionInput {
   taskId: string
   sessionId: string
@@ -22,6 +28,7 @@ export interface RuntimeHooks {
   ): void | Promise<void>
   runVerify(taskId: string): void | Promise<void>
   sendToSession(taskId: string, text: string): void | Promise<void>
+  observeTask(input: TaskObservation): void | Promise<void>
   kick(): void
   track(action: () => void | Promise<void>): void
 }

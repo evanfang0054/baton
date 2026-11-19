@@ -131,8 +131,10 @@ export function RealtimeProvider({
           return
         }
         if (event.type === 'supervisor.message') {
+          // 观察者通知没有 decision，不是一次模型回合的收尾；不能误关正在流式的气泡。
+          const isTurnReply = event.payload.decision !== null
           const finalize = () => {
-            useSupervisorStreamStore.getState().finish()
+            if (isTurnReply) useSupervisorStreamStore.getState().finish()
             const key = queryKeys.supervisorMessages(workspaceId)
             queryClient.setQueryData<SupervisorMessagesResponse>(key, (previous) =>
               previous && !previous.messages.some((message) => message.id === event.payload.id)
@@ -150,7 +152,8 @@ export function RealtimeProvider({
           }
           // 模型可能把一大段文本一次性吐出来；让流式气泡先按帧展示完，
           // 再切到最终消息，避免肉眼看到“整段闪现”。短回复几乎没有延迟。
-          const streaming = useSupervisorStreamStore.getState().status === 'streaming'
+          const streaming =
+            isTurnReply && useSupervisorStreamStore.getState().status === 'streaming'
           const delay = streaming
             ? Math.min(900, Math.max(120, Math.round(event.payload.content.length * 2)))
             : 0

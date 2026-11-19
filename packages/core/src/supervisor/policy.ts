@@ -8,7 +8,15 @@ export interface SupervisorPolicy {
 
 export const SUPERVISOR_POLICY: SupervisorPolicy = {
   mode: 'explicit',
-  allowedTools: ['list_tasks', 'get_task', 'create_task'],
+  allowedTools: [
+    'list_tasks',
+    'get_task',
+    'create_task',
+    'enqueue_task',
+    'create_text',
+    'create_agent',
+    'create_edge',
+  ],
   maxSteps: 4,
   timeoutMs: 60_000,
   maxOutputTokens: 2000,

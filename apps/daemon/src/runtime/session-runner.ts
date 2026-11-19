@@ -108,8 +108,10 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     const task = getTask(deps.db, active.taskId)
     const workspace = task ? getWorkspace(deps.db, task.workspaceId) : null
     const taskDetail = task ? getTaskDetail(deps.db, task.id) : null
-    // 只有总管派发的任务才可能获得 workspace 的委派授权；人工任务永远走人工闸门。
-    const delegatedAuthority = taskDetail?.task.origin?.source === 'supervisor-chat'
+    // 总管派发的任务（含它派出的验收员）才可能获得 workspace 的委派授权；人工任务永远走人工闸门。
+    const originSource = taskDetail?.task.origin?.source
+    const delegatedAuthority =
+      originSource === 'supervisor-chat' || originSource === 'supervisor-review'
     // 结构化提问不能被策略自动放行：没有答案的 allow 会让 SDK 停在 pending。
     // 先跑策略，保证 deny 永远优先；symlink 逃逸只能把 allow/ask 降级为人工确认。
     const evaluated =

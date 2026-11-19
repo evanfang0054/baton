@@ -179,7 +179,19 @@ describe('RealtimeProvider', () => {
         role: 'assistant',
         content: '已建任务',
         toolCalls: [],
-        decision: null,
+        decision: {
+          id: 'd1',
+          threadId: 'th1',
+          triggerId: 'r1',
+          messageId: 'm1',
+          kind: 'create_task',
+          strength: 'explicit',
+          mode: 'explicit',
+          reason: 'test',
+          taskId: null,
+          toolCalls: [],
+          createdAt: 32,
+        },
         meta: null,
         status: 'ok',
         error: null,
@@ -195,6 +207,48 @@ describe('RealtimeProvider', () => {
     expect(useSupervisorStreamStore.getState().status).toBe('idle')
     expect(useSupervisorStreamStore.getState().text).toBe('')
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.tasks('w1') })
+  })
+
+  it('keeps an active stream when an observer notification arrives', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const initial: SupervisorMessagesResponse = { threadId: 'th1', messages: [] }
+    client.setQueryData(queryKeys.supervisorMessages('w1'), initial)
+    renderProvider(client)
+    const socket = FakeSocket.instances[0]!
+    socket.open()
+
+    socket.message({
+      v: 1,
+      ts: 40,
+      type: 'supervisor.delta',
+      payload: { threadId: 'th1', messageId: 'm1', delta: '正在处理' },
+    })
+    await waitFor(() => expect(useSupervisorStreamStore.getState().status).toBe('streaming'))
+
+    socket.message({
+      v: 1,
+      ts: 41,
+      type: 'supervisor.message',
+      payload: {
+        id: 'n1',
+        threadId: 'th1',
+        role: 'assistant',
+        content: '任务进入待验收',
+        toolCalls: [],
+        decision: null,
+        meta: null,
+        status: 'ok',
+        error: null,
+        createdAt: 41,
+      },
+    })
+    await waitFor(() =>
+      expect(
+        client.getQueryData<SupervisorMessagesResponse>(queryKeys.supervisorMessages('w1'))
+          ?.messages,
+      ).toHaveLength(1),
+    )
+    expect(useSupervisorStreamStore.getState().status).toBe('streaming')
   })
 
   it('coalesces invalidations and surfaces broadcast errors as toasts', async () => {

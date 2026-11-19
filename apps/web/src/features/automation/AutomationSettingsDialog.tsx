@@ -36,6 +36,7 @@ export function AutomationSettingsDialog({
   const [retryMax, setRetryMax] = useState(2)
   const [risk, setRisk] = useState<Risk>('low')
   const [delegatedAuthority, setDelegatedAuthority] = useState(false)
+  const [delegatedAcceptance, setDelegatedAcceptance] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [restoring, setRestoring] = useState(false)
@@ -53,6 +54,7 @@ export function AutomationSettingsDialog({
     setEnabled(summary.data.policy.autopilot.enabled)
     setRetryMax(summary.data.policy.autopilot.retryMax)
     setDelegatedAuthority(summary.data.policy.autopilot.delegatedAuthority)
+    setDelegatedAcceptance(summary.data.policy.autopilot.delegatedAcceptance)
     setRisk(summary.data.policy.approval.autoApproveMaxRisk === 'medium' ? 'medium' : 'low')
     setError(null)
   }, [open, summary.data])
@@ -64,12 +66,16 @@ export function AutomationSettingsDialog({
       enabled?: boolean
       retryMax?: number
       delegatedAuthority?: boolean
+      delegatedAcceptance?: boolean
     } = {}
-    const desiredEnabled = enabled || delegatedAuthority
+    const desiredEnabled = enabled || delegatedAuthority || delegatedAcceptance
     if (desiredEnabled !== current.policy.autopilot.enabled) autopilot.enabled = desiredEnabled
     if (retryMax !== current.policy.autopilot.retryMax) autopilot.retryMax = retryMax
     if (delegatedAuthority !== current.policy.autopilot.delegatedAuthority) {
       autopilot.delegatedAuthority = delegatedAuthority
+    }
+    if (delegatedAcceptance !== current.policy.autopilot.delegatedAcceptance) {
+      autopilot.delegatedAcceptance = delegatedAcceptance
     }
     if (Object.keys(autopilot).length > 0) patch.autopilot = autopilot
 
@@ -161,8 +167,8 @@ export function AutomationSettingsDialog({
                     <input
                       type="checkbox"
                       aria-label="自动驾驶"
-                      checked={enabled || delegatedAuthority}
-                      disabled={!current.trusted || delegatedAuthority}
+                      checked={enabled || delegatedAuthority || delegatedAcceptance}
+                      disabled={!current.trusted || delegatedAuthority || delegatedAcceptance}
                       onChange={(event) => setEnabled(event.target.checked)}
                     />
                   </label>
@@ -182,6 +188,23 @@ export function AutomationSettingsDialog({
                   <p className="text-xs text-warning">
                     总管全权只对总管创建的任务生效：除 deny 规则外，所有工具（含高风险
                     Bash）都会自动批准。每次自动决定写入审计，kill switch 可随时停止。
+                  </p>
+                  <label className="flex items-center justify-between gap-3 text-sm">
+                    <span>总管代验收（验收员通过后自动通过）</span>
+                    <input
+                      type="checkbox"
+                      aria-label="总管代验收"
+                      checked={delegatedAcceptance}
+                      disabled={!current.trusted}
+                      onChange={(event) => {
+                        setDelegatedAcceptance(event.target.checked)
+                        if (event.target.checked) setEnabled(true)
+                      }}
+                    />
+                  </label>
+                  <p className="text-xs text-muted">
+                    开启后，总管任务进入待验收时会派一个新的验收 Agent 检查；只有验收员给出 VERDICT:
+                    PASS 才自动通过。验收员结论与通过动作都会写入审计，人仍可 reopen。
                   </p>
                   <label className="flex flex-col gap-1 text-sm">
                     <span>最大自动重试次数</span>

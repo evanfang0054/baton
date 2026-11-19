@@ -174,6 +174,25 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
     for (const action of plan.afterCommit) {
       deps.hooks.track(action)
     }
+    // 完成感知只关心需要老板介入的三种落点；通知失败不能影响状态转移。
+    if (
+      result.status === 'review' ||
+      result.status === 'failed' ||
+      result.status === 'waiting_input'
+    ) {
+      try {
+        void deps.hooks.observeTask({
+          taskId: task.id,
+          status: result.status,
+          waitingReason: result.waitingReason,
+        })
+      } catch (error) {
+        const failure = toAppError(error)
+        deps.hooks.track(() => {
+          throw failure
+        })
+      }
+    }
     if (!isActiveStatus(result.status)) {
       deps.hooks.kick()
     }
