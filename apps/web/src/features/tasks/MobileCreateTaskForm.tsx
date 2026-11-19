@@ -40,7 +40,7 @@ export function MobileCreateTaskForm({
   const [agentId, setAgentId] = useState(agents[0]?.id ?? '')
   const [newAgent, setNewAgent] = useState(agents.length === 0)
   const [agentTitle, setAgentTitle] = useState('')
-  const [engine, setEngine] = useState<Engine>('fake')
+  const [engine, setEngine] = useState<Engine>(agents[0]?.data.engine ?? 'fake')
   const [contextIds, setContextIds] = useState<string[]>([])
   const [title, setTitle] = useState('')
   const [prompt, setPrompt] = useState('')
@@ -51,8 +51,12 @@ export function MobileCreateTaskForm({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const engineOptions = engines.data ?? []
   const defaultEngine = engines.data ? preferredEngine(engines.data) : null
-  const selectedEngine = engines.data?.find((entry) => entry.engine === engine)
+  const effectiveEngine = engineOptions.some((entry) => entry.engine === engine)
+    ? engine
+    : (defaultEngine ?? 'fake')
+  const selectedEngine = engineOptions.find((entry) => entry.engine === effectiveEngine)
   const disabled =
     !prompt.trim() ||
     pending ||
@@ -78,7 +82,11 @@ export function MobileCreateTaskForm({
               w: 320,
               h: 200,
               groupId: null,
-              data: { title: agentTitle.trim() || '新 Agent', engine, taskId: null },
+              data: {
+                title: agentTitle.trim() || '新 Agent',
+                engine: effectiveEngine,
+                taskId: null,
+              },
             },
           },
         })) as { nodeId?: string } | undefined
@@ -93,7 +101,7 @@ export function MobileCreateTaskForm({
           title: title.trim() || '新任务',
           prompt: prompt.trim(),
           contextNodeIds: contextIds,
-          engine,
+          engine: effectiveEngine,
           workspaceMode: 'main',
           dangerouslySkipPermissions: skipPermissions && workspaceTrusted,
           ...(verifyCommand.trim() ? { verifyCommand: verifyCommand.trim() } : {}),
@@ -112,11 +120,6 @@ export function MobileCreateTaskForm({
       setPending(false)
     }
   }
-
-  const engineOptions = engines.data ?? []
-  const currentEngine = engineOptions.some((entry) => entry.engine === engine)
-    ? engine
-    : (defaultEngine ?? 'fake')
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
@@ -146,7 +149,7 @@ export function MobileCreateTaskForm({
               />
               <select
                 aria-label="Agent 引擎"
-                value={currentEngine}
+                value={effectiveEngine}
                 onChange={(event) => setEngine(event.target.value as Engine)}
                 className="h-10 rounded-lg border border-separator bg-background px-2 text-sm"
               >
@@ -220,7 +223,7 @@ export function MobileCreateTaskForm({
           />
           <select
             aria-label="任务引擎"
-            value={currentEngine}
+            value={effectiveEngine}
             onChange={(event) => setEngine(event.target.value as Engine)}
             className="h-10 rounded-lg border border-separator bg-background px-2 text-sm"
           >
@@ -279,7 +282,12 @@ export function MobileCreateTaskForm({
         nodes={agents}
         mode="single"
         value={agentId ? [agentId] : []}
-        onChange={(ids) => setAgentId(ids[0] ?? '')}
+        onChange={(ids) => {
+          const id = ids[0] ?? ''
+          setAgentId(id)
+          const agent = agents.find((node) => node.id === id)
+          if (agent?.type === 'agent') setEngine(agent.data.engine)
+        }}
         title="选择 Agent"
       />
       <NodePicker

@@ -22,25 +22,38 @@ const agent = {
   data: { title: '主 Agent', engine: 'fake', taskId: null },
 } as Node
 
-beforeEach(() => {
-  send.mockReset()
-  send.mockResolvedValue({ taskId: 't1' })
+const claudeAgent = {
+  ...agent,
+  id: 'a2',
+  x: 400,
+  data: { title: 'Claude Agent', engine: 'claude-sdk', taskId: null },
+} as Node
+
+function stubEngines(engines: string[]) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
       if (String(input) === '/api/engines') {
-        return Response.json({ engines: [{ engine: 'fake', status: 'available' }] })
+        return Response.json({
+          engines: engines.map((engine) => ({ engine, status: 'available' })),
+        })
       }
       return Response.json({})
     }),
   )
+}
+
+beforeEach(() => {
+  send.mockReset()
+  send.mockResolvedValue({ taskId: 't1' })
+  stubEngines(['fake'])
 })
 
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function renderForm() {
+function renderForm(nodes: Node[] = [agent]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const onCreated = vi.fn()
   render(
@@ -50,7 +63,7 @@ function renderForm() {
           workspaceId="w1"
           canvasId="c1"
           workspaceTrusted
-          nodes={[agent]}
+          nodes={nodes}
           onCreated={onCreated}
           onCancel={() => {}}
         />
@@ -81,5 +94,43 @@ describe('MobileCreateTaskForm', () => {
       ),
     )
     expect(onCreated).toHaveBeenCalledWith('t1')
+  })
+
+  it('defaults to the agent engine instead of the preferred engine', async () => {
+    stubEngines(['fake', 'claude-sdk'])
+    renderForm([claudeAgent])
+    await screen.findByLabelText('任务标题')
+    await userEvent.type(screen.getByLabelText('任务 prompt'), '做一件事')
+    await userEvent.click(screen.getByRole('button', { name: '创建' }))
+
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'task.create',
+          payload: expect.objectContaining({ nodeId: 'a2', engine: 'claude-sdk' }),
+        }),
+      ),
+    )
+  })
+
+  it('switches engine when picking another agent', async () => {
+    stubEngines(['fake', 'claude-sdk'])
+    renderForm([agent, claudeAgent])
+    await screen.findByLabelText('任务标题')
+
+    await userEvent.click(screen.getByRole('button', { name: '主 Agent' }))
+    await userEvent.click(screen.getByRole('button', { name: /Claude Agent/ }))
+    await userEvent.click(screen.getByRole('button', { name: '确定' }))
+    await userEvent.type(screen.getByLabelText('任务 prompt'), '做一件事')
+    await userEvent.click(screen.getByRole('button', { name: '创建' }))
+
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'task.create',
+          payload: expect.objectContaining({ nodeId: 'a2', engine: 'claude-sdk' }),
+        }),
+      ),
+    )
   })
 })
