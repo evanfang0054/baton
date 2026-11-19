@@ -466,7 +466,7 @@ Plan 4 已落 `docs/plans/2026-11-19-m2-2b-mobile-acceptance.md`。执行方式�
 ## 执行记录（2026-11-19）
 
 - 5 个 task 全部完成；控制面 e2e、多视口矩阵、真实 Claude 闭环、runbook、证据与索引均落地。
-- 验证：web 单测 164（新增 2 条 Agent 引擎回归）；Playwright 24 条全绿；`pnpm verify` exit 0；`pnpm pack:check` ok；`pnpm check:secrets` no leaks。
+- 验证：web 单测 174（含 Agent 引擎、选择器、节点表单、看板回归）；Playwright 25 条全绿；`pnpm verify` exit 0；`pnpm pack:check` ok；`pnpm check:secrets` no leaks。
 - 视口矩阵：360 / 390 / 768 / 1280 全绿；移动无画布与横向溢出，平板保留画布并收起看板。
 - 真实 Claude：手机建工作区/节点/任务 → `Write` 审批 → verify exit 0 → 手机验收通过 `done`；另跑一次失败 verify（exit 1）→ 手机打回并填写反馈。
 - bundle：JS 978.64 kB，Vite gzip 300.80 kB；全 JS gzip 297,218 bytes。
@@ -475,4 +475,5 @@ Plan 4 已落 `docs/plans/2026-11-19-m2-2b-mobile-acceptance.md`。执行方式�
   - 本地 5173 被无关进程占用，全量 e2e 用临时配置在 5199 跑完；仓库 Playwright 配置未改。
   - 修复移动建任务默认引擎：从 Agent 节点继承 `engine`，并在切换 Agent 时同步；新增 2 条组件测试。
   - 打回后 core 实际是 `queued` 并立即入队为 `running`，与计划文字「回到 todo/queued」不完全一致；已记入证据残留风险。
-- 未做：不涉及后端/协议改动；分支已 push 到 `origin/feat/m2-2b-mobile-console`，PR 创建因本机 `gh` token 失效阻塞，重新登录后补建。
+- 未做：不涉及后端/协议改动；分支已 push 到 `origin/feat/m2-2b-mobile-console`，PR #23 已创建。
+- PR review 修复：补齐停滞任务分组/徽标口径、file 只读与表单校验、NodePicker 草稿稳定、建任务重试与引擎错误、底部安全区与任务操作条、768 顶栏、runbook、gitleaks CLI、e2e ack/审批断言、已完成折叠与节点分组/mime。

@@ -14,10 +14,18 @@ baton 的移动端是响应式控制台：手机打开同一个地址即可使�
 
 ## 本机访问
 
-默认只监听 `127.0.0.1`，手机无法访问。本机浏览器直接打开：
+默认只监听 `127.0.0.1`，手机无法访问。开发模式：
 
 ```bash
 pnpm dev
+# 浏览器访问终端输出的 Vite 地址（默认 http://127.0.0.1:5173）
+```
+
+`pnpm dev` 时 7317 只提供 daemon API，不托管 web 静态产物；需要从 7317 访问页面时先构建并启动 daemon：
+
+```bash
+pnpm build
+node apps/daemon/dist/bin.js
 # 浏览器访问 http://127.0.0.1:7317
 ```
 
@@ -25,14 +33,17 @@ pnpm dev
 
 ## 局域网 / 远程访问
 
-必须同时设置监听地址和 token：
+必须同时设置监听地址和 token，并使用构建后的 daemon：
 
 ```bash
 export BATON_HOST=0.0.0.0
 export BATON_TOKEN="$(openssl rand -hex 16)"
 export BATON_PORT=7317
-pnpm start
+pnpm build
+node apps/daemon/dist/bin.js
 ```
+
+长期运行建议把 token 写入 `BATON_TOKEN_FILE`，避免每次重启生成新 token 导致所有手机 cookie 失效。
 
 手机与电脑在同一网络时，打开：
 
@@ -42,11 +53,11 @@ http://<host>:7317/auth?token=<token>
 
 `/auth` 会设置 HttpOnly、SameSite=Strict 的 cookie 并跳回首页。不要把带 token 的 URL 发到聊天、Issue 或截图里。
 
-推荐用 Tailscale / Caddy / Nginx 提供 HTTPS 反向代理到 `7317`；HTTPS 下同样需要 `BATON_TOKEN`。
+推荐用 Tailscale / Caddy / Nginx 提供 HTTPS 反向代理到 `7317`；HTTPS 下同样需要 `BATON_TOKEN`。明文 `http://` 会让 token 进入浏览器历史与反向代理访问日志，远程访问应优先使用 Tailscale 或 HTTPS，并配置代理脱敏 query 日志。
 
 ## Token 轮换与手机丢失
 
-手机 token 拥有与桌面相同的权限（除画布外）。手机丢失或 token 泄露时：
+手机 token 与桌面 token 权限相同：同一 cookie/token 可调用全部 `/api/*`；手机端不渲染画布只是 UI 限制，不是权限隔离。手机丢失或 token 泄露时：
 
 1. 生成新 token，更新 `BATON_TOKEN`（或 `BATON_TOKEN_FILE`）。
 2. 重启 daemon。

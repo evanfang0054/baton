@@ -12,10 +12,10 @@
 
 - [ ] **1. 响应式壳与断点**：新增 `apps/web/src/lib/use-viewport.ts`，返回 `mobile`（`<768`）/`compact`（`768–1023`）/`desktop`（`≥1024`）；用 `useSyncExternalStore` 订阅 `matchMedia`，无 `matchMedia` 时回退 `desktop`；单测覆盖三档与断点切换。`<768` 不渲染 `CanvasPanel`；`≥768` 渲染。`≥1024` 桌面结构、快捷键和现有 e2e 行为不变。
 - [ ] **2. 移动导航与顶部栏**：`<768` 显示顶栏（workspace 切换、连接状态、自动化状态、更多菜单）和底部导航（看板/总管/汇报，`aria-current`，汇报未读圆点）；任务详情全屏、可返回看板；平板保留 rail + 画布，看板默认收起，右栏覆盖。
-- [ ] **3. 移动看板**：待处理优先（`needs_approval`/`needs_reply`/`needs_review`）并显示计数与最长等待；进行中/待办/已完成分组（已完成默认折叠）；状态筛选 chips；任务卡显示状态、attention、等待时长；待办支持多选批量开工（单批 ≤20，逐条成功/失败报告）；空态提供“新建任务”和“让总管建任务”。
-- [ ] **4. 任务详情与闸门**：审批 allow/deny、提问回复、验收通过/打回（打回必填反馈）；粘性操作条支持开工、取消、回复、允许/拒绝、通过/打回；transcript 只读、虚拟滚动、长会话尾部加载；上下文快照与自动化记录可见。
+- [ ] **3. 移动看板**：待处理优先（`needs_approval`/`needs_reply`/`needs_review`/`needs_attention`）并显示计数与最长等待；进行中/待办/已完成分组（已完成默认折叠）；状态筛选 chips；任务卡显示状态、attention、等待时长；待办支持多选批量开工（单批 ≤20，逐条成功/失败报告）；空态提供“新建任务”和“让总管建任务”。
+- [ ] **4. 任务详情与闸门**：审批 allow/deny、提问回复、验收通过/打回（打回必填反馈）；底部操作条支持开工、取消、停滞重新入队；审批/回复/验收动作在对应卡片内完成；transcript 只读、虚拟滚动、长会话尾部加载；上下文快照与自动化记录可见。
 - [ ] **5. 建任务表单**：支持选择已有 Agent 或新建 Agent；上下文多选（排除目标）；标题、prompt、verify 命令、引擎、跳过权限（仅信任 workspace）；“创建”进 `todo`，“创建并开工”调用 `task.enqueue`；新建 Agent 走 `node.create` → `task.create`，任务失败保留节点并提示。
-- [ ] **6. 节点列表与表单**：更多菜单提供节点列表（按类型分组、搜索）；text 创建/编辑 `content`；file 创建/编辑 `name`/`path`/`mime`；agent 新建 `title`/`engine`，编辑只改 `title`；新节点使用默认网格位置；不提供删除、连线、image/group/review 创建或编辑。
+- [ ] **6. 节点列表与表单**：更多菜单提供节点列表（按类型分组、搜索）；text 创建/编辑 `content`；file 仅创建 `name`/`path`/可选 `mime`，已有 file 只读；agent 新建 `title`/`engine`，编辑只改 `title`；新节点使用默认网格位置；不提供删除、连线、image/group/review 创建或编辑。
 - [ ] **7. 总管**：手机端全屏；composer 提供目标 Agent / 上下文选择器；发送 `supervisor.send` 带 `targetNodeId`/`contextNodeIds`；消息历史、流式文本、工具卡、建任务卡复用现有实现；建任务卡只打开任务，不自动开工；断线/重连流式状态正常。
 - [ ] **8. 自动化与 kill switch**：移动端全屏设置弹窗；`autopilot.enabled`/`retryMax`/`autoApproveMaxRisk` 可编辑，allow/deny/verify/digestCron 只读，最近变更可见；未信任返回 409 并有提示；顶栏三态（运行中/已暂停/环境强制暂停）；暂停/恢复调用 `PUT /api/automation/kill-switch`，不杀运行中会话。
 - [ ] **9. Workspace 动作**：支持切换、创建、信任/取消信任；信任/取消信任有明确确认与警告；切换后重置任务详情和移动 tab；未信任 workspace 不显示“跳过权限”。
@@ -25,7 +25,7 @@
 - [ ] **13. 设计系统与可访问性**：`DESIGN.md` 增加断点、移动端间距、44px 触控尺寸、底部安全区；组件不硬编码 hex；图标按钮有 `aria-label`；底部导航有 `aria-current`；焦点可见；WCAG AA；状态不只靠颜色。
 - [ ] **14. Playwright 多视口**：覆盖 `360×800`、`390×844`、`768×1024`、`1280×800`；移动端完成看板→详情→审批/回复/验收→开工/批量→建任务/节点→总管→设置/信任/工作区→digest；断言 `<768` 无画布 DOM；平板画布存在、看板默认收起；桌面现有 e2e 全量通过。
 - [ ] **15. 真实链路**：ego-lite H5 视窗（`390×844`）+ 真实 daemon + 真实 Claude，完成“手机建任务（新建 Agent + 上下文）→ 开工 → 审批 → verify → 移动端验收”；截图脱敏，证据存 `docs/evidence/2026-11-19-m2-2b-mobile-console/`，附 README。
-- [ ] **16. check:secrets 与收口命令**：gitleaks（MIT）提供 `pnpm check:secrets`；一次性全历史基线 + CI PR diff 扫描，命中失败；命中存量先报告/评估轮换，不改写历史后当作没发生；如进入锁文件则更新 `THIRD_PARTY_NOTICES.md`；`pnpm verify`、`pnpm verify:full`、`pnpm pack:check`、`check:boundaries`、`check:protocol`、`format:check` 全绿，CI 五项 checks 全绿。
+- [ ] **16. check:secrets 与收口命令**：gitleaks CLI（MIT）提供 `pnpm check:secrets`；一次性全历史基线 + CI 全历史扫描，命中失败；命中存量先报告/评估轮换，不改写历史后当作没发生；如进入锁文件则更新 `THIRD_PARTY_NOTICES.md`；`pnpm verify`、`pnpm verify:full`、`pnpm pack:check`、`check:boundaries`、`check:protocol`、`format:check` 全绿，CI 六项 checks（含 `secrets`）全绿。
 
 ## Boundary Conditions
 

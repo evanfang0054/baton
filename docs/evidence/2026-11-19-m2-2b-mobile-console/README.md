@@ -16,12 +16,12 @@ Contract：[M2-2b 移动端响应式控制台](../../contracts/M2-2b-mobile-cons
 
 | 文件 | 来源 | 说明 |
 |---|---|---|
-| `01-mobile-board.png` | ego-lite 实机 | 移动看板：待审批/待回复/待验收分组、批量开工入口、底部导航 |
-| `02-create-task.png` | ego-lite 实机 | 移动建任务：Agent/上下文选择、任务引擎 `claude-sdk`、创建与创建并开工 |
+| `01-mobile-board.png` | Playwright 固定 fixture | 移动看板：待审批/待回复/待验收/需关注分组、批量开工入口、顶部自动化状态、底部导航 |
+| `02-create-task.png` | Playwright 固定 fixture | 移动建任务：Agent/上下文选择、任务引擎 `claude-sdk`、创建与创建并开工 |
 | `03-approval.png` | Playwright 固定 fixture | 审批卡：Edit `src/mobile.txt`；真实审批 transcript 含本机绝对路径，故用相对路径 fixture 代替 |
 | `04-done.png` | ego-lite 实机 | 真实 Claude 任务完成；已裁掉含绝对路径的 transcript |
-| `05-more-menu.png` | ego-lite 实机 | 更多菜单：建任务、节点列表、自动化设置、创建/撤销信任、暂停自动化 |
-| `06-tablet.png` | ego-lite 实机 | 768 平板：保留画布与右栏，看板默认收起 |
+| `05-more-menu.png` | Playwright 固定 fixture | 更多菜单：建任务、节点列表、自动化设置、创建/撤销信任、暂停自动化 |
+| `06-tablet.png` | Playwright 固定 fixture | 768 平板：保留画布与右栏，看板默认收起，顶栏两行不挤压 |
 
 截图均不含 token、用户名、邮箱、主机名或本机绝对路径。
 
@@ -52,15 +52,15 @@ Contract：[M2-2b 移动端响应式控制台](../../contracts/M2-2b-mobile-cons
 
 | 项目 | 结果 |
 |---|---|
-| web 单测 | 164 passed（45 files） |
-| Playwright | 24 passed（桌面 + 平板 + 移动壳/任务/控制面/多视口矩阵） |
+| web 单测 | 174 passed（45 files） |
+| Playwright | 25 passed（桌面 + 平板 + 移动壳/任务/控制面/多视口矩阵） |
 | `pnpm verify` | exit 0（typecheck、lint、format、boundaries、protocol、test、build） |
 | `pnpm pack:check` | ok |
 | `pnpm check:secrets` | no leaks（188 commits） |
 | 视口矩阵 | 360 / 390 / 768 / 1280 全绿，无横向溢出 |
 | 桌面/平板回归 | 三栏壳、画布、右栏、看板收起均通过 |
 
-本地跑全量 e2e 时 5173 被无关进程占用，使用临时 Playwright 配置在 5199 跑完 24 条；仓库内 `playwright.config.ts` 未改动，CI 仍使用 5173。
+本地跑全量 e2e 时 5173 被无关进程占用，使用临时 Playwright 配置在 5199 跑完 25 条；仓库内 `playwright.config.ts` 未改动，CI 仍使用 5173。
 
 ## 性能
 
@@ -74,5 +74,7 @@ Contract：[M2-2b 移动端响应式控制台](../../contracts/M2-2b-mobile-cons
 - 真实审批样本数量有限：覆盖 `Write`、`Edit`、`Bash`，拒绝审批只走过一次且未留截图。
 - `review` 打回后当前 core 直接 `queued` 并立即入队，实际会被调度器马上拉起为 `running`；与计划文字中的「回到 todo/queued」不完全一致。是否需要「打回后等待人工再开工」需在后续 spec/ADR 中明确。
 - 临时工作区不是 git 仓库，验收卡 `Git 文件` 统计为 0；这是环境限制，不是产品缺陷。
-- 手机 token 拥有全部权限；手机丢失时应轮换 `BATON_TOKEN` 并重启 daemon。cookie 为 HttpOnly，前端不写 localStorage。
+- 手机 token 与桌面权限相同；手机丢失时应轮换 `BATON_TOKEN` 并重启 daemon。cookie 为 HttpOnly，前端不写 localStorage。
 - 移动端不提供画布、删除节点、连线与图片/group/review 节点编辑；这些仍只在桌面完成。
+- 移动回复、验收、总管、汇报、信任目前以组件测试与既有桌面 e2e 为主，未逐一补移动 e2e；已列入后续补测。
+- verify 输出未单独截图；证据保留完成态截图与退出码 0 的记录，避免 transcript 中的本机路径进入仓库。
