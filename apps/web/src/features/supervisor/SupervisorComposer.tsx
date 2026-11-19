@@ -13,6 +13,7 @@ import { useCommand } from '../../lib/command-context'
 import { queryKeys } from '../../lib/query'
 import { useAppStore } from '../../stores/app'
 import { nodeTitle } from '../canvas/node-title'
+import { NodePicker } from '../shared/NodePicker'
 import { createRequestId, type SupervisorTargetAgent } from './supervisor-model'
 import { useSupervisorStream, useSupervisorStreamStore } from './stream-store'
 
@@ -41,12 +42,16 @@ export function SupervisorComposer({
   targetAgent,
   initialText = '',
   initialTextKey = 0,
+  mobile = false,
+  nodes = [],
 }: {
   workspaceId: string
   contextNodes: ProtocolNode[]
   targetAgent: SupervisorTargetAgent | null
   initialText?: string
   initialTextKey?: number
+  mobile?: boolean
+  nodes?: ProtocolNode[]
 }) {
   const send = useCommand()
   const queryClient = useQueryClient()
@@ -56,13 +61,40 @@ export function SupervisorComposer({
   const [text, setText] = useState(initialText)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [pickedTarget, setPickedTarget] = useState<SupervisorTargetAgent | null>(null)
+  const [pickedContext, setPickedContext] = useState<ProtocolNode[] | null>(null)
+  const [picker, setPicker] = useState<'target' | 'context' | null>(null)
   const requestIdRef = useRef<string | null>(null)
   const busy = sending || stream.status === 'streaming'
+  const effectiveTarget = pickedTarget ?? targetAgent
+  const effectiveContext = pickedContext ?? contextNodes
+
+  useEffect(() => {
+    setPickedTarget(null)
+    setPickedContext(null)
+    setPicker(null)
+  }, [workspaceId])
 
   useEffect(() => {
     // 同一个快捷提示可能被再次选中；用 key 让写入生效，而不是依赖文本变化。
     if (initialText) setText(initialText)
   }, [initialText, initialTextKey])
+
+  const removeContext = (id: string) => {
+    if (pickedContext) {
+      setPickedContext(pickedContext.filter((node) => node.id !== id))
+      return
+    }
+    removeContextNode(id)
+  }
+
+  const clear = () => {
+    if (pickedContext) {
+      setPickedContext([])
+      return
+    }
+    clearContext()
+  }
 
   const submit = async () => {
     const value = text.trim()
@@ -71,8 +103,8 @@ export function SupervisorComposer({
     setSendError(null)
     // 发送失败时保留同一个 requestId，重试由服务端幂等去重，不会重复建任务。
     const requestId = (requestIdRef.current ??= createRequestId())
-    const contextNodeIds = contextNodes.map((node) => node.id)
-    const targetNodeId = targetAgent?.id
+    const contextNodeIds = effectiveContext.map((node) => node.id)
+    const targetNodeId = effectiveTarget?.id
     const messagesKey = queryKeys.supervisorMessages(workspaceId)
     const optimisticId = `pending-${requestId}`
     const optimistic: SupervisorMessage = {
@@ -130,8 +162,18 @@ export function SupervisorComposer({
 
   return (
     <div className="flex shrink-0 flex-col gap-2 border-t border-separator p-3">
+      {mobile ? (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="tertiary" onPress={() => setPicker('target')}>
+            目标 Agent {effectiveTarget?.title ?? '未选'}
+          </Button>
+          <Button size="sm" variant="tertiary" onPress={() => setPicker('context')}>
+            上下文 {effectiveContext.length} 个
+          </Button>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
-        {contextNodes.map((node) => {
+        {effectiveContext.map((node) => {
           const label = contextLabel(node)
           return (
             <span
@@ -145,7 +187,7 @@ export function SupervisorComposer({
               <button
                 type="button"
                 aria-label={`移除上下文 ${label}`}
-                onClick={() => removeContextNode(node.id)}
+                onClick={() => removeContext(node.id)}
                 className={`rounded p-0.5 text-muted hover:text-foreground ${FOCUS_RING}`}
               >
                 <X size={12} aria-hidden="true" />
@@ -153,17 +195,17 @@ export function SupervisorComposer({
             </span>
           )
         })}
-        {targetAgent ? (
+        {effectiveTarget ? (
           <Chip size="sm" variant="soft" color="accent">
-            目标 {targetAgent.title}
+            目标 {effectiveTarget.title}
           </Chip>
         ) : (
           <span className="text-xs text-muted">未选目标 Agent</span>
         )}
-        {contextNodes.length > 0 ? (
+        {effectiveContext.length > 0 ? (
           <button
             type="button"
-            onClick={clearContext}
+            onClick={clear}
             className={`text-xs text-muted underline-offset-2 hover:text-foreground hover:underline ${FOCUS_RING}`}
           >
             清空上下文
@@ -197,6 +239,29 @@ export function SupervisorComposer({
           {sendError}
         </p>
       ) : null}
+
+      <NodePicker
+        open={picker === 'target'}
+        onOpenChange={(open) => setPicker(open ? 'target' : null)}
+        nodes={nodes.filter((node) => node.type === 'agent')}
+        mode="single"
+        value={effectiveTarget ? [effectiveTarget.id] : []}
+        onChange={(ids) => {
+          const node = nodes.find((item) => item.id === ids[0])
+          setPickedTarget(node?.type === 'agent' ? { id: node.id, title: node.data.title } : null)
+        }}
+        title="选择目标 Agent"
+      />
+      <NodePicker
+        open={picker === 'context'}
+        onOpenChange={(open) => setPicker(open ? 'context' : null)}
+        nodes={nodes}
+        mode="multi"
+        value={effectiveContext.map((node) => node.id)}
+        onChange={(ids) => setPickedContext(nodes.filter((node) => ids.includes(node.id)))}
+        excludeIds={effectiveTarget ? [effectiveTarget.id] : []}
+        title="选择上下文"
+      />
     </div>
   )
 }

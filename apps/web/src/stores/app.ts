@@ -7,6 +7,8 @@ export type SelectionNode = Pick<Node, 'id' | 'type'>
 
 export type RightPanelMode = 'supervisor' | 'task' | 'node'
 
+export type MobileTab = 'board' | 'supervisor' | 'digest'
+
 const CONTEXT_TYPES = new Set<Node['type']>(['text', 'file', 'image', 'group'])
 
 function sameIds(a: string[], b: string[]): boolean {
@@ -22,6 +24,7 @@ interface AppState {
   boardExpanded: boolean
   boardPinned: boolean
   rightPanel: RightPanelMode
+  mobileTab: MobileTab
   wsStatus: WsStatus
   lastSeq: number
   setWorkspace: (id: string | null) => void
@@ -33,6 +36,7 @@ interface AppState {
   setBoardExpanded: (value: boolean) => void
   setBoardPinned: (value: boolean) => void
   setRightPanel: (value: RightPanelMode) => void
+  setMobileTab: (value: MobileTab) => void
   setWsStatus: (value: WsStatus) => void
   setLastSeq: (value: number) => void
 }
@@ -46,6 +50,7 @@ export const useAppStore = create<AppState>((set) => ({
   boardExpanded: false,
   boardPinned: false,
   rightPanel: 'supervisor',
+  mobileTab: 'board',
   wsStatus: 'offline',
   lastSeq: 0,
   setWorkspace: (activeWorkspaceId) =>
@@ -56,6 +61,7 @@ export const useAppStore = create<AppState>((set) => ({
       selectedNodeIds: [],
       contextNodeIds: [],
       rightPanel: 'supervisor',
+      mobileTab: 'board',
     }),
   setTask: (activeTaskId) => set({ activeTaskId }),
   setSelectedNode: (selectedNodeId) => set({ selectedNodeId }),
@@ -78,6 +84,7 @@ export const useAppStore = create<AppState>((set) => ({
   setBoardExpanded: (boardExpanded) => set({ boardExpanded }),
   setBoardPinned: (boardPinned) => set({ boardPinned }),
   setRightPanel: (rightPanel) => set({ rightPanel }),
+  setMobileTab: (mobileTab) => set({ mobileTab }),
   setWsStatus: (wsStatus) => set({ wsStatus }),
   setLastSeq: (lastSeq) => set({ lastSeq }),
 }))

@@ -4,6 +4,24 @@ import { describe, expect, it, vi } from 'vitest'
 import { RightPanel } from './RightPanel'
 
 describe('RightPanel', () => {
+  it('renders as an overlay when compact', () => {
+    render(
+      <RightPanel
+        compact
+        mode="supervisor"
+        onModeChange={() => {}}
+        hasTask={false}
+        hasNode={false}
+        supervisor={<div>总管</div>}
+        task={null}
+        node={null}
+      />,
+    )
+    const panel = screen.getByTestId('right-panel')
+    expect(panel.className).toContain('absolute')
+    expect(panel.className).toContain('shadow-overlay')
+  })
+
   it('shows supervisor by default and switches tabs', async () => {
     const onModeChange = vi.fn()
     render(

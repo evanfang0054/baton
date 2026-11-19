@@ -1,7 +1,7 @@
 import type { SessionEventRecord, SessionEventsResponse, TaskDetailResponse } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useState } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { getTask, listSessionEvents } from '../../lib/api'
 import { queryKeys } from '../../lib/query'
 import { useAppStore } from '../../stores/app'
@@ -24,7 +24,7 @@ const sessionStatusLabels: Record<string, string> = {
   failed: '失败',
 }
 
-export function TaskDetailPanel() {
+export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId)
   const activeTaskId = useAppStore((state) => state.activeTaskId)
   const queryClient = useQueryClient()
@@ -72,7 +72,10 @@ export function TaskDetailPanel() {
   }, [activeWorkspaceId, detail.data?.task.id, queryClient])
 
   return (
-    <div data-testid="task-detail" className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+    <div
+      data-testid="task-detail"
+      className={mobile ? 'flex min-h-0 flex-1 flex-col' : 'flex min-h-0 flex-1 flex-col gap-3 p-4'}
+    >
       {!activeWorkspaceId ? (
         <p className="text-sm text-muted">尚未选择工作区</p>
       ) : !activeTaskId ? (
@@ -82,21 +85,69 @@ export function TaskDetailPanel() {
       ) : detail.isError ? (
         <p className="text-sm text-danger">任务加载失败</p>
       ) : detail.data ? (
-        <DetailContent
-          key={detail.data.task.id}
-          detail={detail.data}
-          workspaceId={activeWorkspaceId}
-          activeSessionId={activeSession?.id ?? null}
-          onSelectSession={setSelectedSessionId}
-          events={events.data?.events ?? []}
-          eventsLoading={events.isLoading}
-          hasMore={events.data?.hasMore ?? false}
-          loadMorePending={loadMorePending}
-          onLoadMore={loadMore}
-          onDone={onDone}
-        />
+        mobile ? (
+          <>
+            <div data-testid="mobile-task-scroll" className="min-h-0 flex-1 overflow-y-auto p-4">
+              <DetailContent
+                key={detail.data.task.id}
+                detail={detail.data}
+                workspaceId={activeWorkspaceId}
+                activeSessionId={activeSession?.id ?? null}
+                onSelectSession={setSelectedSessionId}
+                events={events.data?.events ?? []}
+                eventsLoading={events.isLoading}
+                hasMore={events.data?.hasMore ?? false}
+                loadMorePending={loadMorePending}
+                onLoadMore={loadMore}
+                onDone={onDone}
+                mobile
+                showActions={false}
+              />
+            </div>
+            {['todo', 'queued', 'running'].includes(detail.data.task.status) ||
+            (detail.data.task.status === 'waiting_input' &&
+              detail.data.attention === 'needs_attention') ? (
+              <div
+                data-testid="mobile-task-footer"
+                className="shrink-0 border-t border-separator bg-background p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
+              >
+                <TaskActions
+                  taskId={detail.data.task.id}
+                  workspaceId={activeWorkspaceId}
+                  status={detail.data.task.status}
+                  attention={detail.data.attention}
+                />
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <DetailContent
+            key={detail.data.task.id}
+            detail={detail.data}
+            workspaceId={activeWorkspaceId}
+            activeSessionId={activeSession?.id ?? null}
+            onSelectSession={setSelectedSessionId}
+            events={events.data?.events ?? []}
+            eventsLoading={events.isLoading}
+            hasMore={events.data?.hasMore ?? false}
+            loadMorePending={loadMorePending}
+            onLoadMore={loadMore}
+            onDone={onDone}
+            mobile={false}
+            showActions
+          />
+        )
       ) : null}
     </div>
+  )
+}
+
+function MobileCollapsible({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <details className="shrink-0 rounded-lg border border-separator bg-surface p-3">
+      <summary className="cursor-pointer text-sm font-medium">{title}</summary>
+      <div className="mt-2">{children}</div>
+    </details>
   )
 }
 
@@ -111,6 +162,8 @@ function DetailContent({
   loadMorePending,
   onLoadMore,
   onDone,
+  mobile,
+  showActions,
 }: {
   detail: TaskDetailResponse
   workspaceId: string
@@ -122,6 +175,8 @@ function DetailContent({
   loadMorePending: boolean
   onLoadMore: () => void
   onDone: () => Promise<void>
+  mobile: boolean
+  showActions: boolean
 }) {
   const task = detail.task
   const pendingApprovals = [...detail.approvals].reverse().filter((item) => item.decision === null)
@@ -130,13 +185,34 @@ function DetailContent({
   return (
     <>
       <TaskHeader task={task} attention={detail.attention} waitingSince={detail.waitingSince} />
-      <ContextSnapshotCard
-        snapshot={task.context}
-        invalid={detail.contextInvalid}
-        targetNodeId={task.nodeId}
-      />
-      <TaskOriginCard origin={task.origin} invalid={detail.originInvalid} />
-      <TaskAutomationCard taskId={task.id} />
+      {mobile ? (
+        <MobileCollapsible title="上下文与来源">
+          <div className="flex flex-col gap-2">
+            <ContextSnapshotCard
+              snapshot={task.context}
+              invalid={detail.contextInvalid}
+              targetNodeId={task.nodeId}
+            />
+            <TaskOriginCard origin={task.origin} invalid={detail.originInvalid} />
+          </div>
+        </MobileCollapsible>
+      ) : (
+        <>
+          <ContextSnapshotCard
+            snapshot={task.context}
+            invalid={detail.contextInvalid}
+            targetNodeId={task.nodeId}
+          />
+          <TaskOriginCard origin={task.origin} invalid={detail.originInvalid} />
+        </>
+      )}
+      {mobile ? (
+        <MobileCollapsible title="自动化记录">
+          <TaskAutomationCard taskId={task.id} />
+        </MobileCollapsible>
+      ) : (
+        <TaskAutomationCard taskId={task.id} />
+      )}
 
       {task.status === 'waiting_input' && needsApproval ? (
         pendingApprovals.length > 0 ? (
@@ -166,18 +242,28 @@ function DetailContent({
         )
       ) : null}
 
-      <TaskActions
-        taskId={task.id}
-        workspaceId={workspaceId}
-        status={task.status}
-        attention={detail.attention}
-      />
+      {showActions ? (
+        <TaskActions
+          taskId={task.id}
+          workspaceId={workspaceId}
+          status={task.status}
+          attention={detail.attention}
+          sticky={mobile}
+        />
+      ) : null}
 
       {['done', 'failed', 'cancelled'].includes(task.status) ? (
         <p className="shrink-0 text-sm text-muted">任务已结束，只读。</p>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col border-t border-separator pt-3">
+      <div
+        data-testid="transcript-section"
+        className={
+          mobile
+            ? 'flex h-[45vh] min-h-64 flex-col border-t border-separator pt-3'
+            : 'flex min-h-0 flex-1 flex-col border-t border-separator pt-3'
+        }
+      >
         <div className="mb-2 flex shrink-0 items-center gap-2">
           <span className="text-xs text-muted">会话</span>
           <select

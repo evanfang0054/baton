@@ -11,6 +11,7 @@
 
 - [本地运行与运维](runbooks/local.md)
 - [总管模型配置](runbooks/supervisor-config.md)
+- [移动端访问与运维](runbooks/mobile-access.md)
 
 ## 现行 spec
 
@@ -24,6 +25,7 @@
 - [2026-11-18 M1-6b 画布上下文与关系设计](specs/2026-11-18-m1-6b-canvas-context-design.md)
 - [2026-11-18 M2-1 总管 Router v0 设计](specs/2026-11-18-m2-supervisor-design.md)
 - [2026-11-19 M2-2a 无人值守与汇报设计](specs/2026-11-19-m2-autopilot-design.md)
+- [2026-11-19 M2-2b 移动端响应式控制台设计](specs/2026-11-19-m2-2b-mobile-console-design.md)
 
 ## 现行 ADR
 
@@ -33,6 +35,7 @@
 - [0004 不可信 workspace 仍加载 user settings](adr/0004-untrusted-loads-user-settings.md)
 - [0005 按任务跳过审批与结构化提问](adr/0005-bypass-permissions-and-questions.md)
 - [0006 M2-2a 契约实现校正](adr/0006-m2-autopilot-contract-adjustments.md)
+- [0007 移动端从只读改为响应式控制台](adr/0007-mobile-control-console.md)
 
 ## 现行 contract
 
@@ -46,6 +49,7 @@
 - [M1-6b 画布上下文与关系](contracts/M1-6b-canvas-context.contract.md)
 - [M2-1 总管 Router v0](contracts/M2-supervisor-v0.contract.md)
 - [M2-2a 无人值守与汇报 v0](contracts/M2-autopilot-v0.contract.md)
+- [M2-2b 移动端响应式控制台](contracts/M2-2b-mobile-console.contract.md)
 
 ## 现行 plan
 
@@ -72,11 +76,16 @@
 - [M2-2a daemon 实施计划](plans/2026-11-19-m2-autopilot-daemon.md)
 - [M2-2a web 实施计划](plans/2026-11-19-m2-autopilot-web.md)
 - [M2-2a 验收实施计划](plans/2026-11-19-m2-autopilot-acceptance.md)
+- [M2-2b 移动端响应式控制台：基础壳实施计划](plans/2026-11-19-m2-2b-mobile-foundation.md)
+- [M2-2b 移动端响应式控制台：任务与闸门实施计划](plans/2026-11-19-m2-2b-mobile-tasks.md)
+- [M2-2b 移动端响应式控制台：控制面实施计划](plans/2026-11-19-m2-2b-mobile-controls.md)
+- [M2-2b 移动端响应式控制台：验收实施计划](plans/2026-11-19-m2-2b-mobile-acceptance.md)
 
 ## 验收证据
 
 - [M2-1 总管真实链路验收（阻塞，待模型配置）](evidence/2026-11-18-m2-supervisor/README.md)
 - [M2-2a 无人值守与汇报验收](evidence/2026-11-19-m2-autopilot/README.md)
+- [M2-2b 移动端响应式控制台验收](evidence/2026-11-19-m2-2b-mobile-console/README.md)
 
 ## 约定
 

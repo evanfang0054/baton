@@ -1,6 +1,6 @@
 import type { SupervisorMessagesResponse } from '@baton/protocol'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -82,5 +82,39 @@ describe('SupervisorComposer', () => {
     renderComposer(vi.fn())
     expect(screen.getByText('总管正在处理上一条')).toBeVisible()
     expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
+  })
+
+  it('uses picked target and context on mobile', async () => {
+    const send = vi.fn().mockResolvedValue({ threadId: 'th1', messageId: 'm1' })
+    renderComposer(send, {
+      mobile: true,
+      nodes: [
+        { id: 'a1', type: 'agent', data: { title: 'Agent' } } as never,
+        { id: 'n1', type: 'text', data: { content: '上下文' } } as never,
+      ],
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: /目标 Agent/ }))
+    const targetDialog = screen.getByRole('dialog', { name: '选择目标 Agent' })
+    await userEvent.click(within(targetDialog).getByRole('button', { name: /Agent/ }))
+    await userEvent.click(within(targetDialog).getByRole('button', { name: '确定' }))
+
+    await userEvent.click(screen.getByRole('button', { name: /上下文 0 个/ }))
+    const contextDialog = screen.getByRole('dialog', { name: '选择上下文' })
+    await userEvent.click(within(contextDialog).getByRole('button', { name: /上下文/ }))
+    await userEvent.click(within(contextDialog).getByRole('button', { name: '确定' }))
+
+    await userEvent.type(screen.getByRole('textbox'), '帮我看看')
+    await userEvent.click(screen.getByRole('button', { name: '发送' }))
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'supervisor.send',
+        payload: expect.objectContaining({
+          targetNodeId: 'a1',
+          contextNodeIds: ['n1'],
+        }),
+      }),
+    )
   })
 })

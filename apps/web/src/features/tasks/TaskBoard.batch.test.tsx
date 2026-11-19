@@ -49,6 +49,25 @@ function renderBoard(tasks: TaskSummary[]) {
 }
 
 describe('TaskBoard batch start', () => {
+  it('marks the overlay for compact width overrides', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <TaskBoard
+          compact
+          tasks={[]}
+          agentNodes={[]}
+          selectedTaskId={null}
+          expanded
+          pinned={false}
+          onSelectTask={() => {}}
+          onClose={() => {}}
+        />
+      </QueryClientProvider>,
+    )
+    expect(screen.getByTestId('task-board-overlay').className).toContain('w-[min(760px,88vw)]')
+  })
+
   it('selects todo tasks and enqueues each', async () => {
     renderBoard([task('t1', 'A'), task('t2', 'B')])
 

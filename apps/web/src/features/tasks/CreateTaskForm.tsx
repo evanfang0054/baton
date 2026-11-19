@@ -10,6 +10,7 @@ import { useCommand } from '../../lib/command-context'
 import { queryKeys } from '../../lib/query'
 import { useAppStore } from '../../stores/app'
 import { nodeTitle } from '../canvas/node-title'
+import { preferredEngine } from './engine-preference'
 
 const engineNames: Record<Engine, string> = {
   'claude-sdk': 'Claude Code',
@@ -21,14 +22,6 @@ const statusLabels: Record<EngineStatus['status'], string> = {
   available: '可用',
   unknown: '未知（将尝试本机登录）',
   unavailable: '不可用',
-}
-
-function preferredEngine(engines: EngineStatus[]): Engine | null {
-  const claude = engines.find(
-    (entry) => entry.engine === 'claude-sdk' && entry.status !== 'unavailable',
-  )
-  if (claude) return claude.engine
-  return engines.find((entry) => entry.engine === 'fake')?.engine ?? null
 }
 
 function engineReasonText(reason: string | undefined): string {

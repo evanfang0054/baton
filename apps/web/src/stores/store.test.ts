@@ -41,3 +41,18 @@ describe('app store selection', () => {
     expect(useAppStore.getState().contextNodeIds).toEqual([])
   })
 })
+
+describe('mobile tab', () => {
+  beforeEach(() => useAppStore.setState({ mobileTab: 'board' }))
+
+  it('switches tabs', () => {
+    useAppStore.getState().setMobileTab('digest')
+    expect(useAppStore.getState().mobileTab).toBe('digest')
+  })
+
+  it('resets to board when workspace changes', () => {
+    useAppStore.getState().setMobileTab('supervisor')
+    useAppStore.getState().setWorkspace('w2')
+    expect(useAppStore.getState().mobileTab).toBe('board')
+  })
+})

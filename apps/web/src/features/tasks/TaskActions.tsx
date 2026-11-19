@@ -10,11 +10,13 @@ export function TaskActions({
   workspaceId,
   status,
   attention,
+  sticky = false,
 }: {
   taskId: string
   workspaceId: string
   status: TaskStatus
   attention: Attention
+  sticky?: boolean
 }) {
   const queryClient = useQueryClient()
   const [confirming, setConfirming] = useState(false)
@@ -23,11 +25,17 @@ export function TaskActions({
     await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
     setConfirming(false)
   })
+  const sectionClass = sticky
+    ? 'sticky bottom-0 z-10 shrink-0 rounded-lg border border-separator bg-background p-3 shadow-overlay'
+    : 'shrink-0 rounded-lg border border-separator bg-background p-3'
+  const waitingClass = sticky
+    ? 'sticky bottom-0 z-10 shrink-0 rounded-lg border border-warning border-l-2 bg-background p-3 shadow-overlay'
+    : 'shrink-0 rounded-lg border border-warning border-l-2 bg-background p-3'
 
   if (status === 'waiting_input') {
     if (attention !== 'needs_attention') return null
     return (
-      <section className="shrink-0 rounded-lg border border-warning border-l-2 bg-background p-3">
+      <section className={waitingClass}>
         {confirming ? (
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-warning">确认取消这个任务？</p>
@@ -77,7 +85,7 @@ export function TaskActions({
   }
 
   return (
-    <section className="shrink-0 rounded-lg border border-separator bg-background p-3">
+    <section className={sectionClass}>
       {status === 'todo' ? (
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm text-muted">任务已创建，尚未开工。</p>
