@@ -1,13 +1,15 @@
 import { resolveVerifyCommand } from '@baton/core'
-import type { TaskTransitionEvent } from '@baton/protocol'
+import type { DiffSnapshot, TaskTransitionEvent } from '@baton/protocol'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Config } from '../config.js'
-import { getTask, getWorkspace } from '../db/repositories.js'
+import { getTask, getWorkspace, updateReviewDiff } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
+import type { Logger } from '../log.js'
 import type { TransitionOutcome } from '../runtime/types.js'
 import { loadPolicy } from '../workspace/policy.js'
 import { resolveWorkspaceDir } from '../workspace/resolver.js'
+import { captureDiff } from './diff.js'
 import { runVerifyCommand, type VerifyCommandRunResult } from './executor.js'
 
 export interface VerifyRunnerDeps {
@@ -17,6 +19,7 @@ export interface VerifyRunnerDeps {
   now: () => number
   newId: () => string
   verifyMeta: Map<string, number>
+  logger?: Logger
 }
 
 export interface VerifyRunner {
@@ -70,12 +73,13 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
     }
 
     let result: VerifyCommandRunResult
+    let workspacePath: string | null = null
     const workspace = getWorkspace(deps.db, task.workspaceId)
     if (!workspace) {
       result = failure(127, 'workspace not found')
     } else {
       try {
-        const workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+        workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
         const policy = loadPolicy(workspacePath)
         const pkg = readPackageJson(workspacePath)
         const resolved = resolveVerifyCommand({
@@ -105,6 +109,18 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
       return
     }
 
+    let snapshot: DiffSnapshot | null = null
+    if (workspacePath) {
+      try {
+        snapshot = await captureDiff(current.worktreePath ?? workspacePath, deps.now)
+      } catch (error) {
+        deps.logger?.warn(
+          { event: 'diff_capture_failed', taskId, error: String(error) },
+          'diff capture failed',
+        )
+      }
+    }
+
     const reviewId = deps.newId()
     deps.verifyMeta.set(reviewId, result.durationMs)
     const event: TaskTransitionEvent =
@@ -126,6 +142,10 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
     const outcome = deps.applyTransition(taskId, event)
     if (!outcome.ok) {
       deps.verifyMeta.delete(reviewId)
+      return
+    }
+    if (snapshot) {
+      updateReviewDiff(deps.db, reviewId, snapshot)
     }
   }
 

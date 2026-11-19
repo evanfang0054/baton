@@ -231,6 +231,7 @@ export function createRuntime(deps: RuntimeDeps) {
       now,
       newId,
       verifyMeta,
+      ...(deps.logger ? { logger: deps.logger } : {}),
     })
   }
 

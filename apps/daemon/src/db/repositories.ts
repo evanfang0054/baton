@@ -3,6 +3,7 @@ import {
   Audit,
   Canvas,
   ContextSnapshot,
+  DiffSnapshot,
   Edge,
   Node,
   Notice,
@@ -685,6 +686,25 @@ export function getReviewByTask(db: Db, taskId: string): Review | null {
 export function getReview(db: Db, id: string): Review | null {
   const row = db.select().from(review).where(eq(review.id, id)).get()
   return row ? toReview(row) : null
+}
+
+export function updateReviewDiff(db: Db, id: string, snapshot: DiffSnapshot): void {
+  db.update(review)
+    .set({ diffJson: JSON.stringify(snapshot) })
+    .where(eq(review.id, id))
+    .run()
+}
+
+export function getReviewDiff(db: Db, id: string): DiffSnapshot | null {
+  const row = db.select({ diffJson: review.diffJson }).from(review).where(eq(review.id, id)).get()
+  if (!row?.diffJson) {
+    return null
+  }
+  try {
+    return DiffSnapshot.parse(JSON.parse(row.diffJson))
+  } catch {
+    return null
+  }
 }
 
 export function updateReviewVerdict(
