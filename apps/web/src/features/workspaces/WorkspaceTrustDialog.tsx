@@ -10,10 +10,12 @@ export function WorkspaceTrustDialog({
   workspace,
   open,
   onOpenChange,
+  mobile = false,
 }: {
   workspace: Workspace
   open: boolean
   onOpenChange: (open: boolean) => void
+  mobile?: boolean
 }) {
   const queryClient = useQueryClient()
   const [hooks, setHooks] = useState(workspace.projectHooks === 'on')
@@ -39,7 +41,7 @@ export function WorkspaceTrustDialog({
     <Modal isOpen={open} onOpenChange={onOpenChange}>
       <Modal.Backdrop>
         <Modal.Container>
-          <Modal.Dialog>
+          <Modal.Dialog className={mobile ? 'h-dvh w-screen max-w-none rounded-none' : undefined}>
             <Modal.Header>
               <Modal.Heading>信任此工作区？</Modal.Heading>
             </Modal.Header>

@@ -14,10 +14,12 @@ export function AutomationSettingsDialog({
   workspaceId,
   open,
   onOpenChange,
+  mobile = false,
 }: {
   workspaceId: string
   open: boolean
   onOpenChange: (open: boolean) => void
+  mobile?: boolean
 }) {
   const queryClient = useQueryClient()
   const summary = useQuery({
@@ -105,7 +107,10 @@ export function AutomationSettingsDialog({
     <Modal isOpen={open} onOpenChange={onOpenChange}>
       <Modal.Backdrop>
         <Modal.Container>
-          <Modal.Dialog data-testid="automation-settings">
+          <Modal.Dialog
+            data-testid="automation-settings"
+            className={mobile ? 'h-dvh w-screen max-w-none rounded-none' : undefined}
+          >
             <Modal.Header>
               <Modal.Heading>自动化设置</Modal.Heading>
             </Modal.Header>

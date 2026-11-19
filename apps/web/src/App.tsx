@@ -6,7 +6,9 @@ import { AutomationSettingsDialog } from './features/automation/AutomationSettin
 import { AutomationStatus } from './features/automation/AutomationStatus'
 import { ConnectionStatus } from './features/shared/ConnectionStatus'
 import { MobileNav } from './features/shared/MobileNav'
+import { MobileMoreMenu } from './features/shared/MobileMoreMenu'
 import { CanvasPanel, type CanvasPanelHandle } from './features/canvas/CanvasPanel'
+import { MobileNodeManager } from './features/canvas/MobileNodeManager'
 import { NodePanel } from './features/canvas/NodePanel'
 import { RealtimeProvider } from './features/realtime/RealtimeProvider'
 import { RightPanel } from './features/right-panel/RightPanel'
@@ -15,6 +17,7 @@ import { SupervisorPanel } from './features/supervisor/SupervisorPanel'
 import type { SupervisorTargetAgent } from './features/supervisor/supervisor-model'
 import { BoardRail } from './features/tasks/BoardRail'
 import { MobileBoardList } from './features/tasks/MobileBoardList'
+import { MobileCreateTaskForm } from './features/tasks/MobileCreateTaskForm'
 import { MobileTaskDetail } from './features/tasks/MobileTaskDetail'
 import { TaskBoard } from './features/tasks/TaskBoard'
 import { TaskDetailPanel } from './features/tasks/TaskDetailPanel'
@@ -77,6 +80,10 @@ export function App() {
   const [trustDialogOpen, setTrustDialogOpen] = useState(false)
   const [trustPromptedFor, setTrustPromptedFor] = useState<string | null>(null)
   const [automationSettingsOpen, setAutomationSettingsOpen] = useState(false)
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
+  const [mobileTaskFormOpen, setMobileTaskFormOpen] = useState(false)
+  const [mobileNodesOpen, setMobileNodesOpen] = useState(false)
+  const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false)
 
   const workspaces = useQuery({ queryKey: queryKeys.workspaces, queryFn: listWorkspaces })
   const tasks = useQuery({
@@ -222,18 +229,25 @@ export function App() {
                 workspace={activeWorkspace}
                 open={trustDialogOpen}
                 onOpenChange={setTrustDialogOpen}
+                mobile={isMobile}
               />
             </>
           ) : null}
-          {activeWorkspaceId && !isMobile ? (
+          {activeWorkspaceId ? (
             <AutomationSettingsDialog
               key={activeWorkspaceId}
               workspaceId={activeWorkspaceId}
               open={automationSettingsOpen}
               onOpenChange={setAutomationSettingsOpen}
+              mobile={isMobile}
             />
           ) : null}
           <div className="ml-auto flex items-center gap-2">
+            {isMobile ? (
+              <Button variant="secondary" onPress={() => setMobileMoreOpen(true)}>
+                更多
+              </Button>
+            ) : null}
             {activeWorkspaceId && !isMobile ? (
               <AutomationStatus
                 summary={automation.data ?? null}
@@ -284,6 +298,7 @@ export function App() {
                   writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
                 }}
                 onOpenSupervisor={() => setMobileTab('supervisor')}
+                onCreateTask={() => setMobileTaskFormOpen(true)}
               />
             ) : null}
 
@@ -293,6 +308,8 @@ export function App() {
                   workspaceId={activeWorkspaceId}
                   contextNodes={contextNodes}
                   targetAgent={targetAgent}
+                  mobile
+                  nodes={canvas.data?.nodes ?? []}
                 />
               </div>
             ) : null}
@@ -327,6 +344,84 @@ export function App() {
                 <TaskDetailPanel mobile />
               </MobileTaskDetail>
             ) : null}
+
+            <MobileMoreMenu
+              open={mobileMoreOpen}
+              onOpenChange={setMobileMoreOpen}
+              onOpenSettings={() => {
+                setMobileMoreOpen(false)
+                setAutomationSettingsOpen(true)
+              }}
+              onOpenTask={() => {
+                setMobileMoreOpen(false)
+                setMobileTaskFormOpen(true)
+              }}
+              onOpenNodes={() => {
+                setMobileMoreOpen(false)
+                setMobileNodesOpen(true)
+              }}
+              onCreateWorkspace={() => {
+                setMobileMoreOpen(false)
+                setCreateWorkspaceOpen(true)
+              }}
+              automationSlot={
+                <AutomationStatus
+                  summary={automation.data ?? null}
+                  onPause={() => void pauseAutomation()}
+                  onOpenSettings={() => {
+                    setMobileMoreOpen(false)
+                    setAutomationSettingsOpen(true)
+                  }}
+                />
+              }
+              trustSlot={
+                activeWorkspace ? (
+                  <WorkspaceTrustBadge
+                    workspace={activeWorkspace}
+                    onTrust={() => {
+                      setMobileMoreOpen(false)
+                      setTrustDialogOpen(true)
+                    }}
+                    onRevoked={() => setTrustPromptedFor(activeWorkspace.id)}
+                  />
+                ) : (
+                  <p className="text-xs text-muted">尚未选择工作区</p>
+                )
+              }
+            />
+
+            {mobileTaskFormOpen && activeWorkspaceId && canvas.data ? (
+              <MobileCreateTaskForm
+                workspaceId={activeWorkspaceId}
+                canvasId={canvas.data.canvas.id}
+                workspaceTrusted={activeWorkspace?.trusted ?? false}
+                nodes={canvas.data.nodes}
+                onCreated={(taskId) => {
+                  setMobileTaskFormOpen(false)
+                  setTask(taskId)
+                  writeUrlState({ workspaceId: activeWorkspaceId, taskId })
+                }}
+                onCancel={() => setMobileTaskFormOpen(false)}
+              />
+            ) : null}
+
+            {mobileNodesOpen && canvas.data ? (
+              <MobileNodeManager
+                canvasId={canvas.data.canvas.id}
+                nodes={canvas.data.nodes}
+                onClose={() => setMobileNodesOpen(false)}
+              />
+            ) : null}
+
+            <CreateWorkspaceDialog
+              onCreated={(id) => {
+                setWorkspace(id)
+                writeUrlState({ workspaceId: id, taskId: null })
+              }}
+              open={createWorkspaceOpen}
+              onOpenChange={setCreateWorkspaceOpen}
+              mobile
+            />
           </div>
         ) : (
           <div

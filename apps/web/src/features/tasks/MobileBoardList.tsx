@@ -85,11 +85,13 @@ export function MobileBoardList({
   selectedTaskId,
   onSelectTask,
   onOpenSupervisor,
+  onCreateTask,
 }: {
   tasks: TaskSummary[]
   selectedTaskId: string | null
   onSelectTask: (taskId: string) => void
   onOpenSupervisor: () => void
+  onCreateTask?: () => void
 }) {
   const send = useCommand()
   const queryClient = useQueryClient()
@@ -200,6 +202,11 @@ export function MobileBoardList({
               >
                 选择待办
               </Button>
+              {onCreateTask ? (
+                <Button size="sm" variant="primary" onPress={onCreateTask}>
+                  新建任务
+                </Button>
+              ) : null}
               <Button size="sm" variant="secondary" onPress={onOpenSupervisor}>
                 让总管建任务
               </Button>

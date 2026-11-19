@@ -8,10 +8,20 @@ import { queryKeys } from '../../lib/query'
 
 interface CreateWorkspaceDialogProps {
   onCreated: (workspaceId: string) => void
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  mobile?: boolean
 }
 
-export function CreateWorkspaceDialog({ onCreated }: CreateWorkspaceDialogProps) {
-  const [open, setOpen] = useState(false)
+export function CreateWorkspaceDialog({
+  onCreated,
+  open: controlledOpen,
+  onOpenChange,
+  mobile = false,
+}: CreateWorkspaceDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const setOpen = onOpenChange ?? setInternalOpen
   const [name, setName] = useState('')
   const [relPath, setRelPath] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -42,10 +52,10 @@ export function CreateWorkspaceDialog({ onCreated }: CreateWorkspaceDialogProps)
 
   return (
     <Modal isOpen={open} onOpenChange={setOpen}>
-      <Button variant="secondary">新建工作区</Button>
+      {controlledOpen === undefined ? <Button variant="secondary">新建工作区</Button> : null}
       <Modal.Backdrop>
         <Modal.Container>
-          <Modal.Dialog>
+          <Modal.Dialog className={mobile ? 'h-dvh w-screen max-w-none rounded-none' : undefined}>
             <Modal.Header>
               <Modal.Heading>新建工作区</Modal.Heading>
             </Modal.Header>

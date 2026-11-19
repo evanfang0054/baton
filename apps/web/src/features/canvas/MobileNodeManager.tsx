@@ -68,6 +68,7 @@ export function MobileNodeManager({
           y: 80 + Math.floor(index / 4) * 240,
           w: 320,
           h: 200,
+          groupId: null,
         }
         const node =
           draft.type === 'text'

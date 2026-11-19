@@ -77,6 +77,7 @@ export function MobileCreateTaskForm({
               y: 80 + Math.floor(index / 4) * 240,
               w: 320,
               h: 200,
+              groupId: null,
               data: { title: agentTitle.trim() || '新 Agent', engine, taskId: null },
             },
           },
