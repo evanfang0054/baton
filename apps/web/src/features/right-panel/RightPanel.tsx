@@ -13,6 +13,7 @@ const tabClass = [
 ].join(' ')
 
 export function RightPanel({
+  compact = false,
   mode,
   onModeChange,
   hasTask,
@@ -22,6 +23,7 @@ export function RightPanel({
   task,
   node,
 }: {
+  compact?: boolean
   mode: RightPanelMode
   onModeChange: (mode: RightPanelMode) => void
   hasTask: boolean
@@ -43,7 +45,11 @@ export function RightPanel({
     <aside
       data-testid="right-panel"
       aria-label="右栏"
-      className="flex min-h-0 w-[400px] shrink-0 flex-col border-l border-separator bg-surface"
+      className={
+        compact
+          ? 'absolute inset-y-0 right-0 z-20 flex min-h-0 w-[min(400px,92vw)] shrink-0 flex-col border-l border-separator bg-surface shadow-overlay'
+          : 'flex min-h-0 w-[400px] shrink-0 flex-col border-l border-separator bg-surface'
+      }
     >
       <div
         role="tablist"

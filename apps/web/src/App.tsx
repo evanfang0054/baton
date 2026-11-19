@@ -329,7 +329,11 @@ export function App() {
             ) : null}
           </div>
         ) : (
-          <div className="flex min-h-0 flex-1">
+          <div
+            className={
+              viewport === 'compact' ? 'relative flex min-h-0 flex-1' : 'flex min-h-0 flex-1'
+            }
+          >
             <BoardRail
               counts={counts}
               total={counts.total}
@@ -351,6 +355,7 @@ export function App() {
               selectedTaskId={activeTaskId}
               expanded={boardExpanded}
               pinned={boardPinned}
+              compact={viewport === 'compact'}
               onSelectTask={(id) => {
                 setSelectedNode(null)
                 setTask(id)
@@ -378,6 +383,7 @@ export function App() {
               />
             </main>
             <RightPanel
+              compact={viewport === 'compact'}
               mode={rightPanel}
               onModeChange={setRightPanel}
               hasTask={Boolean(activeTaskId)}

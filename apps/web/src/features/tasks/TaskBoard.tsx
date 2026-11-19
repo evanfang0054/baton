@@ -16,6 +16,7 @@ interface TaskBoardProps {
   selectedTaskId: string | null
   expanded: boolean
   pinned: boolean
+  compact?: boolean
   onSelectTask: (taskId: string) => void
   onClose: () => void
 }
@@ -26,6 +27,7 @@ export function TaskBoard({
   selectedTaskId,
   expanded,
   pinned,
+  compact = false,
   onSelectTask,
   onClose,
 }: TaskBoardProps) {
@@ -162,11 +164,28 @@ export function TaskBoard({
   )
 
   if (pinned) {
-    return <div className="w-[560px] shrink-0 border-r border-separator">{board}</div>
+    return (
+      <div
+        className={
+          compact
+            ? 'w-[min(420px,72vw)] shrink-0 border-r border-separator'
+            : 'w-[560px] shrink-0 border-r border-separator'
+        }
+      >
+        {board}
+      </div>
+    )
   }
 
   return (
-    <div className="fixed bottom-0 left-16 top-14 z-30 w-[min(960px,72vw)] border-r border-separator shadow-overlay">
+    <div
+      data-testid="task-board-overlay"
+      className={
+        compact
+          ? 'fixed bottom-0 left-16 top-14 z-30 w-[min(760px,88vw)] border-r border-separator shadow-overlay'
+          : 'fixed bottom-0 left-16 top-14 z-30 w-[min(960px,72vw)] border-r border-separator shadow-overlay'
+      }
+    >
       {board}
     </div>
   )
