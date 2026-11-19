@@ -82,6 +82,16 @@ The spacing base is `--spacing: 0.25rem`, giving the system a 4px rhythm through
 - Avoid doubling parent and child padding in the same direction.
 - Align sibling cards, controls, labels, and metrics to shared visual anchors.
 
+## Responsive and Mobile
+
+- Breakpoints: `<768px` mobile control console; `768–1023px` compact desktop; `≥1024px` desktop.
+- Mobile never renders the canvas; it uses list pickers and forms for nodes.
+- Touch targets: minimum `44×44px`; no hover-only actions.
+- Bottom navigation: `min-height: 64px` plus `env(safe-area-inset-bottom)`.
+- Mobile page padding: `12px`; sticky action bar: `56px` plus safe area.
+- Status must be conveyed by text/icon in addition to color.
+- Do not hardcode hex colors; reuse HeroUI semantic tokens.
+
 ## Shapes
 
 The base radius is `--radius: 0.5rem` (8px). The default field radius is `--field-radius: calc(var(--radius) * 1.5)` (12px).
