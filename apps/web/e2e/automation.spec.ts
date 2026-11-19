@@ -94,10 +94,16 @@ interface PatchBody {
   approval?: { autoApproveMaxRisk?: 'low' | 'medium' }
 }
 
-async function mockAutomationApi(page: Page) {
+interface MockOptions {
+  taskCount?: number
+  trusted?: boolean
+  killSwitchForced?: boolean
+}
+
+async function mockAutomationApi(page: Page, options: MockOptions = {}) {
   const automation = {
     workspaceId: 'w1',
-    trusted: true,
+    trusted: options.trusted ?? true,
     policy: {
       verify: { command: 'pnpm test', timeoutSec: 900, maxOutputBytes: 262144 },
       approval: {
@@ -109,11 +115,17 @@ async function mockAutomationApi(page: Page) {
       autopilot: { enabled: true, retryMax: 2, digestCron: '0 9,21 * * *' },
     },
     policyVersion: 'abc123abc123',
-    killSwitch: false,
-    killSwitchForced: false,
+    killSwitch: options.killSwitchForced ?? false,
+    killSwitchForced: options.killSwitchForced ?? false,
     digestCronUnsupported: false,
   }
-  const tasks = [taskSummary('t1', '任务一', 'a1'), taskSummary('t2', '任务二', 'a2')]
+  const tasks = Array.from({ length: options.taskCount ?? 2 }, (_, index) =>
+    taskSummary(
+      `t${index + 1}`,
+      index === 0 ? '任务一' : index === 1 ? '任务二' : `任务${index + 1}`,
+      `a${index + 1}`,
+    ),
+  )
   const notices: Notice[] = [digestNotice('n2', 200, null), digestNotice('n1', 100, 100)]
   const audit: Array<Record<string, unknown>> = []
   const requests: Array<{ method: string; path: string; body?: unknown }> = []
@@ -197,6 +209,9 @@ async function mockAutomationApi(page: Page) {
       return route.fulfill({ json: automation })
     }
     if (path === '/api/automation/kill-switch' && method === 'PUT') {
+      if (automation.killSwitchForced) {
+        return route.fulfill({ json: { killSwitch: true, killSwitchForced: true } })
+      }
       const patch = body as { enabled?: boolean }
       automation.killSwitch = Boolean(patch.enabled)
       audit.unshift({
@@ -232,30 +247,46 @@ async function mockAutomationApi(page: Page) {
         json: { entries: audit.slice(0, Number(url.searchParams.get('limit') ?? '20')) },
       })
     }
-    if (path === '/api/tasks/t1/automation') {
+    const automationMatch = path.match(/^\/api\/tasks\/([^/]+)\/automation$/)
+    if (automationMatch) {
+      const taskId = automationMatch[1]
       return route.fulfill({
-        json: {
-          taskId: 't1',
-          retryCount: 1,
-          lastVerifyExitCode: 1,
-          lastPolicyVersion: 'abc123abc123',
-          autoDecisions: [
-            {
-              approvalId: 'ap1',
-              decision: 'allow',
-              toolName: 'Bash',
-              risk: 'low',
-              decidedAt: 10,
-              policyVersion: 'abc123abc123',
-            },
-          ],
-        },
+        json:
+          taskId === 't1'
+            ? {
+                taskId,
+                retryCount: 1,
+                lastVerifyExitCode: 1,
+                lastPolicyVersion: 'abc123abc123',
+                autoDecisions: [
+                  {
+                    approvalId: 'ap1',
+                    decision: 'allow',
+                    toolName: 'Bash',
+                    risk: 'low',
+                    decidedAt: 10,
+                    policyVersion: 'abc123abc123',
+                  },
+                ],
+              }
+            : {
+                taskId,
+                retryCount: 0,
+                lastVerifyExitCode: null,
+                lastPolicyVersion: null,
+                autoDecisions: [],
+              },
       })
     }
-    if (path === '/api/tasks/t1') {
+    const taskMatch = path.match(/^\/api\/tasks\/([^/]+)$/)
+    if (taskMatch && method === 'GET') {
+      const task = tasks.find((item) => item.id === taskMatch[1])
+      if (!task) {
+        return route.fulfill({ status: 404, json: { code: 'not_found', message: 'not found' } })
+      }
       return route.fulfill({
         json: {
-          task: { ...tasks[0], context: null, origin: null },
+          task: { ...task, context: null, origin: null },
           sessions: [],
           approvals: [],
           review: null,
@@ -272,12 +303,32 @@ async function mockAutomationApi(page: Page) {
   return { requests, notices }
 }
 
-async function routeCommands(page: Page, commands: Array<Record<string, unknown>>) {
+async function routeCommands(
+  page: Page,
+  commands: Array<Record<string, unknown>>,
+  failTaskIds: string[] = [],
+) {
   await page.routeWebSocket('**/ws', (ws) => {
     ws.onMessage((raw) => {
       const message = JSON.parse(String(raw)) as Record<string, unknown>
       if (!message.id) return
       commands.push(message)
+      const taskId = (message.payload as { taskId?: string } | undefined)?.taskId
+      if (message.type === 'task.enqueue' && taskId && failTaskIds.includes(taskId)) {
+        ws.send(
+          JSON.stringify({
+            v: 1,
+            ts: Date.now(),
+            type: 'error',
+            payload: {
+              code: 'enqueue_failed',
+              message: 'mock enqueue failed',
+              commandId: message.id,
+            },
+          }),
+        )
+        return
+      }
       ws.send(
         JSON.stringify({
           v: 1,
@@ -309,7 +360,7 @@ test('edits automation policy and drives the kill switch', async ({ page }) => {
 
   await expect(page.getByText('自动化关闭')).toBeVisible()
   const patch = requests.find((item) => item.method === 'PATCH')
-  expect(patch?.body as Record<string, unknown>).toMatchObject({
+  expect(patch?.body).toEqual({
     autopilot: { enabled: false, retryMax: 4 },
     approval: { autoApproveMaxRisk: 'medium' },
   })
@@ -334,6 +385,27 @@ test('edits automation policy and drives the kill switch', async ({ page }) => {
   await expect(page.getByText('自动化运行中')).toBeVisible()
 })
 
+test('blocks automation settings in an untrusted workspace', async ({ page }) => {
+  await routeCommands(page, [])
+  await mockAutomationApi(page, { trusted: false })
+  await page.goto('/?workspace=w1')
+
+  await expect(page.getByTestId('automation-status').getByText('自动化关闭')).toBeVisible()
+  await page.getByRole('button', { name: '设置' }).click()
+  await expect(page.getByText('先信任工作区，才能启用自动化。')).toBeVisible()
+  await expect(page.getByRole('button', { name: '保存' })).toBeDisabled()
+})
+
+test('shows env-forced pause without a restore action', async ({ page }) => {
+  await routeCommands(page, [])
+  await mockAutomationApi(page, { killSwitchForced: true })
+  await page.goto('/?workspace=w1')
+
+  await expect(page.getByText('由环境变量强制暂停')).toBeVisible()
+  await expect(page.getByTestId('automation-status').getByText('自动化已暂停')).toBeVisible()
+  await expect(page.getByRole('button', { name: '恢复' })).toHaveCount(0)
+})
+
 test('marks the digest read and generates a new one', async ({ page }) => {
   const commands: Array<Record<string, unknown>> = []
   await routeCommands(page, commands)
@@ -353,6 +425,9 @@ test('marks the digest read and generates a new one', async ({ page }) => {
   await page.getByRole('button', { name: '生成汇报' }).click()
   await expect(page.getByLabel('未读')).toBeVisible()
   await expect(page.getByText('有未读汇报')).toBeAttached()
+
+  await page.getByRole('button', { name: /任务一/ }).click()
+  await expect(page.getByTestId('task-detail')).toContainText('任务一')
 })
 
 test('batch starts todo tasks and shows task automation', async ({ page }) => {
@@ -378,4 +453,27 @@ test('batch starts todo tasks and shows task automation', async ({ page }) => {
   await page.locator('#task-board').getByText('任务一').click()
   await expect(page.getByTestId('task-automation')).toContainText('自动批准 1 次')
   await expect(page.getByTestId('task-automation')).toContainText('自动重试 1 次')
+
+  await page.getByLabel('展开看板').click()
+  await page.locator('#task-board').getByText('任务二').click()
+  await expect(page.getByTestId('task-automation')).toContainText('本任务没有自动决策')
+})
+
+test('selects all todos up to the limit and reports partial failure', async ({ page }) => {
+  const commands: Array<Record<string, unknown>> = []
+  await routeCommands(page, commands, ['t2'])
+  await mockAutomationApi(page, { taskCount: 21 })
+  await page.goto('/?workspace=w1')
+
+  await page.getByLabel('展开看板').click()
+  await page.getByRole('button', { name: '批量开工' }).click()
+  await page.getByRole('button', { name: '全选待办' }).click()
+  await expect(page.getByRole('button', { name: '开工 20 个' })).toBeEnabled()
+  await expect(page.getByRole('checkbox', { name: '选择 任务21' })).not.toBeChecked()
+
+  await page.getByRole('button', { name: '开工 20 个' }).click()
+  await expect(page.getByText('已开工 19 个，1 个失败')).toBeVisible()
+  await expect
+    .poll(() => commands.filter((command) => command.type === 'task.enqueue').length)
+    .toBe(20)
 })
