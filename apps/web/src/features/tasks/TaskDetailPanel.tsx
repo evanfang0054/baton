@@ -12,6 +12,7 @@ import { QuestionCard } from './QuestionCard'
 import { ReplyComposer } from './ReplyComposer'
 import { ReviewCard } from './ReviewCard'
 import { TaskActions } from './TaskActions'
+import { TaskAutomationCard } from './TaskAutomationCard'
 import { TaskHeader } from './TaskHeader'
 import { TaskOriginCard } from './TaskOriginCard'
 import { Transcript } from './Transcript'
@@ -135,6 +136,7 @@ function DetailContent({
         targetNodeId={task.nodeId}
       />
       <TaskOriginCard origin={task.origin} invalid={detail.originInvalid} />
+      <TaskAutomationCard taskId={task.id} />
 
       {task.status === 'waiting_input' && needsApproval ? (
         pendingApprovals.length > 0 ? (
