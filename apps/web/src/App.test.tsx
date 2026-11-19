@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
+import { installMatchMedia } from './test/match-media'
 import { useAppStore } from './stores/app'
 
 class FakeWebSocket {
@@ -152,6 +153,17 @@ afterEach(() => {
 })
 
 describe('App shell', () => {
+  it('renders the mobile shell without canvas, rail or right panel', async () => {
+    installMatchMedia(390)
+    renderApp()
+
+    expect(await screen.findByRole('navigation', { name: '移动端导航' })).toBeInTheDocument()
+    expect(screen.getByTestId('mobile-board')).toBeInTheDocument()
+    expect(screen.queryByTestId('canvas')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('board-rail')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('right-panel')).not.toBeInTheDocument()
+  })
+
   it('renders the three-pane shell and empty workspace state', async () => {
     renderApp()
     expect(screen.getByText('baton')).toBeInTheDocument()

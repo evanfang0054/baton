@@ -5,13 +5,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AutomationSettingsDialog } from './features/automation/AutomationSettingsDialog'
 import { AutomationStatus } from './features/automation/AutomationStatus'
 import { ConnectionStatus } from './features/shared/ConnectionStatus'
+import { MobileNav } from './features/shared/MobileNav'
 import { CanvasPanel, type CanvasPanelHandle } from './features/canvas/CanvasPanel'
 import { NodePanel } from './features/canvas/NodePanel'
 import { RealtimeProvider } from './features/realtime/RealtimeProvider'
 import { RightPanel } from './features/right-panel/RightPanel'
+import { DigestCard } from './features/supervisor/DigestCard'
 import { SupervisorPanel } from './features/supervisor/SupervisorPanel'
 import type { SupervisorTargetAgent } from './features/supervisor/supervisor-model'
 import { BoardRail } from './features/tasks/BoardRail'
+import { MobileBoardList } from './features/tasks/MobileBoardList'
+import { MobileTaskDetail } from './features/tasks/MobileTaskDetail'
 import { TaskBoard } from './features/tasks/TaskBoard'
 import { TaskDetailPanel } from './features/tasks/TaskDetailPanel'
 import { CreateWorkspaceDialog } from './features/workspaces/CreateWorkspaceDialog'
@@ -29,6 +33,7 @@ import {
 } from './lib/api'
 import { queryKeys } from './lib/query'
 import { readUrlState, writeUrlState } from './lib/url'
+import { useViewport } from './lib/use-viewport'
 import { useAppStore } from './stores/app'
 
 const authBannerClass = [
@@ -55,6 +60,7 @@ export function App() {
   const boardExpanded = useAppStore((state) => state.boardExpanded)
   const boardPinned = useAppStore((state) => state.boardPinned)
   const rightPanel = useAppStore((state) => state.rightPanel)
+  const mobileTab = useAppStore((state) => state.mobileTab)
   const wsStatus = useAppStore((state) => state.wsStatus)
   const setWorkspace = useAppStore((state) => state.setWorkspace)
   const setTask = useAppStore((state) => state.setTask)
@@ -63,6 +69,9 @@ export function App() {
   const setBoardExpanded = useAppStore((state) => state.setBoardExpanded)
   const setBoardPinned = useAppStore((state) => state.setBoardPinned)
   const setRightPanel = useAppStore((state) => state.setRightPanel)
+  const setMobileTab = useAppStore((state) => state.setMobileTab)
+  const viewport = useViewport()
+  const isMobile = viewport === 'mobile'
   const queryClient = useQueryClient()
   const canvasRef = useRef<CanvasPanelHandle>(null)
   const [trustDialogOpen, setTrustDialogOpen] = useState(false)
@@ -184,7 +193,10 @@ export function App() {
 
   return (
     <RealtimeProvider workspaceId={activeWorkspaceId}>
-      <div className="flex h-screen flex-col bg-background text-foreground">
+      <div
+        className="flex h-screen flex-col bg-background text-foreground"
+        data-viewport={viewport}
+      >
         <header className="flex h-14 shrink-0 items-center gap-3 border-b border-separator px-4">
           <span className="text-sm font-semibold">baton</span>
           <WorkspaceSwitcher
@@ -198,11 +210,13 @@ export function App() {
           {activeWorkspaceId ? <ConnectionStatus /> : null}
           {activeWorkspace ? (
             <>
-              <WorkspaceTrustBadge
-                workspace={activeWorkspace}
-                onTrust={() => setTrustDialogOpen(true)}
-                onRevoked={() => setTrustPromptedFor(activeWorkspace.id)}
-              />
+              {!isMobile ? (
+                <WorkspaceTrustBadge
+                  workspace={activeWorkspace}
+                  onTrust={() => setTrustDialogOpen(true)}
+                  onRevoked={() => setTrustPromptedFor(activeWorkspace.id)}
+                />
+              ) : null}
               <WorkspaceTrustDialog
                 key={activeWorkspace.id}
                 workspace={activeWorkspace}
@@ -211,7 +225,7 @@ export function App() {
               />
             </>
           ) : null}
-          {activeWorkspaceId ? (
+          {activeWorkspaceId && !isMobile ? (
             <AutomationSettingsDialog
               key={activeWorkspaceId}
               workspaceId={activeWorkspaceId}
@@ -220,26 +234,30 @@ export function App() {
             />
           ) : null}
           <div className="ml-auto flex items-center gap-2">
-            {activeWorkspaceId ? (
+            {activeWorkspaceId && !isMobile ? (
               <AutomationStatus
                 summary={automation.data ?? null}
                 onPause={() => void pauseAutomation()}
                 onOpenSettings={() => setAutomationSettingsOpen(true)}
               />
             ) : null}
-            <Button
-              variant="secondary"
-              isDisabled={!canvas.data}
-              onPress={() => canvasRef.current?.addNode('agent')}
-            >
-              新建 Agent 节点
-            </Button>
-            <CreateWorkspaceDialog
-              onCreated={(id) => {
-                setWorkspace(id)
-                writeUrlState({ workspaceId: id, taskId: null })
-              }}
-            />
+            {!isMobile ? (
+              <Button
+                variant="secondary"
+                isDisabled={!canvas.data}
+                onPress={() => canvasRef.current?.addNode('agent')}
+              >
+                新建 Agent 节点
+              </Button>
+            ) : null}
+            {!isMobile ? (
+              <CreateWorkspaceDialog
+                onCreated={(id) => {
+                  setWorkspace(id)
+                  writeUrlState({ workspaceId: id, taskId: null })
+                }}
+              />
+            ) : null}
           </div>
         </header>
         {unauthorized ? (
@@ -254,96 +272,154 @@ export function App() {
             登录后刷新页面。
           </div>
         ) : null}
-        <div className="flex min-h-0 flex-1">
-          <BoardRail
-            counts={counts}
-            total={counts.total}
-            expanded={boardExpanded}
-            onToggle={() => {
-              if (boardPinned) {
-                setBoardPinned(false)
-                setBoardExpanded(false)
-              } else {
-                setBoardExpanded(!boardExpanded)
-              }
-            }}
-            pinned={boardPinned}
-            onTogglePin={() => setBoardPinned(!boardPinned)}
-          />
-          <TaskBoard
-            tasks={tasks.data ?? []}
-            agentNodes={canvas.data?.nodes ?? []}
-            selectedTaskId={activeTaskId}
-            expanded={boardExpanded}
-            pinned={boardPinned}
-            onSelectTask={(id) => {
-              setSelectedNode(null)
-              setTask(id)
-              setRightPanel('task')
-              setBoardExpanded(false)
-              writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
-            }}
-            onClose={() => {
-              setBoardExpanded(false)
-              setBoardPinned(false)
-            }}
-          />
-          <main className="relative min-w-0 flex-1">
-            <CanvasPanel
-              ref={canvasRef}
-              canvas={canvas.data ?? null}
-              tasks={tasks.data ?? []}
-              selectedNodeId={selectedNodeId}
-              onSelectNode={(id) => {
-                setSelectedNode(id)
-                setRightPanel(id ? 'node' : 'supervisor')
-                if (id) setTask(null)
-              }}
-              onSelectNodes={setSelection}
-            />
-          </main>
-          <RightPanel
-            mode={rightPanel}
-            onModeChange={setRightPanel}
-            hasTask={Boolean(activeTaskId)}
-            hasNode={Boolean(selectedNode)}
-            hasUnreadNotice={notices.data?.notices[0]?.readAt === null}
-            supervisor={
-              <SupervisorPanel
-                workspaceId={activeWorkspaceId}
-                contextNodes={contextNodes}
-                targetAgent={targetAgent}
+        {isMobile ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            {mobileTab === 'board' ? (
+              <MobileBoardList
+                tasks={tasks.data ?? []}
+                selectedTaskId={activeTaskId}
+                onSelectTask={(id) => {
+                  setTask(id)
+                  setRightPanel('task')
+                  writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
+                }}
+                onOpenSupervisor={() => setMobileTab('supervisor')}
               />
-            }
-            task={<TaskDetailPanel />}
-            node={
-              selectedNode && activeWorkspaceId ? (
-                <NodePanel
-                  key={selectedNode.id}
-                  node={selectedNode}
-                  task={nodeTask ?? null}
+            ) : null}
+
+            {mobileTab === 'supervisor' ? (
+              <div className="min-h-0 flex-1 pb-16">
+                <SupervisorPanel
                   workspaceId={activeWorkspaceId}
-                  workspaceTrusted={activeWorkspace?.trusted ?? false}
                   contextNodes={contextNodes}
+                  targetAgent={targetAgent}
+                />
+              </div>
+            ) : null}
+
+            {mobileTab === 'digest' ? (
+              <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-24">
+                <DigestCard
+                  workspaceId={activeWorkspaceId ?? undefined}
                   onOpenTask={(id) => {
-                    setSelectedNode(null)
                     setTask(id)
-                    setRightPanel('task')
                     writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
                   }}
-                  onDeleted={() => {
-                    setSelectedNode(null)
-                    setRightPanel('supervisor')
-                  }}
-                  onClose={() => {
-                    setSelectedNode(null)
-                    setRightPanel('supervisor')
-                  }}
                 />
-              ) : null
-            }
-          />
-        </div>
+              </div>
+            ) : null}
+
+            <MobileNav
+              tab={mobileTab}
+              onChange={setMobileTab}
+              attentionCount={counts.needs_approval + counts.needs_reply + counts.needs_review}
+              unread={notices.data?.notices[0]?.readAt === null}
+            />
+
+            {activeTaskId ? (
+              <MobileTaskDetail
+                onClose={() => {
+                  setTask(null)
+                  setRightPanel('supervisor')
+                  writeUrlState({ workspaceId: activeWorkspaceId, taskId: null })
+                }}
+              >
+                <TaskDetailPanel />
+              </MobileTaskDetail>
+            ) : null}
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1">
+            <BoardRail
+              counts={counts}
+              total={counts.total}
+              expanded={boardExpanded}
+              onToggle={() => {
+                if (boardPinned) {
+                  setBoardPinned(false)
+                  setBoardExpanded(false)
+                } else {
+                  setBoardExpanded(!boardExpanded)
+                }
+              }}
+              pinned={boardPinned}
+              onTogglePin={() => setBoardPinned(!boardPinned)}
+            />
+            <TaskBoard
+              tasks={tasks.data ?? []}
+              agentNodes={canvas.data?.nodes ?? []}
+              selectedTaskId={activeTaskId}
+              expanded={boardExpanded}
+              pinned={boardPinned}
+              onSelectTask={(id) => {
+                setSelectedNode(null)
+                setTask(id)
+                setRightPanel('task')
+                setBoardExpanded(false)
+                writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
+              }}
+              onClose={() => {
+                setBoardExpanded(false)
+                setBoardPinned(false)
+              }}
+            />
+            <main className="relative min-w-0 flex-1">
+              <CanvasPanel
+                ref={canvasRef}
+                canvas={canvas.data ?? null}
+                tasks={tasks.data ?? []}
+                selectedNodeId={selectedNodeId}
+                onSelectNode={(id) => {
+                  setSelectedNode(id)
+                  setRightPanel(id ? 'node' : 'supervisor')
+                  if (id) setTask(null)
+                }}
+                onSelectNodes={setSelection}
+              />
+            </main>
+            <RightPanel
+              mode={rightPanel}
+              onModeChange={setRightPanel}
+              hasTask={Boolean(activeTaskId)}
+              hasNode={Boolean(selectedNode)}
+              hasUnreadNotice={notices.data?.notices[0]?.readAt === null}
+              supervisor={
+                <SupervisorPanel
+                  workspaceId={activeWorkspaceId}
+                  contextNodes={contextNodes}
+                  targetAgent={targetAgent}
+                />
+              }
+              task={<TaskDetailPanel />}
+              node={
+                selectedNode && activeWorkspaceId ? (
+                  <NodePanel
+                    key={selectedNode.id}
+                    node={selectedNode}
+                    task={nodeTask ?? null}
+                    workspaceId={activeWorkspaceId}
+                    workspaceTrusted={activeWorkspace?.trusted ?? false}
+                    contextNodes={contextNodes}
+                    onOpenTask={(id) => {
+                      setSelectedNode(null)
+                      setTask(id)
+                      setRightPanel('task')
+                      writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
+                    }}
+                    onDeleted={() => {
+                      setSelectedNode(null)
+                      setRightPanel('supervisor')
+                    }}
+                    onClose={() => {
+                      setSelectedNode(null)
+                      setRightPanel('supervisor')
+                    }}
+                  />
+                ) : null
+              }
+            />
+          </div>
+        )}
       </div>
     </RealtimeProvider>
   )
