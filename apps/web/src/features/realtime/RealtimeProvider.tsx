@@ -152,6 +152,13 @@ export function RealtimeProvider({
           }
           return
         }
+        if (event.type === 'notice') {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.notices(workspaceId) })
+          if (event.payload.kind === 'digest') {
+            toast.info('总管汇报已生成')
+          }
+          return
+        }
         if (event.type === 'error') {
           toast.danger(event.payload.message)
           return

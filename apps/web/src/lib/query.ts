@@ -9,6 +9,10 @@ export const queryKeys = {
   sessionEvents: (sessionId: string) => ['session-events', sessionId] as const,
   supervisorStatus: ['supervisor', 'status'] as const,
   supervisorMessages: (workspaceId: string) => ['supervisor', 'messages', workspaceId] as const,
+  automation: (workspaceId: string) => ['automation', workspaceId] as const,
+  notices: (workspaceId: string) => ['notices', workspaceId] as const,
+  taskAutomation: (taskId: string) => ['task-automation', taskId] as const,
+  audit: (prefix: string) => ['audit', prefix] as const,
 }
 
 export function createQueryClient() {
