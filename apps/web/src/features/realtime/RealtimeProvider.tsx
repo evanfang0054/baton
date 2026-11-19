@@ -5,7 +5,7 @@ import type {
 } from '@baton/protocol'
 import { toast } from '@heroui/react/toast'
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { CommandProvider, offlineCommand, type CommandSender } from '../../lib/command-context'
 import { queryKeys } from '../../lib/query'
 import { createWsClient } from '../../lib/ws'
@@ -25,6 +25,8 @@ export function RealtimeProvider({
   const queryClient = useQueryClient()
   const setWsStatus = useAppStore((state) => state.setWsStatus)
   const [send, setSend] = useState<CommandSender | null>(null)
+  // 首连会回放全部历史 ws_event；只有挂载之后产生的事件才提示，避免每次刷新弹旧 toast。
+  const liveSinceRef = useRef(Date.now())
 
   useEffect(() => {
     if (!workspaceId) {
@@ -38,8 +40,12 @@ export function RealtimeProvider({
       invalidateTimer = window.setTimeout(() => {
         invalidateTimer = undefined
         void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.automation(workspaceId) })
         const taskId = useAppStore.getState().activeTaskId
-        if (taskId) void queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+        if (taskId) {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+          void queryClient.invalidateQueries({ queryKey: queryKeys.taskAutomation(taskId) })
+        }
       }, 100)
     }
 
@@ -80,6 +86,7 @@ export function RealtimeProvider({
         }
         // daemon 重启或首屏失败后，用一次重连把 REST 快照补齐。
         void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.automation(workspaceId) })
         void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
         void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
         void queryClient.invalidateQueries({ queryKey: queryKeys.supervisorStatus })
@@ -153,8 +160,9 @@ export function RealtimeProvider({
           return
         }
         if (event.type === 'notice') {
+          if (event.payload.workspaceId && event.payload.workspaceId !== workspaceId) return
           void queryClient.invalidateQueries({ queryKey: queryKeys.notices(workspaceId) })
-          if (event.payload.kind === 'digest') {
+          if (event.payload.kind === 'digest' && event.ts >= liveSinceRef.current) {
             toast.info('总管汇报已生成')
           }
           return

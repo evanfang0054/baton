@@ -89,10 +89,9 @@ describe('AutomationStatus', () => {
     expect(screen.queryByRole('button', { name: '暂停自动化' })).not.toBeInTheDocument()
   })
 
-  it('renders nothing before the summary loads', () => {
-    const { container } = render(
-      <AutomationStatus summary={null} onPause={() => {}} onOpenSettings={() => {}} />,
-    )
-    expect(container).toBeEmptyDOMElement()
+  it('keeps settings reachable before the summary loads', () => {
+    render(<AutomationStatus summary={null} onPause={() => {}} onOpenSettings={() => {}} />)
+    expect(screen.getByText('自动化状态未知')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '设置' })).toBeInTheDocument()
   })
 })

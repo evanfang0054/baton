@@ -35,11 +35,16 @@ export function TaskBoard({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [batching, setBatching] = useState(false)
 
+  const todoTasks = tasks.filter((task) => task.status === 'todo')
+  // 任务列表或 workspace 变化后，选择集里可能留下已不在当前看板的 id；提交前必须收敛。
+  const activeSelected = new Set(
+    [...selected].filter((id) => todoTasks.some((task) => task.id === id)),
+  )
+
   if (!expanded && !pinned) return null
   const grouped = groupTasks(tasks)
   const taskNodeIds = new Set(tasks.map((task) => task.nodeId).filter(Boolean))
   const unplanned = agentNodes.filter((node) => node.type === 'agent' && !taskNodeIds.has(node.id))
-  const todoTasks = tasks.filter((task) => task.status === 'todo')
 
   const exitSelection = () => {
     setSelecting(false)
@@ -48,7 +53,7 @@ export function TaskBoard({
 
   const toggle = (taskId: string) => {
     setSelected((previous) => {
-      const next = new Set(previous)
+      const next = new Set([...previous].filter((id) => todoTasks.some((task) => task.id === id)))
       if (next.has(taskId)) {
         next.delete(taskId)
       } else if (next.size < BATCH_LIMIT) {
@@ -63,11 +68,11 @@ export function TaskBoard({
   }
 
   const startBatch = async () => {
-    if (batching || selected.size === 0) return
+    if (batching || activeSelected.size === 0) return
     setBatching(true)
     let started = 0
     let failed = 0
-    for (const taskId of selected) {
+    for (const taskId of activeSelected) {
       try {
         await send({ type: 'task.enqueue', payload: { taskId } })
         started += 1
@@ -106,10 +111,12 @@ export function TaskBoard({
               <Button
                 variant="primary"
                 size="sm"
-                isDisabled={selected.size === 0 || selected.size > BATCH_LIMIT || batching}
+                isDisabled={
+                  activeSelected.size === 0 || activeSelected.size > BATCH_LIMIT || batching
+                }
                 onPress={() => void startBatch()}
               >
-                开工 {selected.size} 个
+                开工 {activeSelected.size} 个
               </Button>
             </>
           ) : (
@@ -132,7 +139,7 @@ export function TaskBoard({
       </header>
       {selecting ? (
         <p className="shrink-0 border-b border-separator px-3 py-1 text-xs text-muted">
-          仅待办任务可开工，最多 {BATCH_LIMIT} 个。
+          仅待办任务可开工，已选 {activeSelected.size} / 上限 {BATCH_LIMIT}。
         </p>
       ) : null}
       <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto p-3">

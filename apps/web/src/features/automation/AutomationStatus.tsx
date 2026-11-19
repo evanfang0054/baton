@@ -10,7 +10,16 @@ export function AutomationStatus({
   onPause: () => void
   onOpenSettings: () => void
 }) {
-  if (!summary) return null
+  if (!summary) {
+    return (
+      <div data-testid="automation-status" className="flex items-center gap-2">
+        <span className="text-xs text-muted">自动化状态未知</span>
+        <Button variant="secondary" onPress={onOpenSettings}>
+          设置
+        </Button>
+      </div>
+    )
+  }
   const paused = summary.killSwitch
   // 有效自动化 = 策略开启 && 工作区已信任 && 未暂停；未信任时不能显示“运行中”。
   const running = summary.policy.autopilot.enabled && summary.trusted && !paused

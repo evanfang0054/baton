@@ -232,7 +232,8 @@ describe('RealtimeProvider', () => {
     })
 
     await waitFor(() => expect(invalidate).toHaveBeenCalled())
-    expect(invalidate).toHaveBeenCalledTimes(1)
+    // tasks + 当前任务详情/自动化记录各一次。
+    expect(invalidate).toHaveBeenCalledTimes(2)
 
     socket.message({
       v: 1,

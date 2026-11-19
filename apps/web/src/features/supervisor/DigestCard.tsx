@@ -74,7 +74,6 @@ export function DigestCard({
     try {
       await generateDigest(workspaceId)
       await invalidate()
-      toast.success('汇报已生成')
     } catch (cause) {
       toast.danger(cause instanceof Error ? cause.message : '生成汇报失败')
     } finally {
@@ -82,12 +81,15 @@ export function DigestCard({
     }
   }
 
-  const pendingCount = report
+  const attentionCount = report
     ? report.snapshot.attention.needsApproval +
       report.snapshot.attention.needsReply +
       report.snapshot.attention.needsAttention
     : 0
+  // dropped 也是 waiting_input，但 attention 会把它算进 needs_reply；展示时扣除。
+  const pendingCount = Math.max(0, attentionCount - (report?.dropped.length ?? 0))
   const blocked = report?.blocked.slice(0, 3) ?? []
+  const dropped = report?.dropped.slice(0, 3) ?? []
 
   return (
     <section
@@ -125,7 +127,16 @@ export function DigestCard({
       </div>
 
       {!report ? (
-        <p className="text-xs text-muted">还没有汇报</p>
+        notices.isError ? (
+          <div role="alert" className="flex items-center justify-between gap-2 text-xs text-danger">
+            <span>汇报加载失败</span>
+            <Button variant="tertiary" size="sm" onPress={() => void notices.refetch()}>
+              重试
+            </Button>
+          </div>
+        ) : (
+          <p className="text-xs text-muted">还没有汇报</p>
+        )
       ) : (
         <>
           <p aria-live="polite" className="text-xs text-muted">
@@ -139,6 +150,9 @@ export function DigestCard({
             </span>
             <span className="rounded-md bg-default px-2 py-0.5">
               进行中 {report.snapshot.running}
+            </span>
+            <span className="rounded-md bg-default px-2 py-0.5">
+              已放弃 {report.dropped.length}
             </span>
           </div>
           <p className="text-xs text-muted">
@@ -164,6 +178,11 @@ export function DigestCard({
                 </li>
               ))}
             </ul>
+          ) : null}
+          {dropped.length > 0 ? (
+            <p className="text-xs text-muted">
+              已放弃：{dropped.map((task) => task.title).join('、')}
+            </p>
           ) : null}
           {notice?.readAt === null ? (
             <div>

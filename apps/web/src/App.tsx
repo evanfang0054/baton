@@ -307,9 +307,7 @@ export function App() {
             onModeChange={setRightPanel}
             hasTask={Boolean(activeTaskId)}
             hasNode={Boolean(selectedNode)}
-            hasUnreadNotice={Boolean(
-              notices.data?.notices.some((notice) => notice.readAt === null),
-            )}
+            hasUnreadNotice={notices.data?.notices[0]?.readAt === null}
             supervisor={
               <SupervisorPanel
                 workspaceId={activeWorkspaceId}

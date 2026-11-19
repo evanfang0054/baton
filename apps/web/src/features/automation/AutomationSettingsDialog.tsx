@@ -4,7 +4,7 @@ import { Input } from '@heroui/react/input'
 import { Modal } from '@heroui/react/modal'
 import { toast } from '@heroui/react/toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getAutomation, listAudit, setKillSwitch, updateAutomationPolicy } from '../../lib/api'
 import { queryKeys } from '../../lib/query'
 
@@ -36,14 +36,22 @@ export function AutomationSettingsDialog({
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [restoring, setRestoring] = useState(false)
+  const syncedVersion = useRef<string | null>(null)
 
   useEffect(() => {
+    if (!open) {
+      syncedVersion.current = null
+      return
+    }
     if (!summary.data) return
+    const version = summary.data.policyVersion
+    if (syncedVersion.current === version) return
+    syncedVersion.current = version
     setEnabled(summary.data.policy.autopilot.enabled)
     setRetryMax(summary.data.policy.autopilot.retryMax)
     setRisk(summary.data.policy.approval.autoApproveMaxRisk === 'medium' ? 'medium' : 'low')
     setError(null)
-  }, [summary.data])
+  }, [open, summary.data])
 
   const current = summary.data
   const patch: AutomationPolicyPatch = {}
