@@ -11,6 +11,7 @@
 
 - [本地运行与运维](runbooks/local.md)
 - [总管模型配置](runbooks/supervisor-config.md)
+- [移动端访问与运维](runbooks/mobile-access.md)
 
 ## 现行 spec
 
