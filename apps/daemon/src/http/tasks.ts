@@ -52,13 +52,14 @@ export function registerTaskRoutes(app: FastifyInstance, deps: { db: Db; logger:
       deps.logger.warn({ event: 'task_origin_invalid', taskId: params.id }, 'task origin invalid')
     }
     const task = detail.task
+    const review = getReviewByTask(deps.db, task.id)
     return TaskDetailResponse.parse({
       task,
       contextInvalid: detail.contextInvalid,
       originInvalid: detail.originInvalid,
       sessions: listSessionsByTask(deps.db, task.id),
       approvals: listApprovalsByTask(deps.db, task.id),
-      review: getReviewByTask(deps.db, task.id),
+      review: review ? { ...review, diffAvailable: false } : null,
       waitingSince: waitingSinceFor(task),
       attention: attentionFor(task.status, task.waitingReason),
     })

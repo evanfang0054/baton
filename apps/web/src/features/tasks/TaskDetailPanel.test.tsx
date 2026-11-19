@@ -358,6 +358,7 @@ describe('TaskDetailPanel', () => {
       verifyOutput: 'verify ok',
       diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
       decidedAt: null,
+      diffAvailable: false,
       response: null,
     } as const
     stubFetch(
