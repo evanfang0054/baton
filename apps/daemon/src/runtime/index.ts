@@ -635,6 +635,7 @@ export function createRuntime(deps: RuntimeDeps) {
   if (deps.adapters) {
     sessionHolder.value = createSessionRunner({
       db: deps.db,
+      dataDir: deps.config.dataDir,
       adapters: deps.adapters,
       eventStore,
       broadcast: deps.broadcast,

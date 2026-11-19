@@ -21,10 +21,12 @@ import {
   updateApprovalDecision,
   updateSessionEngineId,
   updateSessionStatus,
+  updateTaskWorktreePath,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError, toAppError } from '../errors.js'
 import { writeEscapesWorkspace } from '../workspace/safety.js'
+import { createWorktree } from '../workspace/worktree.js'
 import { hashPolicy } from '../automation/version.js'
 import type { AdapterFactory } from './adapter-factory.js'
 import { ASK_USER_QUESTION_TOOL, parseStoredAnswers, validateQuestionAnswers } from './questions.js'
@@ -32,6 +34,7 @@ import type { StartSessionInput, TransitionOutcome } from './types.js'
 
 export interface SessionRunnerDeps {
   db: Db
+  dataDir: string
   adapters: AdapterFactory
   eventStore: EventStore
   broadcast: (event: BroadcastEvent) => void
@@ -314,12 +317,30 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       return
     }
 
+    let workspacePath = input.workspacePath
+    if (task.workspaceMode === 'worktree') {
+      const prepared = await createWorktree({
+        dataDir: deps.dataDir,
+        workspacePath: input.workspacePath,
+        taskId: task.id,
+        existingPath: task.worktreePath,
+      })
+      if (!prepared.ok) {
+        failTask(task.id, input.sessionId, appError('worktree_unavailable', prepared.reason))
+        return
+      }
+      workspacePath = prepared.path
+      if (task.worktreePath !== prepared.path) {
+        updateTaskWorktreePath(deps.db, task.id, prepared.path, deps.now())
+      }
+    }
+
     let run: AgentRun
     try {
       const adapter = await deps.adapters(task.engine)
       run = await adapter.start({
         prompt: task.prompt,
-        cwd: input.workspacePath,
+        cwd: workspacePath,
         permissionMode: 'manual',
         policy: input.policy,
         workspaceTrust: input.workspaceTrust,
@@ -333,7 +354,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     const active: ActiveRun = {
       taskId: task.id,
       sessionId: input.sessionId,
-      workspacePath: input.workspacePath,
+      workspacePath,
       run,
       requestIdByApprovalId: new Map(),
       seq: 0,
