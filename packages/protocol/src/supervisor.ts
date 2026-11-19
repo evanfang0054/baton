@@ -124,7 +124,7 @@ export const SupervisorTaskCard = z.object({
   title: z.string().min(1),
   target: z.object({ id: Id, title: z.string().min(1), engine: Engine }),
   contextCount: z.number().int().nonnegative(),
-  status: z.literal('todo'),
+  status: z.enum(['todo', 'queued']),
 })
 export type SupervisorTaskCard = z.infer<typeof SupervisorTaskCard>
 

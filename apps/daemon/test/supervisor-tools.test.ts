@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { getTask } from '../src/db/repositories.js'
+import { getNode, getTask } from '../src/db/repositories.js'
 import { createTaskService } from '../src/runtime/task-service.js'
 import { createSupervisorTools, type ToolContext } from '../src/supervisor/tools.js'
 import { createTestDb, seedTask, seedTextNode, type TestDb } from './helpers/db.js'
@@ -44,10 +44,14 @@ function setup() {
     now: () => 10,
     newId: () => 'task-new',
   })
+  let nodeSeq = 0
   const tools = createSupervisorTools({
     db: database.db,
     taskService,
     now: () => 10,
+    newId: () => `node-${++nodeSeq}`,
+    defaultEngine: 'claude-sdk',
+    enqueueTask: () => ({ ok: true, status: 'queued' }),
   })
   return { database, seeded, tools, root }
 }
@@ -95,7 +99,65 @@ describe('supervisor tools', () => {
     })
   })
 
-  it('rejects context outside the current selection', async () => {
+  it('creates text and agent nodes with the default engine', async () => {
+    const { database, seeded, tools } = setup()
+    const text = (await tools.create_text.execute({ content: '资料 A' }, ctx(seeded))) as {
+      nodeId: string
+    }
+    const agent = (await tools.create_agent.execute({ title: '资料 Agent' }, ctx(seeded))) as {
+      nodeId: string
+      engine: string
+    }
+
+    expect(getNode(database.db, text.nodeId)?.type).toBe('text')
+    const node = getNode(database.db, agent.nodeId)
+    expect(node?.type).toBe('agent')
+    expect(node?.type === 'agent' ? node.data.engine : null).toBe('claude-sdk')
+  })
+
+  it('auto-creates an agent and can start the task', async () => {
+    const { database, seeded, tools } = setup()
+    const bare: ToolContext = {
+      ...ctx(seeded),
+      selection: { contextNodeIds: [], agentCandidates: [] },
+    }
+    const result = (await tools.create_task.execute({ title: '自动派活', start: true }, bare)) as {
+      taskId: string
+      status: string
+      target: { id: string }
+    }
+
+    expect(result.status).toBe('queued')
+    const task = getTask(database.db, 'task-new')
+    expect(task?.nodeId).toBe(result.target.id)
+    const node = getNode(database.db, result.target.id)
+    expect(node?.type).toBe('agent')
+    expect(node?.type === 'agent' ? node.data.engine : null).toBe('claude-sdk')
+  })
+
+  it('updates a todo task title and starts it on a follow-up call', async () => {
+    const { database, seeded, tools } = setup()
+    const context = ctx(seeded)
+    await tools.create_task.execute({ title: '文档助手' }, context)
+    const second = (await tools.create_task.execute(
+      { title: '给 README 增加用法说明', start: true },
+      context,
+    )) as { title: string; status: string }
+
+    expect(second).toMatchObject({ title: '给 README 增加用法说明', status: 'queued' })
+    expect(getTask(database.db, 'task-new')?.title).toBe('给 README 增加用法说明')
+    expect(database.raw.prepare('select count(*) as n from task').get()).toEqual({ n: 2 })
+  })
+
+  it('rejects enqueue for a task that is not todo', async () => {
+    const { database, seeded, tools } = setup()
+    database.raw.prepare("update task set status='review' where id=?").run(seeded.taskId)
+    await expect(
+      tools.enqueue_task.execute({ taskId: seeded.taskId }, ctx(seeded)),
+    ).rejects.toMatchObject({ code: 'task_not_enqueueable' })
+  })
+
+  it('rejects context nodes that are not on the canvas', async () => {
     const { seeded, tools } = setup()
     await expect(
       tools.create_task.execute(

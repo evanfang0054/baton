@@ -34,7 +34,8 @@ export function SupervisorMessage({
     .filter((call) => call.name === 'create_task' && call.ok)
     .map((call) => SupervisorTaskCardSchema.safeParse(call.result))
     .flatMap((parsed) => (parsed.success ? [parsed.data] : []))
-    .filter((card, index, all) => all.findIndex((item) => item.taskId === card.taskId) === index)
+  // 同一轮可能先建待办、再补一次开工/改标题；保留最后一次，避免卡片显示旧状态。
+  const uniqueCards = [...new Map(cards.map((card) => [card.taskId, card])).values()]
 
   return (
     <article className="flex gap-3">
@@ -62,7 +63,7 @@ export function SupervisorMessage({
         {message.toolCalls.map((call) => (
           <SupervisorToolCard key={call.id} tool={toToolView(call)} />
         ))}
-        {cards.map((card) => (
+        {uniqueCards.map((card) => (
           <SupervisorTaskCard key={card.taskId} card={card} />
         ))}
       </div>

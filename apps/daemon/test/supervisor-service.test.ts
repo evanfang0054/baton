@@ -55,6 +55,8 @@ function setup(engine: SupervisorEngine) {
     db: database.db,
     dataDir: root,
     taskService,
+    defaultEngine: 'claude-sdk',
+    enqueueTask: () => ({ ok: true, status: 'queued' }),
     engine,
     now: () => 10,
     newId: () => `id-${++sequence}`,

@@ -4,6 +4,7 @@ import type {
   AppError,
   ApprovalDecideInput,
   ClientMessage,
+  Engine,
   ReviewDecideInput,
   TaskTransitionEvent,
 } from '@baton/protocol'
@@ -197,10 +198,17 @@ export function createRuntime(deps: RuntimeDeps) {
     ...(deps.logger ? { logger: deps.logger } : {}),
   })
   rescheduleDigest = () => digestScheduler.reschedule()
+  const defaultEngine: Engine =
+    deps.engines && deps.engines.get('claude-sdk').status === 'unavailable' ? 'fake' : 'claude-sdk'
   const supervisor = createSupervisorService({
     db: deps.db,
     dataDir: deps.config.dataDir,
     taskService,
+    defaultEngine,
+    enqueueTask: (taskId) => {
+      const outcome = enqueue(taskId)
+      return outcome.ok ? { ok: true, status: outcome.status } : { ok: false, error: outcome.error }
+    },
     ...(deps.supervisorEngine ? { engine: deps.supervisorEngine } : {}),
     now,
     newId,

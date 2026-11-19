@@ -2,6 +2,7 @@ import { SUPERVISOR_POLICY, supervisorPolicyVersion } from '@baton/core'
 import {
   SupervisorTaskCard,
   type AppError,
+  type Engine as EngineValue,
   type Node,
   type SupervisorMessage,
   type SupervisorMessagesResponse,
@@ -22,6 +23,7 @@ import {
   createSupervisorTools,
   type BoundTool,
   type BoundToolset,
+  type EnqueueTaskResult,
   type ToolContext,
 } from './tools.js'
 
@@ -32,6 +34,8 @@ export interface SupervisorServiceDeps {
   db: Db
   dataDir: string
   taskService: TaskService
+  defaultEngine: EngineValue
+  enqueueTask: (taskId: string) => EnqueueTaskResult
   engine?: SupervisorEngine
   now: () => number
   newId: () => string
@@ -92,6 +96,7 @@ function candidateCard(input: {
   nodes: Node[]
   targetNodeId?: string
   policyVersion: string
+  defaultEngine: string
 }): string {
   const selected = input.nodes
     .map(
@@ -118,6 +123,7 @@ ${selected}
 <agent_candidates>
 ${agents}
 </agent_candidates>${target}
+<default_engine>${xmlEscape(input.defaultEngine)}</default_engine>
 <mode>explicit</mode>
 <policy_version>${xmlEscape(input.policyVersion)}</policy_version>`
 }
@@ -128,6 +134,9 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     db: deps.db,
     taskService: deps.taskService,
     now: deps.now,
+    newId: deps.newId,
+    defaultEngine: deps.defaultEngine,
+    enqueueTask: deps.enqueueTask,
   })
   const policyVersion = supervisorPolicyVersion(SUPERVISOR_POLICY, PROMPT_VERSION)
   const active = new Set<string>()
@@ -278,6 +287,30 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           input.assistantMessageId,
           input.threadId,
         ),
+        enqueue_task: wrapTool(
+          'enqueue_task',
+          bound.enqueue_task,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        create_text: wrapTool(
+          'create_text',
+          bound.create_text,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        create_agent: wrapTool(
+          'create_agent',
+          bound.create_agent,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        create_edge: wrapTool(
+          'create_edge',
+          bound.create_edge,
+          input.assistantMessageId,
+          input.threadId,
+        ),
       }
       const history = trimHistory(store.listMessages(input.threadId, 21).messages.slice(-20))
       const engine = deps.engine ?? createAiSdkSupervisorEngine(input.config)
@@ -290,6 +323,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           nodes: selected,
           targetNodeId,
           policyVersion,
+          defaultEngine: deps.defaultEngine,
         })}`,
         messages: history,
         tools: wrapped,
@@ -301,7 +335,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       let reason = 'explicit request'
       const hasCreate = result.toolCalls.some((call) => call.name === 'create_task' && call.ok)
       if (/已(建|创建)|建好了|任务.*(创建|建好)/.test(text) && !hasCreate) {
-        text += '\n\n（我没有创建任务；如果你要建任务，请明确说并选中目标 Agent。）'
+        text += '\n\n（我没有创建任务；请明确说要做什么，我再建任务。）'
         reason = 'claim_without_tool'
       }
       if (/已完成|已通过/.test(text) && !result.toolCalls.some((call) => call.ok)) {

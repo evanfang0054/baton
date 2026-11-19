@@ -484,6 +484,16 @@ export function updateTaskWorktreePath(
     .run()
 }
 
+/** 总管同一轮内先建后改标题时使用；只允许 todo 任务由调用方自行约束。 */
+export function updateTaskTitle(
+  db: Pick<Db, 'update'>,
+  id: string,
+  title: string,
+  updatedAt: number,
+): void {
+  db.update(task).set({ title, updatedAt }).where(eq(task.id, id)).run()
+}
+
 export function getTaskPolicy(db: Db, id: string): Policy | null {
   const row = db.select({ policyJson: task.policyJson }).from(task).where(eq(task.id, id)).get()
   if (!row?.policyJson) return null
