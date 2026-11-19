@@ -38,6 +38,11 @@ const AutopilotPolicy = z.object({
   enabled: z.boolean().default(false),
   retryMax: z.number().int().nonnegative().default(2),
   digestCron: z.string().min(1).default('0 9,21 * * *'),
+  /**
+   * 总管全权：仅对 supervisor-chat 创建的任务生效。
+   * 除 deny 规则外，所有工具（含高风险 Bash）自动批准；仍受 trust 与 kill switch 约束。
+   */
+  delegatedAuthority: z.boolean().default(false),
 })
 
 export const PolicySchema = z.object({

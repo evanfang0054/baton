@@ -35,6 +35,7 @@ export function AutomationSettingsDialog({
   const [enabled, setEnabled] = useState(false)
   const [retryMax, setRetryMax] = useState(2)
   const [risk, setRisk] = useState<Risk>('low')
+  const [delegatedAuthority, setDelegatedAuthority] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [restoring, setRestoring] = useState(false)
@@ -51,6 +52,7 @@ export function AutomationSettingsDialog({
     syncedVersion.current = version
     setEnabled(summary.data.policy.autopilot.enabled)
     setRetryMax(summary.data.policy.autopilot.retryMax)
+    setDelegatedAuthority(summary.data.policy.autopilot.delegatedAuthority)
     setRisk(summary.data.policy.approval.autoApproveMaxRisk === 'medium' ? 'medium' : 'low')
     setError(null)
   }, [open, summary.data])
@@ -58,9 +60,17 @@ export function AutomationSettingsDialog({
   const current = summary.data
   const patch: AutomationPolicyPatch = {}
   if (current) {
-    const autopilot: { enabled?: boolean; retryMax?: number } = {}
-    if (enabled !== current.policy.autopilot.enabled) autopilot.enabled = enabled
+    const autopilot: {
+      enabled?: boolean
+      retryMax?: number
+      delegatedAuthority?: boolean
+    } = {}
+    const desiredEnabled = enabled || delegatedAuthority
+    if (desiredEnabled !== current.policy.autopilot.enabled) autopilot.enabled = desiredEnabled
     if (retryMax !== current.policy.autopilot.retryMax) autopilot.retryMax = retryMax
+    if (delegatedAuthority !== current.policy.autopilot.delegatedAuthority) {
+      autopilot.delegatedAuthority = delegatedAuthority
+    }
     if (Object.keys(autopilot).length > 0) patch.autopilot = autopilot
 
     const approval: { autoApproveMaxRisk?: Risk } = {}
@@ -151,11 +161,28 @@ export function AutomationSettingsDialog({
                     <input
                       type="checkbox"
                       aria-label="自动驾驶"
-                      checked={enabled}
-                      disabled={!current.trusted}
+                      checked={enabled || delegatedAuthority}
+                      disabled={!current.trusted || delegatedAuthority}
                       onChange={(event) => setEnabled(event.target.checked)}
                     />
                   </label>
+                  <label className="flex items-center justify-between gap-3 text-sm">
+                    <span>总管全权（含高风险自动批准）</span>
+                    <input
+                      type="checkbox"
+                      aria-label="总管全权"
+                      checked={delegatedAuthority}
+                      disabled={!current.trusted}
+                      onChange={(event) => {
+                        setDelegatedAuthority(event.target.checked)
+                        if (event.target.checked) setEnabled(true)
+                      }}
+                    />
+                  </label>
+                  <p className="text-xs text-warning">
+                    总管全权只对总管创建的任务生效：除 deny 规则外，所有工具（含高风险
+                    Bash）都会自动批准。每次自动决定写入审计，kill switch 可随时停止。
+                  </p>
                   <label className="flex flex-col gap-1 text-sm">
                     <span>最大自动重试次数</span>
                     <Input
@@ -180,7 +207,7 @@ export function AutomationSettingsDialog({
                     </select>
                   </label>
                   <p className="text-xs text-muted">
-                    修改只影响新启动的会话；运行中的任务使用启动时的策略快照。高风险操作永远不会自动批准。
+                    修改只影响新启动的会话；运行中的任务使用启动时的策略快照。未开启总管全权时，高风险操作永远不会自动批准。
                   </p>
                   {current.digestCronUnsupported ? (
                     <p className="text-xs text-warning">

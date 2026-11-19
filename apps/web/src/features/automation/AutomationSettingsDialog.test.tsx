@@ -21,7 +21,12 @@ function summary(overrides: Partial<AutomationSummary> = {}): AutomationSummary 
     policy: {
       verify: { timeoutSec: 900, maxOutputBytes: 262144 },
       approval: { default: 'ask', allow: ['Read'], deny: [], autoApproveMaxRisk: 'low' },
-      autopilot: { enabled: true, retryMax: 2, digestCron: '0 9,21 * * *' },
+      autopilot: {
+        enabled: true,
+        retryMax: 2,
+        digestCron: '0 9,21 * * *',
+        delegatedAuthority: false,
+      },
     },
     policyVersion: 'abc123abc123',
     killSwitch: false,
@@ -62,6 +67,22 @@ describe('AutomationSettingsDialog', () => {
     await waitFor(() =>
       expect(updateAutomationPolicy).toHaveBeenCalledWith('w1', {
         autopilot: { retryMax: 3 },
+      }),
+    )
+  })
+
+  it('enables delegated authority including high-risk auto approval', async () => {
+    vi.mocked(getAutomation).mockResolvedValue(summary())
+    vi.mocked(listAudit).mockResolvedValue([])
+    vi.mocked(updateAutomationPolicy).mockResolvedValue(summary())
+    wrap()
+
+    await userEvent.click(await screen.findByLabelText('总管全权'))
+    await userEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() =>
+      expect(updateAutomationPolicy).toHaveBeenCalledWith('w1', {
+        autopilot: { delegatedAuthority: true },
       }),
     )
   })

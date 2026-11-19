@@ -58,7 +58,7 @@ M2 的 Router v0 是刻意保守的：只暴露 `list_tasks` / `get_task` / `cre
 | D5 | 同一轮去重 | 同一轮只保留一个任务；todo 阶段允许改标题 | 模型可能先建错再补，不能留下两张工单 |
 | D6 | 完成感知 | Phase 2；只在需要人（review/failed/waiting_input）时投递一条汇总 | 控制注意力成本，不做每条事件都通知 |
 | D7 | 代验收 | Phase 2，workspace 级显式开启；仅限总管创建的 task；verify 通过且 diff 在阈值内；写审计；可 reopen | 老板需要结果，但不能让模型无声结束任何任务 |
-| D8 | 代审批 | Phase 2，沿用现有 policy 的 allow/deny 与 risk；deny 优先；kill switch 生效 | 不绕过已有安全边界 |
+| D8 | 代审批 | 已实现：`autopilot.delegatedAuthority` 对总管任务放开高风险（deny 优先，trust/kill switch 约束，写审计） | 用户 2026-11-20 明确选择“高风险也自动批” |
 
 ## 4. 协议与工具增量（Phase 1）
 
@@ -104,11 +104,16 @@ enqueueTaskInput = { taskId: string }
 - 人仍可 reopen；reopen 后该 task 不再自动验收，除非人再次明确要求。
 - 人类创建的 task 永远不代验收。
 
-### 5.3 代审批
+### 5.3 代审批（已实现）
 
-- 不新增“总管绕过 policy”的路径；只复用现有 `evaluateApproval`。
-- `delegatedAcceptance` 不自动等于放开高风险；高风险如需自动，必须在 policy allow 里显式列出。
-- 所有自动决定写 audit，kill switch 立即生效。
+- 新增 workspace policy `autopilot.delegatedAuthority`（默认 false）。
+- 只有同时满足以下条件，`evaluateApproval` 才对**除 deny 外**的所有工具自动放行（含高风险）：
+  1. workspace trusted；
+  2. kill switch 关闭；
+  3. `autopilot.enabled` 与 `autopilot.delegatedAuthority` 都为 true；
+  4. 当前 session 的 task 由总管创建（origin.source === 'supervisor-chat'）。
+- `AskUserQuestion` 仍由人回答；写操作逃逸 workspace 仍降级为人工确认。
+- 所有自动决定写 `approval.auto_allow` audit，kill switch 立即生效。
 
 ## 6. 安全与隐私
 
@@ -121,11 +126,11 @@ enqueueTaskInput = { taskId: string }
 ## 7. 开放问题（需要老板确认）
 
 1. 是否开启 Phase 2 的“代验收”？建议先只做“完成汇总”，观察一周再开自动通过。
-2. 高风险工具（如任意 Bash）是否允许总管自动批准？当前建议：不允许；只允许 policy allow list 内的操作。
-3. 完成汇总是否需要触发一次模型总结，还是只追加一条模板消息？前者更智能但更贵。
+2. 完成汇总是否需要触发一次模型总结，还是只追加一条模板消息？前者更智能但更贵。
 
 ## 8. 验证
 
 - Phase 1：`pnpm verify`；`supervisor-tools` 覆盖 create_text/create_agent、auto agent、start、标题纠正、enqueue 守卫。
 - 手工验收：对总管说“用 create_agent 新建 Agent「文档助手」，然后建任务「给 README 增加一节用法说明」，直接开工”，应出现 Agent 节点、任务卡显示“已开工”。
+- 代审批：core 单测覆盖高风险自动放行、人类任务不生效、deny 优先、kill switch/未信任不放行；UI 单测覆盖“总管全权”开关保存。
 - Phase 2 实现后：补 runtime 观察、policy 开关、代验收审计与 reopen 的集成测试。

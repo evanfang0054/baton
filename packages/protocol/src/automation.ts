@@ -3,13 +3,14 @@ import { Id, Timestamp } from './common.js'
 import { ApprovalDecision, Attention, RiskLevel, TaskStatus } from './enums.js'
 import { PolicySchema } from './policy.js'
 
-/** 只允许 UI 编辑的三个字段；allow/deny/verify/digestCron 保持只读。 */
+/** 只允许 UI 编辑的四个字段；allow/deny/verify/digestCron 保持只读。 */
 export const AutomationPolicyPatch = z
   .object({
     autopilot: z
       .object({
         enabled: z.boolean().optional(),
         retryMax: z.number().int().min(0).max(10).optional(),
+        delegatedAuthority: z.boolean().optional(),
       })
       .strict()
       .optional(),

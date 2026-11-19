@@ -35,6 +35,27 @@ export function evaluateApproval(
   }
 
   const allowed = policy.approval.allow.find((rule) => matchRuleResult(rule, request) === 'match')
+
+  // 总管全权：老板显式授权后，总管创建的任务连高风险操作也可自动放行。
+  // deny 仍然优先；结构化提问与工作区逃逸仍由调用方降级为人工确认。
+  const delegated =
+    ctx.delegatedAuthority === true &&
+    policy.autopilot.enabled &&
+    policy.autopilot.delegatedAuthority &&
+    canAutopilot({
+      workspaceTrusted: ctx.workspaceTrusted === true,
+      killSwitch: ctx.killSwitch,
+    })
+
+  if (delegated) {
+    return {
+      decision: 'allow',
+      risk,
+      autoApproved: true,
+      reason: 'delegated supervisor authority',
+    }
+  }
+
   if (!allowed) {
     return {
       decision: policy.approval.default,

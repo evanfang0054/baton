@@ -53,6 +53,7 @@ pnpm dev
 - 即使跳过审批，baton 仍会拦截工作区外的读写；显式 ask 规则与 `AskUserQuestion` 仍会进入审批。
 - `AskUserQuestion` 会以选项卡片展示；提交后答案存 `approval.response_json` 并回传给模型。拒绝则不提供答案。
 - 自动策略不会替 `AskUserQuestion` 作答：没有人工（或未来总管）答案时任务保持 `waiting_input`。
+- 总管全权：在已信任工作区的自动化设置里开启「总管全权」后，**总管创建的任务**除 deny 规则外所有工具（含高风险 Bash）自动批准；每次自动决定写 `approval.auto_allow` 审计，kill switch 立即停止；人工创建的任务不受影响。
 
 ## verify 命令与 PATH
 

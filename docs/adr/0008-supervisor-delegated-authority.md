@@ -1,6 +1,6 @@
 # ADR 0008：总管委派验收与委派审批
 
-- **状态**：Proposed（未实施）
+- **状态**：Accepted（2026-11-20 用户确认高风险也自动批）；代验收部分仍待确认
 - **日期**：2026-11-20
 - **关联**：`docs/specs/2026-11-20-m4-supervisor-secretary-design.md`、`docs/specs/2026-11-18-m2-supervisor-design.md`、`docs/specs/2026-11-19-m3-delivery-acceptance-design.md`
 
@@ -18,31 +18,27 @@ M2 的 Router v0 只有“建待办”的权限，开工、审批、验收都归
 
 ## 决定
 
-采用选项 3。
+采用选项 3，并按用户 2026-11-20 的选择先落地“总管全权”：
 
-- 新增 workspace policy `autopilot.delegatedAcceptance`（默认 `false`）。
-- 仅当 workspace trusted、kill switch 关闭、task 由总管创建、verify 退出码 0、diff 在阈值内、没有未决 approval/question 时，总管可以代验收。
-- 代验收写入 audit；人仍可 reopen；reopen 后不再自动验收。
-- 人类创建的 task 永远不代验收。
-- 代审批复用现有 `evaluateApproval`：deny 永远优先；高风险操作只有在 policy allow 明确列出时才可能自动；不新增绕过 policy 的路径。
-- 完成感知只投递“需要人”的汇总（review/failed/waiting_input），不逐条事件通知。
+- 新增 workspace policy `autopilot.delegatedAuthority`（默认 `false`）。
+- 只有当 workspace trusted、kill switch 关闭、policy `autopilot.enabled` 与 `delegatedAuthority` 都为 true、且 task 由总管创建时，`evaluateApproval` 才对**除 deny 规则外**的所有工具自动放行，包括高风险 Bash。
+- 人类创建的 task 永远走人工审批；`AskUserQuestion` 与工作区逃逸仍降级为人工确认。
+- 每次自动放行写 `approval.auto_allow` audit；kill switch 立即生效。
+- 代验收（`autopilot.delegatedAcceptance`）仍未实施：本 ADR 当前只落地委派审批；验收仍归人。
 
 ## 后果
 
-- 好处：老板只处理异常和最终结果；总管对自己派发的任务闭环；所有自动动作有审计与 kill switch。
-- 风险：模型可能在证据不足时误判“可以验收”；通过 verify + diff 阈值 + audit + reopen 降低影响。
-- 代价：需要新增 policy 字段、迁移、UI 开关、runtime 观察钩子和集成测试；M2 的“结束只能由我来”改为“默认由人来，workspace 可显式委派”。
+- 好处：总管创建的任务不再被高风险审批卡住，老板只需要看最终结果；所有自动动作有审计与 kill switch。
+- 风险：总管创建的会话里，任意未被 deny 的 Bash（包括网络、删除、git 写操作之外的命令）都可能自动执行；一旦模型误判，影响面比“只自动批准低风险”大。
+- 缓解：deny 规则仍然优先；workspace 必须 trusted；依赖 kill switch 可立即停止；人工任务不受影响。
+- 代价：M2 的“高风险永不自动批准”被 workspace 级开关打破；需要持续观察审计与任务结果。
 
 ## 待确认
 
-- `autopilot.delegatedAcceptance` 的默认值保持 `false` 是否可接受。
-- 高风险 Bash 是否允许在委派模式下自动批准；本 ADR 建议不允许。
+- 代验收（`autopilot.delegatedAcceptance`）是否开启；本 ADR 暂未实施。
 - 代验收的 diff 阈值（建议 ≤ 200 行 / 20 文件）是否合适。
 
-## 实施计划（确认后）
+## 实施状态（2026-11-20）
 
-1. protocol：`AutomationPolicy` 增加 `delegatedAcceptance`，drizzle migration。
-2. core：新增纯函数 `canDelegateAcceptance(task, review, policy, workspace)` 与测试。
-3. daemon：runtime 状态转移后调用 supervisor.observeTask；delegated 时调用 review 决策并写 audit。
-4. web：自动化设置增加开关与说明；任务详情显示“总管代验收”审计。
-5. 验收：集成测试覆盖 trusted/kill switch/verify 失败/人类任务/reopen；手工跑一个总管任务并确认无需点通过。
+- 已完成：`autopilot.delegatedAuthority`、policy patch/UI 开关、`evaluateApproval` 委派分支、session-runner 传入 `delegatedAuthority`、core 单测与 UI 单测。
+- 未实施：`autopilot.delegatedAcceptance`（代验收）与完成感知投递。
