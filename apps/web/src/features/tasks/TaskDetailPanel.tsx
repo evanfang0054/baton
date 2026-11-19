@@ -108,7 +108,9 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
                 showActions={false}
               />
             </div>
-            {['todo', 'queued', 'running'].includes(detail.data.task.status) ||
+            {['todo', 'queued', 'running', 'failed', 'done', 'cancelled'].includes(
+              detail.data.task.status,
+            ) ||
             (detail.data.task.status === 'waiting_input' &&
               detail.data.attention === 'needs_attention') ? (
               <div
@@ -269,8 +271,8 @@ function DetailContent({
         />
       ) : null}
 
-      {['done', 'failed', 'cancelled'].includes(task.status) ? (
-        <p className="shrink-0 text-sm text-muted">任务已结束，只读。</p>
+      {['done', 'failed', 'cancelled'].includes(task.status) && !showActions ? (
+        <p className="shrink-0 text-sm text-muted">任务已结束。</p>
       ) : null}
 
       <div

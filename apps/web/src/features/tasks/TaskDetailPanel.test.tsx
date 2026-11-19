@@ -384,7 +384,8 @@ describe('TaskDetailPanel', () => {
 
     stubFetch(detail({ task: { ...baseTask, status: 'done' } }))
     renderPanel()
-    expect(await screen.findByText('任务已结束，只读。')).toBeInTheDocument()
+    expect(await screen.findByText('任务已结束，可以重新打开继续处理。')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重新打开' })).toBeInTheDocument()
   })
 
   it('shows the context snapshot on task detail', async () => {

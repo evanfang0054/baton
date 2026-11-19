@@ -5,7 +5,8 @@ import { CommandProvider } from '../../lib/command-context'
 import { TaskActions } from './TaskActions'
 
 function renderActions(
-  status: 'todo' | 'queued' | 'running' | 'waiting_input' | 'review',
+  status:
+    'todo' | 'queued' | 'running' | 'waiting_input' | 'review' | 'failed' | 'done' | 'cancelled',
   send = vi.fn(),
   attention: 'none' | 'needs_attention' = 'none',
   sticky = false,
@@ -81,5 +82,30 @@ describe('TaskActions', () => {
       </QueryClientProvider>,
     )
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('retries a failed task with an optional note', async () => {
+    const send = renderActions('failed')
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+    fireEvent.change(screen.getByLabelText('重试备注'), { target: { value: '再试一次' } })
+    fireEvent.click(screen.getByRole('button', { name: '确认重试' }))
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({
+        type: 'task.retry',
+        payload: { taskId: 't1', note: '再试一次' },
+      }),
+    )
+  })
+
+  it('reopens a done task without a note', async () => {
+    const send = renderActions('done')
+    fireEvent.click(screen.getByRole('button', { name: '重新打开' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认重新打开' }))
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({
+        type: 'task.reopen',
+        payload: { taskId: 't1' },
+      }),
+    )
   })
 })
