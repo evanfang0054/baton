@@ -11,9 +11,11 @@ import { ContextSnapshotCard } from './ContextSnapshotCard'
 import { QuestionCard } from './QuestionCard'
 import { ReplyComposer } from './ReplyComposer'
 import { ReviewCard } from './ReviewCard'
+import { DiffViewer } from './DiffViewer'
 import { TaskActions } from './TaskActions'
 import { TaskAutomationCard } from './TaskAutomationCard'
 import { TaskHeader } from './TaskHeader'
+import { TaskHistory } from './TaskHistory'
 import { TaskOriginCard } from './TaskOriginCard'
 import { Transcript } from './Transcript'
 import { WorktreeCard } from './WorktreeCard'
@@ -67,6 +69,7 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
     const taskId = detail.data?.task.id
     if (!taskId) return
     await queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.taskHistory(taskId) })
     if (activeWorkspaceId) {
       await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(activeWorkspaceId) })
     }
@@ -182,6 +185,7 @@ function DetailContent({
   const task = detail.task
   const pendingApprovals = [...detail.approvals].reverse().filter((item) => item.decision === null)
   const needsApproval = detail.attention === 'needs_approval'
+  const [historyDiffReviewId, setHistoryDiffReviewId] = useState<string | null>(null)
 
   return (
     <>
@@ -221,6 +225,11 @@ function DetailContent({
         canCleanup={!mobile && !['running', 'waiting_input', 'verifying'].includes(task.status)}
         onDone={onDone}
       />
+
+      <TaskHistory taskId={task.id} onOpenDiff={setHistoryDiffReviewId} />
+      {historyDiffReviewId ? (
+        <DiffViewer reviewId={historyDiffReviewId} onClose={() => setHistoryDiffReviewId(null)} />
+      ) : null}
 
       {task.status === 'waiting_input' && needsApproval ? (
         pendingApprovals.length > 0 ? (

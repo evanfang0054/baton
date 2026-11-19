@@ -14,6 +14,7 @@ import {
   SupervisorStatusResponse,
   TaskAutomationSummary,
   TaskDetailResponse,
+  TaskHistoryResponse,
   TaskListResponse,
   WorkspaceCapabilitiesResponse,
   WorkspaceCreateInput,
@@ -199,4 +200,12 @@ export async function getReviewDiff(reviewId: string) {
   return ReviewDiffResponse.parse(
     await request(`/api/reviews/${encodeURIComponent(reviewId)}/diff`),
   ).snapshot
+}
+
+export async function getTaskHistory(taskId: string, beforeOrdinal?: number) {
+  const query = new URLSearchParams({ limit: '200' })
+  if (beforeOrdinal !== undefined) query.set('beforeOrdinal', String(beforeOrdinal))
+  return TaskHistoryResponse.parse(
+    await request(`/api/tasks/${encodeURIComponent(taskId)}/history?${query}`),
+  )
 }

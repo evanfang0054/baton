@@ -7,6 +7,7 @@ export const queryKeys = {
   tasks: (workspaceId: string) => ['tasks', workspaceId] as const,
   canvas: (workspaceId: string) => ['canvas', workspaceId] as const,
   task: (taskId: string) => ['task', taskId] as const,
+  taskHistory: (taskId: string) => ['task-history', taskId] as const,
   sessionEvents: (sessionId: string) => ['session-events', sessionId] as const,
   supervisorStatus: ['supervisor', 'status'] as const,
   supervisorMessages: (workspaceId: string) => ['supervisor', 'messages', workspaceId] as const,
