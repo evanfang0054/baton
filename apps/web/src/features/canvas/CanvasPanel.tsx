@@ -20,8 +20,10 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { ForwardedRef } from 'react'
+import type { DragEvent as ReactDragEvent, ForwardedRef } from 'react'
+import { uploadWorkspaceFile } from '../../lib/api'
 import { useCommand } from '../../lib/command-context'
+import { fileToBase64 } from '../../lib/file'
 import { queryKeys } from '../../lib/query'
 import { CommandError } from '../../lib/ws'
 import type { SelectionNode } from '../../stores/app'
@@ -83,6 +85,7 @@ function FlowCanvas({
   const { screenToFlowPosition, fitView, zoomIn, zoomOut } = useReactFlow()
   const [fileDialogOpen, setFileDialogOpen] = useState(false)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
+  const [dropActive, setDropActive] = useState(false)
 
   const flowNodes = useMemo(() => {
     if (!canvas) return []
@@ -124,7 +127,7 @@ function FlowCanvas({
   }, [canvas, queryClient])
 
   const updateNode = useCallback(
-    async (nodeId: string, patch: Record<string, number>) => {
+    async (nodeId: string, patch: Record<string, unknown>) => {
       try {
         await send({ type: 'node.update', payload: { nodeId, patch } })
       } catch (cause) {
@@ -247,6 +250,109 @@ function FlowCanvas({
 
   useImperativeHandle(handleRef, () => ({ addNode }), [addNode])
 
+  const handleDrop = useCallback(
+    async (event: ReactDragEvent<HTMLElement>) => {
+      event.preventDefault()
+      event.stopPropagation()
+      setDropActive(false)
+      if (!canvas) return
+      const files = Array.from(event.dataTransfer.files)
+      if (files.length === 0) return
+
+      const rect = containerRef.current?.getBoundingClientRect()
+      const point = screenToFlowPosition({ x: event.clientX, y: event.clientY })
+      const bounds = rect
+        ? (() => {
+            const topLeft = screenToFlowPosition({ x: rect.left, y: rect.top })
+            const bottomRight = screenToFlowPosition({ x: rect.right, y: rect.bottom })
+            return {
+              minX: topLeft.x,
+              minY: topLeft.y,
+              maxX: bottomRight.x,
+              maxY: bottomRight.y,
+            }
+          })()
+        : undefined
+
+      const accepted = files.slice(0, 10)
+      if (files.length > accepted.length) {
+        toast.danger('一次最多拖入 10 个文件')
+      }
+
+      let added = 0
+      let failed = 0
+      const createdNodeIds: string[] = []
+      const created: Array<{ x: number; y: number; w: number; h: number }> = []
+      for (const file of accepted) {
+        try {
+          const dataBase64 = await fileToBase64(file)
+          const uploaded = await uploadWorkspaceFile(canvas.canvas.workspaceId, {
+            name: file.name,
+            ...(file.type ? { mime: file.type } : {}),
+            dataBase64,
+          })
+          const position = nextNodePosition(
+            point,
+            DEFAULT_SIZE,
+            [...canvas.nodes, ...created],
+            24,
+            bounds,
+          )
+          const result = (await send({
+            type: 'node.create',
+            payload: {
+              canvasId: canvas.canvas.id,
+              node: {
+                type: 'file',
+                ...position,
+                w: DEFAULT_SIZE.w,
+                h: DEFAULT_SIZE.h,
+                groupId: null,
+                data: {
+                  name: uploaded.name,
+                  path: uploaded.path,
+                  ...(uploaded.mime ? { mime: uploaded.mime } : {}),
+                },
+              },
+            },
+          })) as { nodeId?: string } | undefined
+          created.push({ ...position, w: DEFAULT_SIZE.w, h: DEFAULT_SIZE.h })
+          if (result?.nodeId) {
+            createdNodeIds.push(result.nodeId)
+            added += 1
+          }
+        } catch {
+          failed += 1
+        }
+      }
+
+      await refreshCanvas()
+      if (createdNodeIds.length > 0) {
+        onSelectNode(createdNodeIds[createdNodeIds.length - 1]!)
+        const outside =
+          bounds !== undefined &&
+          created.some(
+            (rect) =>
+              rect.x < bounds.minX ||
+              rect.y < bounds.minY ||
+              rect.x + rect.w > bounds.maxX ||
+              rect.y + rect.h > bounds.maxY,
+          )
+        if (outside) {
+          void fitView({
+            nodes: createdNodeIds.map((id) => ({ id })),
+            duration: 300,
+            padding: 1.5,
+            maxZoom: 1,
+          })
+        }
+      }
+      if (added > 0) toast.success(`已添加 ${added} 个文件节点`)
+      if (failed > 0) toast.danger(`${failed} 个文件上传失败`)
+    },
+    [canvas, fitView, onSelectNode, refreshCanvas, screenToFlowPosition, send],
+  )
+
   const actions = useMemo(
     () => ({
       updatePosition: (id: string, x: number, y: number) => {
@@ -254,6 +360,9 @@ function FlowCanvas({
       },
       updateSize: (id: string, w: number, h: number) => {
         void updateNode(id, { w, h })
+      },
+      updateContent: (id: string, content: string) => {
+        void updateNode(id, { data: { content } })
       },
     }),
     [updateNode],
@@ -271,7 +380,22 @@ function FlowCanvas({
   }
 
   return (
-    <section ref={containerRef} data-testid="canvas" className="relative h-full bg-background">
+    <section
+      ref={containerRef}
+      data-testid="canvas"
+      className="relative h-full bg-background"
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes('Files')) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+        setDropActive(true)
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as globalThis.Node | null)) return
+        setDropActive(false)
+      }}
+      onDrop={(event) => void handleDrop(event)}
+    >
       <CanvasToolbar
         onAdd={addNode}
         onFit={() => void fitView({ padding: 0.2 })}
@@ -289,6 +413,13 @@ function FlowCanvas({
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="rounded-xl border border-dashed border-separator px-6 py-10 text-sm text-muted">
             画布暂无内容
+          </div>
+        </div>
+      ) : null}
+      {dropActive ? (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-accent/10 ring-2 ring-accent ring-inset">
+          <div className="rounded-lg border border-accent bg-surface px-4 py-2 text-sm text-foreground shadow-overlay">
+            松开以添加文件节点
           </div>
         </div>
       ) : null}
@@ -347,6 +478,7 @@ function FlowCanvas({
         </ReactFlow>
       </CanvasActionsProvider>
       <CreateFileNodeDialog
+        workspaceId={canvas.canvas.workspaceId}
         open={fileDialogOpen}
         onOpenChange={setFileDialogOpen}
         onCreate={(file) => {

@@ -19,6 +19,7 @@ import { registerStatic } from './http/static.js'
 import { registerSessionRoutes } from './http/sessions.js'
 import { registerSupervisorRoutes } from './http/supervisor.js'
 import { registerTaskRoutes } from './http/tasks.js'
+import { registerUploadRoutes } from './http/uploads.js'
 import { registerWorkspaceRoutes } from './http/workspaces.js'
 import type { Logger } from './log.js'
 import type { Runtime } from './runtime/index.js'
@@ -70,6 +71,7 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
     onTrustChanged: () => deps.runtime.rescheduleDigest(),
   })
   registerCanvasRoutes(app, { db: deps.db })
+  registerUploadRoutes(app, { db: deps.db, config, newId: deps.newId })
   registerEngineRoutes(app, { engines: deps.engines })
   registerTaskRoutes(app, {
     db: deps.db,

@@ -41,6 +41,27 @@ export type WorkspaceTrustResponse = z.infer<typeof WorkspaceTrustResponse>
 export const WorkspaceCapabilitiesResponse = z.object({ worktree: z.boolean() })
 export type WorkspaceCapabilitiesResponse = z.infer<typeof WorkspaceCapabilitiesResponse>
 
+/**
+ * 外部文件先落到 workspace 的 .baton/uploads/，再以相对路径挂到 file 节点。
+ * 这样上下文装配仍走同一条 workspace 读取与 jail 校验，不需要第二套文件存储。
+ */
+export const WorkspaceUploadInput = z.object({
+  name: z.string().min(1).max(200),
+  mime: z.string().min(1).max(200).optional(),
+  dataBase64: z.string().min(1).max(14_000_000),
+})
+export type WorkspaceUploadInput = z.infer<typeof WorkspaceUploadInput>
+
+export const WorkspaceUploadResponse = z.object({
+  file: z.object({
+    name: z.string().min(1),
+    path: z.string().min(1),
+    mime: z.string().nullable(),
+    size: z.number().int().nonnegative(),
+  }),
+})
+export type WorkspaceUploadResponse = z.infer<typeof WorkspaceUploadResponse>
+
 export const EngineStatus = z.object({
   engine: Engine,
   status: z.enum(['available', 'unknown', 'unavailable']),

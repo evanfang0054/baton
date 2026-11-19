@@ -58,6 +58,18 @@ describe('captureDiff', () => {
     expect(snapshot.files.map((file) => file.path)).toEqual(['new.txt'])
   })
 
+  it('ignores untracked baton uploads', async () => {
+    const repo = await makeRepo()
+    writeFileSync(join(repo, 'README.md'), 'base\n')
+    await commitAll(repo)
+
+    mkdirSync(join(repo, '.baton/uploads'), { recursive: true })
+    writeFileSync(join(repo, '.baton/uploads/design.md'), '# 设计稿\n')
+
+    const snapshot = await captureDiff(repo, () => 1)
+    expect(snapshot.files).toEqual([])
+  })
+
   it('still reports changes to a tracked policy file', async () => {
     const repo = await makeRepo()
     mkdirSync(join(repo, '.baton'))
