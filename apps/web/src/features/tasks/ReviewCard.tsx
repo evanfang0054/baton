@@ -1,8 +1,9 @@
-import type { Review } from '@baton/protocol'
+import type { ReviewView } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
 import { TextArea } from '@heroui/react/textarea'
 import { useState } from 'react'
+import { DiffViewer } from './DiffViewer'
 import { useCommandAction } from './useCommandAction'
 import { verifyOutputClass } from './styles'
 
@@ -10,11 +11,12 @@ export function ReviewCard({
   review,
   onDone,
 }: {
-  review: Review
+  review: ReviewView
   onDone: () => Promise<void> | void
 }) {
   const [rejecting, setRejecting] = useState(false)
   const [feedback, setFeedback] = useState('')
+  const [showDiff, setShowDiff] = useState(false)
   const action = useCommandAction(onDone)
   const decided = review.verdict !== null
 
@@ -32,6 +34,11 @@ export function ReviewCard({
         </span>
         <span className="text-success">+{review.diffStat.insertions}</span>
         <span className="text-danger">-{review.diffStat.deletions}</span>
+        {review.diffAvailable ? (
+          <Button size="sm" variant="tertiary" onPress={() => setShowDiff(true)}>
+            查看改动
+          </Button>
+        ) : null}
       </div>
       {review.verifyOutput ? <pre className={verifyOutputClass}>{review.verifyOutput}</pre> : null}
 
@@ -91,6 +98,8 @@ export function ReviewCard({
           {action.error}
         </p>
       ) : null}
+
+      {showDiff ? <DiffViewer reviewId={review.id} onClose={() => setShowDiff(false)} /> : null}
     </section>
   )
 }

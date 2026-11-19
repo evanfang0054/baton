@@ -1,10 +1,10 @@
-import type { Review } from '@baton/protocol'
+import type { ReviewView } from '@baton/protocol'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { CommandProvider } from '../../lib/command-context'
 import { ReviewCard } from './ReviewCard'
 
-const review: Review = {
+const review: ReviewView = {
   id: 'r1',
   taskId: 't1',
   verdict: null,
@@ -12,6 +12,7 @@ const review: Review = {
   verifyOutput: 'all good',
   diffStat: { filesChanged: 2, insertions: 10, deletions: 3 },
   decidedAt: null,
+  diffAvailable: false,
 }
 
 describe('ReviewCard', () => {

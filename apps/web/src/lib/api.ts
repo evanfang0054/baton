@@ -8,6 +8,7 @@ import {
   EngineListResponse,
   KillSwitchResponse,
   NoticeListResponse,
+  ReviewDiffResponse,
   SessionEventsResponse,
   SupervisorMessagesResponse,
   SupervisorStatusResponse,
@@ -179,4 +180,10 @@ export async function listAudit(actionPrefix = 'automation.', limit = 20) {
   const query = new URLSearchParams({ limit: String(limit) })
   if (actionPrefix) query.set('actionPrefix', actionPrefix)
   return AuditListResponse.parse(await request(`/api/audit?${query}`)).entries
+}
+
+export async function getReviewDiff(reviewId: string) {
+  return ReviewDiffResponse.parse(
+    await request(`/api/reviews/${encodeURIComponent(reviewId)}/diff`),
+  ).snapshot
 }

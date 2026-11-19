@@ -12,6 +12,7 @@ export const queryKeys = {
   automation: (workspaceId: string) => ['automation', workspaceId] as const,
   notices: (workspaceId: string) => ['notices', workspaceId] as const,
   taskAutomation: (taskId: string) => ['task-automation', taskId] as const,
+  reviewDiff: (reviewId: string) => ['review-diff', reviewId] as const,
   audit: (prefix: string) => ['audit', prefix] as const,
 }
 
