@@ -5,7 +5,7 @@ task_count: 4
 estimated_phases: [verification, evidence]
 dod: "Playwright 回归、ego-lite 真实 Claude 3 任务无人值守、kill switch/trust/人工验收 adversarial 检查、证据与全量验证完成"
 depends_on: [2026-11-19-m2-autopilot-web.md]
-status: blocked
+status: completed
 ---
 
 # M2-2a 无人值守与汇报：验收与证据实施计划（Plan 4/4）
@@ -52,7 +52,7 @@ Seam: `pnpm exec playwright test` 全绿
 - Consumes: `GET/PATCH /api/workspaces/:id/automation`、`PUT /api/automation/kill-switch`、`GET /api/notices`、`POST /api/workspaces/:id/digest`、`GET /api/tasks/:id/automation`；WS `notice`。
 - Produces: 稳定的 UI 回归证据。
 
-- [ ] **Step 1: 跑现有 Playwright**
+- [x] **Step 1: 跑现有 Playwright**
 
 ```bash
 pnpm exec playwright test
@@ -60,7 +60,7 @@ pnpm exec playwright test
 
 Expected: PASS；如果 journey/supervisor 因新增 header 或右栏元素失败，按运行时可见行为修正 mock，不放宽断言。
 
-- [ ] **Step 2: 补齐自动化回归断言**
+- [x] **Step 2: 补齐自动化回归断言**
 
 `apps/web/e2e/automation.spec.ts` 至少覆盖：
 
@@ -71,7 +71,7 @@ Expected: PASS；如果 journey/supervisor 因新增 header 或右栏元素失�
 - 批量开工：只选 `todo`、全选、上限 20、部分失败 toast、`task.enqueue` 次数正确。
 - 所有 REST/WS 用 `page.route` / `page.routeWebSocket` mock，不依赖本机 daemon。
 
-- [ ] **Step 3: 跑自动化回归**
+- [x] **Step 3: 跑自动化回归**
 
 ```bash
 pnpm exec playwright test apps/web/e2e/automation.spec.ts
@@ -79,7 +79,7 @@ pnpm exec playwright test apps/web/e2e/automation.spec.ts
 
 Expected: PASS，无 flaky；如出现时序问题，用 `expect.poll` 等待可见文本，不加固定 sleep。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/web/e2e
@@ -107,7 +107,7 @@ Seam: 3 个任务在 autopilot 下进入 review；digest 与看板一致
 - Consumes: 真实 Claude Agent SDK、`~/.baton/supervisor.json`（仓库外 0600）、临时 data/workspace、ego-lite。
 - Produces: 脱敏截图 + 步骤记录 + 结果表。
 
-- [ ] **Step 1: 准备临时环境**
+- [x] **Step 1: 准备临时环境**
 
 ```bash
 export BATON_DATA_DIR=<temp-data>
@@ -123,13 +123,13 @@ pnpm --filter @evanfang0054/baton dev
   ```
 - 不在 README 记录 baseUrl、key、账号或本机绝对路径。
 
-- [ ] **Step 2: 信任工作区并开启自动化**
+- [x] **Step 2: 信任工作区并开启自动化**
 
 - 用 ego-lite 打开 daemon 地址，创建/选择 workspace，完成 trust。
 - 打开「自动化设置」，确认 `autopilot` 开、`retryMax=1`、low；保存。
 - 截图 `01-settings.png`。
 
-- [ ] **Step 3: 建 3 个任务并批量开工**
+- [x] **Step 3: 建 3 个任务并批量开工**
 
 - 通过总管或画布创建 3 个任务，prompt 分别要求修改 `src/a.ts`、`src/b.ts`、`src/c.ts` 的一行文本；目标 Agent 使用真实 `claude-sdk`。
 - 选中 3 个 `todo`，点「开工 3 个」；截图 `02-batch-start.png`。
@@ -139,13 +139,13 @@ pnpm --filter @evanfang0054/baton dev
   - 至少一个任务 verify 第一次失败、自动重试一次后进入 `review`。
   - 没有任务被自动验收；全部停在 `review`。
 
-- [ ] **Step 4: 生成并检查 digest**
+- [x] **Step 4: 生成并检查 digest**
 
 - 在总管面板点「生成汇报」；截图 `03-digest.png`。
 - 断言 digest 的 `ready/blocked/dropped`、变化计数、最长等待与看板一致；任务标题可点击打开详情。
 - 标记已读；刷新后未读圆点消失，历史仍可展开。
 
-- [ ] **Step 5: 记录结果**
+- [x] **Step 5: 记录结果**
 
 在 `docs/evidence/2026-11-19-m2-autopilot/README.md` 写：
 
@@ -161,7 +161,7 @@ pnpm --filter @evanfang0054/baton dev
 - 残留风险：
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add docs/evidence/2026-11-19-m2-autopilot
@@ -187,7 +187,7 @@ Seam: 自动化暂停后下一次审批不自动通过；未信任 workspace 不
 - Consumes: 顶栏 kill switch、`BATON_KILL_SWITCH=1`、untrusted workspace、任务详情审批/验收。
 - Produces: adversarial 结果记录。
 
-- [ ] **Step 1: kill switch 检查**
+- [x] **Step 1: kill switch 检查**
 
 - 在顶栏点「暂停自动化」；断言状态变为「自动化已暂停」，截图 `05-kill-switch.png`。
 - 新建第 4 个任务并开工，触发一个低风险审批；断言审批卡停留在待处理，不自动通过。
@@ -195,26 +195,26 @@ Seam: 自动化暂停后下一次审批不自动通过；未信任 workspace 不
 - 运行中任务不被中断；人工仍可点「允许/拒绝」。
 - 恢复自动化：进设置弹窗确认；断言下一次审批恢复自动。
 
-- [ ] **Step 2: env 强制检查**
+- [x] **Step 2: env 强制检查**
 
 - 重启 daemon，带 `BATON_KILL_SWITCH=1`。
 - 断言顶栏显示「由环境变量强制暂停」，设置弹窗的关闭按钮禁用/拒绝，任务状态不丢。
 - 记录到 README；不记录 env 值以外的敏感信息（env 只有 0/1）。
 
-- [ ] **Step 3: untrusted workspace 检查**
+- [x] **Step 3: untrusted workspace 检查**
 
 - 新建 workspace，不点信任；手工在 workspace 写 `.baton/policy.json`，`autopilot.enabled=true`、`approval.allow=['Read']`。
 - 建任务并开工，触发 Read 审批；断言审批仍为 ask，不自动通过；截图 `06-untrusted.png`。
 - 尝试 `PATCH /api/workspaces/:id/automation`（或 UI 保存）；断言 409 `workspace_untrusted`。
 - 信任后重试，断言自动批准恢复。
 
-- [ ] **Step 4: 人工闸门检查**
+- [x] **Step 4: 人工闸门检查**
 
 - 对一个 review 任务点「通过」，断言 `done`；对另一个点「打回」，断言进入 queued 并带反馈。
 - 对总管说「帮我把这个任务开工/通过」；断言总管拒绝或引导，任务状态不变。
 - 记录结果。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/evidence/2026-11-19-m2-autopilot
@@ -235,12 +235,12 @@ Seam: `pnpm verify:full`、`pnpm pack:check` 退出码 0
 - Modify: `docs/README.md`
 - Modify: 本计划末尾「完成记录」
 
-- [ ] **Step 1: 检查证据脱敏**
+- [x] **Step 1: 检查证据脱敏**
 
 - 截图只保留 UI 区域；确认不含用户名、绝对路径、token、API key、其他窗口、通知内容。
 - README 不含 baseUrl/key/账号/本机绝对路径；模型名可写“真实模型”或脱敏名称。
 
-- [ ] **Step 2: 跑全量验证**
+- [x] **Step 2: 跑全量验证**
 
 ```bash
 pnpm verify:full
@@ -252,7 +252,7 @@ pnpm format:check
 
 Expected: 全部退出码 0；记录测试数量与耗时。
 
-- [ ] **Step 3: 检查范围与占位**
+- [x] **Step 3: 检查范围与占位**
 
 ```bash
 grep -RIn "TODO\|FIXME" packages/protocol/src packages/core/src apps/daemon/src apps/web/src
@@ -262,7 +262,7 @@ grep -n "croner" apps/daemon/package.json THIRD_PARTY_NOTICES.md
 
 前两条无输出；第三条命中。若 `croner` 未使用，确认 `digestCronUnsupported` 降级路径与文档。
 
-- [ ] **Step 4: 更新索引与完成记录**
+- [x] **Step 4: 更新索引与完成记录**
 
 - `docs/README.md` 增加 spec/contract/4 个 plan/evidence 的链接。
 - 在本计划末尾追加：
@@ -275,7 +275,7 @@ grep -n "croner" apps/daemon/package.json THIRD_PARTY_NOTICES.md
   - 未解决风险：
   ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs
@@ -283,4 +283,11 @@ git commit -m "docs(evidence): 完成 M2-2a 验收与索引"
 ```
 
 ---
+
+## 完成记录（2026-11-19）
+
+- 关键 commit：`479e704` 未信任工作区不显示自动化运行中；`39fa693` 自动化 Playwright 回归补齐；`c86e5e6` 审批上下文补工作区 cwd；随后一个 commit 提交证据、索引与本记录。
+- 测试结果：Playwright 12 tests 全绿；`pnpm verify:full`、`pnpm pack:check`、`pnpm check:boundaries`、`pnpm check:protocol`、`pnpm format:check` 退出码 0；真实 Claude 3 任务全部进入 review，自动批准 1 次、自动重试 1 次；kill switch / env 强制 / untrusted / 人工闸门 adversarial 全部按预期。
+- 与计划的偏差：为了隔离验收使用临时 `BATON_DATA_DIR`/`BATON_WORKSPACES_ROOT`，并临时复制本机 `supervisor.json` 到临时 data 目录；daemon 以 `BATON_MAX_CONCURRENCY=3` 启动。真实 Claude 的 `Edit` 只带绝对 `file_path`，本轮修复了适配器补 `cwd`；`Edit` 风险为 medium，`autoApproveMaxRisk` 必须选 medium 才能自动批准文件修改。b/c 的策略快照早于修正，因此它们的初始审批是人工点的。
+- 未解决风险：任务策略快照会让阈值修改只对新会话生效，容易被误读；真实 Claude 的只读工具未产生审批请求，自动批准样本仍偏少；verify fixture 计数为 workspace 级共享，只有 c 完整覆盖自动重试；`check:secrets` 仍未进 CI。
 

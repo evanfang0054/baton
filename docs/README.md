@@ -76,6 +76,7 @@
 ## 验收证据
 
 - [M2-1 总管真实链路验收（阻塞，待模型配置）](evidence/2026-11-18-m2-supervisor/README.md)
+- [M2-2a 无人值守与汇报验收](evidence/2026-11-19-m2-autopilot/README.md)
 
 ## 约定
 
