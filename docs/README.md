@@ -82,6 +82,10 @@
 - [M2-2b 移动端响应式控制台：任务与闸门实施计划](plans/2026-11-19-m2-2b-mobile-tasks.md)
 - [M2-2b 移动端响应式控制台：控制面实施计划](plans/2026-11-19-m2-2b-mobile-controls.md)
 - [M2-2b 移动端响应式控制台：验收实施计划](plans/2026-11-19-m2-2b-mobile-acceptance.md)
+- [M3-1 diff 视图实施计划](plans/2026-11-19-m3-1-diff.md)
+- [M3-1 worktree 隔离实施计划](plans/2026-11-19-m3-1-worktree.md)
+- [M3-1 retry/reopen/任务历史实施计划](plans/2026-11-19-m3-1-aftersales-history.md)
+- [M3-1 验收与文档收口实施计划](plans/2026-11-19-m3-1-acceptance.md)
 
 ## 验收证据
 
