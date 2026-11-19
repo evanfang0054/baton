@@ -169,6 +169,23 @@ function riskForTool(toolName: string): RiskLevel {
   return 'high'
 }
 
+const PATH_TOOLS = new Set(['Read', 'Grep', 'Glob', 'Edit', 'Write', 'NotebookEdit'])
+
+/**
+ * 引擎的文件工具只带绝对 file_path，不带 cwd；策略无法判定工作区边界时会把
+ * Edit/Write 判成 high，导致 autopilot 永远不能自动批准。这里只给审批上下文补
+ * cwd，真正回传给 SDK 的 updatedInput 仍是原始入参。
+ */
+export function approvalInputWithCwd(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+  cwd: string,
+): Record<string, unknown> {
+  if (!PATH_TOOLS.has(toolName)) return toolInput
+  if (typeof toolInput.cwd === 'string') return toolInput
+  return { ...toolInput, cwd }
+}
+
 function toolResultText(content: unknown): string {
   if (typeof content === 'string') {
     return content
@@ -285,7 +302,11 @@ export const createSdkClaudeTransport: ClaudeTransportFactory = async (input) =>
       events.push({
         type: 'approval_request',
         requestId,
-        request: { toolName, input: toolInput, risk: riskForTool(toolName) },
+        request: {
+          toolName,
+          input: approvalInputWithCwd(toolName, toolInput, input.cwd),
+          risk: riskForTool(toolName),
+        },
       })
     })
   }
