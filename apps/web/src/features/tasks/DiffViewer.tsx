@@ -97,12 +97,12 @@ export function DiffViewer({ reviewId, onClose }: { reviewId: string; onClose: (
       : null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-0 md:p-4">
       <section
         role="dialog"
         aria-modal="true"
         aria-label="改动详情"
-        className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-lg border border-separator bg-surface shadow-overlay"
+        className="flex h-[100dvh] max-h-none w-full max-w-3xl flex-col rounded-none border border-separator bg-surface shadow-overlay md:h-auto md:max-h-[90vh] md:rounded-lg"
       >
         <header className="flex shrink-0 items-center justify-between border-b border-separator p-3">
           <h2 className="text-sm font-medium">改动详情</h2>
