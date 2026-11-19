@@ -48,6 +48,7 @@
 - [M1-6b 画布上下文与关系](contracts/M1-6b-canvas-context.contract.md)
 - [M2-1 总管 Router v0](contracts/M2-supervisor-v0.contract.md)
 - [M2-2a 无人值守与汇报 v0](contracts/M2-autopilot-v0.contract.md)
+- [M2-2b 移动端响应式控制台](contracts/M2-2b-mobile-console.contract.md)
 
 ## 现行 plan
 
