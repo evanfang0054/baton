@@ -391,6 +391,53 @@ describe('REST API', () => {
     expect((unavailable.json() as { code: string }).code).toBe('diff_unavailable')
   })
 
+  it('returns task history with status events and reviews', async () => {
+    const { app, handle } = await setup()
+    handle.runtime.applyTransition(handle.seeded.taskId, { type: 'enqueue' })
+
+    const review: Review = {
+      id: 'r-history',
+      taskId: handle.seeded.taskId,
+      verdict: null,
+      verifyExitCode: 0,
+      verifyOutput: 'ok',
+      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+      decidedAt: null,
+    }
+    const snapshot: DiffSnapshot = {
+      v: 1,
+      capturedAt: 1,
+      baseRef: 'HEAD',
+      truncated: false,
+      files: [],
+    }
+    handle.database.db.transaction((tx) => insertReview(tx, review))
+    updateReviewDiff(handle.database.db, review.id, snapshot)
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${handle.seeded.taskId}/history?limit=10`,
+      headers: auth,
+    })
+    expect(response.statusCode).toBe(200)
+    const body = response.json() as {
+      statusEvents: Array<{ ordinal: number; status: string }>
+      sessions: unknown[]
+      reviews: Array<{ id: string; diffAvailable: boolean }>
+    }
+    expect(body.statusEvents.some((event) => event.status === 'queued')).toBe(true)
+    expect(body.reviews[0]).toMatchObject({ id: 'r-history', diffAvailable: true })
+
+    const latest = body.statusEvents[0]!.ordinal
+    const page = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${handle.seeded.taskId}/history?limit=10&beforeOrdinal=${latest}`,
+      headers: auth,
+    })
+    const pageBody = page.json() as { statusEvents: Array<{ ordinal: number }> }
+    expect(pageBody.statusEvents.some((event) => event.ordinal === latest)).toBe(false)
+  })
+
   it('cleans a worktree but keeps the branch and reports capabilities', async () => {
     const { app, handle } = await setup()
     const workspace = join(handle.root, handle.seeded.relPath)

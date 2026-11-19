@@ -2,6 +2,8 @@ import { attentionFor, waitingSinceFor } from '@baton/core'
 import {
   TaskAutomationSummary,
   TaskDetailResponse,
+  TaskHistoryQuery,
+  TaskHistoryResponse,
   TaskListQuery,
   TaskListResponse,
 } from '@baton/protocol'
@@ -16,7 +18,9 @@ import {
   insertAudit,
   listApprovalsByTask,
   listAudit,
+  listReviewsByTask,
   listSessionsByTask,
+  listTaskStatusHistory,
   listTasks,
   updateTaskWorktreePathTx,
   type ApprovalRecord,
@@ -81,6 +85,31 @@ export function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesDeps): 
         : null,
       waitingSince: waitingSinceFor(task),
       attention: attentionFor(task.status, task.waitingReason),
+    })
+  })
+
+  app.get('/api/tasks/:id/history', async (req) => {
+    const parsed = TaskHistoryQuery.safeParse(req.query)
+    if (!parsed.success) {
+      throw appError('invalid_payload', 'invalid history query', parsed.error.issues)
+    }
+    const { id } = req.params as { id?: string }
+    if (!id) throw appError('invalid_payload', 'task id is required')
+    const detail = getTaskDetail(deps.db, id)
+    if (!detail) throw appError('task_not_found', 'task not found', { taskId: id })
+
+    const { items, nextBeforeOrdinal } = listTaskStatusHistory(
+      deps.db,
+      id,
+      parsed.data.limit,
+      parsed.data.beforeOrdinal,
+    )
+    return TaskHistoryResponse.parse({
+      taskId: id,
+      statusEvents: items,
+      sessions: listSessionsByTask(deps.db, id),
+      reviews: listReviewsByTask(deps.db, id),
+      ...(nextBeforeOrdinal !== undefined ? { nextBeforeOrdinal } : {}),
     })
   })
 
