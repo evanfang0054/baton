@@ -1,6 +1,8 @@
-import { mkdirSync, symlinkSync } from 'node:fs'
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { PolicySchema } from '@baton/protocol'
 import { afterEach, describe, expect, it } from 'vitest'
+import { hashPolicy } from '../src/automation/version.js'
 import { createTestRuntime } from './helpers/runtime.js'
 import type { TestRuntimeHandle } from './helpers/runtime.js'
 
@@ -74,5 +76,25 @@ describe('automation service', () => {
     })
     expect(handle.runtime.automation.getSummary(handle.seeded.workspaceId).killSwitch).toBe(true)
     expect(handle.runtime.automation.setKillSwitch(false).killSwitch).toBe(false)
+  })
+
+  it('hashes policy independent of insertion order and flags unsupported digest cron', () => {
+    const first = PolicySchema.parse({
+      autopilot: { enabled: true, retryMax: 2, digestCron: '0 9,21 * * *' },
+    })
+    const second = PolicySchema.parse({
+      autopilot: { digestCron: '0 9,21 * * *', retryMax: 2, enabled: true },
+    })
+    expect(hashPolicy(first)).toBe(hashPolicy(second))
+
+    const handle = setup()
+    mkdirSync(join(handle.root, handle.seeded.relPath, '.baton'))
+    writeFileSync(
+      join(handle.root, handle.seeded.relPath, '.baton', 'policy.json'),
+      JSON.stringify({ autopilot: { digestCron: '*/5 * * * *' } }),
+    )
+    expect(
+      handle.runtime.automation.getSummary(handle.seeded.workspaceId).digestCronUnsupported,
+    ).toBe(true)
   })
 })

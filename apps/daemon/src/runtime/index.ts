@@ -160,12 +160,15 @@ export function createRuntime(deps: RuntimeDeps) {
     initial: persistedKillSwitch,
     forced: deps.config.killSwitch,
   })
+  let rescheduleDigest = (): void => {}
   const automation = createAutomationService({
     db: deps.db,
     config: deps.config,
     state: automationState,
     now,
     newId,
+    ...(deps.logger ? { logger: deps.logger } : {}),
+    onPolicyChanged: () => rescheduleDigest(),
   })
   const digest = createDigestService({
     db: deps.db,
@@ -191,7 +194,9 @@ export function createRuntime(deps: RuntimeDeps) {
       }),
     generate: (workspaceId) => Promise.resolve(digest.generate(workspaceId, 'schedule')),
     schedule: createTimeoutSchedule,
+    ...(deps.logger ? { logger: deps.logger } : {}),
   })
+  rescheduleDigest = () => digestScheduler.reschedule()
   const supervisor = createSupervisorService({
     db: deps.db,
     dataDir: deps.config.dataDir,
@@ -620,6 +625,7 @@ export function createRuntime(deps: RuntimeDeps) {
     findNextQueued,
     maxConcurrency: deps.config.maxConcurrency,
     maxLiveSessions: deps.config.maxLiveSessions,
+    rescheduleDigest: () => rescheduleDigest(),
   }
 
   const created = createScheduler(runtime)

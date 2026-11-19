@@ -79,6 +79,7 @@ export const task = sqliteTable(
       .default(false),
     contextJson: text('context_json'),
     originJson: text('origin_json'),
+    policyJson: text('policy_json'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },

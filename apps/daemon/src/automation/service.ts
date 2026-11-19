@@ -8,8 +8,10 @@ import type { Config } from '../config.js'
 import { getWorkspace, insertAudit, setSetting } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
+import type { Logger } from '../log.js'
 import { loadPolicy, writePolicy } from '../workspace/policy.js'
 import { resolveWorkspaceDir } from '../workspace/resolver.js'
+import { parseDailyCron } from './scheduler.js'
 import type { AutomationState } from './state.js'
 import { hashPolicy } from './version.js'
 
@@ -19,6 +21,8 @@ export interface AutomationServiceDeps {
   state: AutomationState
   now: () => number
   newId: () => string
+  logger?: Logger
+  onPolicyChanged?: () => void
 }
 
 export interface AutomationService {
@@ -49,7 +53,7 @@ export function createAutomationService(deps: AutomationServiceDeps): Automation
       policyVersion: hashPolicy(policy),
       killSwitch: deps.state.isKillSwitchOn(),
       killSwitchForced: deps.state.isForced(),
-      digestCronUnsupported: false,
+      digestCronUnsupported: parseDailyCron(policy.autopilot.digestCron) === null,
     })
   }
 
@@ -70,15 +74,24 @@ export function createAutomationService(deps: AutomationServiceDeps): Automation
       approval: { ...current.approval, ...patch.approval },
     }
     const { policyVersion } = writePolicy(path, next)
-    deps.db.transaction((tx) =>
-      insertAudit(tx, {
-        id: deps.newId(),
-        ts: deps.now(),
-        actor: 'user',
-        action: 'automation.policy.update',
-        detail: { workspaceId, patch, policyVersion },
-      }),
-    )
+    try {
+      deps.db.transaction((tx) =>
+        insertAudit(tx, {
+          id: deps.newId(),
+          ts: deps.now(),
+          actor: 'user',
+          action: 'automation.policy.update',
+          detail: { workspaceId, patch, policyVersion },
+        }),
+      )
+    } catch {
+      deps.logger?.error(
+        { event: 'audit_write_failed', action: 'automation.policy.update', workspaceId },
+        'audit write failed',
+      )
+      throw appError('policy_write_failed', 'cannot audit policy update')
+    }
+    deps.onPolicyChanged?.()
     return getSummary(workspaceId)
   }
 
@@ -86,7 +99,6 @@ export function createAutomationService(deps: AutomationServiceDeps): Automation
     if (deps.state.isForced() && !enabled) {
       throw appError('kill_switch_forced', 'kill switch is forced by environment')
     }
-    deps.state.setKillSwitch(enabled)
     deps.db.transaction((tx) => {
       setSetting(tx, 'kill_switch', { enabled }, deps.now())
       insertAudit(tx, {
@@ -97,6 +109,7 @@ export function createAutomationService(deps: AutomationServiceDeps): Automation
         detail: { enabled },
       })
     })
+    deps.state.setKillSwitch(enabled)
     return {
       killSwitch: deps.state.isKillSwitchOn(),
       killSwitchForced: deps.state.isForced(),

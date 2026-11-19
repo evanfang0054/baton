@@ -6,6 +6,8 @@ import {
   Edge,
   Node,
   Notice,
+  Policy,
+  PolicySchema,
   Review,
   Session,
   Task,
@@ -449,9 +451,29 @@ export function updateTaskState(
   status: TaskStatus,
   retryCount: number,
   waitingReason: WaitingReason | null,
-  updatedAt: number,
+  now: number,
 ): void {
-  tx.update(task).set({ status, retryCount, waitingReason, updatedAt }).where(eq(task.id, id)).run()
+  tx.update(task)
+    .set({ status, retryCount, waitingReason, updatedAt: now })
+    .where(eq(task.id, id))
+    .run()
+}
+
+export function updateTaskPolicy(tx: Tx, id: string, policy: Policy): void {
+  tx.update(task)
+    .set({ policyJson: JSON.stringify(policy) })
+    .where(eq(task.id, id))
+    .run()
+}
+
+export function getTaskPolicy(db: Db, id: string): Policy | null {
+  const row = db.select({ policyJson: task.policyJson }).from(task).where(eq(task.id, id)).get()
+  if (!row?.policyJson) return null
+  try {
+    return PolicySchema.parse(JSON.parse(row.policyJson))
+  } catch {
+    return null
+  }
 }
 
 export function appendTaskFeedback(

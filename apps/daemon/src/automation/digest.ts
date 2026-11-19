@@ -5,6 +5,7 @@ import {
   getReviewByTask,
   getSetting,
   getWorkspace,
+  insertAudit,
   insertNotice,
   listApprovalsByTask,
   listAudit,
@@ -108,6 +109,13 @@ export function createDigestService(deps: DigestServiceDeps): DigestService {
         payload: notice.payload,
       })
       setSetting(tx, lastDigestKey(workspaceId), { at: now }, now)
+      insertAudit(tx, {
+        id: deps.newId(),
+        ts: now,
+        actor: 'system',
+        action: 'automation.digest.generate',
+        detail: { workspaceId, trigger },
+      })
       return deps.eventStore.appendWs(tx, { type: 'notice', payload: notice, ts: now })
     })
     deps.broadcast(event)

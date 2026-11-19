@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getSetting, listNotices } from '../src/db/repositories.js'
+import { getSetting, listAudit, listNotices } from '../src/db/repositories.js'
 import { waitFor } from './helpers/async.js'
 import { createTestRuntime } from './helpers/runtime.js'
 import type { TestRuntimeHandle } from './helpers/runtime.js'
@@ -26,6 +26,25 @@ describe('digest service', () => {
     expect(
       getSetting(handle.database.db, `digest:last:${handle.seeded.workspaceId}`),
     ).toMatchObject({ at: expect.any(Number) })
+    expect(
+      listAudit(handle.database.db, { actionPrefix: 'automation.digest.generate', limit: 10 }),
+    ).toHaveLength(1)
     await waitFor(() => handle.events.some((event) => event.type === 'notice'))
+  })
+
+  it('skips scheduled digests for empty workspaces', () => {
+    const handle = setup()
+    handle.database.raw.prepare('delete from session where task_id = ?').run(handle.seeded.taskId)
+    handle.database.raw.prepare('delete from task where id = ?').run(handle.seeded.taskId)
+    expect(handle.runtime.digest.generate(handle.seeded.workspaceId, 'schedule')).toBeNull()
+  })
+
+  it('uses the persisted last digest as the next window start', () => {
+    const handle = setup()
+    const first = handle.runtime.digest.generate(handle.seeded.workspaceId, 'manual')
+    const second = handle.runtime.digest.generate(handle.seeded.workspaceId, 'manual')
+    const firstPayload = first?.payload as { windowStart: number; windowEnd: number }
+    const secondPayload = second?.payload as { windowStart: number; windowEnd: number }
+    expect(secondPayload.windowStart).toBe(firstPayload.windowEnd)
   })
 })

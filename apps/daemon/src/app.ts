@@ -66,6 +66,7 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
     config,
     now: deps.now,
     newId: deps.newId,
+    onTrustChanged: () => deps.runtime.rescheduleDigest(),
   })
   registerCanvasRoutes(app, { db: deps.db })
   registerEngineRoutes(app, { engines: deps.engines })

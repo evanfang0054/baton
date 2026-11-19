@@ -30,7 +30,29 @@ describe('digest scheduler', () => {
     expect(runs).toHaveLength(1)
     runs[0]!()
     expect(generate).toHaveBeenCalledWith('w1')
-    scheduler.stop()
+    scheduler.reschedule()
     expect(stop).toHaveBeenCalledTimes(1)
+    expect(runs).toHaveLength(2)
+    scheduler.stop()
+    expect(stop).toHaveBeenCalledTimes(2)
+  })
+
+  it('logs scheduled generation failures instead of throwing', () => {
+    const error = vi.fn()
+    const runs: Array<() => void> = []
+    const scheduler = createDigestScheduler({
+      listWorkspaces: () => [{ id: 'w1', trusted: true, digestCron: '0 9,21 * * *' }],
+      generate: () => {
+        throw new Error('boom')
+      },
+      schedule: (_cron, run) => {
+        runs.push(run)
+        return { stop: () => {} }
+      },
+      logger: { error } as never,
+    })
+    scheduler.start()
+    expect(() => runs[0]!()).not.toThrow()
+    expect(error).toHaveBeenCalled()
   })
 })

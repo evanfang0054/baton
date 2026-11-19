@@ -7,7 +7,9 @@ import {
   countActiveTasks,
   getApproval,
   getTask,
+  getTaskPolicy,
   getWorkspace,
+  updateTaskPolicy,
   updateTaskState,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
@@ -70,10 +72,15 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
         return { ok: false, error: toAppError(error) }
       }
     } else if (event.type === 'verify_fail' && workspace) {
-      try {
-        policy = loadPolicy(resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath))
-      } catch {
-        policy = DEFAULT_POLICY
+      const snapshot = getTaskPolicy(deps.db, task.id)
+      if (snapshot) {
+        policy = snapshot
+      } else {
+        try {
+          policy = loadPolicy(resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath))
+        } catch {
+          policy = DEFAULT_POLICY
+        }
       }
     }
 
@@ -107,6 +114,7 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
     try {
       plan = deps.db.transaction((tx) => {
         updateTaskState(tx, task.id, result.status, result.retryCount, result.waitingReason, now)
+        if (event.type === 'start') updateTaskPolicy(tx, task.id, policy)
         return planAndApplyEffects(
           tx,
           {

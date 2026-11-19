@@ -1,3 +1,5 @@
+import type { Logger } from '../log.js'
+
 export interface DigestSchedule {
   stop(): void
 }
@@ -6,6 +8,7 @@ export interface DigestSchedulerDeps {
   listWorkspaces(): Array<{ id: string; trusted: boolean; digestCron: string }>
   generate(workspaceId: string): Promise<unknown>
   schedule(cron: string, run: () => void): DigestSchedule | null
+  logger?: Logger
 }
 
 export interface DigestScheduler {
@@ -83,7 +86,30 @@ export function createDigestScheduler(deps: DigestSchedulerDeps): DigestSchedule
     for (const workspace of deps.listWorkspaces()) {
       if (!workspace.trusted) continue
       const job = deps.schedule(workspace.digestCron, () => {
-        void deps.generate(workspace.id)
+        try {
+          const result = deps.generate(workspace.id)
+          if (result && typeof (result as Promise<unknown>).catch === 'function') {
+            void (result as Promise<unknown>).catch((error: unknown) => {
+              deps.logger?.error(
+                {
+                  event: 'digest_generation_failed',
+                  workspaceId: workspace.id,
+                  message: error instanceof Error ? error.message : String(error),
+                },
+                'scheduled digest failed',
+              )
+            })
+          }
+        } catch (error) {
+          deps.logger?.error(
+            {
+              event: 'digest_generation_failed',
+              workspaceId: workspace.id,
+              message: error instanceof Error ? error.message : String(error),
+            },
+            'scheduled digest failed',
+          )
+        }
       })
       if (job) jobs.push(job)
     }

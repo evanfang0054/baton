@@ -51,7 +51,7 @@ export function writePolicy(workspacePath: string, policy: Policy): { policyVers
       throw new Error('policy directory escapes workspace')
     }
     temp = join(realDir, `.policy.${process.pid}.${Date.now()}.tmp`)
-    writeFileSync(temp, `${JSON.stringify(parsed, null, 2)}\n`, { mode: 0o600 })
+    writeFileSync(temp, `${JSON.stringify(parsed, null, 2)}\n`, { mode: 0o600, flag: 'wx' })
     renameSync(temp, join(realDir, 'policy.json'))
     return { policyVersion: hashPolicy(parsed) }
   } catch {

@@ -28,6 +28,7 @@ export interface WorkspaceRoutesDeps {
   config: Config
   now: () => number
   newId: () => string
+  onTrustChanged?: () => void
 }
 
 export function registerWorkspaceRoutes(app: FastifyInstance, deps: WorkspaceRoutesDeps): void {
@@ -105,6 +106,7 @@ export function registerWorkspaceRoutes(app: FastifyInstance, deps: WorkspaceRou
       }
     })
 
+    deps.onTrustChanged?.()
     return WorkspaceTrustResponse.parse({ workspace: getWorkspace(deps.db, current.id) })
   })
 }

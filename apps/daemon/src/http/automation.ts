@@ -8,7 +8,7 @@ import {
 import type { FastifyInstance } from 'fastify'
 import type { DigestService } from '../automation/digest.js'
 import type { AutomationService } from '../automation/service.js'
-import { appError } from '../errors.js'
+import { appError, isAppError } from '../errors.js'
 
 export function registerAutomationRoutes(
   app: FastifyInstance,
@@ -41,8 +41,18 @@ export function registerAutomationRoutes(
   app.post('/api/workspaces/:id/digest', async (req) => {
     const { id } = req.params as { id?: string }
     if (!id) throw appError('invalid_payload', 'workspace id is required')
-    const notice = deps.digest.generate(id, 'manual')
-    if (!notice) throw appError('digest_generation_failed', 'digest generation failed')
-    return DigestGenerateResponse.parse({ notice })
+    try {
+      const notice = deps.digest.generate(id, 'manual')
+      if (!notice) throw appError('digest_generation_failed', 'digest generation failed')
+      return DigestGenerateResponse.parse({ notice })
+    } catch (error) {
+      if (
+        isAppError(error) &&
+        (error.code === 'workspace_not_found' || error.code === 'invalid_policy')
+      ) {
+        throw error
+      }
+      throw appError('digest_generation_failed', 'digest generation failed')
+    }
   })
 }
