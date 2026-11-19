@@ -96,4 +96,17 @@ describe('runVerifyCommand', () => {
     expect(stat.insertions).toBe(1)
     expect(stat.deletions).toBe(0)
   })
+
+  it('adds a PATH hint for command-not-found failures', async () => {
+    const result = await runVerifyCommand({
+      command: 'definitely-not-a-command',
+      workspacePath: tempDir(),
+      timeoutSec: 5,
+      maxOutputBytes: 4096,
+    })
+    expect(result.exitCode).toBe(127)
+    expect(result.output).toContain('命令未找到')
+    expect(result.output).toContain('PATH=')
+    expect(result.output).not.toContain('ANTHROPIC_API_KEY')
+  })
 })
