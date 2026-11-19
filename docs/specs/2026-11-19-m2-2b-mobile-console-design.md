@@ -3,7 +3,7 @@ spec_topic: m2-2b-mobile-console
 decision_summary: "M2-2b 移动端响应式控制台：<768px 不挂画布，完整非画布控制面；768–1023px 压缩桌面；≥1024px 桌面不变；ADR 0007 反转移动端只读"
 design_approved: true
 user_approved_at: "2026-11-19T11:16:22+08:00"
-gates: [design-approved]
+gates: [design-approved, user-review-passed]
 spec_ref: 2026-11-16-baton-architecture-design.md
 domain_terms: [mobile console, compact desktop, control surface, attention-first, node picker, responsive branch]
 ---
@@ -17,7 +17,7 @@ domain_terms: [mobile console, compact desktop, control surface, attention-first
 
 ## 0. 文档信息
 
-- **状态**：设计已获用户逐项确认；spec 已落库，待用户审阅。
+- **状态**：设计已获用户逐项确认；spec 已获用户审阅通过。
 - **范围**：`apps/web/**`、`DESIGN.md`、`docs/**`、CI 的 `check:secrets`。
 - **不在范围**：`packages/protocol/**`、`apps/daemon/**`、SQLite schema、migration、依赖运行时升级。
 - **文档位置**：spec 落 `docs/specs/`，contract 落 `docs/contracts/`，plan 落 `docs/plans/`；不使用 `docs/agent-harness/`。
@@ -411,4 +411,4 @@ pnpm format:check
   - 认证沿用 `/auth` cookie；通知只做站内；验收 Playwright + ego-lite H5 + 一次真实 Claude。
   - `check:secrets` 用 gitleaks 全历史基线 + PR diff，折进 Plan 1。
   - 新 ADR 0007 + 本 spec 回链，反转移动端只读。
-- 设计已通过；spec 待用户审阅。
+- 设计已通过；spec 已获用户审阅通过。下一步：sprint contract（DoD）与 4 个实施 plan。
