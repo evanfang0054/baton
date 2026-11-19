@@ -38,6 +38,18 @@ export const TaskCancelInput = z.object({
 })
 export type TaskCancelInput = z.infer<typeof TaskCancelInput>
 
+export const TaskRetryInput = z.object({
+  taskId: Id,
+  note: z.string().min(1).max(16_384).optional(),
+})
+export type TaskRetryInput = z.infer<typeof TaskRetryInput>
+
+export const TaskReopenInput = z.object({
+  taskId: Id,
+  note: z.string().min(1).max(16_384).optional(),
+})
+export type TaskReopenInput = z.infer<typeof TaskReopenInput>
+
 export const SessionReplyInput = z.object({
   taskId: Id,
   text: z.string().min(1).max(16_384),
@@ -145,6 +157,8 @@ export const ClientMessage = z.discriminatedUnion('type', [
   CommandBase.extend({ type: z.literal('task.create'), payload: TaskCreateInput }),
   CommandBase.extend({ type: z.literal('task.enqueue'), payload: TaskEnqueueInput }),
   CommandBase.extend({ type: z.literal('task.cancel'), payload: TaskCancelInput }),
+  CommandBase.extend({ type: z.literal('task.retry'), payload: TaskRetryInput }),
+  CommandBase.extend({ type: z.literal('task.reopen'), payload: TaskReopenInput }),
   CommandBase.extend({ type: z.literal('session.reply'), payload: SessionReplyInput }),
   CommandBase.extend({ type: z.literal('approval.decide'), payload: ApprovalDecideInput }),
   CommandBase.extend({ type: z.literal('review.decide'), payload: ReviewDecideInput }),

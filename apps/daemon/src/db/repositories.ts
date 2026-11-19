@@ -508,7 +508,7 @@ export function appendTaskFeedback(
 export function appendTaskPromptBlock(
   tx: Tx,
   id: string,
-  tag: 'feedback' | 'user_reply',
+  tag: 'feedback' | 'user_reply' | 'reopen_note',
   content: string,
   maxChars: number,
   updatedAt: number,
