@@ -22,6 +22,7 @@ const ATTENTION_GROUPS: Array<{ id: Attention; label: string }> = [
   { id: 'needs_approval', label: '待审批' },
   { id: 'needs_reply', label: '待回复' },
   { id: 'needs_review', label: '待验收' },
+  { id: 'needs_attention', label: '需关注' },
 ]
 
 const BATCH_LIMIT = 20
@@ -99,8 +100,13 @@ export function MobileBoardList({
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [batching, setBatching] = useState(false)
+  const [doneOpen, setDoneOpen] = useState(false)
 
   const grouped = groupTasks(tasks)
+  const activeTasks = tasks.filter((task) =>
+    ['running', 'queued', 'verifying'].includes(task.status),
+  )
+  const todoSectionTasks = tasks.filter((task) => task.status === 'todo')
   const todoTasks = tasks.filter((task) => task.status === 'todo')
   const activeSelected = new Set(
     [...selected].filter((id) => todoTasks.some((task) => task.id === id)),
@@ -109,6 +115,7 @@ export function MobileBoardList({
   const attentionCount = tasks.filter((task) => task.attention !== 'none').length
 
   const startSelecting = () => {
+    setFilter('todo')
     setSelecting(true)
     setSelected(new Set())
   }
@@ -152,7 +159,10 @@ export function MobileBoardList({
   const showDone = filter === 'all' || filter === 'done'
 
   return (
-    <div data-testid="mobile-board" className="min-h-0 flex-1 overflow-y-auto px-3 pb-24 pt-3">
+    <div
+      data-testid="mobile-board"
+      className="min-h-0 flex-1 overflow-y-auto px-3 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-3"
+    >
       <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-base font-semibold">任务</h1>
@@ -222,8 +232,9 @@ export function MobileBoardList({
             type="button"
             role="tab"
             aria-selected={filter === item.id}
+            disabled={selecting}
             onClick={() => setFilter(item.id)}
-            className={`shrink-0 rounded-full border px-3 py-1 text-xs ${
+            className={`min-h-11 shrink-0 rounded-full border px-3 text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 ${
               filter === item.id ? 'border-accent text-accent' : 'border-separator text-muted'
             }`}
           >
@@ -254,7 +265,7 @@ export function MobileBoardList({
       {showActive ? (
         <Section
           title="进行中"
-          tasks={grouped.running}
+          tasks={activeTasks}
           selectedTaskId={selectedTaskId}
           onSelectTask={onSelectTask}
           empty="没有进行中的任务"
@@ -267,7 +278,7 @@ export function MobileBoardList({
       {showTodo ? (
         <Section
           title="待办"
-          tasks={grouped.todo}
+          tasks={todoSectionTasks}
           selectedTaskId={selectedTaskId}
           onSelectTask={onSelectTask}
           empty="没有待办任务"
@@ -277,17 +288,38 @@ export function MobileBoardList({
         />
       ) : null}
 
-      {showDone && grouped.done.length + grouped.closed.length > 0 ? (
-        <Section
-          title="已完成"
-          tasks={[...grouped.done, ...grouped.closed]}
-          selectedTaskId={selectedTaskId}
-          onSelectTask={onSelectTask}
-          empty="没有已完成任务"
-          selecting={selecting}
-          selected={activeSelected}
-          onToggle={toggle}
-        />
+      {showDone ? (
+        <section className="mb-4" data-mobile-section="已完成">
+          <button
+            type="button"
+            aria-expanded={doneOpen}
+            onClick={() => setDoneOpen((open) => !open)}
+            className="flex min-h-11 w-full items-center justify-between rounded-lg border border-separator px-3 text-left text-xs font-medium text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            <span>已完成 ({grouped.done.length + grouped.closed.length})</span>
+            <span>{doneOpen ? '收起' : '展开'}</span>
+          </button>
+          {doneOpen ? (
+            grouped.done.length + grouped.closed.length === 0 ? (
+              <p className="mt-2 rounded-lg border border-dashed border-separator p-3 text-xs text-muted">
+                没有已完成任务
+              </p>
+            ) : (
+              <div className="mt-2 flex flex-col gap-2">
+                {[...grouped.done, ...grouped.closed].map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    selected={selecting ? selected.has(task.id) : task.id === selectedTaskId}
+                    selectable={false}
+                    onSelect={onSelectTask}
+                    onToggle={toggle}
+                  />
+                ))}
+              </div>
+            )
+          ) : null}
+        </section>
       ) : null}
 
       {!selecting ? (

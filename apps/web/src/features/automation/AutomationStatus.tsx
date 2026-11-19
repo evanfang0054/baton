@@ -5,18 +5,22 @@ export function AutomationStatus({
   summary,
   onPause,
   onOpenSettings,
+  compact = false,
 }: {
   summary: AutomationSummary | null
   onPause: () => void
   onOpenSettings: () => void
+  compact?: boolean
 }) {
   if (!summary) {
     return (
-      <div data-testid="automation-status" className="flex items-center gap-2">
-        <span className="text-xs text-muted">自动化状态未知</span>
-        <Button variant="secondary" onPress={onOpenSettings}>
-          设置
-        </Button>
+      <div data-testid="automation-status" className="flex items-center gap-2 whitespace-nowrap">
+        <span className="text-xs text-muted">{compact ? '未知' : '自动化状态未知'}</span>
+        {compact ? null : (
+          <Button variant="secondary" onPress={onOpenSettings}>
+            设置
+          </Button>
+        )}
       </div>
     )
   }
@@ -24,10 +28,28 @@ export function AutomationStatus({
   // 有效自动化 = 策略开启 && 工作区已信任 && 未暂停；未信任时不能显示“运行中”。
   const running = summary.policy.autopilot.enabled && summary.trusted && !paused
   const label = paused ? '自动化已暂停' : running ? '自动化运行中' : '自动化关闭'
+  const compactLabel = paused ? '已暂停' : running ? '运行中' : '已关闭'
   const tone = paused ? 'text-warning' : running ? 'text-success' : 'text-muted'
 
+  if (compact) {
+    return (
+      <div data-testid="automation-status" className="flex items-center gap-1 whitespace-nowrap">
+        <span className={`text-xs font-medium ${tone}`}>{compactLabel}</span>
+        {paused && !summary.killSwitchForced ? (
+          <Button size="sm" variant="secondary" onPress={onOpenSettings}>
+            恢复
+          </Button>
+        ) : running ? (
+          <Button size="sm" variant="secondary" onPress={onPause}>
+            暂停
+          </Button>
+        ) : null}
+      </div>
+    )
+  }
+
   return (
-    <div data-testid="automation-status" className="flex items-center gap-2">
+    <div data-testid="automation-status" className="flex items-center gap-2 whitespace-nowrap">
       <span className={`text-xs font-medium ${tone}`}>{label}</span>
       {paused ? (
         <>

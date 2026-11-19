@@ -76,10 +76,9 @@ describe('TaskDetailPanel mobile', () => {
     )
 
     expect(await screen.findByText('移动任务')).toBeInTheDocument()
-    expect(screen.getByTestId('task-detail').className).toContain('overflow-y-auto')
+    expect(screen.getByTestId('mobile-task-scroll').className).toContain('overflow-y-auto')
     expect(screen.getByTestId('transcript-section').className).toContain('h-[45vh]')
-    expect(screen.getByText('任务已创建，尚未开工。').closest('section')?.className).toContain(
-      'sticky',
-    )
+    expect(screen.getByTestId('mobile-task-footer')).toHaveTextContent('任务已创建，尚未开工。')
+    expect(screen.getByTestId('mobile-task-footer').className).toContain('shrink-0')
   })
 })

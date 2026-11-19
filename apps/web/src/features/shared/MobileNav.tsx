@@ -41,8 +41,9 @@ export function MobileNav({
             <span className="relative">
               <Icon size={20} aria-hidden="true" />
               {id === 'board' && attentionCount > 0 ? (
-                <span className="absolute -right-3 -top-2 rounded-full bg-danger px-1 text-[10px] leading-4 text-danger-foreground">
+                <span className="absolute -right-3 -top-2 rounded-full bg-danger px-1 text-xs leading-4 text-danger-foreground">
                   {attentionCount > 9 ? '9+' : attentionCount}
+                  <span className="sr-only">个待处理任务</span>
                 </span>
               ) : null}
               {id === 'digest' && unread ? (

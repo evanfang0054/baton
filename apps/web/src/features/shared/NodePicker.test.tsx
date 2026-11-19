@@ -44,6 +44,7 @@ describe('NodePicker', () => {
     )
 
     await userEvent.type(screen.getByLabelText('搜索节点'), '接口')
+    expect(screen.queryByRole('button', { name: /需求/ })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /接口/ }))
     await userEvent.click(screen.getByRole('button', { name: '确定' }))
     expect(onChange).toHaveBeenCalledWith(['n2'])
@@ -66,5 +67,35 @@ describe('NodePicker', () => {
     await userEvent.click(screen.getByRole('button', { name: /B/ }))
     await userEvent.click(screen.getByRole('button', { name: '确定' }))
     expect(onChange).toHaveBeenCalledWith(['n1', 'n2'])
+  })
+
+  it('keeps the draft while the parent rerenders with a new value array', async () => {
+    const { rerender } = render(
+      <NodePicker
+        open
+        onOpenChange={() => {}}
+        nodes={[node('n1', 'A'), node('n2', 'B')]}
+        mode="multi"
+        value={[]}
+        onChange={() => {}}
+        title="选择上下文"
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /A/ }))
+    rerender(
+      <NodePicker
+        open
+        onOpenChange={() => {}}
+        nodes={[node('n1', 'A'), node('n2', 'B')]}
+        mode="multi"
+        value={[]}
+        onChange={() => {}}
+        title="选择上下文"
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: '确定' }))
+
+    expect(screen.getByRole('button', { name: /A/ })).toHaveAttribute('aria-pressed', 'true')
   })
 })

@@ -2,17 +2,42 @@ import type { Engine, Node } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Input } from '@heroui/react/input'
 import { TextArea } from '@heroui/react/textarea'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
+import { listEngines } from '../../lib/api'
 import { useCommand } from '../../lib/command-context'
+import { queryKeys } from '../../lib/query'
+import { preferredEngine } from '../tasks/engine-preference'
 import { nodeTitle } from './node-title'
 
 type Draft =
   | { type: 'text'; node?: Node; content: string }
-  | { type: 'file'; node?: Node; name: string; path: string }
+  | { type: 'file'; node?: Node; name: string; path: string; mime: string }
   | { type: 'agent'; node?: Node; title: string; engine: Engine }
 
-const TYPE_LABELS: Record<string, string> = { text: '文本', file: '文件', agent: 'Agent' }
+const TYPE_LABELS: Record<'text' | 'file' | 'agent', string> = {
+  text: '文本',
+  file: '文件',
+  agent: 'Agent',
+}
+
+const LIST_TYPES = ['text', 'file', 'agent'] as const
+
+function relativePathError(path: string): string | null {
+  if (!path) return '请填写相对路径'
+  if (path.startsWith('/')) return '路径必须是相对路径'
+  if (path.split('/').includes('..')) return '路径不能包含 ..'
+  return null
+}
+
+function draftError(draft: Draft): string | null {
+  if (draft.type === 'text') return null
+  if (draft.type === 'file') {
+    if (!draft.name.trim()) return '请填写文件名称'
+    return relativePathError(draft.path.trim())
+  }
+  return draft.title.trim() ? null : '请填写 Agent 标题'
+}
 
 export function MobileNodeManager({
   canvasId,
@@ -25,24 +50,43 @@ export function MobileNodeManager({
 }) {
   const send = useCommand()
   const queryClient = useQueryClient()
+  const engines = useQuery({ queryKey: queryKeys.engines, queryFn: listEngines })
   const [search, setSearch] = useState('')
   const [draft, setDraft] = useState<Draft | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const engineOptions = engines.data ?? []
+  const defaultEngine = preferredEngine(engineOptions) ?? 'fake'
+  const storedEngine = draft?.type === 'agent' ? draft.engine : null
+  const effectiveEngine =
+    storedEngine && engineOptions.some((entry) => entry.engine === storedEngine)
+      ? storedEngine
+      : defaultEngine
+  const invalid = draft ? draftError(draft) : null
+  const enginesBlocked =
+    draft?.type === 'agent' &&
+    !draft.node &&
+    (engines.isLoading || engines.isError || engineOptions.length === 0)
+
   const filtered = useMemo(() => {
     const keyword = search.trim().toLowerCase()
     return nodes.filter((node) => {
-      if (!['text', 'file', 'agent'].includes(node.type)) return false
+      if (!LIST_TYPES.includes(node.type as (typeof LIST_TYPES)[number])) return false
       return !keyword || nodeTitle(node).toLowerCase().includes(keyword)
     })
   }, [nodes, search])
 
+  const grouped = useMemo(
+    () =>
+      Object.fromEntries(
+        LIST_TYPES.map((type) => [type, filtered.filter((node) => node.type === type)]),
+      ) as Record<(typeof LIST_TYPES)[number], Node[]>,
+    [filtered],
+  )
+
   const edit = (node: Node) => {
     if (node.type === 'text') setDraft({ type: 'text', node, content: node.data.content })
-    if (node.type === 'file') {
-      setDraft({ type: 'file', node, name: node.data.name, path: node.data.path })
-    }
     if (node.type === 'agent') {
       setDraft({ type: 'agent', node, title: node.data.title, engine: node.data.engine })
     }
@@ -50,6 +94,11 @@ export function MobileNodeManager({
 
   const save = async () => {
     if (!draft) return
+    const validationError = draftError(draft)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
     setPending(true)
     setError(null)
     try {
@@ -57,9 +106,13 @@ export function MobileNodeManager({
         const data =
           draft.type === 'text'
             ? { content: draft.content }
-            : draft.type === 'file'
-              ? { name: draft.name, path: draft.path }
-              : { title: draft.title }
+            : draft.type === 'agent'
+              ? { title: draft.title.trim() }
+              : null
+        if (!data) {
+          setDraft(null)
+          return
+        }
         await send({ type: 'node.update', payload: { nodeId: draft.node.id, patch: { data } } })
       } else {
         const index = nodes.length
@@ -77,12 +130,16 @@ export function MobileNodeManager({
               ? {
                   type: 'file' as const,
                   ...position,
-                  data: { name: draft.name, path: draft.path },
+                  data: {
+                    name: draft.name.trim(),
+                    path: draft.path.trim(),
+                    ...(draft.mime.trim() ? { mime: draft.mime.trim() } : {}),
+                  },
                 }
               : {
                   type: 'agent' as const,
                   ...position,
-                  data: { title: draft.title, engine: draft.engine, taskId: null },
+                  data: { title: draft.title.trim(), engine: effectiveEngine, taskId: null },
                 }
         await send({ type: 'node.create', payload: { canvasId, node } })
       }
@@ -98,11 +155,15 @@ export function MobileNodeManager({
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-separator px-3">
-        <button type="button" onClick={onClose} className="text-sm text-muted">
+        <button
+          type="button"
+          onClick={onClose}
+          className="inline-flex h-11 min-w-11 items-center justify-center rounded-md text-sm text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
           关闭
         </button>
         <h2 className="text-sm font-medium">节点</h2>
-        <span className="w-10" />
+        <span className="w-11" />
       </header>
 
       {draft ? (
@@ -124,22 +185,33 @@ export function MobileNodeManager({
               <>
                 <Input
                   aria-label="文件名称"
+                  placeholder="文件名称"
                   value={draft.name}
                   onChange={(event) => setDraft({ ...draft, name: event.target.value })}
                   fullWidth
                 />
                 <Input
                   aria-label="相对路径"
+                  placeholder="src/example.ts"
                   value={draft.path}
                   onChange={(event) => setDraft({ ...draft, path: event.target.value })}
                   fullWidth
                 />
+                <Input
+                  aria-label="MIME 类型（可选）"
+                  placeholder="text/plain"
+                  value={draft.mime}
+                  onChange={(event) => setDraft({ ...draft, mime: event.target.value })}
+                  fullWidth
+                />
+                <p className="text-xs text-muted">路径必须相对于工作区根目录，且不能包含 ..</p>
               </>
             ) : null}
             {draft.type === 'agent' ? (
               <>
                 <Input
                   aria-label="Agent 标题"
+                  placeholder="Agent 标题"
                   value={draft.title}
                   onChange={(event) => setDraft({ ...draft, title: event.target.value })}
                   fullWidth
@@ -147,15 +219,29 @@ export function MobileNodeManager({
                 {!draft.node ? (
                   <select
                     aria-label="Agent 引擎"
-                    value={draft.engine}
+                    value={effectiveEngine}
                     onChange={(event) =>
                       setDraft({ ...draft, engine: event.target.value as Engine })
                     }
-                    className="h-10 rounded-lg border border-separator bg-background px-2 text-sm"
+                    className="h-11 rounded-lg border border-separator bg-background px-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                   >
-                    <option value="fake">fake</option>
-                    <option value="claude-sdk">claude-sdk</option>
+                    {engineOptions.length === 0 ? (
+                      <option value={effectiveEngine}>加载中…</option>
+                    ) : null}
+                    {engineOptions.map((entry) => (
+                      <option
+                        key={entry.engine}
+                        value={entry.engine}
+                        disabled={entry.status === 'unavailable'}
+                      >
+                        {entry.engine}
+                        {entry.status === 'unavailable' ? '（不可用）' : ''}
+                      </option>
+                    ))}
                   </select>
+                ) : null}
+                {engines.isError ? (
+                  <p className="text-xs text-danger">引擎状态加载失败，请稍后重试</p>
                 ) : null}
               </>
             ) : null}
@@ -164,13 +250,14 @@ export function MobileNodeManager({
                 {error}
               </p>
             ) : null}
+            {invalid && !error ? <p className="text-xs text-muted">{invalid}</p> : null}
             <div className="flex gap-2">
               <Button variant="tertiary" onPress={() => setDraft(null)} className="flex-1">
                 返回
               </Button>
               <Button
                 variant="primary"
-                isDisabled={pending}
+                isDisabled={pending || Boolean(invalid) || enginesBlocked}
                 onPress={() => void save()}
                 className="flex-1"
               >
@@ -200,32 +287,55 @@ export function MobileNodeManager({
               <Button
                 size="sm"
                 variant="secondary"
-                onPress={() => setDraft({ type: 'file', name: '', path: '' })}
+                onPress={() => setDraft({ type: 'file', name: '', path: '', mime: '' })}
               >
                 新建文件
               </Button>
               <Button
                 size="sm"
                 variant="secondary"
-                onPress={() => setDraft({ type: 'agent', title: '', engine: 'fake' })}
+                onPress={() => setDraft({ type: 'agent', title: '', engine: defaultEngine })}
               >
                 新建 Agent
               </Button>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-24">
+          <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-[calc(6rem+env(safe-area-inset-bottom))]">
             {filtered.length === 0 ? <p className="text-sm text-muted">没有节点</p> : null}
-            {filtered.map((node) => (
-              <button
-                key={node.id}
-                type="button"
-                onClick={() => edit(node)}
-                className="mb-2 flex min-h-11 w-full items-center justify-between rounded-lg border border-separator px-3 text-left"
-              >
-                <span className="min-w-0 truncate text-sm">{nodeTitle(node)}</span>
-                <span className="shrink-0 text-xs text-muted">{TYPE_LABELS[node.type]}</span>
-              </button>
-            ))}
+            {LIST_TYPES.map((type) => {
+              const items = grouped[type]
+              if (items.length === 0) return null
+              return (
+                <section key={type} className="mb-4">
+                  <h3 className="mb-2 text-xs font-medium text-muted">
+                    {TYPE_LABELS[type]} ({items.length})
+                  </h3>
+                  <div className="flex flex-col gap-2">
+                    {items.map((node) =>
+                      node.type === 'file' ? (
+                        <div
+                          key={node.id}
+                          className="flex min-h-11 items-center justify-between rounded-lg border border-separator px-3 text-left"
+                        >
+                          <span className="min-w-0 truncate text-sm">{nodeTitle(node)}</span>
+                          <span className="shrink-0 text-xs text-muted">只读</span>
+                        </div>
+                      ) : (
+                        <button
+                          key={node.id}
+                          type="button"
+                          onClick={() => edit(node)}
+                          className="flex min-h-11 w-full items-center justify-between rounded-lg border border-separator px-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                        >
+                          <span className="min-w-0 truncate text-sm">{nodeTitle(node)}</span>
+                          <span className="shrink-0 text-xs text-muted">{TYPE_LABELS[type]}</span>
+                        </button>
+                      ),
+                    )}
+                  </div>
+                </section>
+              )
+            })}
           </div>
         </>
       )}

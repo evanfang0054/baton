@@ -1,22 +1,16 @@
-import type { Engine, EngineStatus, Node } from '@baton/protocol'
+import type { Engine, Node } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Input } from '@heroui/react/input'
 import { TextArea } from '@heroui/react/textarea'
+import { toast } from '@heroui/react/toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { listEngines } from '../../lib/api'
 import { useCommand } from '../../lib/command-context'
 import { queryKeys } from '../../lib/query'
 import { nodeTitle } from '../canvas/node-title'
 import { NodePicker } from '../shared/NodePicker'
-
-function preferredEngine(engines: EngineStatus[]): Engine | null {
-  const claude = engines.find(
-    (entry) => entry.engine === 'claude-sdk' && entry.status !== 'unavailable',
-  )
-  if (claude) return claude.engine
-  return engines.find((entry) => entry.engine === 'fake')?.engine ?? null
-}
+import { preferredEngine } from './engine-preference'
 
 export function MobileCreateTaskForm({
   workspaceId,
@@ -50,6 +44,8 @@ export function MobileCreateTaskForm({
   const [picker, setPicker] = useState<'agent' | 'context' | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const createdTaskId = useRef<string | null>(null)
+  const createdAgentNodeId = useRef<string | null>(null)
 
   const engineOptions = engines.data ?? []
   const defaultEngine = engines.data ? preferredEngine(engines.data) : null
@@ -60,6 +56,9 @@ export function MobileCreateTaskForm({
   const disabled =
     !prompt.trim() ||
     pending ||
+    !engines.data ||
+    engineOptions.length === 0 ||
+    engines.isError ||
     selectedEngine?.status === 'unavailable' ||
     (newAgent ? !agentTitle.trim() : !agentId)
 
@@ -70,50 +69,64 @@ export function MobileCreateTaskForm({
     try {
       let nodeId = agentId
       if (newAgent) {
-        const index = nodes.length
-        const result = (await send({
-          type: 'node.create',
-          payload: {
-            canvasId,
-            node: {
-              type: 'agent',
-              x: 80 + (index % 4) * 360,
-              y: 80 + Math.floor(index / 4) * 240,
-              w: 320,
-              h: 200,
-              groupId: null,
-              data: {
-                title: agentTitle.trim() || '新 Agent',
-                engine: effectiveEngine,
-                taskId: null,
+        if (createdAgentNodeId.current) {
+          nodeId = createdAgentNodeId.current
+        } else {
+          const index = nodes.length
+          const result = (await send({
+            type: 'node.create',
+            payload: {
+              canvasId,
+              node: {
+                type: 'agent',
+                x: 80 + (index % 4) * 360,
+                y: 80 + Math.floor(index / 4) * 240,
+                w: 320,
+                h: 200,
+                groupId: null,
+                data: {
+                  title: agentTitle.trim() || '新 Agent',
+                  engine: effectiveEngine,
+                  taskId: null,
+                },
               },
             },
+          })) as { nodeId?: string } | undefined
+          if (!result?.nodeId) throw new Error('Agent 创建失败')
+          createdAgentNodeId.current = result.nodeId
+          nodeId = result.nodeId
+        }
+      }
+      let taskId = createdTaskId.current
+      if (!taskId) {
+        const result = (await send({
+          type: 'task.create',
+          payload: {
+            workspaceId,
+            nodeId,
+            title: title.trim() || '新任务',
+            prompt: prompt.trim(),
+            contextNodeIds: contextIds,
+            engine: effectiveEngine,
+            workspaceMode: 'main',
+            dangerouslySkipPermissions: skipPermissions && workspaceTrusted,
+            ...(verifyCommand.trim() ? { verifyCommand: verifyCommand.trim() } : {}),
           },
-        })) as { nodeId?: string } | undefined
-        if (!result?.nodeId) throw new Error('Agent 创建失败')
-        nodeId = result.nodeId
+        })) as { taskId?: string } | undefined
+        if (!result?.taskId) throw new Error('任务创建失败')
+        taskId = result.taskId
+        createdTaskId.current = taskId
+        await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+        await queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
       }
-      const result = (await send({
-        type: 'task.create',
-        payload: {
-          workspaceId,
-          nodeId,
-          title: title.trim() || '新任务',
-          prompt: prompt.trim(),
-          contextNodeIds: contextIds,
-          engine: effectiveEngine,
-          workspaceMode: 'main',
-          dangerouslySkipPermissions: skipPermissions && workspaceTrusted,
-          ...(verifyCommand.trim() ? { verifyCommand: verifyCommand.trim() } : {}),
-        },
-      })) as { taskId?: string } | undefined
-      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
-      if (!result?.taskId) throw new Error('任务创建失败')
       if (createAndStart) {
-        await send({ type: 'task.enqueue', payload: { taskId: result.taskId } })
+        try {
+          await send({ type: 'task.enqueue', payload: { taskId } })
+        } catch {
+          toast.danger('任务已创建，但开工失败，请在看板重试')
+        }
       }
-      onCreated(result.taskId)
+      onCreated(taskId)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '创建失败')
     } finally {
@@ -124,13 +137,17 @@ export function MobileCreateTaskForm({
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-separator px-3">
-        <button type="button" onClick={onCancel} className="text-sm text-muted">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="inline-flex h-11 min-w-11 items-center justify-center rounded-md text-sm text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
           取消
         </button>
         <h2 className="text-sm font-medium">新建任务</h2>
-        <span className="w-10" />
+        <span className="w-11" />
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-24">
+      <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-[calc(6rem+env(safe-area-inset-bottom))]">
         <section className="mb-3 rounded-lg border border-separator p-3">
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-sm font-medium">Agent</h3>
@@ -151,7 +168,7 @@ export function MobileCreateTaskForm({
                 aria-label="Agent 引擎"
                 value={effectiveEngine}
                 onChange={(event) => setEngine(event.target.value as Engine)}
-                className="h-10 rounded-lg border border-separator bg-background px-2 text-sm"
+                className="h-11 rounded-lg border border-separator bg-background px-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               >
                 {engineOptions.map((entry) => (
                   <option
@@ -225,7 +242,7 @@ export function MobileCreateTaskForm({
             aria-label="任务引擎"
             value={effectiveEngine}
             onChange={(event) => setEngine(event.target.value as Engine)}
-            className="h-10 rounded-lg border border-separator bg-background px-2 text-sm"
+            className="h-11 rounded-lg border border-separator bg-background px-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             {engineOptions.map((entry) => (
               <option
@@ -237,6 +254,12 @@ export function MobileCreateTaskForm({
               </option>
             ))}
           </select>
+          {engines.isError ? (
+            <p role="alert" className="text-sm text-danger">
+              引擎状态加载失败，请稍后重试
+            </p>
+          ) : null}
+          {engines.isLoading ? <p className="text-xs text-muted">引擎状态加载中…</p> : null}
           {workspaceTrusted ? (
             <label className="flex min-h-11 items-center gap-2 text-sm">
               <input

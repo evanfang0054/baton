@@ -4,7 +4,7 @@ test.use({ viewport: { width: 390, height: 844 } })
 
 type Sent = { type: string; payload: Record<string, unknown> }
 
-async function mockWorkspace(page: Page, sent: Sent[]) {
+async function mockWorkspace(page: Page, sent: Sent[], onDecision?: (decision: string) => void) {
   await page.routeWebSocket('**/ws', (ws) => {
     ws.onMessage((raw) => {
       const message = JSON.parse(String(raw)) as {
@@ -14,15 +14,24 @@ async function mockWorkspace(page: Page, sent: Sent[]) {
       }
       if (message.type && message.payload) {
         sent.push({ type: message.type, payload: message.payload })
+        if (message.type === 'approval.decide' && typeof message.payload.decision === 'string') {
+          onDecision?.(message.payload.decision)
+        }
       }
       if (!message.id) return
+      const data =
+        message.type === 'approval.decide' ||
+        message.type === 'review.decide' ||
+        message.type === 'task.enqueue'
+          ? {}
+          : { cursor: 0, hasMore: false }
       ws.send(
         JSON.stringify({
           v: 1,
           id: `ack-${message.id}`,
           type: 'ack',
           ts: Date.now(),
-          payload: { commandId: message.id, ok: true, data: { cursor: 0, hasMore: false } },
+          payload: { commandId: message.id, ok: true, data },
         }),
       )
     })
@@ -74,13 +83,9 @@ async function mockWorkspace(page: Page, sent: Sent[]) {
   })
 }
 
-test('approves a waiting task on mobile', async ({ page }) => {
-  const sent: Sent[] = []
-  let approved = false
-  await mockWorkspace(page, sent)
-
-  await page.route(/\/api\/tasks(\?.*)?$/, async (route) => {
-    return route.fulfill({
+async function mockApprovalTask(page: Page, state: { decision: 'allow' | 'deny' | null }) {
+  await page.route(/\/api\/tasks(\?.*)?$/, (route) =>
+    route.fulfill({
       json: {
         tasks: [
           {
@@ -89,8 +94,8 @@ test('approves a waiting task on mobile', async ({ page }) => {
             nodeId: 'n1',
             title: '移动审批',
             prompt: '',
-            status: approved ? 'running' : 'waiting_input',
-            waitingReason: approved ? null : 'approval',
+            status: state.decision ? 'running' : 'waiting_input',
+            waitingReason: state.decision ? null : 'approval',
             engine: 'fake',
             workspaceMode: 'main',
             branch: null,
@@ -100,16 +105,16 @@ test('approves a waiting task on mobile', async ({ page }) => {
             retryCount: 0,
             createdAt: 1,
             updatedAt: 2,
-            attention: approved ? 'none' : 'needs_approval',
-            waitingSince: approved ? null : 2,
+            attention: state.decision ? 'none' : 'needs_approval',
+            waitingSince: state.decision ? null : 2,
           },
         ],
       },
-    })
-  })
+    }),
+  )
 
-  await page.route(/\/api\/tasks\/t1$/, async (route) => {
-    return route.fulfill({
+  await page.route(/\/api\/tasks\/t1$/, (route) =>
+    route.fulfill({
       json: {
         task: {
           id: 't1',
@@ -117,8 +122,8 @@ test('approves a waiting task on mobile', async ({ page }) => {
           nodeId: 'n1',
           title: '移动审批',
           prompt: '',
-          status: approved ? 'running' : 'waiting_input',
-          waitingReason: approved ? null : 'approval',
+          status: state.decision ? 'running' : 'waiting_input',
+          waitingReason: state.decision ? null : 'approval',
           engine: 'fake',
           workspaceMode: 'main',
           branch: null,
@@ -137,20 +142,20 @@ test('approves a waiting task on mobile', async ({ page }) => {
             id: 'a1',
             sessionId: 's1',
             request: { toolName: 'Bash', input: { command: 'pnpm test' }, risk: 'medium' },
-            decision: approved ? 'allow' : null,
-            decidedBy: approved ? 'user' : null,
-            decidedAt: approved ? 3 : null,
+            decision: state.decision,
+            decidedBy: state.decision ? 'user' : null,
+            decidedAt: state.decision ? 3 : null,
             response: null,
           },
         ],
         review: null,
-        waitingSince: approved ? null : 2,
-        attention: approved ? 'none' : 'needs_approval',
+        waitingSince: state.decision ? null : 2,
+        attention: state.decision ? 'none' : 'needs_approval',
         contextInvalid: false,
         originInvalid: false,
       },
-    })
-  })
+    }),
+  )
 
   await page.route(/\/api\/tasks\/t1\/automation$/, (route) =>
     route.fulfill({
@@ -163,6 +168,15 @@ test('approves a waiting task on mobile', async ({ page }) => {
       },
     }),
   )
+}
+
+test('approves a waiting task on mobile', async ({ page }) => {
+  const sent: Sent[] = []
+  const state = { decision: null as 'allow' | 'deny' | null }
+  await mockWorkspace(page, sent, (decision) => {
+    state.decision = decision as 'allow' | 'deny'
+  })
+  await mockApprovalTask(page, state)
 
   await page.goto('/')
   await expect(page.getByTestId('mobile-board')).toBeVisible()
@@ -170,8 +184,30 @@ test('approves a waiting task on mobile', async ({ page }) => {
   await expect(page.getByTestId('mobile-task-detail')).toBeVisible()
   await expect(page.getByText('需要授权')).toBeVisible()
 
-  approved = true
   await page.getByRole('button', { name: '允许' }).click()
+  await expect
+    .poll(() => sent.find((item) => item.type === 'approval.decide')?.payload)
+    .toMatchObject({ approvalId: 'a1', decision: 'allow' })
+  await expect(page.getByText('需要授权')).toHaveCount(0)
+})
+
+test('denies a waiting approval on mobile', async ({ page }) => {
+  const sent: Sent[] = []
+  const state = { decision: null as 'allow' | 'deny' | null }
+  await mockWorkspace(page, sent, (decision) => {
+    state.decision = decision as 'allow' | 'deny'
+  })
+  await mockApprovalTask(page, state)
+
+  await page.goto('/')
+  await expect(page.getByTestId('mobile-board')).toBeVisible()
+  await page.getByRole('button', { name: /移动审批/ }).click()
+  await expect(page.getByText('需要授权')).toBeVisible()
+
+  await page.getByRole('button', { name: '拒绝' }).click()
+  await expect
+    .poll(() => sent.find((item) => item.type === 'approval.decide')?.payload)
+    .toMatchObject({ approvalId: 'a1', decision: 'deny' })
   await expect(page.getByText('需要授权')).toHaveCount(0)
 })
 

@@ -89,6 +89,7 @@ describe('MobileCreateTaskForm', () => {
             nodeId: 'a1',
             title: '移动任务',
             prompt: '做一件事',
+            engine: 'fake',
           }),
         }),
       ),
@@ -98,7 +99,7 @@ describe('MobileCreateTaskForm', () => {
 
   it('defaults to the agent engine instead of the preferred engine', async () => {
     stubEngines(['fake', 'claude-sdk'])
-    renderForm([claudeAgent])
+    renderForm([agent])
     await screen.findByLabelText('任务标题')
     await userEvent.type(screen.getByLabelText('任务 prompt'), '做一件事')
     await userEvent.click(screen.getByRole('button', { name: '创建' }))
@@ -107,7 +108,7 @@ describe('MobileCreateTaskForm', () => {
       expect(send).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'task.create',
-          payload: expect.objectContaining({ nodeId: 'a2', engine: 'claude-sdk' }),
+          payload: expect.objectContaining({ nodeId: 'a1', engine: 'fake' }),
         }),
       ),
     )
@@ -132,5 +133,36 @@ describe('MobileCreateTaskForm', () => {
         }),
       ),
     )
+  })
+
+  it('retries a failed enqueue without creating a duplicate task', async () => {
+    const onCreated = renderForm([agent])
+    await screen.findByLabelText('任务标题')
+    send.mockImplementation(async (command: { type: string }) => {
+      if (command.type === 'task.create') return { taskId: 't1' }
+      if (command.type === 'task.enqueue') throw new Error('offline')
+      return {}
+    })
+
+    await userEvent.type(screen.getByLabelText('任务 prompt'), '做一件事')
+    await userEvent.click(screen.getByLabelText('创建后立即开工'))
+    await userEvent.click(screen.getByRole('button', { name: '创建并开工' }))
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith('t1'))
+
+    await userEvent.click(screen.getByRole('button', { name: '创建并开工' }))
+    await waitFor(() =>
+      expect(send.mock.calls.filter(([command]) => command.type === 'task.create')).toHaveLength(1),
+    )
+  })
+
+  it('disables submit when engines fail to load', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{}', { status: 500 })),
+    )
+    renderForm([agent])
+    await screen.findByText('引擎状态加载失败，请稍后重试')
+    await userEvent.type(screen.getByLabelText('任务 prompt'), '做一件事')
+    expect(screen.getByRole('button', { name: '创建' })).toBeDisabled()
   })
 })

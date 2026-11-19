@@ -124,6 +124,7 @@ export function App() {
       needs_approval: list.filter((task) => task.attention === 'needs_approval').length,
       needs_reply: list.filter((task) => task.attention === 'needs_reply').length,
       needs_review: list.filter((task) => task.attention === 'needs_review').length,
+      needs_attention: list.filter((task) => task.attention === 'needs_attention').length,
       total: list.length,
     }
   }, [tasks.data])
@@ -198,13 +199,18 @@ export function App() {
     }
   }
 
+  const headerClass =
+    viewport === 'compact'
+      ? 'flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b border-separator px-3 py-2'
+      : 'flex h-14 shrink-0 items-center gap-3 border-b border-separator px-4'
+
   return (
     <RealtimeProvider workspaceId={activeWorkspaceId}>
       <div
         className="flex h-screen flex-col bg-background text-foreground"
         data-viewport={viewport}
       >
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-separator px-4">
+        <header className={headerClass}>
           <span className="text-sm font-semibold">baton</span>
           <WorkspaceSwitcher
             workspaces={workspaces.data ?? []}
@@ -214,7 +220,7 @@ export function App() {
               writeUrlState({ workspaceId: id, taskId: null })
             }}
           />
-          {activeWorkspaceId ? <ConnectionStatus /> : null}
+          {activeWorkspaceId ? <ConnectionStatus compact={isMobile} /> : null}
           {activeWorkspace ? (
             <>
               {!isMobile ? (
@@ -248,8 +254,9 @@ export function App() {
                 更多
               </Button>
             ) : null}
-            {activeWorkspaceId && !isMobile ? (
+            {activeWorkspaceId ? (
               <AutomationStatus
+                compact={isMobile}
                 summary={automation.data ?? null}
                 onPause={() => void pauseAutomation()}
                 onOpenSettings={() => setAutomationSettingsOpen(true)}
@@ -303,7 +310,7 @@ export function App() {
             ) : null}
 
             {mobileTab === 'supervisor' ? (
-              <div className="min-h-0 flex-1 pb-16">
+              <div className="min-h-0 flex-1 pb-[calc(4rem+env(safe-area-inset-bottom))]">
                 <SupervisorPanel
                   workspaceId={activeWorkspaceId}
                   contextNodes={contextNodes}
@@ -315,7 +322,7 @@ export function App() {
             ) : null}
 
             {mobileTab === 'digest' ? (
-              <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-24">
+              <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-[calc(6rem+env(safe-area-inset-bottom))]">
                 <DigestCard
                   workspaceId={activeWorkspaceId ?? undefined}
                   onOpenTask={(id) => {
@@ -329,7 +336,12 @@ export function App() {
             <MobileNav
               tab={mobileTab}
               onChange={setMobileTab}
-              attentionCount={counts.needs_approval + counts.needs_reply + counts.needs_review}
+              attentionCount={
+                counts.needs_approval +
+                counts.needs_reply +
+                counts.needs_review +
+                counts.needs_attention
+              }
               unread={notices.data?.notices[0]?.readAt === null}
             />
 

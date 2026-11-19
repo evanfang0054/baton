@@ -29,7 +29,7 @@ export function WorkspaceTrustBadge({
 
   if (!workspace.trusted) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 whitespace-nowrap">
         <Chip size="sm" variant="soft" color="warning">
           未信任
         </Chip>
@@ -41,7 +41,7 @@ export function WorkspaceTrustBadge({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 whitespace-nowrap">
       <Chip size="sm" variant="soft" color="success">
         已信任
       </Chip>

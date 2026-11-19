@@ -1,7 +1,7 @@
 import type { Node } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Input } from '@heroui/react/input'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { nodeTitle } from '../canvas/node-title'
 
 const TYPE_LABELS: Record<string, string> = {
@@ -31,12 +31,14 @@ export function NodePicker({
 }) {
   const [search, setSearch] = useState('')
   const [draft, setDraft] = useState<string[]>(value)
+  const valueRef = useRef(value)
+  valueRef.current = value
 
   useEffect(() => {
     if (!open) return
-    setDraft(value)
+    setDraft(valueRef.current)
     setSearch('')
-  }, [open, value])
+  }, [open])
 
   const available = useMemo(() => {
     const keyword = search.trim().toLowerCase()

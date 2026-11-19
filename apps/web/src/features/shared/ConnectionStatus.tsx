@@ -16,8 +16,16 @@ const dot: Record<WsStatus, string> = {
   unauthorized: 'bg-danger',
 }
 
-export function ConnectionStatus() {
+export function ConnectionStatus({ compact = false }: { compact?: boolean }) {
   const status = useAppStore((state) => state.wsStatus)
+  if (compact) {
+    return (
+      <span className="flex items-center" title={labels[status]}>
+        <span className={`h-2 w-2 rounded-full ${dot[status]}`} />
+        <span className="sr-only">{labels[status]}</span>
+      </span>
+    )
+  }
   return (
     <span className="flex items-center gap-1.5 text-xs text-muted">
       <span className={`h-2 w-2 rounded-full ${dot[status]}`} />

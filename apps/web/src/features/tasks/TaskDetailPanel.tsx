@@ -74,11 +74,7 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
   return (
     <div
       data-testid="task-detail"
-      className={
-        mobile
-          ? 'flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4'
-          : 'flex min-h-0 flex-1 flex-col gap-3 p-4'
-      }
+      className={mobile ? 'flex min-h-0 flex-1 flex-col' : 'flex min-h-0 flex-1 flex-col gap-3 p-4'}
     >
       {!activeWorkspaceId ? (
         <p className="text-sm text-muted">尚未选择工作区</p>
@@ -89,20 +85,58 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
       ) : detail.isError ? (
         <p className="text-sm text-danger">任务加载失败</p>
       ) : detail.data ? (
-        <DetailContent
-          key={detail.data.task.id}
-          detail={detail.data}
-          workspaceId={activeWorkspaceId}
-          activeSessionId={activeSession?.id ?? null}
-          onSelectSession={setSelectedSessionId}
-          events={events.data?.events ?? []}
-          eventsLoading={events.isLoading}
-          hasMore={events.data?.hasMore ?? false}
-          loadMorePending={loadMorePending}
-          onLoadMore={loadMore}
-          onDone={onDone}
-          mobile={mobile}
-        />
+        mobile ? (
+          <>
+            <div data-testid="mobile-task-scroll" className="min-h-0 flex-1 overflow-y-auto p-4">
+              <DetailContent
+                key={detail.data.task.id}
+                detail={detail.data}
+                workspaceId={activeWorkspaceId}
+                activeSessionId={activeSession?.id ?? null}
+                onSelectSession={setSelectedSessionId}
+                events={events.data?.events ?? []}
+                eventsLoading={events.isLoading}
+                hasMore={events.data?.hasMore ?? false}
+                loadMorePending={loadMorePending}
+                onLoadMore={loadMore}
+                onDone={onDone}
+                mobile
+                showActions={false}
+              />
+            </div>
+            {['todo', 'queued', 'running'].includes(detail.data.task.status) ||
+            (detail.data.task.status === 'waiting_input' &&
+              detail.data.attention === 'needs_attention') ? (
+              <div
+                data-testid="mobile-task-footer"
+                className="shrink-0 border-t border-separator bg-background p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
+              >
+                <TaskActions
+                  taskId={detail.data.task.id}
+                  workspaceId={activeWorkspaceId}
+                  status={detail.data.task.status}
+                  attention={detail.data.attention}
+                />
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <DetailContent
+            key={detail.data.task.id}
+            detail={detail.data}
+            workspaceId={activeWorkspaceId}
+            activeSessionId={activeSession?.id ?? null}
+            onSelectSession={setSelectedSessionId}
+            events={events.data?.events ?? []}
+            eventsLoading={events.isLoading}
+            hasMore={events.data?.hasMore ?? false}
+            loadMorePending={loadMorePending}
+            onLoadMore={loadMore}
+            onDone={onDone}
+            mobile={false}
+            showActions
+          />
+        )
       ) : null}
     </div>
   )
@@ -129,6 +163,7 @@ function DetailContent({
   onLoadMore,
   onDone,
   mobile,
+  showActions,
 }: {
   detail: TaskDetailResponse
   workspaceId: string
@@ -141,6 +176,7 @@ function DetailContent({
   onLoadMore: () => void
   onDone: () => Promise<void>
   mobile: boolean
+  showActions: boolean
 }) {
   const task = detail.task
   const pendingApprovals = [...detail.approvals].reverse().filter((item) => item.decision === null)
@@ -206,13 +242,15 @@ function DetailContent({
         )
       ) : null}
 
-      <TaskActions
-        taskId={task.id}
-        workspaceId={workspaceId}
-        status={task.status}
-        attention={detail.attention}
-        sticky={mobile}
-      />
+      {showActions ? (
+        <TaskActions
+          taskId={task.id}
+          workspaceId={workspaceId}
+          status={task.status}
+          attention={detail.attention}
+          sticky={mobile}
+        />
+      ) : null}
 
       {['done', 'failed', 'cancelled'].includes(task.status) ? (
         <p className="shrink-0 text-sm text-muted">任务已结束，只读。</p>
