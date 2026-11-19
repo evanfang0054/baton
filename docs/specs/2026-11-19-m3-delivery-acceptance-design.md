@@ -17,7 +17,7 @@ domain_terms: [delivery acceptance, diff snapshot, worktree, retry, reopen, epis
 
 ## 0. 文档信息
 
-- **状态**：设计已获用户逐项确认（2026-11-19）；spec 待用户审阅。
+- **状态**：设计已获用户逐项确认（2026-11-19）；已实现，分支 `feat/m3-1-diff` 待合并。
 - **范围**：`packages/protocol/**`、`packages/core/src/state-machine/**`、`apps/daemon/**`、`apps/daemon/migrations/**`、`apps/web/**`、`docs/**`。
 - **不在范围**：总管工具扩容、外部 Source（GitHub/飞书）、DSH、画布 image/group/review 节点、`canvas.patch`、M1-7b（partial streaming / cost / turn / idle eviction）、自动 merge、自动清理 worktree、PWA 与外部通知、多用户。
 - **文档位置**：spec 落 `docs/specs/`，contract 落 `docs/contracts/`，plan 落 `docs/plans/`；不使用 `docs/agent-harness/`。
