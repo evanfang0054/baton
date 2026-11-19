@@ -5,6 +5,8 @@ const STATUS_BY_CODE: Record<string, number> = {
   invalid_payload: 400,
   invalid_path: 400,
   unsupported_workspace_mode: 400,
+  worktree_unavailable: 400,
+  task_active: 409,
   unsupported_engine: 400,
   engine_unavailable: 503,
   invalid_policy: 400,

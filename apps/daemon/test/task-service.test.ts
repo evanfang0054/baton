@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TaskCreateInput } from '@baton/protocol'
+import { execa } from 'execa'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Config } from '../src/config.js'
 import { getTask } from '../src/db/repositories.js'
@@ -104,12 +105,12 @@ describe('createTask', () => {
     expect(snapshot.relationsTruncated).toBe(false)
   })
 
-  it('rejects worktree mode and the pty engine', () => {
+  it('rejects worktree in non-git workspaces and the pty engine', () => {
     const { seeded, service } = setup()
     const worktree = service.createTask({ ...input(seeded), workspaceMode: 'worktree' })
     expect(worktree.ok).toBe(false)
     if (!worktree.ok) {
-      expect(worktree.error.code).toBe('unsupported_workspace_mode')
+      expect(worktree.error.code).toBe('worktree_unavailable')
     }
 
     const claude = service.createTask({ ...input(seeded), engine: 'claude-sdk' })
@@ -188,6 +189,30 @@ describe('createTask', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.error.code).toBe('invalid_policy')
+    }
+  })
+
+  it('accepts worktree mode only for git workspaces', async () => {
+    const { database, seeded, service, workspacePath } = setup()
+    const bad = service.createTask({ ...input(seeded), workspaceMode: 'worktree' })
+    expect(bad.ok).toBe(false)
+    if (!bad.ok) {
+      expect(bad.error.code).toBe('worktree_unavailable')
+    }
+
+    await execa('git', ['-C', workspacePath, 'init', '-q'])
+    await execa('git', ['-C', workspacePath, 'config', 'user.email', 'test@example.com'])
+    await execa('git', ['-C', workspacePath, 'config', 'user.name', 'test'])
+    writeFileSync(join(workspacePath, 'a.txt'), 'x')
+    await execa('git', ['-C', workspacePath, 'add', '-A'])
+    await execa('git', ['-C', workspacePath, 'commit', '-qm', 'init'])
+
+    const ok = service.createTask({ ...input(seeded), workspaceMode: 'worktree' })
+    expect(ok.ok).toBe(true)
+    if (ok.ok) {
+      const task = getTask(database.db, ok.taskId)
+      expect(task?.workspaceMode).toBe('worktree')
+      expect(task?.worktreePath).toBeNull()
     }
   })
 })
