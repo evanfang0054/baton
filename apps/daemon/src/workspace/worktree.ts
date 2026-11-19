@@ -106,3 +106,8 @@ export async function removeWorktree(input: {
 export async function pruneWorkspace(workspacePath: string): Promise<void> {
   await execa('git', ['-C', workspacePath, 'worktree', 'prune'], { reject: false })
 }
+
+/** boot 对账是同步启动路径；prune 只清理元数据，不阻塞事件循环太久。 */
+export function pruneWorkspaceSync(workspacePath: string): void {
+  execaSync('git', ['-C', workspacePath, 'worktree', 'prune'], { reject: false })
+}

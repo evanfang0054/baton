@@ -6,21 +6,37 @@ import {
   TaskListResponse,
 } from '@baton/protocol'
 import type { FastifyInstance } from 'fastify'
+import type { Config } from '../config.js'
 import {
   getReviewByTask,
   getReviewDiff,
+  getTask,
   getTaskDetail,
+  getWorkspace,
+  insertAudit,
   listApprovalsByTask,
   listAudit,
   listSessionsByTask,
   listTasks,
+  updateTaskWorktreePathTx,
   type ApprovalRecord,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
 import type { Logger } from '../log.js'
+import { isActiveStatus } from '../runtime/types.js'
+import { resolveWorkspaceDir } from '../workspace/resolver.js'
+import { removeWorktree } from '../workspace/worktree.js'
 
-export function registerTaskRoutes(app: FastifyInstance, deps: { db: Db; logger: Logger }): void {
+export interface TaskRoutesDeps {
+  db: Db
+  config: Config
+  logger: Logger
+  now: () => number
+  newId: () => string
+}
+
+export function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesDeps): void {
   app.get('/api/tasks', async (req) => {
     const parsed = TaskListQuery.safeParse(req.query)
     if (!parsed.success) {
@@ -107,5 +123,47 @@ export function registerTaskRoutes(app: FastifyInstance, deps: { db: Db; logger:
         policyVersion: policyByApproval.get(item.id) ?? null,
       })),
     })
+  })
+
+  app.post('/api/tasks/:id/worktree/cleanup', async (req) => {
+    const { id } = req.params as { id?: string }
+    if (!id) throw appError('invalid_payload', 'task id is required')
+    const task = getTask(deps.db, id)
+    if (!task) throw appError('task_not_found', 'task not found', { taskId: id })
+    if (isActiveStatus(task.status)) {
+      throw appError('task_active', 'cannot clean an active task worktree', { taskId: id })
+    }
+    if (!task.worktreePath) {
+      throw appError('worktree_not_found', 'task has no worktree', { taskId: id })
+    }
+    const workspace = getWorkspace(deps.db, task.workspaceId)
+    if (!workspace) {
+      throw appError('workspace_not_found', 'workspace not found', {
+        workspaceId: task.workspaceId,
+      })
+    }
+    const workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+    const removed = await removeWorktree({ workspacePath, path: task.worktreePath })
+    if (!removed.ok) {
+      throw appError('worktree_remove_failed', removed.reason ?? 'worktree remove failed', {
+        taskId: id,
+      })
+    }
+    const now = deps.now()
+    deps.db.transaction((tx) => {
+      updateTaskWorktreePathTx(tx, task.id, null, now)
+      insertAudit(tx, {
+        id: deps.newId(),
+        ts: now,
+        actor: 'user',
+        action: 'worktree.cleanup',
+        detail: {
+          taskId: task.id,
+          workspaceId: task.workspaceId,
+          branch: `baton/${task.id}`,
+        },
+      })
+    })
+    return { ok: true }
   })
 }

@@ -38,6 +38,9 @@ export type WorkspaceTrustInput = z.infer<typeof WorkspaceTrustInput>
 export const WorkspaceTrustResponse = z.object({ workspace: Workspace })
 export type WorkspaceTrustResponse = z.infer<typeof WorkspaceTrustResponse>
 
+export const WorkspaceCapabilitiesResponse = z.object({ worktree: z.boolean() })
+export type WorkspaceCapabilitiesResponse = z.infer<typeof WorkspaceCapabilitiesResponse>
+
 export const EngineStatus = z.object({
   engine: Engine,
   status: z.enum(['available', 'unknown', 'unavailable']),

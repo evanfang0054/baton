@@ -23,6 +23,8 @@ const STATUS_BY_CODE: Record<string, number> = {
   approval_not_found: 404,
   review_not_found: 404,
   diff_unavailable: 404,
+  worktree_not_found: 404,
+  worktree_remove_failed: 500,
   session_not_found: 404,
   notice_not_found: 404,
   digest_generation_failed: 500,

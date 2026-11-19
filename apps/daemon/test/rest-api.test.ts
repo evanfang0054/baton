@@ -1,10 +1,12 @@
-import { mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { DiffSnapshot, Review } from '@baton/protocol'
+import { execa } from 'execa'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { TestApp } from './helpers/app.js'
 import { buildTestApp } from './helpers/app.js'
 import { insertReview, updateReviewDiff, updateTaskState } from '../src/db/repositories.js'
+import { createWorktree } from '../src/workspace/worktree.js'
 
 const apps: TestApp[] = []
 const auth = { authorization: 'Bearer secret' }
@@ -387,5 +389,74 @@ describe('REST API', () => {
     })
     expect(unavailable.statusCode).toBe(404)
     expect((unavailable.json() as { code: string }).code).toBe('diff_unavailable')
+  })
+
+  it('cleans a worktree but keeps the branch and reports capabilities', async () => {
+    const { app, handle } = await setup()
+    const workspace = join(handle.root, handle.seeded.relPath)
+
+    const before = await app.inject({
+      method: 'GET',
+      url: `/api/workspaces/${handle.seeded.workspaceId}/capabilities`,
+      headers: auth,
+    })
+    expect(before.json()).toEqual({ worktree: false })
+
+    await execa('git', ['-C', workspace, 'init', '-q'])
+    await execa('git', ['-C', workspace, 'config', 'user.email', 'test@example.com'])
+    await execa('git', ['-C', workspace, 'config', 'user.name', 'test'])
+    await execa('git', ['-C', workspace, 'commit', '--allow-empty', '-qm', 'init'])
+
+    const after = await app.inject({
+      method: 'GET',
+      url: `/api/workspaces/${handle.seeded.workspaceId}/capabilities`,
+      headers: auth,
+    })
+    expect(after.json()).toEqual({ worktree: true })
+
+    const created = await createWorktree({
+      dataDir: handle.root,
+      workspacePath: workspace,
+      taskId: handle.seeded.taskId,
+    })
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+    handle.database.raw
+      .prepare("update task set workspace_mode = 'worktree', worktree_path = ? where id = ?")
+      .run(created.path, handle.seeded.taskId)
+
+    const cleanup = await app.inject({
+      method: 'POST',
+      url: `/api/tasks/${handle.seeded.taskId}/worktree/cleanup`,
+      headers: auth,
+    })
+    expect(cleanup.statusCode).toBe(200)
+    expect(existsSync(created.path)).toBe(false)
+    expect(
+      (
+        handle.database.raw
+          .prepare('select worktree_path from task where id = ?')
+          .get(handle.seeded.taskId) as { worktree_path: string | null }
+      ).worktree_path,
+    ).toBeNull()
+    const branch = await execa('git', [
+      '-C',
+      workspace,
+      'branch',
+      '--list',
+      `baton/${handle.seeded.taskId}`,
+    ])
+    expect(branch.stdout).toContain(`baton/${handle.seeded.taskId}`)
+
+    handle.database.raw
+      .prepare("update task set status = 'running' where id = ?")
+      .run(handle.seeded.taskId)
+    const active = await app.inject({
+      method: 'POST',
+      url: `/api/tasks/${handle.seeded.taskId}/worktree/cleanup`,
+      headers: auth,
+    })
+    expect(active.statusCode).toBe(409)
+    expect((active.json() as { code: string }).code).toBe('task_active')
   })
 })
