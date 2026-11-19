@@ -5,7 +5,7 @@ task_count: 7
 estimated_phases: [tests, implementation, verification]
 dod: "移动端可建任务、建/编辑节点、总管带目标/上下文、自动化设置与 kill switch、workspace 信任/创建、固定节点位置；桌面/平板回归"
 depends_on: [2026-11-19-m2-2b-mobile-foundation.md, 2026-11-19-m2-2b-mobile-tasks.md]
-status: active
+status: pending
 ---
 
 # M2-2b 移动端响应式控制台：控制面实施计划（Plan 3/4）
@@ -1052,11 +1052,13 @@ it('opens actions from the more menu', async () => {
       onOpenTask={() => {}}
       onOpenNodes={() => {}}
       onCreateWorkspace={() => {}}
+      automationSlot={<div>自动化区</div>}
       trustSlot={<div>信任区</div>}
     />,
   )
   await userEvent.click(screen.getByRole('button', { name: '自动化设置' }))
   expect(onOpenSettings).toHaveBeenCalled()
+  expect(screen.getByText('自动化区')).toBeInTheDocument()
   expect(screen.getByText('信任区')).toBeInTheDocument()
 })
 ```
@@ -1074,6 +1076,7 @@ export function MobileMoreMenu({
   onOpenTask,
   onOpenNodes,
   onCreateWorkspace,
+  automationSlot,
   trustSlot,
 }: {
   open: boolean
@@ -1082,6 +1085,7 @@ export function MobileMoreMenu({
   onOpenTask: () => void
   onOpenNodes: () => void
   onCreateWorkspace: () => void
+  automationSlot: ReactNode
   trustSlot: ReactNode
 }) {
   if (!open) return null
@@ -1100,6 +1104,7 @@ export function MobileMoreMenu({
           <Button variant="secondary" onPress={onOpenNodes}>节点列表</Button>
           <Button variant="secondary" onPress={onOpenSettings}>自动化设置</Button>
           <Button variant="secondary" onPress={onCreateWorkspace}>创建工作区</Button>
+          <div className="rounded-lg border border-separator p-3">{automationSlot}</div>
           <div className="rounded-lg border border-separator p-3">{trustSlot}</div>
         </div>
       </div>
@@ -1257,6 +1262,16 @@ const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false)
         setMobileMoreOpen(false)
         setCreateWorkspaceOpen(true)
       }}
+      automationSlot={
+        <AutomationStatus
+          summary={automation.data ?? null}
+          onPause={() => void pauseAutomation()}
+          onOpenSettings={() => {
+            setMobileMoreOpen(false)
+            setAutomationSettingsOpen(true)
+          }}
+        />
+      }
       trustSlot={
         activeWorkspace ? (
           <WorkspaceTrustBadge

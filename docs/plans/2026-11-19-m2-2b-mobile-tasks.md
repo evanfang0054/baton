@@ -5,7 +5,7 @@ task_count: 6
 estimated_phases: [tests, implementation, verification]
 dod: "移动看板待处理优先 + 批量开工；任务详情闸门/操作条/transcript 可用；<768 完成审批→回复→验收→开工的移动闭环；桌面/平板回归"
 depends_on: [2026-11-19-m2-2b-mobile-foundation.md]
-status: active
+status: pending
 ---
 
 # M2-2b 移动端响应式控制台：任务与闸门实施计划（Plan 2/4）
