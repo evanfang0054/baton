@@ -76,7 +76,11 @@ describe('reconcileOnBoot', () => {
     const taskId = handle.createTask({ title: 'worktree' })
     handle.database.raw
       .prepare(
-        "update task set status = 'running', workspace_mode = 'worktree', worktree_path = '/nonexistent/worktree' where id = ?",
+        [
+          "update task set status = 'running',",
+          "workspace_mode = 'worktree',",
+          "worktree_path = '/nonexistent/worktree' where id = ?",
+        ].join(' '),
       )
       .run(taskId)
 

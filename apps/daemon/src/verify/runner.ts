@@ -9,6 +9,7 @@ import type { Logger } from '../log.js'
 import type { TransitionOutcome } from '../runtime/types.js'
 import { loadPolicy } from '../workspace/policy.js'
 import { resolveWorkspaceDir } from '../workspace/resolver.js'
+import { isInsideDataDir } from '../workspace/worktree.js'
 import { captureDiff } from './diff.js'
 import { runVerifyCommand, type VerifyCommandRunResult } from './executor.js'
 
@@ -80,6 +81,13 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
     } else {
       try {
         workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+        if (
+          task.workspaceMode === 'worktree' &&
+          task.worktreePath &&
+          !isInsideDataDir(deps.config.dataDir, task.worktreePath)
+        ) {
+          throw new Error('worktree path escapes data dir')
+        }
         const executionPath = task.worktreePath ?? workspacePath
         const policy = loadPolicy(workspacePath)
         const pkg = readPackageJson(executionPath)
@@ -112,13 +120,16 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
 
     let snapshot: DiffSnapshot | null = null
     if (workspacePath) {
-      try {
-        snapshot = await captureDiff(current.worktreePath ?? workspacePath, deps.now)
-      } catch (error) {
-        deps.logger?.warn(
-          { event: 'diff_capture_failed', taskId, error: String(error) },
-          'diff capture failed',
-        )
+      const capturePath = current.worktreePath ?? workspacePath
+      if (!current.worktreePath || isInsideDataDir(deps.config.dataDir, current.worktreePath)) {
+        try {
+          snapshot = await captureDiff(capturePath, deps.now)
+        } catch (error) {
+          deps.logger?.warn(
+            { event: 'diff_capture_failed', taskId, error: String(error) },
+            'diff capture failed',
+          )
+        }
       }
     }
 

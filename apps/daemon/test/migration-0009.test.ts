@@ -53,7 +53,16 @@ describe('migration 0009', () => {
       migrateDb(db)
       db.prepare(
         `insert into ws_event (id, type, payload_json, ts) values ('e1', 'task.status', ?, 1)`,
-      ).run(JSON.stringify({ payload: { taskId: 't1' } }))
+      ).run(
+        JSON.stringify({
+          taskId: 't1',
+          status: 'review',
+          previousStatus: 'verifying',
+          retryCount: 0,
+          attention: 'none',
+          updatedAt: 1,
+        }),
+      )
       db.prepare(
         `insert into ws_event (id, type, payload_json, ts) values ('e2', 'task.status', 'not-json', 2)`,
       ).run()

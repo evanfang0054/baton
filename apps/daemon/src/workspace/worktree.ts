@@ -21,6 +21,17 @@ export function worktreePathFor(dataDir: string, taskId: string): string {
   return join(dataDir, 'worktrees', taskId)
 }
 
+/** 复用与清理都必须走同一套 jail 判定；realpath 失败按不可信处理。 */
+export function isInsideDataDir(dataDir: string, path: string): boolean {
+  try {
+    const real = realpathSync(path)
+    const root = realpathSync(dataDir)
+    return real === root || real.startsWith(root + sep)
+  } catch {
+    return false
+  }
+}
+
 export async function isGitRepo(path: string): Promise<boolean> {
   const result = await execa('git', ['-C', path, 'rev-parse', '--is-inside-work-tree'], {
     reject: false,
@@ -60,6 +71,9 @@ export async function createWorktree(input: {
   const branch = branchFor(input.taskId)
   const path = worktreePathFor(input.dataDir, input.taskId)
   if (input.existingPath && existsSync(input.existingPath)) {
+    if (!isInsideDataDir(input.dataDir, input.existingPath)) {
+      return { ok: false, reason: 'worktree_escape' }
+    }
     return { ok: true, path: input.existingPath, branch }
   }
   mkdirSync(dirname(path), { recursive: true })
@@ -74,9 +88,7 @@ export async function createWorktree(input: {
     return { ok: false, reason: 'worktree_create_failed' }
   }
 
-  const real = realpathSync(path)
-  const root = realpathSync(input.dataDir)
-  if (real !== root && !real.startsWith(root + sep)) {
+  if (!isInsideDataDir(input.dataDir, path)) {
     await removeWorktree({ workspacePath: input.workspacePath, path })
     return { ok: false, reason: 'worktree_escape' }
   }

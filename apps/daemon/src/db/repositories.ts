@@ -472,21 +472,12 @@ export function updateTaskPolicy(tx: Tx, id: string, policy: Policy): void {
 }
 
 export function updateTaskWorktreePath(
-  db: Db,
+  db: Pick<Db, 'update'>,
   id: string,
   worktreePath: string | null,
   updatedAt: number,
 ): void {
   db.update(task).set({ worktreePath, updatedAt }).where(eq(task.id, id)).run()
-}
-
-export function updateTaskWorktreePathTx(
-  tx: Tx,
-  id: string,
-  worktreePath: string | null,
-  updatedAt: number,
-): void {
-  tx.update(task).set({ worktreePath, updatedAt }).where(eq(task.id, id)).run()
 }
 
 export function getTaskPolicy(db: Db, id: string): Policy | null {
@@ -785,6 +776,12 @@ export function getReviewDiff(db: Db, id: string): DiffSnapshot | null {
   } catch {
     return null
   }
+}
+
+/** 详情只需要“有没有快照”；不要为算一个布尔值解析 512KB 的 diff 正文。 */
+export function hasReviewDiff(db: Db, id: string): boolean {
+  const row = db.select({ diffJson: review.diffJson }).from(review).where(eq(review.id, id)).get()
+  return Boolean(row?.diffJson)
 }
 
 export function updateReviewVerdict(

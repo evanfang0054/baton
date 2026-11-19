@@ -161,16 +161,17 @@ export async function runVerifyCommand(
 }
 
 function withPathHint(output: string, exitCode: number, env: NodeJS.ProcessEnv): string {
-  const missing =
-    exitCode === 126 || exitCode === 127 || /command not found|not found/i.test(output)
+  const missing = exitCode === 126 || exitCode === 127 || /\bcommand not found\b/i.test(output)
   if (!missing) {
     return output
   }
+  // PATH 常含带用户名的绝对路径，不能写进 review、WS 或 UI；只给目录数量便于判断环境。
+  const pathEntries = (env.PATH ?? '').split(':').filter(Boolean).length
   return [
     output.trimEnd(),
     '',
     '[baton] 命令未找到。请确认 verify 命令在 daemon 的 PATH 中可用。',
-    `PATH=${env.PATH ?? ''}`,
+    `[baton] 当前 daemon PATH 包含 ${pathEntries} 个目录；具体路径已省略。`,
     '详见 docs/runbooks/local.md 的“verify 命令与 PATH”一节。',
   ].join('\n')
 }

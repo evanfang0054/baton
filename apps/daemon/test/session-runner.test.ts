@@ -211,4 +211,23 @@ describe('session runner', () => {
     expect(existsSync(task.worktreePath!)).toBe(true)
     expect(task.worktreePath).toContain('/worktrees/')
   })
+
+  it('fails a task when worktree preparation throws', async () => {
+    const handle = setup()
+    const workspace = join(handle.root, handle.seeded.relPath)
+    await execa('git', ['-C', workspace, 'init', '-q'])
+    await execa('git', ['-C', workspace, 'config', 'user.email', 'test@example.com'])
+    await execa('git', ['-C', workspace, 'config', 'user.name', 'test'])
+    writeFileSync(join(workspace, 'a.txt'), 'x')
+    await execa('git', ['-C', workspace, 'add', '-A'])
+    await execa('git', ['-C', workspace, 'commit', '-qm', 'init'])
+    // dataDir/worktrees 被普通文件占住，mkdirSync 抛错，任务必须收敛到 failed。
+    writeFileSync(join(handle.root, 'worktrees'), 'block')
+
+    const taskId = handle.createTask({ workspaceMode: 'worktree' })
+    handle.runtime.applyTransition(taskId, { type: 'enqueue' })
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'failed')
+
+    expect(handle.runtime.getTask(taskId)?.worktreePath).toBeNull()
+  })
 })

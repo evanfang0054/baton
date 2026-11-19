@@ -469,7 +469,9 @@ describe('REST API', () => {
     expect(created.ok).toBe(true)
     if (!created.ok) return
     handle.database.raw
-      .prepare("update task set workspace_mode = 'worktree', worktree_path = ? where id = ?")
+      .prepare(
+        "update task set status = 'review', workspace_mode = 'worktree', worktree_path = ? where id = ?",
+      )
       .run(created.path, handle.seeded.taskId)
 
     const cleanup = await app.inject({
@@ -494,6 +496,17 @@ describe('REST API', () => {
       `baton/${handle.seeded.taskId}`,
     ])
     expect(branch.stdout).toContain(`baton/${handle.seeded.taskId}`)
+
+    handle.database.raw
+      .prepare("update task set status = 'queued' where id = ?")
+      .run(handle.seeded.taskId)
+    const queued = await app.inject({
+      method: 'POST',
+      url: `/api/tasks/${handle.seeded.taskId}/worktree/cleanup`,
+      headers: auth,
+    })
+    expect(queued.statusCode).toBe(409)
+    expect((queued.json() as { code: string }).code).toBe('task_active')
 
     handle.database.raw
       .prepare("update task set status = 'running' where id = ?")

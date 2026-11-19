@@ -106,7 +106,19 @@ describe('runVerifyCommand', () => {
     })
     expect(result.exitCode).toBe(127)
     expect(result.output).toContain('命令未找到')
-    expect(result.output).toContain('PATH=')
+    expect(result.output).toContain('个目录')
+    expect(result.output).not.toContain('PATH=')
     expect(result.output).not.toContain('ANTHROPIC_API_KEY')
+  })
+
+  it('does not treat ordinary not-found output as a missing command', async () => {
+    const result = await runVerifyCommand({
+      command: 'node -e "console.error(\'Cannot find module foo not found\'); process.exit(1)"',
+      workspacePath: tempDir(),
+      timeoutSec: 5,
+      maxOutputBytes: 4096,
+    })
+    expect(result.exitCode).toBe(1)
+    expect(result.output).not.toContain('命令未找到')
   })
 })

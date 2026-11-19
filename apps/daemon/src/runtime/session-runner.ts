@@ -26,7 +26,7 @@ import {
 import type { Db } from '../db/types.js'
 import { appError, toAppError } from '../errors.js'
 import { writeEscapesWorkspace } from '../workspace/safety.js'
-import { createWorktree } from '../workspace/worktree.js'
+import { createWorktree, removeWorktree } from '../workspace/worktree.js'
 import { hashPolicy } from '../automation/version.js'
 import type { AdapterFactory } from './adapter-factory.js'
 import { ASK_USER_QUESTION_TOOL, parseStoredAnswers, validateQuestionAnswers } from './questions.js'
@@ -319,19 +319,38 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
 
     let workspacePath = input.workspacePath
     if (task.workspaceMode === 'worktree') {
-      const prepared = await createWorktree({
-        dataDir: deps.dataDir,
-        workspacePath: input.workspacePath,
-        taskId: task.id,
-        existingPath: task.worktreePath,
-      })
-      if (!prepared.ok) {
-        failTask(task.id, input.sessionId, appError('worktree_unavailable', prepared.reason))
+      let preparedPath: string | null = null
+      try {
+        const prepared = await createWorktree({
+          dataDir: deps.dataDir,
+          workspacePath: input.workspacePath,
+          taskId: task.id,
+          existingPath: task.worktreePath,
+        })
+        if (!prepared.ok) {
+          failTask(task.id, input.sessionId, appError('worktree_unavailable', prepared.reason))
+          return
+        }
+        preparedPath = prepared.path
+        workspacePath = prepared.path
+        if (task.worktreePath !== prepared.path) {
+          updateTaskWorktreePath(deps.db, task.id, prepared.path, deps.now())
+        }
+      } catch {
+        // 创建或落库失败都要把任务收敛到 failed；
+        // 否则 afterCommit 只记日志，任务会永久停在 running。
+        if (preparedPath) {
+          await removeWorktree({
+            workspacePath: input.workspacePath,
+            path: preparedPath,
+          }).catch(() => {})
+        }
+        failTask(
+          task.id,
+          input.sessionId,
+          appError('worktree_unavailable', 'worktree preparation failed'),
+        )
         return
-      }
-      workspacePath = prepared.path
-      if (task.worktreePath !== prepared.path) {
-        updateTaskWorktreePath(deps.db, task.id, prepared.path, deps.now())
       }
     }
 

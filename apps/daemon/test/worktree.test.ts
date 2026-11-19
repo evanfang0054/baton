@@ -68,6 +68,21 @@ describe('worktree manager', () => {
     }
   })
 
+  it('rejects reusing a worktree path outside the data dir', async () => {
+    const repo = await makeRepo()
+    const dataDir = makeDataDir()
+    const outside = mkdtempSync(join(tmpdir(), 'baton-outside-'))
+    dirs.push(outside)
+
+    const result = await createWorktree({
+      dataDir,
+      workspacePath: repo,
+      taskId: 't1',
+      existingPath: outside,
+    })
+    expect(result).toEqual({ ok: false, reason: 'worktree_escape' })
+  })
+
   it('rejects invalid task ids and non-git workspaces', async () => {
     const repo = await makeRepo()
     const dataDir = makeDataDir()

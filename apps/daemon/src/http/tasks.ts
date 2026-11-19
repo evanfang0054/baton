@@ -11,10 +11,10 @@ import type { FastifyInstance } from 'fastify'
 import type { Config } from '../config.js'
 import {
   getReviewByTask,
-  getReviewDiff,
   getTask,
   getTaskDetail,
   getWorkspace,
+  hasReviewDiff,
   insertAudit,
   listApprovalsByTask,
   listAudit,
@@ -22,15 +22,14 @@ import {
   listSessionsByTask,
   listTaskStatusHistory,
   listTasks,
-  updateTaskWorktreePathTx,
+  updateTaskWorktreePath,
   type ApprovalRecord,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
 import type { Logger } from '../log.js'
-import { isActiveStatus } from '../runtime/types.js'
 import { resolveWorkspaceDir } from '../workspace/resolver.js'
-import { removeWorktree } from '../workspace/worktree.js'
+import { isInsideDataDir, removeWorktree } from '../workspace/worktree.js'
 
 export interface TaskRoutesDeps {
   db: Db
@@ -80,9 +79,7 @@ export function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesDeps): 
       originInvalid: detail.originInvalid,
       sessions: listSessionsByTask(deps.db, task.id),
       approvals: listApprovalsByTask(deps.db, task.id),
-      review: review
-        ? { ...review, diffAvailable: Boolean(getReviewDiff(deps.db, review.id)) }
-        : null,
+      review: review ? { ...review, diffAvailable: hasReviewDiff(deps.db, review.id) } : null,
       waitingSince: waitingSinceFor(task),
       attention: attentionFor(task.status, task.waitingReason),
     })
@@ -159,11 +156,15 @@ export function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesDeps): 
     if (!id) throw appError('invalid_payload', 'task id is required')
     const task = getTask(deps.db, id)
     if (!task) throw appError('task_not_found', 'task not found', { taskId: id })
-    if (isActiveStatus(task.status)) {
-      throw appError('task_active', 'cannot clean an active task worktree', { taskId: id })
+    // todo/queued 仍可能被批量开工或 scheduler 拉起；清理必须避开这些会复用工作树的状态。
+    if (!['review', 'done', 'cancelled', 'failed'].includes(task.status)) {
+      throw appError('task_active', 'cannot clean a task that may still run', { taskId: id })
     }
     if (!task.worktreePath) {
       throw appError('worktree_not_found', 'task has no worktree', { taskId: id })
+    }
+    if (!isInsideDataDir(deps.config.dataDir, task.worktreePath)) {
+      throw appError('invalid_path', 'worktree path escapes data dir', { taskId: id })
     }
     const workspace = getWorkspace(deps.db, task.workspaceId)
     if (!workspace) {
@@ -180,7 +181,7 @@ export function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesDeps): 
     }
     const now = deps.now()
     deps.db.transaction((tx) => {
-      updateTaskWorktreePathTx(tx, task.id, null, now)
+      updateTaskWorktreePath(tx, task.id, null, now)
       insertAudit(tx, {
         id: deps.newId(),
         ts: now,

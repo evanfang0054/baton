@@ -1,8 +1,10 @@
 import type { DiffFile, DiffSnapshot } from '@baton/protocol'
 import { execa } from 'execa'
+import { isGitRepo } from '../workspace/worktree.js'
 
 const MAX_FILE_PATCH = 128 * 1024
 const MAX_TOTAL_PATCH = 512 * 1024
+const MAX_FILES = 200
 
 interface ChangedFile {
   path: string
@@ -122,13 +124,30 @@ function truncateUtf8(value: string, maxBytes: number): { value: string; truncat
   return { value: bytes.subarray(0, end).toString('utf8'), truncated: true }
 }
 
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  run: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let cursor = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor
+      cursor += 1
+      results[index] = await run(items[index]!)
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
 /**
  * 捕获工作区相对 HEAD 的改动。逐个文件取 patch，避免一次性解析大 diff；
  * 单文件与总量都设上限，截断可见，不静默丢内容。
  */
 export async function captureDiff(workspacePath: string, now: () => number): Promise<DiffSnapshot> {
-  const inside = await git(['rev-parse', '--is-inside-work-tree'], workspacePath)
-  if (inside.exitCode !== 0) {
+  if (!(await isGitRepo(workspacePath))) {
     return emptySnapshot(now)
   }
   const status = await git(['status', '--porcelain=v1', '-uall', '-z'], workspacePath)
@@ -136,33 +155,39 @@ export async function captureDiff(workspacePath: string, now: () => number): Pro
     return emptySnapshot(now)
   }
 
-  const files: DiffFile[] = []
-  let totalBytes = 0
-  let truncated = false
-
-  for (const changed of parseStatus(status.stdout)) {
+  const changedFiles = parseStatus(status.stdout)
+  const truncated = changedFiles.length > MAX_FILES
+  const diffs = await mapLimit(changedFiles.slice(0, MAX_FILES), 4, async (changed) => {
     const stats = await readStats(workspacePath, changed)
     const rawPatch = stats.binary ? '' : await readPatch(workspacePath, changed)
     const perFile = truncateUtf8(rawPatch, MAX_FILE_PATCH)
-    if (perFile.truncated) truncated = true
+    return { changed, stats, patch: perFile.value, truncated: perFile.truncated }
+  })
+
+  const files: DiffFile[] = []
+  let totalBytes = 0
+  let totalTruncated = truncated
+
+  for (const entry of diffs) {
+    if (entry.truncated) totalTruncated = true
 
     const remaining = MAX_TOTAL_PATCH - totalBytes
-    let patch = perFile.value
+    let patch = entry.patch
     if (remaining <= 0) {
       patch = ''
-      truncated = true
+      totalTruncated = true
     } else if (Buffer.byteLength(patch, 'utf8') > remaining) {
       patch = truncateUtf8(patch, remaining).value
-      truncated = true
+      totalTruncated = true
     }
     totalBytes += Buffer.byteLength(patch, 'utf8')
 
     files.push({
-      path: changed.path,
-      ...(changed.oldPath ? { oldPath: changed.oldPath } : {}),
-      status: stats.binary ? 'binary' : changed.status,
-      insertions: stats.insertions,
-      deletions: stats.deletions,
+      path: entry.changed.path,
+      ...(entry.changed.oldPath ? { oldPath: entry.changed.oldPath } : {}),
+      status: entry.stats.binary ? 'binary' : entry.changed.status,
+      insertions: entry.stats.insertions,
+      deletions: entry.stats.deletions,
       patch,
     })
   }
@@ -171,7 +196,7 @@ export async function captureDiff(workspacePath: string, now: () => number): Pro
     v: 1,
     capturedAt: now(),
     baseRef: 'HEAD',
-    truncated,
+    truncated: totalTruncated,
     files,
   }
 }
