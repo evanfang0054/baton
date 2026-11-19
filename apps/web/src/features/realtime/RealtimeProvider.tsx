@@ -34,6 +34,8 @@ export function RealtimeProvider({
       setSend(null)
       return
     }
+    // 每次建连（含切换 workspace）都会从 sinceSeq=0 回放历史；以本次建连时间为界。
+    liveSinceRef.current = Date.now()
     let invalidateTimer: number | undefined
     const invalidate = () => {
       if (invalidateTimer) return

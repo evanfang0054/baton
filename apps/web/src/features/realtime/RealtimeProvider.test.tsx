@@ -8,7 +8,9 @@ import { useAppStore } from '../../stores/app'
 import { useSupervisorStreamStore } from '../supervisor/stream-store'
 import { RealtimeProvider } from './RealtimeProvider'
 
-vi.mock('@heroui/react/toast', () => ({ toast: { danger: vi.fn() } }))
+vi.mock('@heroui/react/toast', () => ({
+  toast: { danger: vi.fn(), info: vi.fn() },
+}))
 
 class FakeSocket {
   static readonly OPEN = 1
@@ -242,5 +244,34 @@ describe('RealtimeProvider', () => {
       payload: { code: 'internal', message: '管道炸了' },
     })
     expect(toast.danger).toHaveBeenCalledWith('管道炸了')
+  })
+
+  it('only toasts live digest notices for the active workspace', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    renderProvider(client)
+    const socket = FakeSocket.instances[0]!
+    socket.open()
+
+    const notice = (ts: number, workspaceId: string) => ({
+      v: 1,
+      ts,
+      seq: 10,
+      type: 'notice',
+      payload: {
+        id: `n-${ts}`,
+        workspaceId,
+        ts,
+        kind: 'digest',
+        payload: {},
+        readAt: null,
+      },
+    })
+    // 回放的事件早于挂载时间；其他 workspace 的 notice 也不提示。
+    socket.message(notice(1, 'w1'))
+    socket.message(notice(Date.now() + 1000, 'w2'))
+    expect(toast.info).not.toHaveBeenCalled()
+
+    socket.message(notice(Date.now() + 1000, 'w1'))
+    await waitFor(() => expect(toast.info).toHaveBeenCalledTimes(1))
   })
 })

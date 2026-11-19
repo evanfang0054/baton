@@ -14,8 +14,12 @@ export function writeEscapesWorkspace(
   input: unknown,
 ): boolean {
   if (!WRITE_TOOLS.has(toolName)) return false
-  const record = input as { file_path?: unknown; path?: unknown } | null
-  const target = record?.file_path ?? record?.path
+  const record = input as {
+    file_path?: unknown
+    path?: unknown
+    notebook_path?: unknown
+  } | null
+  const target = record?.file_path ?? record?.path ?? record?.notebook_path
   if (typeof target !== 'string' || target.length === 0) return false
 
   let root: string

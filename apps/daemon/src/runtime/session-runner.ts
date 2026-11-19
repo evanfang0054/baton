@@ -104,20 +104,30 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     const task = getTask(deps.db, active.taskId)
     const workspace = task ? getWorkspace(deps.db, task.workspaceId) : null
     // 结构化提问不能被策略自动放行：没有答案的 allow 会让 SDK 停在 pending。
-    const decision =
+    // 先跑策略，保证 deny 永远优先；symlink 逃逸只能把 allow/ask 降级为人工确认。
+    const evaluated =
       request.toolName === ASK_USER_QUESTION_TOOL
         ? null
-        : writeEscapesWorkspace(active.workspacePath, request.toolName, request.input)
+        : evaluateApproval(policy, request, {
+            killSwitch: deps.killSwitch(),
+            workspaceTrusted: workspace?.trusted === true,
+          })
+    const escapes =
+      evaluated !== null &&
+      evaluated.decision !== 'deny' &&
+      writeEscapesWorkspace(active.workspacePath, request.toolName, request.input)
+    const decision =
+      evaluated === null
+        ? null
+        : escapes
           ? {
+              ...evaluated,
               decision: 'ask' as const,
               risk: 'high' as const,
               autoApproved: false,
               reason: 'write escapes workspace via symlink',
             }
-          : evaluateApproval(policy, request, {
-              killSwitch: deps.killSwitch(),
-              workspaceTrusted: workspace?.trusted === true,
-            })
+          : evaluated
     if (decision !== null && (decision.decision === 'allow' || decision.decision === 'deny')) {
       const autoDecision = decision.decision
       // 决策与审计必须同事务提交，否则崩溃窗口会出现“已放行但无审计”。
