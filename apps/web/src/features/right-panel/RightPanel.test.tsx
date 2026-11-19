@@ -24,6 +24,22 @@ describe('RightPanel', () => {
     expect(onModeChange).toHaveBeenCalledWith('task')
   })
 
+  it('shows an unread dot on the supervisor tab', () => {
+    render(
+      <RightPanel
+        mode="supervisor"
+        onModeChange={vi.fn()}
+        hasTask={false}
+        hasNode={false}
+        hasUnreadNotice
+        supervisor={<div>总管内容</div>}
+        task={null}
+        node={null}
+      />,
+    )
+    expect(screen.getByText('有未读汇报')).toBeInTheDocument()
+  })
+
   it('falls back to supervisor when the selected tab is unavailable', () => {
     render(
       <RightPanel

@@ -8,7 +8,7 @@ const TABS: Array<{ mode: RightPanelMode; label: string }> = [
 ]
 
 const tabClass = [
-  'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+  'inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
 ].join(' ')
 
@@ -17,6 +17,7 @@ export function RightPanel({
   onModeChange,
   hasTask,
   hasNode,
+  hasUnreadNotice = false,
   supervisor,
   task,
   node,
@@ -25,6 +26,7 @@ export function RightPanel({
   onModeChange: (mode: RightPanelMode) => void
   hasTask: boolean
   hasNode: boolean
+  hasUnreadNotice?: boolean
   supervisor: ReactNode
   task: ReactNode
   node: ReactNode
@@ -62,6 +64,12 @@ export function RightPanel({
               }`}
             >
               {tab.label}
+              {tab.mode === 'supervisor' && hasUnreadNotice ? (
+                <span className="ml-1 inline-flex items-center">
+                  <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-accent" />
+                  <span className="sr-only">有未读汇报</span>
+                </span>
+              ) : null}
             </button>
           )
         })}

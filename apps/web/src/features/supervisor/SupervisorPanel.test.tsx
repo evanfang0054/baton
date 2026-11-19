@@ -11,6 +11,7 @@ import { SupervisorPanel } from './SupervisorPanel'
 vi.mock('../../lib/api', () => ({
   getSupervisorStatus: vi.fn(),
   getSupervisorMessages: vi.fn(),
+  listNotices: vi.fn().mockResolvedValue({ notices: [] }),
 }))
 
 function renderPanel(send = vi.fn().mockResolvedValue(undefined)) {

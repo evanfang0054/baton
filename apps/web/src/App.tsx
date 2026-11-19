@@ -21,6 +21,7 @@ import { WorkspaceTrustDialog } from './features/workspaces/WorkspaceTrustDialog
 import {
   getAutomation,
   getCanvas,
+  listNotices,
   listTasks,
   listWorkspaces,
   setKillSwitch,
@@ -82,6 +83,11 @@ export function App() {
   const automation = useQuery({
     queryKey: queryKeys.automation(activeWorkspaceId ?? ''),
     queryFn: () => getAutomation(activeWorkspaceId!),
+    enabled: Boolean(activeWorkspaceId),
+  })
+  const notices = useQuery({
+    queryKey: queryKeys.notices(activeWorkspaceId ?? ''),
+    queryFn: () => listNotices(activeWorkspaceId!, { kind: 'digest', limit: 5 }),
     enabled: Boolean(activeWorkspaceId),
   })
   const contextNodes = useMemo(
@@ -301,6 +307,9 @@ export function App() {
             onModeChange={setRightPanel}
             hasTask={Boolean(activeTaskId)}
             hasNode={Boolean(selectedNode)}
+            hasUnreadNotice={Boolean(
+              notices.data?.notices.some((notice) => notice.readAt === null),
+            )}
             supervisor={
               <SupervisorPanel
                 workspaceId={activeWorkspaceId}
