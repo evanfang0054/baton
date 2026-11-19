@@ -77,6 +77,18 @@ describe('AutomationStatus', () => {
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
   })
 
+  it('shows off state when the workspace is untrusted even if policy is enabled', () => {
+    render(
+      <AutomationStatus
+        summary={summary({ trusted: false })}
+        onPause={() => {}}
+        onOpenSettings={() => {}}
+      />,
+    )
+    expect(screen.getByText('自动化关闭')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '暂停自动化' })).not.toBeInTheDocument()
+  })
+
   it('renders nothing before the summary loads', () => {
     const { container } = render(
       <AutomationStatus summary={null} onPause={() => {}} onOpenSettings={() => {}} />,
