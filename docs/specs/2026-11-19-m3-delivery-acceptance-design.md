@@ -3,7 +3,7 @@ spec_topic: m3-1-delivery-acceptance
 decision_summary: "M3-1 交付验收增强：verify 时持久化 diff 快照并按需查看；worktree 默认关、按任务可选且不自动合并/删除；retry/reopen 人工触发并开新 episode；任务历史复用 ws_event.task_id，不新建事件表"
 design_approved: true
 user_approved_at: "2026-11-19T16:51:17+08:00"
-gates: [design-approved]
+gates: [design-approved, user-review-passed]
 spec_ref: 2026-11-16-baton-architecture-design.md
 domain_terms: [delivery acceptance, diff snapshot, worktree, retry, reopen, episode, task history, lazy diff API]
 ---

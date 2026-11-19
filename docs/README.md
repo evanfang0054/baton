@@ -51,6 +51,7 @@
 - [M2-1 总管 Router v0](contracts/M2-supervisor-v0.contract.md)
 - [M2-2a 无人值守与汇报 v0](contracts/M2-autopilot-v0.contract.md)
 - [M2-2b 移动端响应式控制台](contracts/M2-2b-mobile-console.contract.md)
+- [M3-1 交付验收增强](contracts/M3-1-delivery-acceptance.contract.md)
 
 ## 现行 plan
 
