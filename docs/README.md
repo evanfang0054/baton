@@ -24,6 +24,7 @@
 - [2026-11-18 M1-6b 画布上下文与关系设计](specs/2026-11-18-m1-6b-canvas-context-design.md)
 - [2026-11-18 M2-1 总管 Router v0 设计](specs/2026-11-18-m2-supervisor-design.md)
 - [2026-11-19 M2-2a 无人值守与汇报设计](specs/2026-11-19-m2-autopilot-design.md)
+- [2026-11-19 M2-2b 移动端响应式控制台设计](specs/2026-11-19-m2-2b-mobile-console-design.md)
 
 ## 现行 ADR
 
@@ -33,6 +34,7 @@
 - [0004 不可信 workspace 仍加载 user settings](adr/0004-untrusted-loads-user-settings.md)
 - [0005 按任务跳过审批与结构化提问](adr/0005-bypass-permissions-and-questions.md)
 - [0006 M2-2a 契约实现校正](adr/0006-m2-autopilot-contract-adjustments.md)
+- [0007 移动端从只读改为响应式控制台](adr/0007-mobile-control-console.md)
 
 ## 现行 contract
 
