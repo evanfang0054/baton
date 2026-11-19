@@ -19,6 +19,8 @@ describe('policy defaults', () => {
       'Bash:git push *',
       'Edit:**/.env*',
       'Edit:.git/**',
+      'Edit:.baton/**',
+      'Write:.baton/**',
     ])
     expect(policy.approval.allow.some((rule) => rule.includes('(test|'))).toBe(false)
   })

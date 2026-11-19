@@ -7,6 +7,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { getSupervisorMessages, getSupervisorStatus } from '../../lib/api'
 import { useCommand } from '../../lib/command-context'
 import { queryKeys } from '../../lib/query'
+import { useAppStore } from '../../stores/app'
+import { DigestCard } from './DigestCard'
 import { SupervisorComposer } from './SupervisorComposer'
 import { SupervisorMessageList } from './SupervisorMessageList'
 import { SupervisorStatusBar } from './SupervisorStatusBar'
@@ -122,6 +124,17 @@ export function SupervisorPanel({
           </p>
         </div>
       </div>
+      {workspaceId ? (
+        <DigestCard
+          workspaceId={workspaceId}
+          onOpenTask={(taskId) => {
+            const state = useAppStore.getState()
+            state.setSelectedNode(null)
+            state.setTask(taskId)
+            state.setRightPanel('task')
+          }}
+        />
+      ) : null}
       <SupervisorStatusBar status={status.data} />
       {!workspaceId ? <p className="p-4 text-sm text-muted">先选择一个工作区</p> : null}
       {workspaceId && status.isError ? (

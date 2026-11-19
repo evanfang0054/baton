@@ -2,6 +2,7 @@ import type { RiskLevel } from '@baton/protocol'
 
 export interface PolicyContext {
   killSwitch: boolean
+  workspaceTrusted: boolean
 }
 
 export interface PolicyDecision {

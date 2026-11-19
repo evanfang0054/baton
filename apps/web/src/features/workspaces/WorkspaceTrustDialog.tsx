@@ -30,6 +30,7 @@ export function WorkspaceTrustDialog({
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.workspaces })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.automation(workspace.id) })
       onOpenChange(false)
     },
   })

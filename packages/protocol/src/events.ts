@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { EventSchemas } from './agui.js'
 import { DiffStat, Id, Timestamp } from './common.js'
 import { ApprovalRequest } from './entities/approval.js'
+import { Notice } from './entities/notice.js'
 import { Attention, SessionOutcome, TaskStatus, WaitingReason } from './enums.js'
 import { AppError } from './errors.js'
 import { SupervisorMessage } from './supervisor.js'
@@ -139,6 +140,12 @@ export const SupervisorMessageEvent = EventBase.extend({
 })
 export type SupervisorMessageEvent = z.infer<typeof SupervisorMessageEvent>
 
+export const NoticeEvent = ReplayableBase.extend({
+  type: z.literal('notice'),
+  payload: Notice,
+})
+export type NoticeEvent = z.infer<typeof NoticeEvent>
+
 export const ServerMessage = z.discriminatedUnion('type', [
   AckEvent,
   ErrorEvent,
@@ -149,5 +156,6 @@ export const ServerMessage = z.discriminatedUnion('type', [
   SupervisorDeltaEvent,
   SupervisorToolEvent,
   SupervisorMessageEvent,
+  NoticeEvent,
 ])
 export type ServerMessage = z.infer<typeof ServerMessage>

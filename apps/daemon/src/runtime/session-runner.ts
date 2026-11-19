@@ -15,6 +15,7 @@ import type { BroadcastEvent, EventStore } from '../db/event-store.js'
 import {
   getApproval,
   getTask,
+  getWorkspace,
   insertApproval,
   insertAudit,
   updateApprovalDecision,
@@ -23,6 +24,8 @@ import {
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError, toAppError } from '../errors.js'
+import { writeEscapesWorkspace } from '../workspace/safety.js'
+import { hashPolicy } from '../automation/version.js'
 import type { AdapterFactory } from './adapter-factory.js'
 import { ASK_USER_QUESTION_TOOL, parseStoredAnswers, validateQuestionAnswers } from './questions.js'
 import type { StartSessionInput, TransitionOutcome } from './types.js'
@@ -35,12 +38,13 @@ export interface SessionRunnerDeps {
   applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
   now: () => number
   newId: () => string
-  killSwitch?: boolean
+  killSwitch: () => boolean
 }
 
 export interface ActiveRun {
   taskId: string
   sessionId: string
+  workspacePath: string
   run: AgentRun
   requestIdByApprovalId: Map<string, string>
   seq: number
@@ -96,11 +100,34 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       }),
     )
 
+    // 每次审批都读当前 trust：撤销信任后必须立即回到 ask，不能沿用启动快照。
+    const task = getTask(deps.db, active.taskId)
+    const workspace = task ? getWorkspace(deps.db, task.workspaceId) : null
     // 结构化提问不能被策略自动放行：没有答案的 allow 会让 SDK 停在 pending。
-    const decision =
+    // 先跑策略，保证 deny 永远优先；symlink 逃逸只能把 allow/ask 降级为人工确认。
+    const evaluated =
       request.toolName === ASK_USER_QUESTION_TOOL
         ? null
-        : evaluateApproval(policy, request, { killSwitch: deps.killSwitch ?? false })
+        : evaluateApproval(policy, request, {
+            killSwitch: deps.killSwitch(),
+            workspaceTrusted: workspace?.trusted === true,
+          })
+    const escapes =
+      evaluated !== null &&
+      evaluated.decision !== 'deny' &&
+      writeEscapesWorkspace(active.workspacePath, request.toolName, request.input)
+    const decision =
+      evaluated === null
+        ? null
+        : escapes
+          ? {
+              ...evaluated,
+              decision: 'ask' as const,
+              risk: 'high' as const,
+              autoApproved: false,
+              reason: 'write escapes workspace via symlink',
+            }
+          : evaluated
     if (decision !== null && (decision.decision === 'allow' || decision.decision === 'deny')) {
       const autoDecision = decision.decision
       // 决策与审计必须同事务提交，否则崩溃窗口会出现“已放行但无审计”。
@@ -116,6 +143,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
             taskId: active.taskId,
             risk: decision.risk,
             matchedRule: decision.matchedRule,
+            policyVersion: hashPolicy(policy),
           },
         })
       })
@@ -305,6 +333,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     const active: ActiveRun = {
       taskId: task.id,
       sessionId: input.sessionId,
+      workspacePath: input.workspacePath,
       run,
       requestIdByApprovalId: new Map(),
       seq: 0,

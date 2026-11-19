@@ -1,6 +1,9 @@
 import { Button } from '@heroui/react/button'
-import { useQuery } from '@tanstack/react-query'
+import { toast } from '@heroui/react/toast'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { AutomationSettingsDialog } from './features/automation/AutomationSettingsDialog'
+import { AutomationStatus } from './features/automation/AutomationStatus'
 import { ConnectionStatus } from './features/shared/ConnectionStatus'
 import { CanvasPanel, type CanvasPanelHandle } from './features/canvas/CanvasPanel'
 import { NodePanel } from './features/canvas/NodePanel'
@@ -15,7 +18,15 @@ import { CreateWorkspaceDialog } from './features/workspaces/CreateWorkspaceDial
 import { WorkspaceSwitcher } from './features/workspaces/WorkspaceSwitcher'
 import { WorkspaceTrustBadge } from './features/workspaces/WorkspaceTrustBadge'
 import { WorkspaceTrustDialog } from './features/workspaces/WorkspaceTrustDialog'
-import { getCanvas, listTasks, listWorkspaces, UnauthorizedError } from './lib/api'
+import {
+  getAutomation,
+  getCanvas,
+  listNotices,
+  listTasks,
+  listWorkspaces,
+  setKillSwitch,
+  UnauthorizedError,
+} from './lib/api'
 import { queryKeys } from './lib/query'
 import { readUrlState, writeUrlState } from './lib/url'
 import { useAppStore } from './stores/app'
@@ -52,9 +63,11 @@ export function App() {
   const setBoardExpanded = useAppStore((state) => state.setBoardExpanded)
   const setBoardPinned = useAppStore((state) => state.setBoardPinned)
   const setRightPanel = useAppStore((state) => state.setRightPanel)
+  const queryClient = useQueryClient()
   const canvasRef = useRef<CanvasPanelHandle>(null)
   const [trustDialogOpen, setTrustDialogOpen] = useState(false)
   const [trustPromptedFor, setTrustPromptedFor] = useState<string | null>(null)
+  const [automationSettingsOpen, setAutomationSettingsOpen] = useState(false)
 
   const workspaces = useQuery({ queryKey: queryKeys.workspaces, queryFn: listWorkspaces })
   const tasks = useQuery({
@@ -65,6 +78,16 @@ export function App() {
   const canvas = useQuery({
     queryKey: queryKeys.canvas(activeWorkspaceId ?? ''),
     queryFn: () => getCanvas(activeWorkspaceId!),
+    enabled: Boolean(activeWorkspaceId),
+  })
+  const automation = useQuery({
+    queryKey: queryKeys.automation(activeWorkspaceId ?? ''),
+    queryFn: () => getAutomation(activeWorkspaceId!),
+    enabled: Boolean(activeWorkspaceId),
+  })
+  const notices = useQuery({
+    queryKey: queryKeys.notices(activeWorkspaceId ?? ''),
+    queryFn: () => listNotices(activeWorkspaceId!, { kind: 'digest', limit: 5 }),
     enabled: Boolean(activeWorkspaceId),
   })
   const contextNodes = useMemo(
@@ -148,6 +171,17 @@ export function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [setBoardExpanded, setBoardPinned])
 
+  const pauseAutomation = async () => {
+    try {
+      await setKillSwitch(true)
+      // kill switch 是全局开关，所有工作区的自动化摘要都可能变化。
+      await queryClient.invalidateQueries({ queryKey: ['automation'] })
+      toast.success('自动化已暂停')
+    } catch (cause) {
+      toast.danger(cause instanceof Error ? cause.message : '暂停自动化失败')
+    }
+  }
+
   return (
     <RealtimeProvider workspaceId={activeWorkspaceId}>
       <div className="flex h-screen flex-col bg-background text-foreground">
@@ -177,7 +211,22 @@ export function App() {
               />
             </>
           ) : null}
+          {activeWorkspaceId ? (
+            <AutomationSettingsDialog
+              key={activeWorkspaceId}
+              workspaceId={activeWorkspaceId}
+              open={automationSettingsOpen}
+              onOpenChange={setAutomationSettingsOpen}
+            />
+          ) : null}
           <div className="ml-auto flex items-center gap-2">
+            {activeWorkspaceId ? (
+              <AutomationStatus
+                summary={automation.data ?? null}
+                onPause={() => void pauseAutomation()}
+                onOpenSettings={() => setAutomationSettingsOpen(true)}
+              />
+            ) : null}
             <Button
               variant="secondary"
               isDisabled={!canvas.data}
@@ -258,6 +307,7 @@ export function App() {
             onModeChange={setRightPanel}
             hasTask={Boolean(activeTaskId)}
             hasNode={Boolean(selectedNode)}
+            hasUnreadNotice={notices.data?.notices[0]?.readAt === null}
             supervisor={
               <SupervisorPanel
                 workspaceId={activeWorkspaceId}

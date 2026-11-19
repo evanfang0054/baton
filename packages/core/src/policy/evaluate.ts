@@ -1,4 +1,5 @@
 import type { ApprovalRequest, Policy, RiskLevel } from '@baton/protocol'
+import { canAutopilot } from '../automation/effective.js'
 import { matchRuleResult } from './match.js'
 import { classifyRisk, maxRisk } from './risk.js'
 import type { PolicyContext, PolicyDecision } from './types.js'
@@ -46,7 +47,10 @@ export function evaluateApproval(
   const auto =
     risk !== 'high' &&
     policy.autopilot.enabled &&
-    !ctx.killSwitch &&
+    canAutopilot({
+      workspaceTrusted: ctx.workspaceTrusted === true,
+      killSwitch: ctx.killSwitch,
+    }) &&
     within(risk, policy.approval.autoApproveMaxRisk)
 
   if (auto) {

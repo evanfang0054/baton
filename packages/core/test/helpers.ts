@@ -11,6 +11,8 @@ export const ctx = (
   runningCount: 0,
   maxConcurrency: 1,
   autopilot: { enabled: false, retryMax: 2 },
+  workspaceTrusted: true,
+  killSwitch: false,
   waitingReason: null,
   ...overrides,
 })

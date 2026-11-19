@@ -50,6 +50,20 @@
       "when": 1795011992158,
       "tag": "0006_supervisor_v0",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1795044471259,
+      "tag": "0007_autopilot_v0",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795046706581,
+      "tag": "0008_task_policy_snapshot",
+      "breakpoints": true
     }
   ]
 }

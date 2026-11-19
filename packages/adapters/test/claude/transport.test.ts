@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { claudeSdkMeta } from '../../src/claude/meta.js'
-import { buildClaudeOptions, DISALLOWED_TOOLS } from '../../src/claude/transport.js'
+import {
+  buildClaudeOptions,
+  approvalInputWithCwd,
+  DISALLOWED_TOOLS,
+} from '../../src/claude/transport.js'
 
 const base = {
   prompt: 'demo',
@@ -81,5 +85,21 @@ describe('buildClaudeOptions', () => {
 
   it('reports the installed SDK version without importing the SDK', () => {
     expect(claudeSdkMeta()).toEqual({ available: true, version: '0.3.327' })
+  })
+
+  it('adds workspace cwd to file tool approvals without touching other tools', () => {
+    expect(
+      approvalInputWithCwd('Edit', { file_path: '/workspace/demo/src/a.ts' }, '/workspace/demo'),
+    ).toEqual({ file_path: '/workspace/demo/src/a.ts', cwd: '/workspace/demo' })
+    expect(
+      approvalInputWithCwd(
+        'Edit',
+        { file_path: 'src/a.ts', cwd: '/from-engine' },
+        '/workspace/demo',
+      ),
+    ).toEqual({ file_path: 'src/a.ts', cwd: '/workspace/demo' })
+    expect(approvalInputWithCwd('Bash', { command: 'ls' }, '/workspace/demo')).toEqual({
+      command: 'ls',
+    })
   })
 })

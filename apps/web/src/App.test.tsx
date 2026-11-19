@@ -114,6 +114,15 @@ function stubTaskApi() {
           attention: 'needs_reply',
         })
       }
+      if (url === '/api/tasks/t1/automation') {
+        return json({
+          taskId: 't1',
+          retryCount: 0,
+          lastVerifyExitCode: null,
+          lastPolicyVersion: null,
+          autoDecisions: [],
+        })
+      }
       throw new Error(`unexpected fetch ${url}`)
     }),
   )

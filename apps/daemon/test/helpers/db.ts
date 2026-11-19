@@ -47,6 +47,7 @@ export function seedTask(
     withSession?: boolean
     sessionStatus?: SessionStatus
     now?: number
+    trusted?: boolean
   } = {},
 ): SeededTask {
   const now = options.now ?? 1
@@ -57,12 +58,9 @@ export function seedTask(
   const taskId = randomUUID()
   const sessionId = options.withSession === false ? null : randomUUID()
 
-  db.prepare('insert into workspace (id, name, rel_path, created_at) values (?, ?, ?, ?)').run(
-    workspaceId,
-    'demo',
-    relPath,
-    now,
-  )
+  db.prepare(
+    'insert into workspace (id, name, rel_path, trusted, created_at) values (?, ?, ?, ?, ?)',
+  ).run(workspaceId, 'demo', relPath, options.trusted === true ? 1 : 0, now)
   db.prepare('insert into canvas (id, workspace_id, viewport_json) values (?, ?, ?)').run(
     canvasId,
     workspaceId,

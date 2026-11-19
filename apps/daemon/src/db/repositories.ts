@@ -1,9 +1,13 @@
 import {
   Approval,
+  Audit,
   Canvas,
   ContextSnapshot,
   Edge,
   Node,
+  Notice,
+  Policy,
+  PolicySchema,
   Review,
   Session,
   Task,
@@ -19,7 +23,7 @@ import {
   type TaskStatus,
   type WaitingReason,
 } from '@baton/protocol'
-import { and, asc, desc, eq, gt, inArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, lt, or, sql } from 'drizzle-orm'
 import {
   approval,
   audit,
@@ -27,8 +31,10 @@ import {
   edge,
   event,
   node,
+  notice,
   review,
   session,
+  setting,
   task,
   workspace,
 } from './schema.js'
@@ -445,9 +451,29 @@ export function updateTaskState(
   status: TaskStatus,
   retryCount: number,
   waitingReason: WaitingReason | null,
-  updatedAt: number,
+  now: number,
 ): void {
-  tx.update(task).set({ status, retryCount, waitingReason, updatedAt }).where(eq(task.id, id)).run()
+  tx.update(task)
+    .set({ status, retryCount, waitingReason, updatedAt: now })
+    .where(eq(task.id, id))
+    .run()
+}
+
+export function updateTaskPolicy(tx: Tx, id: string, policy: Policy): void {
+  tx.update(task)
+    .set({ policyJson: JSON.stringify(policy) })
+    .where(eq(task.id, id))
+    .run()
+}
+
+export function getTaskPolicy(db: Db, id: string): Policy | null {
+  const row = db.select({ policyJson: task.policyJson }).from(task).where(eq(task.id, id)).get()
+  if (!row?.policyJson) return null
+  try {
+    return PolicySchema.parse(JSON.parse(row.policyJson))
+  } catch {
+    return null
+  }
 }
 
 export function appendTaskFeedback(
@@ -683,4 +709,107 @@ export function insertAudit(
       detailJson: JSON.stringify(input.detail),
     })
     .run()
+}
+
+function toAudit(row: typeof audit.$inferSelect): Audit {
+  return Audit.parse({
+    id: row.id,
+    ts: row.ts,
+    actor: row.actor,
+    action: row.action,
+    detail: JSON.parse(row.detailJson) as unknown,
+  })
+}
+
+function toNotice(row: typeof notice.$inferSelect): Notice {
+  return Notice.parse({
+    id: row.id,
+    workspaceId: row.workspaceId,
+    ts: row.ts,
+    kind: row.kind,
+    payload: JSON.parse(row.payloadJson) as unknown,
+    readAt: row.readAt,
+  })
+}
+
+export function getSetting(db: Db, key: string): unknown {
+  const row = db.select().from(setting).where(eq(setting.key, key)).get()
+  if (!row) return null
+  // 安全设置（如 kill switch）不能把损坏 JSON 静默当成“未设置”。
+  return JSON.parse(row.valueJson) as unknown
+}
+
+export function setSetting(tx: Tx, key: string, value: unknown, now: number): void {
+  const valueJson = JSON.stringify(value)
+  tx.insert(setting)
+    .values({ key, valueJson, updatedAt: now })
+    .onConflictDoUpdate({
+      target: setting.key,
+      set: { valueJson, updatedAt: now },
+    })
+    .run()
+}
+
+export function insertNotice(
+  tx: Tx,
+  input: {
+    id: string
+    workspaceId: string | null
+    ts: number
+    kind: string
+    payload: unknown
+  },
+): void {
+  tx.insert(notice)
+    .values({
+      id: input.id,
+      workspaceId: input.workspaceId,
+      ts: input.ts,
+      kind: input.kind,
+      payloadJson: JSON.stringify(input.payload),
+      readAt: null,
+    })
+    .run()
+}
+
+export function listNotices(
+  db: Db,
+  filter: { workspaceId?: string; kind?: string; limit: number; before?: number },
+): Notice[] {
+  const conditions = [
+    filter.workspaceId ? eq(notice.workspaceId, filter.workspaceId) : undefined,
+    filter.kind ? eq(notice.kind, filter.kind) : undefined,
+    filter.before !== undefined ? lt(notice.ts, filter.before) : undefined,
+  ].filter((condition) => condition !== undefined)
+  return db
+    .select()
+    .from(notice)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(notice.ts))
+    .limit(filter.limit)
+    .all()
+    .map(toNotice)
+}
+
+export function markNoticeRead(tx: Tx, id: string, readAt: number): boolean {
+  return tx.update(notice).set({ readAt }).where(eq(notice.id, id)).run().changes > 0
+}
+
+export function listAudit(
+  db: Db,
+  filter: { actionPrefix?: string; limit: number; before?: number },
+): Audit[] {
+  const conditions = [
+    filter.actionPrefix ? gte(audit.action, filter.actionPrefix) : undefined,
+    filter.actionPrefix ? lt(audit.action, `${filter.actionPrefix}\uffff`) : undefined,
+    filter.before !== undefined ? lt(audit.ts, filter.before) : undefined,
+  ].filter((condition) => condition !== undefined)
+  return db
+    .select()
+    .from(audit)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(audit.ts))
+    .limit(filter.limit)
+    .all()
+    .map(toAudit)
 }

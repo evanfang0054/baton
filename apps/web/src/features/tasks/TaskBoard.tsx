@@ -1,8 +1,14 @@
 import type { Node, TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
+import { toast } from '@heroui/react/toast'
+import { useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
+import { useState } from 'react'
+import { useCommand } from '../../lib/command-context'
 import { BOARD_COLUMNS, groupTasks, type BoardColumnId } from './columns'
 import { TaskCard } from './TaskCard'
+
+const BATCH_LIMIT = 20
 
 interface TaskBoardProps {
   tasks: TaskSummary[]
@@ -23,19 +29,119 @@ export function TaskBoard({
   onSelectTask,
   onClose,
 }: TaskBoardProps) {
+  const send = useCommand()
+  const queryClient = useQueryClient()
+  const [selecting, setSelecting] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [batching, setBatching] = useState(false)
+
+  const todoTasks = tasks.filter((task) => task.status === 'todo')
+  // 任务列表或 workspace 变化后，选择集里可能留下已不在当前看板的 id；提交前必须收敛。
+  const activeSelected = new Set(
+    [...selected].filter((id) => todoTasks.some((task) => task.id === id)),
+  )
+
   if (!expanded && !pinned) return null
   const grouped = groupTasks(tasks)
   const taskNodeIds = new Set(tasks.map((task) => task.nodeId).filter(Boolean))
   const unplanned = agentNodes.filter((node) => node.type === 'agent' && !taskNodeIds.has(node.id))
 
+  const exitSelection = () => {
+    setSelecting(false)
+    setSelected(new Set())
+  }
+
+  const toggle = (taskId: string) => {
+    setSelected((previous) => {
+      const next = new Set([...previous].filter((id) => todoTasks.some((task) => task.id === id)))
+      if (next.has(taskId)) {
+        next.delete(taskId)
+      } else if (next.size < BATCH_LIMIT) {
+        next.add(taskId)
+      }
+      return next
+    })
+  }
+
+  const selectAll = () => {
+    setSelected(new Set(todoTasks.slice(0, BATCH_LIMIT).map((task) => task.id)))
+  }
+
+  const startBatch = async () => {
+    if (batching || activeSelected.size === 0) return
+    setBatching(true)
+    let started = 0
+    let failed = 0
+    for (const taskId of activeSelected) {
+      try {
+        await send({ type: 'task.enqueue', payload: { taskId } })
+        started += 1
+      } catch {
+        failed += 1
+      }
+    }
+    setBatching(false)
+    await queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    if (failed > 0) {
+      toast.danger(`已开工 ${started} 个，${failed} 个失败`)
+    } else {
+      toast.success(`已开工 ${started} 个`)
+    }
+    exitSelection()
+  }
+
   const board = (
     <section id="task-board" className="flex h-full min-h-0 flex-col bg-background">
-      <header className="flex h-11 shrink-0 items-center justify-between border-b border-separator px-3">
+      <header className="flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-separator px-3 py-1.5">
         <span className="text-sm font-medium">任务看板</span>
-        <Button variant="ghost" aria-label="关闭看板" onPress={onClose} className="h-8 w-8 p-0">
-          <X size={16} />
-        </Button>
+        <div className="flex items-center gap-1">
+          {selecting ? (
+            <>
+              <Button
+                variant="tertiary"
+                size="sm"
+                isDisabled={todoTasks.length === 0 || batching}
+                onPress={selectAll}
+              >
+                全选待办
+              </Button>
+              <Button variant="tertiary" size="sm" isDisabled={batching} onPress={exitSelection}>
+                取消
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                isDisabled={
+                  activeSelected.size === 0 || activeSelected.size > BATCH_LIMIT || batching
+                }
+                onPress={() => void startBatch()}
+              >
+                开工 {activeSelected.size} 个
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              isDisabled={todoTasks.length === 0}
+              onPress={() => {
+                setSelecting(true)
+                setSelected(new Set())
+              }}
+            >
+              批量开工
+            </Button>
+          )}
+          <Button variant="ghost" aria-label="关闭看板" onPress={onClose} className="h-8 w-8 p-0">
+            <X size={16} />
+          </Button>
+        </div>
       </header>
+      {selecting ? (
+        <p className="shrink-0 border-b border-separator px-3 py-1 text-xs text-muted">
+          仅待办任务可开工，已选 {activeSelected.size} / 上限 {BATCH_LIMIT}。
+        </p>
+      ) : null}
       <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto p-3">
         {BOARD_COLUMNS.map((column) => (
           <BoardColumn
@@ -45,6 +151,9 @@ export function TaskBoard({
             tasks={column.id === 'unplanned' ? [] : grouped[column.id]}
             unplanned={column.id === 'unplanned' ? unplanned : []}
             selectedTaskId={selectedTaskId}
+            selecting={selecting}
+            selected={selected}
+            onToggle={toggle}
             onSelectTask={onSelectTask}
           />
         ))}
@@ -69,6 +178,9 @@ function BoardColumn({
   tasks,
   unplanned,
   selectedTaskId,
+  selecting,
+  selected,
+  onToggle,
   onSelectTask,
 }: {
   column: BoardColumnId
@@ -76,6 +188,9 @@ function BoardColumn({
   tasks: TaskSummary[]
   unplanned: Node[]
   selectedTaskId: string | null
+  selecting: boolean
+  selected: Set<string>
+  onToggle: (taskId: string) => void
   onSelectTask: (taskId: string) => void
 }) {
   return (
@@ -88,8 +203,10 @@ function BoardColumn({
         <TaskCard
           key={task.id}
           task={task}
-          selected={task.id === selectedTaskId}
+          selected={selecting ? selected.has(task.id) : task.id === selectedTaskId}
+          selectable={selecting}
           onSelect={onSelectTask}
+          onToggle={onToggle}
         />
       ))}
       {unplanned.map((node) => (

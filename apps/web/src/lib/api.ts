@@ -1,10 +1,17 @@
 import {
   AppError,
+  AuditListResponse,
+  AutomationPolicyPatch,
+  AutomationSummary,
   CanvasResponse,
+  DigestGenerateResponse,
   EngineListResponse,
+  KillSwitchResponse,
+  NoticeListResponse,
   SessionEventsResponse,
   SupervisorMessagesResponse,
   SupervisorStatusResponse,
+  TaskAutomationSummary,
   TaskDetailResponse,
   TaskListResponse,
   WorkspaceCreateInput,
@@ -112,4 +119,64 @@ export async function getSupervisorMessages(workspaceId: string, before?: string
   const query = new URLSearchParams({ workspaceId, limit: String(limit) })
   if (before) query.set('before', before)
   return SupervisorMessagesResponse.parse(await request(`/api/supervisor/messages?${query}`))
+}
+
+export async function getAutomation(workspaceId: string) {
+  return AutomationSummary.parse(
+    await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/automation`),
+  )
+}
+
+export async function updateAutomationPolicy(workspaceId: string, patch: AutomationPolicyPatch) {
+  return AutomationSummary.parse(
+    await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/automation`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(patch),
+    }),
+  )
+}
+
+export async function setKillSwitch(enabled: boolean) {
+  return KillSwitchResponse.parse(
+    await request('/api/automation/kill-switch', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    }),
+  )
+}
+
+export async function listNotices(
+  workspaceId: string,
+  options: { kind?: string; limit?: number; before?: number } = {},
+) {
+  const query = new URLSearchParams({ workspaceId, limit: String(options.limit ?? 50) })
+  if (options.kind) query.set('kind', options.kind)
+  if (options.before !== undefined) query.set('before', String(options.before))
+  return NoticeListResponse.parse(await request(`/api/notices?${query}`))
+}
+
+export async function readNotice(id: string) {
+  return request(`/api/notices/${encodeURIComponent(id)}/read`, { method: 'POST' })
+}
+
+export async function generateDigest(workspaceId: string) {
+  return DigestGenerateResponse.parse(
+    await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/digest`, {
+      method: 'POST',
+    }),
+  )
+}
+
+export async function getTaskAutomation(taskId: string) {
+  return TaskAutomationSummary.parse(
+    await request(`/api/tasks/${encodeURIComponent(taskId)}/automation`),
+  )
+}
+
+export async function listAudit(actionPrefix = 'automation.', limit = 20) {
+  const query = new URLSearchParams({ limit: String(limit) })
+  if (actionPrefix) query.set('actionPrefix', actionPrefix)
+  return AuditListResponse.parse(await request(`/api/audit?${query}`)).entries
 }

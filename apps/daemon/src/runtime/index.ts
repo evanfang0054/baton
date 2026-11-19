@@ -8,6 +8,10 @@ import type {
   TaskTransitionEvent,
 } from '@baton/protocol'
 import { randomUUID } from 'node:crypto'
+import { createDigestService } from '../automation/digest.js'
+import { createDigestScheduler, createTimeoutSchedule } from '../automation/scheduler.js'
+import { createAutomationService } from '../automation/service.js'
+import { createAutomationState } from '../automation/state.js'
 import type { Config } from '../config.js'
 import { createEventStore, type BroadcastEvent, type WsEventRow } from '../db/event-store.js'
 import {
@@ -21,10 +25,12 @@ import {
   getReview,
   getReviewByTask,
   getSession,
+  getSetting,
   getTask,
   hasTaskForNode,
   insertNode,
   listTasksByStatus,
+  listWorkspaces,
   updateApprovalResponse,
   updateNode,
 } from '../db/repositories.js'
@@ -40,6 +46,8 @@ import { createSessionRunner, type SessionRunner } from './session-runner.js'
 import { validateQuestionAnswers } from './questions.js'
 import { createTaskService } from './task-service.js'
 import { createTransitionRunner } from './transition-runner.js'
+import { loadPolicy } from '../workspace/policy.js'
+import { resolveWorkspaceDir } from '../workspace/resolver.js'
 import { createSupervisorService } from '../supervisor/service.js'
 import type { SupervisorEngine } from '../supervisor/engine.js'
 import type { RuntimeHooks, StartSessionInput, TransitionOutcome } from './types.js'
@@ -140,6 +148,55 @@ export function createRuntime(deps: RuntimeDeps) {
   }
 
   const taskService = createTaskService({ db: deps.db, config: deps.config, now, newId })
+  let persistedKillSwitch: boolean
+  try {
+    const setting = getSetting(deps.db, 'kill_switch') as { enabled?: boolean } | null
+    persistedKillSwitch = setting?.enabled === true
+  } catch {
+    // 设置损坏时按强制暂停处理，避免安全开关 fail-open。
+    persistedKillSwitch = true
+  }
+  const automationState = createAutomationState({
+    initial: persistedKillSwitch,
+    forced: deps.config.killSwitch,
+  })
+  let rescheduleDigest = (): void => {}
+  const automation = createAutomationService({
+    db: deps.db,
+    config: deps.config,
+    state: automationState,
+    now,
+    newId,
+    ...(deps.logger ? { logger: deps.logger } : {}),
+    onPolicyChanged: () => rescheduleDigest(),
+  })
+  const digest = createDigestService({
+    db: deps.db,
+    config: deps.config,
+    eventStore,
+    broadcast: deps.broadcast,
+    now,
+    newId,
+  })
+  const digestScheduler = createDigestScheduler({
+    listWorkspaces: () =>
+      listWorkspaces(deps.db).map((workspace) => {
+        try {
+          const path = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+          return {
+            id: workspace.id,
+            trusted: workspace.trusted,
+            digestCron: loadPolicy(path).autopilot.digestCron,
+          }
+        } catch {
+          return { id: workspace.id, trusted: false, digestCron: '0 9,21 * * *' }
+        }
+      }),
+    generate: (workspaceId) => Promise.resolve(digest.generate(workspaceId, 'schedule')),
+    schedule: createTimeoutSchedule,
+    ...(deps.logger ? { logger: deps.logger } : {}),
+  })
+  rescheduleDigest = () => digestScheduler.reschedule()
   const supervisor = createSupervisorService({
     db: deps.db,
     dataDir: deps.config.dataDir,
@@ -159,6 +216,7 @@ export function createRuntime(deps: RuntimeDeps) {
     now,
     newId,
     verifyMeta,
+    killSwitch: () => automationState.isKillSwitchOn(),
   })
 
   function applyTransition(taskId: string, event: TaskTransitionEvent): TransitionOutcome {
@@ -545,6 +603,7 @@ export function createRuntime(deps: RuntimeDeps) {
         return
       }
       booting = false
+      digestScheduler.start()
       schedulerHolder.value?.kick()
     },
     close: async () => {
@@ -552,6 +611,7 @@ export function createRuntime(deps: RuntimeDeps) {
         return
       }
       closing = true
+      digestScheduler.stop()
       supervisor.close()
       await verifyHolder.value?.close()
       await sessionHolder.value?.close()
@@ -565,6 +625,7 @@ export function createRuntime(deps: RuntimeDeps) {
     findNextQueued,
     maxConcurrency: deps.config.maxConcurrency,
     maxLiveSessions: deps.config.maxLiveSessions,
+    rescheduleDigest: () => rescheduleDigest(),
   }
 
   const created = createScheduler(runtime)
@@ -579,11 +640,11 @@ export function createRuntime(deps: RuntimeDeps) {
       applyTransition,
       now,
       newId,
-      killSwitch: deps.config.killSwitch,
+      killSwitch: () => automationState.isKillSwitchOn(),
     })
   }
 
-  return { ...runtime, scheduler: created, supervisor }
+  return { ...runtime, scheduler: created, supervisor, automation, digest }
 }
 
 export type Runtime = ReturnType<typeof createRuntime>

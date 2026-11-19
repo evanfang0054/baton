@@ -101,6 +101,20 @@ const schemaNames = [
   'SupervisorDeltaEvent',
   'SupervisorToolEvent',
   'SupervisorMessageEvent',
+  'NoticeEvent',
+  'AutomationPolicyPatch',
+  'AutomationSummary',
+  'DigestTaskRef',
+  'DigestReport',
+  'TaskAutomationDecision',
+  'TaskAutomationSummary',
+  'KillSwitchInput',
+  'KillSwitchResponse',
+  'NoticeListQuery',
+  'NoticeListResponse',
+  'DigestGenerateResponse',
+  'AuditListQuery',
+  'AuditListResponse',
 ] as const
 
 describe('protocol exports', () => {

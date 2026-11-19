@@ -113,6 +113,7 @@ describe('session runner approval failures', () => {
       adapters: createAdapterFactory({ fake: approvalAdapter(approvals) }),
       eventStore,
       broadcast: () => {},
+      killSwitch: () => false,
       applyTransition: (_taskId, event): TransitionOutcome => {
         transitions.push(event.type)
         if (event.type === 'approval_requested') {
@@ -165,6 +166,7 @@ describe('session runner approval failures', () => {
       adapters: createAdapterFactory({ fake: questionAdapter(replies) }),
       eventStore,
       broadcast: () => {},
+      killSwitch: () => false,
       applyTransition: (_taskId, event): TransitionOutcome => {
         if (event.type === 'approval_requested') {
           return {
@@ -237,6 +239,7 @@ describe('session runner approval failures', () => {
       adapters: createAdapterFactory({ fake: questionAdapter(replies, denials) }),
       eventStore,
       broadcast: () => {},
+      killSwitch: () => false,
       applyTransition: (_taskId, event): TransitionOutcome => ({
         ok: true,
         taskId: seeded.taskId,

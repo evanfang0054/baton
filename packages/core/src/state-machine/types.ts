@@ -14,6 +14,8 @@ export interface TransitionContext {
   readonly runningCount: number
   readonly maxConcurrency: number
   readonly autopilot: { readonly enabled: boolean; readonly retryMax: number }
+  readonly workspaceTrusted: boolean
+  readonly killSwitch: boolean
   readonly waitingReason: WaitingReason | null
 }
 

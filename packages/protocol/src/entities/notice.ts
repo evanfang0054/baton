@@ -3,6 +3,7 @@ import { Id, Timestamp } from '../common.js'
 
 export const Notice = z.object({
   id: Id,
+  workspaceId: Id.nullable().default(null),
   ts: Timestamp,
   kind: z.string().min(1),
   payload: z.unknown(),

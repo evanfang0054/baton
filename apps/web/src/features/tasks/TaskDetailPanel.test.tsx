@@ -58,6 +58,15 @@ function stubFetch(payload: TaskDetailResponse) {
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url === '/api/tasks/t1') return Response.json(payload)
+      if (url === '/api/tasks/t1/automation') {
+        return Response.json({
+          taskId: 't1',
+          retryCount: 0,
+          lastVerifyExitCode: null,
+          lastPolicyVersion: null,
+          autoDecisions: [],
+        })
+      }
       if (url.startsWith('/api/sessions/s1/events')) {
         return Response.json({
           sessionId: 's1',

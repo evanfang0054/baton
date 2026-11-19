@@ -22,6 +22,7 @@ export function WorkspaceTrustBadge({
     onSuccess: async () => {
       setConfirming(false)
       await queryClient.invalidateQueries({ queryKey: queryKeys.workspaces })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.automation(workspace.id) })
       onRevoked?.()
     },
   })

@@ -3,10 +3,12 @@ import { Id, Timestamp } from './common.js'
 import { Attention, Engine, TaskStatus } from './enums.js'
 import {
   Approval,
+  Audit,
   Canvas,
   Edge,
   Event,
   Node,
+  Notice,
   Review,
   Session,
   Task,
@@ -103,3 +105,45 @@ export const TaskDetailResponse = z.object({
   attention: Attention,
 })
 export type TaskDetailResponse = z.infer<typeof TaskDetailResponse>
+
+export const KillSwitchInput = z.object({ enabled: z.boolean() })
+export type KillSwitchInput = z.infer<typeof KillSwitchInput>
+
+export const KillSwitchResponse = z.object({
+  killSwitch: z.boolean(),
+  killSwitchForced: z.boolean(),
+})
+export type KillSwitchResponse = z.infer<typeof KillSwitchResponse>
+
+export const NoticeListQuery = z.object({
+  workspaceId: Id.optional(),
+  kind: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  before: z.coerce.number().int().nonnegative().optional(),
+})
+export type NoticeListQuery = z.infer<typeof NoticeListQuery>
+
+export const NoticeListResponse = z.object({
+  notices: z.array(Notice),
+  nextBefore: Timestamp.optional(),
+})
+export type NoticeListResponse = z.infer<typeof NoticeListResponse>
+
+export const DigestGenerateResponse = z.object({ notice: Notice })
+export type DigestGenerateResponse = z.infer<typeof DigestGenerateResponse>
+
+export const AuditListQuery = z.object({
+  actionPrefix: z
+    .string()
+    .regex(/^[a-z._]{1,64}$/)
+    .optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  before: z.coerce.number().int().nonnegative().optional(),
+})
+export type AuditListQuery = z.infer<typeof AuditListQuery>
+
+export const AuditListResponse = z.object({
+  entries: z.array(Audit),
+  nextBefore: Timestamp.optional(),
+})
+export type AuditListResponse = z.infer<typeof AuditListResponse>

@@ -71,7 +71,14 @@ describe('event/approval/review/audit/notice entities', () => {
   })
 
   it('parses Notice and rejects a missing kind', () => {
-    const notice = { id: 'no1', ts: 1, kind: 'digest', payload: {}, readAt: null }
+    const notice = {
+      id: 'no1',
+      workspaceId: null,
+      ts: 1,
+      kind: 'digest',
+      payload: {},
+      readAt: null,
+    }
     expect(Notice.parse(notice)).toEqual(notice)
     expect(() => Notice.parse({ ...notice, kind: '' })).toThrow()
   })

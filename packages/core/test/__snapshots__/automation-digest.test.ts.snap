@@ -1,0 +1,75 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildDigest > summarizes ready, blocked, dropped and changes without prompt 1`] = `
+{
+  "blocked": [
+    {
+      "attention": "needs_approval",
+      "id": "t2",
+      "retryCount": 1,
+      "status": "waiting_input",
+      "title": "等待审批",
+      "waitingSince": 80,
+    },
+  ],
+  "changes": {
+    "autoAllowed": 1,
+    "autoDenied": 1,
+    "cancelled": 0,
+    "completed": 1,
+    "created": 0,
+    "failed": 0,
+    "retried": 1,
+    "updated": 4,
+  },
+  "dropped": [
+    {
+      "attention": "needs_reply",
+      "id": "t3",
+      "retryCount": 1,
+      "status": "waiting_input",
+      "title": "已放弃",
+      "waitingSince": 70,
+    },
+  ],
+  "generatedAt": 100,
+  "oldestWaiting": {
+    "attention": "needs_reply",
+    "id": "t3",
+    "retryCount": 1,
+    "status": "waiting_input",
+    "title": "已放弃",
+    "waitingSince": 70,
+  },
+  "policyVersion": "abc123abc123",
+  "ready": [
+    {
+      "attention": "needs_review",
+      "id": "t1",
+      "retryCount": 1,
+      "status": "review",
+      "title": "修复登录",
+      "waitingSince": 90,
+    },
+  ],
+  "snapshot": {
+    "attention": {
+      "needsApproval": 1,
+      "needsAttention": 0,
+      "needsReply": 1,
+      "needsReview": 1,
+    },
+    "closed": 0,
+    "done": 0,
+    "review": 1,
+    "running": 1,
+    "todo": 0,
+    "total": 4,
+    "unplanned": 0,
+    "waiting": 2,
+  },
+  "windowEnd": 100,
+  "windowStart": 50,
+  "workspaceId": "w1",
+}
+`;

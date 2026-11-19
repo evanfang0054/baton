@@ -23,6 +23,7 @@
 - [2026-11-17 M1-7a Claude 适配器与安全基线设计](specs/2026-11-17-m1-claude-adapter-design.md)
 - [2026-11-18 M1-6b 画布上下文与关系设计](specs/2026-11-18-m1-6b-canvas-context-design.md)
 - [2026-11-18 M2-1 总管 Router v0 设计](specs/2026-11-18-m2-supervisor-design.md)
+- [2026-11-19 M2-2a 无人值守与汇报设计](specs/2026-11-19-m2-autopilot-design.md)
 
 ## 现行 ADR
 
@@ -31,6 +32,7 @@
 - [0003 v1 移除 Docker 分发](adr/0003-drop-docker-from-v1.md)
 - [0004 不可信 workspace 仍加载 user settings](adr/0004-untrusted-loads-user-settings.md)
 - [0005 按任务跳过审批与结构化提问](adr/0005-bypass-permissions-and-questions.md)
+- [0006 M2-2a 契约实现校正](adr/0006-m2-autopilot-contract-adjustments.md)
 
 ## 现行 contract
 
@@ -43,6 +45,7 @@
 - [M1-7a Claude 适配器与安全基线](contracts/M1-claude-adapter.contract.md)
 - [M1-6b 画布上下文与关系](contracts/M1-6b-canvas-context.contract.md)
 - [M2-1 总管 Router v0](contracts/M2-supervisor-v0.contract.md)
+- [M2-2a 无人值守与汇报 v0](contracts/M2-autopilot-v0.contract.md)
 
 ## 现行 plan
 
@@ -65,10 +68,15 @@
 - [M2-1 总管 daemon 实施计划](plans/2026-11-18-m2-supervisor-daemon.md)
 - [M2-1 总管 Web 实施计划](plans/2026-11-18-m2-supervisor-web.md)
 - [M2-1 总管验收实施计划](plans/2026-11-18-m2-supervisor-acceptance.md)
+- [M2-2a 契约层实施计划](plans/2026-11-19-m2-autopilot-contracts.md)
+- [M2-2a daemon 实施计划](plans/2026-11-19-m2-autopilot-daemon.md)
+- [M2-2a web 实施计划](plans/2026-11-19-m2-autopilot-web.md)
+- [M2-2a 验收实施计划](plans/2026-11-19-m2-autopilot-acceptance.md)
 
 ## 验收证据
 
 - [M2-1 总管真实链路验收（阻塞，待模型配置）](evidence/2026-11-18-m2-supervisor/README.md)
+- [M2-2a 无人值守与汇报验收](evidence/2026-11-19-m2-autopilot/README.md)
 
 ## 约定
 

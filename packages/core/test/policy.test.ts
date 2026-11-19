@@ -99,6 +99,7 @@ describe('evaluateApproval', () => {
   it('asks when an allow rule matches but autopilot is off', () => {
     const decision = evaluateApproval(policy(), request('Read', { file_path: 'src/a.ts' }), {
       killSwitch: false,
+      workspaceTrusted: true,
     })
     expect(decision).toMatchObject({
       decision: 'ask',
@@ -112,7 +113,7 @@ describe('evaluateApproval', () => {
     const decision = evaluateApproval(
       policy({ autopilot: autopilotOn }),
       request('Read', { file_path: 'src/a.ts' }),
-      { killSwitch: false },
+      { killSwitch: false, workspaceTrusted: true },
     )
     expect(decision).toMatchObject({ decision: 'allow', autoApproved: true, risk: 'low' })
   })
@@ -121,7 +122,7 @@ describe('evaluateApproval', () => {
     const decision = evaluateApproval(
       policy({ autopilot: autopilotOn }),
       request('Read', { file_path: 'src/a.ts' }),
-      { killSwitch: true },
+      { killSwitch: true, workspaceTrusted: true },
     )
     expect(decision).toMatchObject({ decision: 'ask', autoApproved: false })
   })
@@ -130,7 +131,7 @@ describe('evaluateApproval', () => {
     const decision = evaluateApproval(
       policy(),
       request('Bash', { command: 'rm -rf /tmp/demo' }, 'low'),
-      { killSwitch: false },
+      { killSwitch: false, workspaceTrusted: true },
     )
     expect(decision).toMatchObject({
       decision: 'deny',
@@ -144,7 +145,7 @@ describe('evaluateApproval', () => {
     const decision = evaluateApproval(
       policy({ autopilot: autopilotOn }),
       request('Bash', { command: 'pnpm test' }),
-      { killSwitch: false },
+      { killSwitch: false, workspaceTrusted: true },
     )
     expect(decision).toMatchObject({ decision: 'ask', autoApproved: false, risk: 'medium' })
     expect(decision.matchedRule).toBe(
@@ -156,7 +157,7 @@ describe('evaluateApproval', () => {
     const decision = evaluateApproval(
       policy({ autopilot: autopilotOn, approval: { autoApproveMaxRisk: 'high' } }),
       request('Read', { file_path: 'src/a.ts' }, 'high'),
-      { killSwitch: false },
+      { killSwitch: false, workspaceTrusted: true },
     )
     expect(decision).toMatchObject({ decision: 'ask', risk: 'high', autoApproved: false })
   })
@@ -168,19 +169,23 @@ describe('evaluateApproval', () => {
         approval: { allow: ['UnknownTool:*'], autoApproveMaxRisk: 'high' },
       }),
       request('UnknownTool', { x: 1 }),
-      { killSwitch: false },
+      { killSwitch: false, workspaceTrusted: true },
     )
     expect(decision).toMatchObject({ decision: 'ask', risk: 'high', autoApproved: false })
   })
 
   it('fails closed when a deny rule cannot extract its target', () => {
-    const decision = evaluateApproval(policy(), request('Bash', {}), { killSwitch: false })
+    const decision = evaluateApproval(policy(), request('Bash', {}), {
+      killSwitch: false,
+      workspaceTrusted: true,
+    })
     expect(decision).toMatchObject({ decision: 'deny', risk: 'high', autoApproved: false })
   })
 
   it('asks for unknown tools with high risk', () => {
     const decision = evaluateApproval(policy(), request('UnknownTool', { x: 1 }), {
       killSwitch: false,
+      workspaceTrusted: true,
     })
     expect(decision).toMatchObject({ decision: 'ask', risk: 'high', autoApproved: false })
   })
@@ -193,7 +198,7 @@ describe('evaluateApproval', () => {
         { file_path: '/workspace/demo/src/pages/login.tsx', cwd: '/workspace/demo' },
         'low',
       ),
-      { killSwitch: false },
+      { killSwitch: false, workspaceTrusted: true },
     )
     expect(inside.matchedRule).toBe('Edit:src/**')
 
@@ -204,7 +209,7 @@ describe('evaluateApproval', () => {
         { file_path: '/workspace/demo/docs/readme.md', cwd: '/workspace/demo' },
         'low',
       ),
-      { killSwitch: false },
+      { killSwitch: false, workspaceTrusted: true },
     )
     expect(outside.matchedRule).toBeUndefined()
     expect(outside.decision).toBe('ask')
@@ -214,7 +219,7 @@ describe('evaluateApproval', () => {
     const decision = evaluateApproval(
       policy(),
       request('Bash', { command: 'TOKEN=super-secret pnpm test' }, 'low'),
-      { killSwitch: false },
+      { killSwitch: false, workspaceTrusted: true },
     )
     expect(decision.reason).not.toContain('super-secret')
   })
@@ -223,16 +228,21 @@ describe('evaluateApproval', () => {
     const decisions = [
       evaluateApproval(policy(), request('Read', { file_path: 'src/a.ts' }), {
         killSwitch: false,
+        workspaceTrusted: true,
       }),
       evaluateApproval(
         policy({ autopilot: autopilotOn }),
         request('Read', { file_path: 'src/a.ts' }),
-        { killSwitch: false },
+        { killSwitch: false, workspaceTrusted: true },
       ),
       evaluateApproval(policy(), request('Bash', { command: 'rm -rf /tmp/demo' }), {
         killSwitch: false,
+        workspaceTrusted: true,
       }),
-      evaluateApproval(policy(), request('UnknownTool', { x: 1 }), { killSwitch: false }),
+      evaluateApproval(policy(), request('UnknownTool', { x: 1 }), {
+        killSwitch: false,
+        workspaceTrusted: true,
+      }),
     ]
     expect(decisions).toMatchSnapshot()
   })

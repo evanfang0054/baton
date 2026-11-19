@@ -91,7 +91,7 @@ describe('context -> policy -> adapter wiring', () => {
     const decision = evaluateApproval(
       policy,
       { toolName: 'Read', input: { file_path: 'src/a.ts' }, risk: 'low' },
-      { killSwitch: false },
+      { killSwitch: false, workspaceTrusted: true },
     )
     expect(decision.decision).toBe('ask')
     expect(approvals).toEqual([])
