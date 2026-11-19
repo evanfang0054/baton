@@ -80,8 +80,9 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
     } else {
       try {
         workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+        const executionPath = task.worktreePath ?? workspacePath
         const policy = loadPolicy(workspacePath)
-        const pkg = readPackageJson(workspacePath)
+        const pkg = readPackageJson(executionPath)
         const resolved = resolveVerifyCommand({
           taskCommand: task.verifyCommand ?? undefined,
           policyCommand: policy.verify.command,
@@ -93,7 +94,7 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
         } else {
           result = await runVerifyCommand({
             command: resolved.command,
-            workspacePath,
+            workspacePath: executionPath,
             timeoutSec: policy.verify.timeoutSec,
             maxOutputBytes: policy.verify.maxOutputBytes,
             signal,

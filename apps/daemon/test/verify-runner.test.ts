@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs'
+import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { execa } from 'execa'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -86,5 +86,43 @@ describe('verify runner', () => {
     const review = handle.runtime.getReviewByTask(taskId)!
     const snapshot = getReviewDiff(handle.database.db, review.id)
     expect(snapshot?.files.find((file) => file.path === 'a.txt')?.patch).toContain('+hello world')
+  })
+
+  it('runs verify and captures diff inside the task worktree', async () => {
+    const handle = setup()
+    const main = join(handle.root, handle.seeded.relPath)
+    await execa('git', ['-C', main, 'init', '-q'])
+    await execa('git', ['-C', main, 'config', 'user.email', 'test@example.com'])
+    await execa('git', ['-C', main, 'config', 'user.name', 'test'])
+    writeFileSync(join(main, 'a.txt'), 'main\n')
+    await execa('git', ['-C', main, 'add', '-A'])
+    await execa('git', ['-C', main, 'commit', '-qm', 'init'])
+
+    const taskId = handle.createTask({
+      workspaceMode: 'worktree',
+      verifyCommand:
+        "node -e \"const fs=require('fs');process.exit(fs.existsSync('worktree-only.txt')?0:1)\"",
+    })
+    handle.runtime.applyTransition(taskId, { type: 'enqueue' })
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'waiting_input', 5000)
+
+    const worktree = handle.runtime.getTask(taskId)!.worktreePath!
+    writeFileSync(join(worktree, 'worktree-only.txt'), 'wt\n')
+    writeFileSync(join(worktree, 'a.txt'), 'changed\n')
+
+    const session = handle.database.raw
+      .prepare('select id from session where task_id = ?')
+      .get(taskId) as { id: string }
+    const approval = handle.database.raw
+      .prepare('select id from approval where session_id = ?')
+      .get(session.id) as { id: string }
+    handle.runtime.decideApproval({ approvalId: approval.id, decision: 'allow' })
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'review', 5000)
+
+    const review = handle.runtime.getReviewByTask(taskId)!
+    expect(review.verifyExitCode).toBe(0)
+    expect(existsSync(join(main, 'worktree-only.txt'))).toBe(false)
+    const snapshot = getReviewDiff(handle.database.db, review.id)
+    expect(snapshot?.files.find((file) => file.path === 'a.txt')?.patch).toContain('+changed')
   })
 })
