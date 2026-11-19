@@ -17,6 +17,8 @@ const DEFAULT_DENY = [
   'Bash:git push *',
   'Edit:**/.env*',
   'Edit:.git/**',
+  'Edit:.baton/**',
+  'Write:.baton/**',
 ]
 
 const VerifyPolicy = z.object({

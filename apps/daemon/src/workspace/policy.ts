@@ -1,7 +1,10 @@
 import { PolicySchema, type Policy } from '@baton/protocol'
 import {
+  closeSync,
   existsSync,
+  fsyncSync,
   mkdirSync,
+  openSync,
   readFileSync,
   realpathSync,
   renameSync,
@@ -40,9 +43,15 @@ export function loadPolicy(workspacePath: string): Policy {
  * 目录与目标文件都走 workspace jail，防止 `.baton` 软链逃逸。
  */
 export function writePolicy(workspacePath: string, policy: Policy): { policyVersion: string } {
+  let parsed: Policy
+  try {
+    parsed = PolicySchema.parse(policy)
+  } catch {
+    throw appError('invalid_policy', 'invalid policy payload')
+  }
+
   let temp: string | null = null
   try {
-    const parsed = PolicySchema.parse(policy)
     const batonDir = resolveWithin(workspacePath, '.baton')
     mkdirSync(batonDir, { recursive: true })
     const realRoot = realpathSync(workspacePath)
@@ -51,7 +60,14 @@ export function writePolicy(workspacePath: string, policy: Policy): { policyVers
       throw new Error('policy directory escapes workspace')
     }
     temp = join(realDir, `.policy.${process.pid}.${Date.now()}.tmp`)
-    writeFileSync(temp, `${JSON.stringify(parsed, null, 2)}\n`, { mode: 0o600, flag: 'wx' })
+    const fd = openSync(temp, 'wx', 0o600)
+    try {
+      writeFileSync(fd, `${JSON.stringify(parsed, null, 2)}\n`)
+      // rename 前落盘，避免崩溃留下截断的 policy.json。
+      fsyncSync(fd)
+    } finally {
+      closeSync(fd)
+    }
     renameSync(temp, join(realDir, 'policy.json'))
     return { policyVersion: hashPolicy(parsed) }
   } catch {

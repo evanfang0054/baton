@@ -182,7 +182,7 @@ export function approvalInputWithCwd(
   cwd: string,
 ): Record<string, unknown> {
   if (!PATH_TOOLS.has(toolName)) return toolInput
-  if (typeof toolInput.cwd === 'string') return toolInput
+  // 不信任引擎或模型自带 cwd：策略必须以 daemon 选定的 workspace 为边界。
   return { ...toolInput, cwd }
 }
 

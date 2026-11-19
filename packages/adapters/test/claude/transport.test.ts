@@ -97,7 +97,7 @@ describe('buildClaudeOptions', () => {
         { file_path: 'src/a.ts', cwd: '/from-engine' },
         '/workspace/demo',
       ),
-    ).toEqual({ file_path: 'src/a.ts', cwd: '/from-engine' })
+    ).toEqual({ file_path: 'src/a.ts', cwd: '/workspace/demo' })
     expect(approvalInputWithCwd('Bash', { command: 'ls' }, '/workspace/demo')).toEqual({
       command: 'ls',
     })

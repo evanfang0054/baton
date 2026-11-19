@@ -135,7 +135,7 @@ export type DigestGenerateResponse = z.infer<typeof DigestGenerateResponse>
 export const AuditListQuery = z.object({
   actionPrefix: z
     .string()
-    .regex(/^[a-z.]{1,64}$/)
+    .regex(/^[a-z._]{1,64}$/)
     .optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   before: z.coerce.number().int().nonnegative().optional(),

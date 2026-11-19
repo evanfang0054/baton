@@ -45,6 +45,7 @@ describe('automation protocol', () => {
       limit: 10,
     })
     expect(AuditListQuery.safeParse({ actionPrefix: 'automation.' }).success).toBe(true)
+    expect(AuditListQuery.safeParse({ actionPrefix: 'approval.auto_allow' }).success).toBe(true)
     expect(AuditListQuery.safeParse({ actionPrefix: 'Automation' }).success).toBe(false)
     expect(AuditListQuery.safeParse({ actionPrefix: 'a/b' }).success).toBe(false)
     expect(AuditListQuery.parse({ before: '9' }).before).toBe(9)
