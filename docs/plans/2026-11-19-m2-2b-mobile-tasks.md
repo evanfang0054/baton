@@ -5,7 +5,7 @@ task_count: 6
 estimated_phases: [tests, implementation, verification]
 dod: "移动看板待处理优先 + 批量开工；任务详情闸门/操作条/transcript 可用；<768 完成审批→回复→验收→开工的移动闭环；桌面/平板回归"
 depends_on: [2026-11-19-m2-2b-mobile-foundation.md]
-status: pending
+status: completed
 ---
 
 # M2-2b 移动端响应式控制台：任务与闸门实施计划（Plan 2/4）
@@ -1041,3 +1041,15 @@ git commit -m "docs(plan): 记录 M2-2b 任务与闸门执行结果"
 ## Execution Handoff
 
 Plan 2 已落 `docs/plans/2026-11-19-m2-2b-mobile-tasks.md`。执行方式同 Plan 1：subagent-driven（推荐）或 inline。
+
+## 执行记录（2026-11-19）
+
+- 6 个 task 全部完成；每个 task 独立提交。
+- 验证：web 单测 156；`pnpm verify:full` exit 0，Playwright 17 条全绿。
+- 移动看板：待审批/待回复/待验收分组、状态筛选、最长等待、批量开工（≤20，逐条失败）。
+- 移动详情：`TaskDetailPanel mobile` 页面可滚动、transcript 固定 `45vh`、`TaskActions` sticky；上下文/来源/自动化折叠。
+- 偏离：
+  - `MobileBoardList` 测试需要 `QueryClientProvider` + `CommandProvider`（组件使用 `useQueryClient`）。
+  - e2e 的 `/api/tasks` glob 不匹配 query string，改用 `/\/api\/tasks(\?.*)?$/` 正则。
+  - 新增/编辑 web 测试后偶发 Vitest runner 缓存错误；清 `node_modules/.vitest-cache`、`node_modules/.vite`、`apps/web/node_modules/.vite` 后恢复。
+- 未做：Plan 3/4、真实 Claude 验收、移动访问 runbook。
