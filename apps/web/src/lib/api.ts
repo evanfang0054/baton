@@ -15,6 +15,7 @@ import {
   TaskAutomationSummary,
   TaskDetailResponse,
   TaskListResponse,
+  WorkspaceCapabilitiesResponse,
   WorkspaceCreateInput,
   WorkspaceCreateResponse,
   WorkspaceListResponse,
@@ -83,6 +84,18 @@ export async function updateWorkspaceTrust(workspaceId: string, input: Workspace
       body: JSON.stringify(input),
     }),
   ).workspace
+}
+
+export async function getWorkspaceCapabilities(workspaceId: string) {
+  return WorkspaceCapabilitiesResponse.parse(
+    await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/capabilities`),
+  )
+}
+
+export async function cleanupWorktree(taskId: string) {
+  return request(`/api/tasks/${encodeURIComponent(taskId)}/worktree/cleanup`, {
+    method: 'POST',
+  })
 }
 
 export async function listEngines() {

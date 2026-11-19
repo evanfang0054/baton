@@ -16,6 +16,7 @@ import { TaskAutomationCard } from './TaskAutomationCard'
 import { TaskHeader } from './TaskHeader'
 import { TaskOriginCard } from './TaskOriginCard'
 import { Transcript } from './Transcript'
+import { WorktreeCard } from './WorktreeCard'
 
 const sessionStatusLabels: Record<string, string> = {
   running: '进行中',
@@ -213,6 +214,13 @@ function DetailContent({
       ) : (
         <TaskAutomationCard taskId={task.id} />
       )}
+
+      <WorktreeCard
+        taskId={task.id}
+        worktreePath={task.worktreePath}
+        canCleanup={!mobile && !['running', 'waiting_input', 'verifying'].includes(task.status)}
+        onDone={onDone}
+      />
 
       {task.status === 'waiting_input' && needsApproval ? (
         pendingApprovals.length > 0 ? (

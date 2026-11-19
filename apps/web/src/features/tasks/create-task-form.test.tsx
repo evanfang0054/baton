@@ -13,6 +13,9 @@ function stubEngines(engines: unknown[]) {
       if (url === '/api/engines') {
         return Response.json({ engines })
       }
+      if (url === '/api/workspaces/w1/capabilities') {
+        return Response.json({ worktree: true })
+      }
       throw new Error(`unexpected fetch ${url}`)
     }),
   )
@@ -183,6 +186,23 @@ describe('CreateTaskForm', () => {
         expect.objectContaining({
           type: 'task.create',
           payload: expect.objectContaining({ contextNodeIds: ['t1', 't2'] }),
+        }),
+      ),
+    )
+  })
+
+  it('sends worktree mode when the toggle is on', async () => {
+    stubEngines([{ engine: 'fake', status: 'available' }])
+    const { send } = renderForm()
+    await waitFor(() => expect(screen.getByLabelText('执行引擎')).toHaveValue('fake'))
+    fireEvent.change(screen.getByLabelText('任务说明'), { target: { value: '在独立工作树里做' } })
+    fireEvent.click(screen.getByLabelText('使用独立工作树'))
+    fireEvent.click(screen.getByRole('button', { name: '创建任务' }))
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'task.create',
+          payload: expect.objectContaining({ workspaceMode: 'worktree' }),
         }),
       ),
     )

@@ -24,6 +24,11 @@ export function TaskHeader({
         <Chip size="sm" variant="soft" color="default">
           {task.engine}
         </Chip>
+        {task.workspaceMode === 'worktree' ? (
+          <Chip size="sm" variant="soft" color="accent">
+            独立工作树 · baton/{task.id.slice(0, 8)}
+          </Chip>
+        ) : null}
         {task.dangerouslySkipPermissions ? (
           <Chip size="sm" variant="soft" color="danger">
             跳过权限确认

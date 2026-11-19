@@ -5,7 +5,7 @@ import { TextArea } from '@heroui/react/textarea'
 import { toast } from '@heroui/react/toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
-import { listEngines } from '../../lib/api'
+import { getWorkspaceCapabilities, listEngines } from '../../lib/api'
 import { useCommand } from '../../lib/command-context'
 import { queryKeys } from '../../lib/query'
 import { nodeTitle } from '../canvas/node-title'
@@ -30,6 +30,10 @@ export function MobileCreateTaskForm({
   const send = useCommand()
   const queryClient = useQueryClient()
   const engines = useQuery({ queryKey: queryKeys.engines, queryFn: listEngines })
+  const capabilities = useQuery({
+    queryKey: queryKeys.workspaceCapabilities(workspaceId),
+    queryFn: () => getWorkspaceCapabilities(workspaceId),
+  })
   const agents = nodes.filter((node) => node.type === 'agent')
   const [agentId, setAgentId] = useState(agents[0]?.id ?? '')
   const [newAgent, setNewAgent] = useState(agents.length === 0)
@@ -39,6 +43,7 @@ export function MobileCreateTaskForm({
   const [title, setTitle] = useState('')
   const [prompt, setPrompt] = useState('')
   const [verifyCommand, setVerifyCommand] = useState('')
+  const [workspaceMode, setWorkspaceMode] = useState<'main' | 'worktree'>('main')
   const [skipPermissions, setSkipPermissions] = useState(false)
   const [createAndStart, setCreateAndStart] = useState(false)
   const [picker, setPicker] = useState<'agent' | 'context' | null>(null)
@@ -108,7 +113,7 @@ export function MobileCreateTaskForm({
             prompt: prompt.trim(),
             contextNodeIds: contextIds,
             engine: effectiveEngine,
-            workspaceMode: 'main',
+            workspaceMode,
             dangerouslySkipPermissions: skipPermissions && workspaceTrusted,
             ...(verifyCommand.trim() ? { verifyCommand: verifyCommand.trim() } : {}),
           },
@@ -238,6 +243,23 @@ export function MobileCreateTaskForm({
             onChange={(event) => setVerifyCommand(event.target.value)}
             fullWidth
           />
+          <label className="flex items-start gap-2 text-xs text-muted">
+            <input
+              type="checkbox"
+              aria-label="使用独立工作树"
+              checked={workspaceMode === 'worktree'}
+              onChange={(event) => setWorkspaceMode(event.target.checked ? 'worktree' : 'main')}
+              disabled={capabilities.data?.worktree === false}
+              className="mt-0.5 size-4 accent-accent"
+            />
+            <span>
+              使用独立工作树
+              <br />
+              {capabilities.data?.worktree === false
+                ? '该工作区不是 git 仓库。'
+                : '任务在独立目录执行，结束后保留。'}
+            </span>
+          </label>
           <select
             aria-label="任务引擎"
             value={effectiveEngine}

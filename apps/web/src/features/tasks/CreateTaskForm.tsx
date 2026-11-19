@@ -5,7 +5,7 @@ import { TextArea } from '@heroui/react/textarea'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { FileText, Folder, Image as ImageIcon, Type } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { listEngines } from '../../lib/api'
+import { getWorkspaceCapabilities, listEngines } from '../../lib/api'
 import { useCommand } from '../../lib/command-context'
 import { queryKeys } from '../../lib/query'
 import { useAppStore } from '../../stores/app'
@@ -71,11 +71,16 @@ export function CreateTaskForm({
   const removeContextNode = useAppStore((state) => state.removeContextNode)
   const clearContext = useAppStore((state) => state.clearContext)
   const engines = useQuery({ queryKey: queryKeys.engines, queryFn: listEngines })
+  const capabilities = useQuery({
+    queryKey: queryKeys.workspaceCapabilities(workspaceId),
+    queryFn: () => getWorkspaceCapabilities(workspaceId),
+  })
   const [engine, setEngine] = useState<Engine | null>(null)
   const [title, setTitle] = useState(defaultTitle)
   const [titleEdited, setTitleEdited] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [verifyCommand, setVerifyCommand] = useState('')
+  const [workspaceMode, setWorkspaceMode] = useState<'main' | 'worktree'>('main')
   const [skipPermissions, setSkipPermissions] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -108,7 +113,7 @@ export function CreateTaskForm({
           prompt: prompt.trim(),
           contextNodeIds,
           engine,
-          workspaceMode: 'main',
+          workspaceMode,
           dangerouslySkipPermissions: skipPermissions && workspaceTrusted,
           ...(verifyCommand.trim() ? { verifyCommand: verifyCommand.trim() } : {}),
         },
@@ -186,6 +191,23 @@ export function CreateTaskForm({
           onChange={(event) => setVerifyCommand(event.target.value)}
           fullWidth
         />
+        <label className="flex items-start gap-2 text-xs text-muted">
+          <input
+            type="checkbox"
+            aria-label="使用独立工作树"
+            checked={workspaceMode === 'worktree'}
+            onChange={(event) => setWorkspaceMode(event.target.checked ? 'worktree' : 'main')}
+            disabled={capabilities.data?.worktree === false}
+            className="mt-0.5 size-4 accent-accent"
+          />
+          <span>
+            使用独立工作树
+            <br />
+            {capabilities.data?.worktree === false
+              ? '该工作区不是 git 仓库，不能使用独立工作树。'
+              : '任务在独立分支与目录中执行；结束后保留，可手动清理。'}
+          </span>
+        </label>
         <label className="flex flex-col gap-1 text-xs text-muted">
           <span>执行引擎</span>
           <select
