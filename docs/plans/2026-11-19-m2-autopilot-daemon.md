@@ -813,9 +813,9 @@ git commit -m "docs(plan): 记录 M2-2a daemon 完成"
 
 ## 完成记录（2026-11-19）
 
-- 关键 commit：`cf57615` policy 写入/automation service/HTTP 控制面；`6079c93` notice/audit/task-automation 查询；`3effb2e` digest 生成/调度/notice 广播；`f542dc0` runtime 动态 kill switch、digest 生命周期与 policyVersion 审计。
-- 测试结果：daemon 53 files / 193 tests；protocol 119、core 121、adapters 25、web 115；`pnpm verify` 退出码 0。
-- 与计划的偏差：未引入 `croner`，改用内置 `parseDailyCron` + `setTimeout` 支持默认 `m h[,h...] * * *`；不支持的自定义 cron 保留手动生成。`digestCronUnsupported` 字段暂固定 false（默认 cron 可解析），后续如需任意 cron 再接回。
+- 关键 commit：`cf57615` policy 写入/automation service/HTTP 控制面；`6079c93` notice/audit/task-automation 查询；`3effb2e` digest 生成/调度/notice 广播；`f542dc0` runtime 动态 kill switch、digest 生命周期与 policyVersion 审计；`0b629aa` 评审修复（digest 失败隔离、调度重排、任务策略快照 migration 0008、临时文件 wx）。
+- 测试结果：daemon 54 files / 199 tests；protocol 119、core 121、adapters 25、web 115；`pnpm verify` 退出码 0。
+- 与计划的偏差：未引入 `croner`，改用内置 `parseDailyCron` + `setTimeout` 支持默认 `m h[,h...] * * *`；不支持的自定义 cron 通过 `digestCronUnsupported` 标记并保留手动生成。新增 migration 0008 `task.policy_json`，让 `verify_fail` 使用任务启动时的策略快照。
 - 未解决风险：Digest 生成对每个 task 做 approval/review 查询（N+1），任务量大时再测量优化；Policy 文件与 audit 仍非同一事务（ADR 0006 已记录）。
 
 ---
