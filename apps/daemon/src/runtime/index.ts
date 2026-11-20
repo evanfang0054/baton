@@ -274,6 +274,7 @@ export function createRuntime(deps: RuntimeDeps) {
             error: appError('runtime_not_ready', 'transition runner is not ready'),
           },
     replyToTask,
+    cancelTask: cancel,
     workspacesRoot: deps.config.workspacesRoot,
     killSwitch: () => automationState.isKillSwitchOn(),
     ...(deps.supervisorEngine ? { engine: deps.supervisorEngine } : {}),

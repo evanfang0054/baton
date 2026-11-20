@@ -193,11 +193,6 @@ test('asks for confirmation before cancelling a running task', async ({ page }) 
             args: { taskId: 'task-1' },
             ok: false,
             error: 'confirmation_required',
-            result: {
-              ok: false,
-              code: 'confirmation_required',
-              message: 'confirm before cancelling a running task',
-            },
           },
         ])
       : supervisorMessage('m-cancel-2', '已取消。', [

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { appError } from '../src/errors.js'
-import { getNode, getTask, insertApproval } from '../src/db/repositories.js'
+import { getNode, getTask, insertApproval, insertReview } from '../src/db/repositories.js'
 import { createTaskService } from '../src/runtime/task-service.js'
 import { createSupervisorTools, type ToolContext } from '../src/supervisor/tools.js'
 import { createTestDb, seedTask, seedTextNode, type TestDb } from './helpers/db.js'
@@ -88,6 +88,18 @@ function setup() {
       }
       replies.push({ taskId, text })
       return { ok: true }
+    },
+    cancelTask: (taskId) => {
+      transitions.push({ taskId, type: 'cancel' })
+      return {
+        ok: true,
+        taskId,
+        status: 'cancelled',
+        previousStatus: 'running',
+        retryCount: 0,
+        waitingReason: null,
+        events: [],
+      }
     },
   })
   return { database, seeded, tools, root, transitions, replies }
@@ -208,7 +220,17 @@ describe('supervisor tools', () => {
         request: {
           toolName: 'AskUserQuestion',
           input: {
-            questions: [{ question: '用哪个方案？', options: [{ label: 'A' }, { label: 'B' }] }],
+            questions: [
+              {
+                question: '用哪个方案？',
+                header: '方案',
+                options: [
+                  { label: 'A', description: '' },
+                  { label: 'B', description: '' },
+                ],
+                multiSelect: false,
+              },
+            ],
           },
           risk: 'low',
         },
@@ -227,7 +249,7 @@ describe('supervisor tools', () => {
       }
     }
     expect(result.pending.kind).toBe('question')
-    expect(result.pending.question.questions[0]).toEqual({
+    expect(result.pending.question.questions[0]).toMatchObject({
       question: '用哪个方案？',
       options: [{ label: 'A' }, { label: 'B' }],
     })
@@ -253,6 +275,17 @@ describe('supervisor tools', () => {
     database.raw
       .prepare('insert into ws_event (id, type, payload_json, ts, task_id) values (?, ?, ?, ?, ?)')
       .run('e2', 'session.event', JSON.stringify({ text: 'secret transcript' }), 2, seeded.taskId)
+    database.db.transaction((tx) => {
+      insertReview(tx, {
+        id: 'rev-1',
+        taskId: seeded.taskId,
+        verdict: null,
+        verifyExitCode: 0,
+        verifyOutput: 'secret verify output',
+        diffStat: { filesChanged: 1, insertions: 1, deletions: 0 },
+        decidedAt: null,
+      })
+    })
 
     const result = (await tools.get_task_history.execute(
       { taskId: seeded.taskId },
@@ -267,6 +300,7 @@ describe('supervisor tools', () => {
     expect(result.statusEvents).toHaveLength(1)
     expect(result.statusEvents[0]?.status).toBe('queued')
     expect(JSON.stringify(result)).not.toContain('secret transcript')
+    expect(JSON.stringify(result)).not.toContain('secret verify output')
   })
 
   it('retries only failed tasks and reopens only finished tasks', async () => {
@@ -291,11 +325,9 @@ describe('supervisor tools', () => {
   it('requires confirmation before cancelling a running task', async () => {
     const { database, seeded, tools, transitions } = setup()
     database.raw.prepare('update task set status = ? where id = ?').run('running', seeded.taskId)
-    const pending = (await tools.cancel_task.execute({ taskId: seeded.taskId }, ctx(seeded))) as {
-      ok: boolean
-      code: string
-    }
-    expect(pending).toMatchObject({ ok: false, code: 'confirmation_required' })
+    await expect(
+      tools.cancel_task.execute({ taskId: seeded.taskId }, ctx(seeded)),
+    ).rejects.toMatchObject({ code: 'confirmation_required' })
     expect(transitions).toHaveLength(0)
 
     const done = (await tools.cancel_task.execute(
@@ -390,6 +422,24 @@ describe('supervisor tools', () => {
     await expect(
       tools.get_task_history.execute({ taskId: other.taskId }, ctx(seeded)),
     ).rejects.toMatchObject({ code: 'task_not_found' })
+  })
+
+  it('reuses the same batch result within one turn', async () => {
+    const { database, seeded, tools } = setup()
+    seedTextNode(database.raw, seeded.canvasId, 'text-2', '需求 B')
+    const shared = ctx(seeded)
+    const first = await tools.create_tasks.execute(
+      { nodeIds: ['text-1', 'text-2'], targetNodeId: seeded.nodeId },
+      shared,
+    )
+    const second = await tools.create_tasks.execute(
+      { nodeIds: ['text-1', 'text-2'], targetNodeId: seeded.nodeId },
+      shared,
+    )
+    expect(second).toEqual(first)
+    expect(
+      database.raw.prepare("select count(*) as n from task where id like 'task-%'").get(),
+    ).toEqual({ n: 2 })
   })
 
   it('creates a worktree task when explicitly requested', async () => {

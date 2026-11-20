@@ -38,6 +38,7 @@ import {
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
 import { createEdge as createCanvasEdge } from '../runtime/edge-service.js'
+import { ASK_USER_QUESTION_TOOL, readQuestions } from '../runtime/questions.js'
 import type { TaskService } from '../runtime/task-service.js'
 import type { TransitionOutcome } from '../runtime/types.js'
 import { nodeSummary, textTitle } from './canvas-summary.js'
@@ -61,7 +62,11 @@ export interface ToolContext {
   }
   policyVersion: string
   promptVersion: string
-  memo: { taskId?: string; createdNodeIds?: string[] }
+  memo: {
+    taskId?: string
+    createdNodeIds?: string[]
+    batch?: { key: string; result: unknown }
+  }
 }
 
 export interface SupervisorTool {
@@ -150,6 +155,7 @@ const getTaskInput = z.object({ taskId: z.string().min(1) })
 const getTaskHistoryInput = z.object({
   taskId: z.string().min(1),
   limit: z.number().int().min(1).max(50).default(20),
+  beforeOrdinal: z.number().int().nonnegative().optional(),
 })
 
 const createTaskInput = z.object({
@@ -212,6 +218,8 @@ const createEdgeInput = z.object({
 
 export type EnqueueTaskResult = { ok: true; status: TaskStatus } | { ok: false; error: AppError }
 
+type BatchFailure = { nodeId: string; stage: 'create' | 'enqueue'; error: AppError }
+
 export interface SupervisorToolsDeps {
   db: Db
   taskService: TaskService
@@ -221,23 +229,10 @@ export interface SupervisorToolsDeps {
   enqueueTask: (taskId: string) => EnqueueTaskResult
   applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
   replyToTask: (taskId: string, text: string) => { ok: boolean; error?: AppError }
+  cancelTask: (taskId: string, reason?: string) => TransitionOutcome
 }
 
 const CONTENT_TYPES = new Set(['text', 'file', 'image'])
-
-const AskUserQuestionInput = z.object({
-  questions: z
-    .array(
-      z.object({
-        question: z.string().min(1),
-        header: z.string().optional(),
-        options: z
-          .array(z.object({ label: z.string().min(1), description: z.string().optional() }))
-          .optional(),
-      }),
-    )
-    .min(1),
-})
 
 function pendingForTask(db: Db, task: Task): unknown {
   if (task.status !== 'waiting_input') return null
@@ -256,10 +251,9 @@ function pendingForTask(db: Db, task: Task): unknown {
       ...(approval.request.reason ? { reason: approval.request.reason } : {}),
     },
   }
-  if (approval.request.toolName !== 'AskUserQuestion') return base
-  const parsed = AskUserQuestionInput.safeParse(approval.request.input)
-  if (!parsed.success) return base
-  return { kind: 'question' as const, question: parsed.data }
+  if (approval.request.toolName !== ASK_USER_QUESTION_TOOL) return base
+  const questions = readQuestions(approval.request)
+  return questions ? { kind: 'question' as const, question: { questions } } : base
 }
 
 export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorToolset {
@@ -551,12 +545,34 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         if (!detail || detail.task.workspaceId !== ctx.workspaceId) {
           throw appError('task_not_found', 'task not found', { taskId: parsed.taskId })
         }
-        const history = listTaskStatusHistory(deps.db, parsed.taskId, parsed.limit)
+        const history = listTaskStatusHistory(
+          deps.db,
+          parsed.taskId,
+          parsed.limit,
+          parsed.beforeOrdinal,
+        )
         return {
           taskId: parsed.taskId,
           statusEvents: history.items,
-          sessions: listSessionsByTask(deps.db, parsed.taskId),
-          reviews: listReviewsByTask(deps.db, parsed.taskId),
+          sessions: listSessionsByTask(deps.db, parsed.taskId)
+            .slice(-20)
+            .map((session) => ({
+              id: session.id,
+              status: session.status,
+              outcome: session.outcome,
+              startedAt: session.startedAt,
+              endedAt: session.endedAt,
+            })),
+          reviews: listReviewsByTask(deps.db, parsed.taskId)
+            .slice(0, 20)
+            .map((review) => ({
+              id: review.id,
+              verdict: review.verdict,
+              verifyExitCode: review.verifyExitCode,
+              diffStat: review.diffStat,
+              diffAvailable: review.diffAvailable,
+              decidedAt: review.decidedAt,
+            })),
           ...(history.nextBeforeOrdinal !== undefined
             ? { nextBeforeOrdinal: history.nextBeforeOrdinal }
             : {}),
@@ -729,6 +745,19 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             nodeIds: parsed.nodeIds,
           })
         }
+        const batchKey = JSON.stringify({
+          nodeIds: [...parsed.nodeIds].sort(),
+          targetNodeId: parsed.targetNodeId ?? null,
+          contextNodeIds: parsed.contextNodeIds ?? [],
+          engine: parsed.engine ?? null,
+          start: parsed.start,
+        })
+        if (ctx.memo.batch?.key === batchKey) {
+          return ctx.memo.batch.result as {
+            created: SupervisorTaskCardValue[]
+            failed: BatchFailure[]
+          }
+        }
         const canvas = canvasFor(ctx)
         const textNodes = parsed.nodeIds.map((id) => {
           const node = getNode(deps.db, id)
@@ -759,11 +788,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         const contextNodeIds = resolveContext(ctx, sharedContext, target.id)
 
         const created: SupervisorTaskCardValue[] = []
-        const failed: Array<{
-          nodeId: string
-          stage: 'create' | 'enqueue'
-          error: AppError
-        }> = []
+        const failed: BatchFailure[] = []
 
         for (const node of textNodes) {
           const title = textTitle(node.data.content).slice(0, 80)
@@ -826,7 +851,19 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           failed: failed.map((item) => item.nodeId),
           started: parsed.start,
         })
-        return { created, failed }
+        if (created.length === 0) {
+          throw appError('supervisor_batch_failed', 'no tasks were created', {
+            nodeIds: parsed.nodeIds,
+            failed: failed.map((item) => ({
+              nodeId: item.nodeId,
+              stage: item.stage,
+              code: item.error.code,
+            })),
+          })
+        }
+        const batchResult = { created, failed }
+        ctx.memo.batch = { key: batchKey, result: batchResult }
+        return batchResult
       },
     },
 
@@ -929,19 +966,12 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           })
         }
         if (task.status === 'running' && !parsed.confirm) {
-          return {
-            ok: false,
-            code: 'confirmation_required',
+          throw appError('confirmation_required', 'task is running; confirm before cancelling', {
             taskId: task.id,
             status: task.status,
-          }
+          })
         }
-        const result = transitionResult(
-          deps.applyTransition(task.id, {
-            type: 'cancel',
-            ...(parsed.reason ? { reason: parsed.reason } : {}),
-          }),
-        )
+        const result = transitionResult(deps.cancelTask(task.id, parsed.reason))
         audit('supervisor.task.cancel', task.id, ctx, { hasReason: Boolean(parsed.reason) })
         return result
       },

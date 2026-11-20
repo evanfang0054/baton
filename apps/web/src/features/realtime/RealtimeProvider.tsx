@@ -14,25 +14,20 @@ import { useSupervisorStreamStore } from '../supervisor/stream-store'
 import { appendSessionEvents } from './session-cache'
 
 const INVALIDATING_EVENTS = new Set(['task.status', 'approval.request', 'verify.result'])
-// 总管工具直接写 DB，不经过 canvas WS 命令；这些工具完成后必须主动刷新画布。
-const CANVAS_MUTATING_TOOLS = new Set([
-  'create_text',
-  'create_agent',
-  'create_edge',
-  'create_task',
-  'create_tasks',
+const TASK_CREATE_TOOLS = ['create_task', 'create_tasks'] as const
+const TASK_MUTATING_TOOLS = new Set([
+  ...TASK_CREATE_TOOLS,
   'retry_task',
   'reopen_task',
   'cancel_task',
   'reply_task',
 ])
-const TASK_MUTATING_TOOLS = new Set([
-  'create_task',
-  'create_tasks',
-  'retry_task',
-  'reopen_task',
-  'cancel_task',
-  'reply_task',
+// 总管工具直接写 DB，不经过 canvas WS 命令；这些工具完成后必须主动刷新画布。
+const CANVAS_MUTATING_TOOLS = new Set([
+  ...TASK_CREATE_TOOLS,
+  'create_text',
+  'create_agent',
+  'create_edge',
 ])
 
 export function RealtimeProvider({

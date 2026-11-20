@@ -64,6 +64,7 @@ export interface SupervisorServiceDeps {
   enqueueTask: (taskId: string) => EnqueueTaskResult
   applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
   replyToTask: (taskId: string, text: string) => { ok: boolean; error?: AppError }
+  cancelTask: (taskId: string, reason?: string) => TransitionOutcome
   workspacesRoot: string
   killSwitch: () => boolean
   engine?: SupervisorEngine
@@ -146,6 +147,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     enqueueTask: deps.enqueueTask,
     applyTransition: deps.applyTransition,
     replyToTask: deps.replyToTask,
+    cancelTask: deps.cancelTask,
   })
   const policyVersion = supervisorPolicyVersion(SUPERVISOR_POLICY, PROMPT_VERSION)
   const active = new Set<string>()
@@ -832,7 +834,10 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       const hasCreate = result.toolCalls.some(
         (call) => (call.name === 'create_task' || call.name === 'create_tasks') && call.ok,
       )
-      if (/已(建|创建)(了)?|已经(建|创建)|建好了|任务(已|已经)(建|创建)/.test(text) && !hasCreate) {
+      if (
+        /已(批量)?(建|创建)|已经(批量)?(建|创建)|建好了|任务(已|已经)(建|创建)/.test(text) &&
+        !hasCreate
+      ) {
         text += '\n\n（我没有创建任务；请明确说要做什么，我再建任务。）'
         reason = 'claim_without_tool'
       }
@@ -844,7 +849,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         (call) =>
           ['retry_task', 'reopen_task', 'cancel_task', 'reply_task'].includes(call.name) && call.ok,
       )
-      if (/已(重试|重开|取消|回复)|已经(重试|重开|取消|回复)/.test(text) && !hasAfterSales) {
+      if (/已(经)?(为你|帮你)?(重试|重开|取消|回复)/.test(text) && !hasAfterSales) {
         text += '\n\n（我没有对应的工具结果；请以任务详情/看板状态为准。）'
         reason = 'claim_without_tool'
       }

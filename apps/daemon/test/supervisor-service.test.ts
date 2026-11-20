@@ -80,6 +80,15 @@ function setup(
       }
     },
     replyToTask: () => ({ ok: true }),
+    cancelTask: (taskId) => ({
+      ok: true,
+      taskId,
+      status: 'cancelled',
+      previousStatus: 'running',
+      retryCount: 0,
+      waitingReason: null,
+      events: [],
+    }),
     workspacesRoot: root,
     killSwitch: () => options.killSwitch === true,
     engine,
@@ -195,6 +204,26 @@ describe('supervisor service', () => {
     await service.waitForIdle()
     const message = frames.find((frame) => frame.includes('supervisor.message')) ?? ''
     expect(message).not.toContain('我没有创建任务')
+  })
+
+  it('corrects batch create claims without tool results', async () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        return { text: '已批量建好 3 个待办。', toolCalls: [], finishReason: 'stop' }
+      },
+    }
+    const { seeded, service, frames } = setup(engine)
+    const ack = service.send({
+      workspaceId: seeded.workspaceId,
+      requestId: 'r-batch-claim',
+      text: '分别建三个任务',
+      contextNodeIds: [],
+      targetNodeId: seeded.nodeId,
+    })
+    expect(ack.ok).toBe(true)
+    await service.waitForIdle()
+    const message = frames.find((frame) => frame.includes('supervisor.message'))
+    expect(message).toContain('没有创建任务')
   })
 
   it('includes the canvas overview when nothing is selected', async () => {
