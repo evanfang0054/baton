@@ -829,13 +829,23 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       flush()
       let text = result.text.trim() || '（总管没有返回内容）'
       let reason = 'explicit request'
-      const hasCreate = result.toolCalls.some((call) => call.name === 'create_task' && call.ok)
+      const hasCreate = result.toolCalls.some(
+        (call) => (call.name === 'create_task' || call.name === 'create_tasks') && call.ok,
+      )
       if (/已(建|创建)|建好了|任务.*(创建|建好)/.test(text) && !hasCreate) {
         text += '\n\n（我没有创建任务；请明确说要做什么，我再建任务。）'
         reason = 'claim_without_tool'
       }
       if (/已完成|已通过/.test(text) && !result.toolCalls.some((call) => call.ok)) {
         text += '\n\n（我没有工具结果证明完成；请以看板/任务详情状态为准。）'
+        reason = 'claim_without_tool'
+      }
+      const hasAfterSales = result.toolCalls.some(
+        (call) =>
+          ['retry_task', 'reopen_task', 'cancel_task', 'reply_task'].includes(call.name) && call.ok,
+      )
+      if (/已(重试|重开|取消|回复)|已经(重试|重开|取消|回复)/.test(text) && !hasAfterSales) {
+        text += '\n\n（我没有对应的工具结果；请以任务详情/看板状态为准。）'
         reason = 'claim_without_tool'
       }
       const card = result.toolCalls
@@ -848,6 +858,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
               (call) =>
                 call.name === 'list_tasks' ||
                 call.name === 'get_task' ||
+                call.name === 'get_task_history' ||
                 call.name === 'list_canvas',
             )
           ? 'query_status'

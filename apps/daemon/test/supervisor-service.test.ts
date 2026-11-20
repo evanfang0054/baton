@@ -145,6 +145,26 @@ describe('supervisor service', () => {
     expect(database.raw.prepare('select count(*) as n from task').get()).toEqual({ n: 2 })
   })
 
+  it('corrects after-sales claims without tool results', async () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        return { text: '已重试那个任务。', toolCalls: [], finishReason: 'stop' }
+      },
+    }
+    const { seeded, service, frames } = setup(engine)
+    const ack = service.send({
+      workspaceId: seeded.workspaceId,
+      requestId: 'r-claim',
+      text: '重试那个任务',
+      contextNodeIds: [],
+      targetNodeId: seeded.nodeId,
+    })
+    expect(ack.ok).toBe(true)
+    await service.waitForIdle()
+    const message = frames.find((frame) => frame.includes('supervisor.message'))
+    expect(message).toContain('没有对应的工具结果')
+  })
+
   it('includes the canvas overview when nothing is selected', async () => {
     const systems: string[] = []
     const engine: SupervisorEngine = {
