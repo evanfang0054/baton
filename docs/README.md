@@ -110,7 +110,7 @@
 - [M3-1 交付验收增强验收](evidence/2026-11-19-m3-1-delivery-acceptance/README.md)
 - [工作区目录选择器验收](evidence/2026-11-20-workspace-picker/README.md)
 - [M5-1 总管售后与批量验收](evidence/2026-11-21-m5-supervisor-aftersales/README.md)
-- [M5-3 上下文交接自动验收（真实 Claude 待补）](evidence/2026-11-21-m5-3-context-handoff/README.md)
+- [M5-3 上下文交接验收](evidence/2026-11-21-m5-3-context-handoff/README.md)
 
 ## 约定
 

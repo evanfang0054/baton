@@ -6,7 +6,7 @@
 
 ## 0. 文档信息
 
-- **状态**：实现与自动验收完成；真实 Claude + ego-lite 证据待执行。
+- **状态**：实现、自动验收与真实 Claude + ego-lite 证据完成。
 - **范围**：`packages/core/src/handoff/**`、`apps/daemon/src/handoff/**`、`apps/daemon/src/runtime/index.ts`、`apps/daemon/src/supervisor/**`、`packages/protocol/src/commands.ts`、`packages/core/src/supervisor/policy.ts`、`apps/web/src/features/**`、`apps/web/e2e/**`、`docs/**`。
 - **预期不改**：任务状态机、数据库 migration、`node`/`edge` 表结构、`NodeType`/`EdgeType`。
 - **GDD**：按仓库 M1/M2/M3/M5-1 先例显式跳过；测试设计由本 contract 的 DoD 与 3 个 plan 的测试矩阵承担。
@@ -39,7 +39,7 @@
 - [x] **12. 上下文**：新任务 `contextNodeIds` 包含交接节点；`task.context_json` 快照包含它；不创建 `context` 边；不往运行中/旧任务注入。
 - [x] **13. 提示词与守卫**：提示词新增交接规则（状态门槛、note 原话、默认不开工、worktree 如实说明、只建新任务、交接≠完成）；claim 守卫覆盖“已交接/已生成交接节点”，标题含“交接”不误触发。
 - [x] **14. Web**：任务详情按钮只在可交接状态显示；成功 Toast + canvas 失效；worktree 警告显示；总管 `handoff_task` 消息渲染任务卡 + 交接来源行；移动端可用；现有审批/验收/diff/历史/批量不回归。
-- [ ] **15. 测试**：core 单测（快照/限长/worktree/路径/确定性）、daemon 集成（状态/隔离/worktree/审计/工具/claim/edge 不存在）、web 组件、Playwright（UI 交接 + 总管交接 + 重复交接）、真实 Claude + ego-lite 全链路通过；证据落 `docs/evidence/<date>-m5-3-context-handoff/`。**自动测试与 Playwright 已完成；真实 Claude + ego-lite 证据待执行。**
+- [x] **15. 测试**：core 单测（快照/限长/worktree/路径/确定性）、daemon 集成（状态/隔离/worktree/审计/工具/claim/edge 不存在）、web 组件、Playwright（UI 交接 + 总管交接 + 重复交接）、真实 Claude + ego-lite 全链路通过；证据落 `docs/evidence/<date>-m5-3-context-handoff/`。
 - [x] **16. 收口**：`pnpm verify`、`pnpm verify:full`、`pnpm pack:check`、`pnpm check:boundaries`、`pnpm check:protocol`、`pnpm format:check` 全绿；`docs/README.md` 索引完整；新增源码无未完成项。
 
 ## 3. 验收命令
@@ -80,4 +80,5 @@ Plan 2 依赖 Plan 1 的命令与结果形状；Plan 3 依赖 Plan 1+2。每个 
 ## 7. 评审记录
 
 - 2026-11-21：contract 与 spec 同步落库；待实现。
-- 2026-11-21：实现与自动验收完成。提交 `325c1ab`（core 摘要）、`c9217b9`（protocol）、`d587624`（core 策略）、`0dd714e`（daemon）、`95a276d`/`14c0c30`（web）、`7a7820a`（e2e）。`pnpm verify:full` 全绿：protocol 119、core 140、adapters 27、web 204、daemon 294 tests，Playwright 37 条；`pnpm pack:check` 通过。真实 Claude + ego-lite 证据（DoD 15）待执行。
+- 2026-11-21：实现与自动验收完成。提交 `325c1ab`（core 摘要）、`c9217b9`（protocol）、`d587624`（core 策略）、`0dd714e`（daemon）、`95a276d`/`14c0c30`（web）、`7a7820a`（e2e）。`pnpm verify:full` 全绿：protocol 119、core 140、adapters 27、web 204、daemon 294 tests，Playwright 37 条；`pnpm pack:check` 通过。
+- 2026-11-21：真实 Claude + ego-lite 链路完成：A 写 `hello` → review → 生成交接节点 → 总管 `handoff_task` 建 B（上下文 1 节点 / 490 字符）→ B 写 `hello baton` → review → 人工通过 → done；审计 `task.handoff.create` / `supervisor.task.handoff` 均存在；证据见 `docs/evidence/2026-11-21-m5-3-context-handoff/`。
