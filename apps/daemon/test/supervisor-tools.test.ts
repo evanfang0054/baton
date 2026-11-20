@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { getNode, getTask } from '../src/db/repositories.js'
+import { getNode, getTask, insertApproval } from '../src/db/repositories.js'
 import { createTaskService } from '../src/runtime/task-service.js'
 import { createSupervisorTools, type ToolContext } from '../src/supervisor/tools.js'
 import { createTestDb, seedTask, seedTextNode, type TestDb } from './helpers/db.js'
@@ -127,6 +127,77 @@ describe('supervisor tools', () => {
       tasks: Array<{ id: string }>
     }
     expect(byId.tasks.map((task) => task.id)).toEqual(['task-login'])
+  })
+
+  it('returns a sanitized pending approval without raw input', async () => {
+    const { database, seeded, tools } = setup()
+    database.raw
+      .prepare(
+        'insert into session (id, task_id, adapter, status, started_at) values (?, ?, ?, ?, ?)',
+      )
+      .run('sess-1', seeded.taskId, 'fake', 'waiting_input', 1)
+    database.db.transaction((tx) => {
+      insertApproval(tx, {
+        id: 'ap1',
+        sessionId: 'sess-1',
+        requestId: 'req1',
+        request: { toolName: 'Bash', input: { command: 'rm -rf /tmp/x' }, risk: 'high' },
+      })
+    })
+    database.raw
+      .prepare('update task set status = ?, waiting_reason = ? where id = ?')
+      .run('waiting_input', 'approval', seeded.taskId)
+
+    const result = (await tools.get_task.execute({ taskId: seeded.taskId }, ctx(seeded))) as {
+      pending: { kind: string; approval: { toolName: string; risk: string; reason?: string } }
+    }
+    expect(result.pending).toEqual({
+      kind: 'approval',
+      approval: { toolName: 'Bash', risk: 'high' },
+    })
+    expect(JSON.stringify(result)).not.toContain('rm -rf')
+  })
+
+  it('returns structured AskUserQuestion options', async () => {
+    const { database, seeded, tools } = setup()
+    database.raw
+      .prepare(
+        'insert into session (id, task_id, adapter, status, started_at) values (?, ?, ?, ?, ?)',
+      )
+      .run('sess-2', seeded.taskId, 'fake', 'waiting_input', 1)
+    database.db.transaction((tx) => {
+      insertApproval(tx, {
+        id: 'ap2',
+        sessionId: 'sess-2',
+        requestId: 'req2',
+        request: {
+          toolName: 'AskUserQuestion',
+          input: {
+            questions: [
+              { question: '用哪个方案？', options: [{ label: 'A' }, { label: 'B' }] },
+            ],
+          },
+          risk: 'low',
+        },
+      })
+    })
+    database.raw
+      .prepare('update task set status = ?, waiting_reason = ? where id = ?')
+      .run('waiting_input', 'approval', seeded.taskId)
+
+    const result = (await tools.get_task.execute({ taskId: seeded.taskId }, ctx(seeded))) as {
+      pending: {
+        kind: string
+        question: {
+          questions: Array<{ question: string; options: Array<{ label: string }> }>
+        }
+      }
+    }
+    expect(result.pending.kind).toBe('question')
+    expect(result.pending.question.questions[0]).toEqual({
+      question: '用哪个方案？',
+      options: [{ label: 'A' }, { label: 'B' }],
+    })
   })
 
   it('creates a worktree task when explicitly requested', async () => {

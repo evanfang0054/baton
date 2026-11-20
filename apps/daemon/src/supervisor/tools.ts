@@ -14,6 +14,7 @@ import {
   type AppError,
   type Engine as EngineValue,
   type SupervisorTaskCard as SupervisorTaskCardValue,
+  type Task,
 } from '@baton/protocol'
 import { z } from 'zod'
 import {
@@ -24,6 +25,7 @@ import {
   insertNode,
   listEdges,
   listNodes,
+  listApprovalsByTask,
   listSessionsByTask,
   listTasks,
   updateTaskTitle,
@@ -160,6 +162,43 @@ export interface SupervisorToolsDeps {
 }
 
 const CONTENT_TYPES = new Set(['text', 'file', 'image'])
+
+const AskUserQuestionInput = z.object({
+  questions: z
+    .array(
+      z.object({
+        question: z.string().min(1),
+        header: z.string().optional(),
+        options: z
+          .array(z.object({ label: z.string().min(1), description: z.string().optional() }))
+          .optional(),
+      }),
+    )
+    .min(1),
+})
+
+function pendingForTask(db: Db, task: Task): unknown {
+  if (task.status !== 'waiting_input') return null
+  if (task.waitingReason !== 'approval') {
+    return task.waitingReason ? { kind: task.waitingReason } : null
+  }
+  const approval = listApprovalsByTask(db, task.id)
+    .filter((item) => item.decision === null)
+    .at(-1)
+  if (!approval) return { kind: 'approval' }
+  const base = {
+    kind: 'approval' as const,
+    approval: {
+      toolName: approval.request.toolName,
+      risk: approval.request.risk,
+      ...(approval.request.reason ? { reason: approval.request.reason } : {}),
+    },
+  }
+  if (approval.request.toolName !== 'AskUserQuestion') return base
+  const parsed = AskUserQuestionInput.safeParse(approval.request.input)
+  if (!parsed.success) return base
+  return { kind: 'question' as const, question: parsed.data }
+}
 
 export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorToolset {
   function taskSummary(task: ReturnType<typeof listTasks>[number], column: string) {
@@ -396,6 +435,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
                 truncated: task.context.truncated || task.context.relationsTruncated,
               }
             : null,
+          pending: pendingForTask(deps.db, task),
         }
       },
     },
