@@ -41,6 +41,7 @@ import type { Logger } from '../log.js'
 import { createVerifyRunner, type VerifyRunner } from '../verify/runner.js'
 import type { AdapterFactory } from './adapter-factory.js'
 import { createEdge, deleteEdge } from './edge-service.js'
+import { createHandoffNode } from '../handoff/service.js'
 import type { EngineRegistry } from './engines.js'
 import { createScheduler, type Scheduler } from './scheduler.js'
 import { createSessionRunner, type SessionRunner } from './session-runner.js'
@@ -459,6 +460,26 @@ export function createRuntime(deps: RuntimeDeps) {
             ...(message.payload.note ? { note: message.payload.note } : {}),
           }),
         )
+      case 'task.handoff': {
+        const result = createHandoffNode(
+          { db: deps.db, workspacesRoot: deps.config.workspacesRoot, now, newId },
+          {
+            taskId: message.payload.taskId,
+            ...(message.payload.workspaceId ? { workspaceId: message.payload.workspaceId } : {}),
+            actor: 'user',
+          },
+        )
+        return result.ok
+          ? {
+              ok: true,
+              ack: {
+                taskId: message.payload.taskId,
+                nodeId: result.node.id,
+                warnings: result.summary.warnings,
+              },
+            }
+          : { ok: false, error: result.error }
+      }
       case 'session.reply':
         return replyToTask(message.payload.taskId, message.payload.text)
       case 'approval.decide':
