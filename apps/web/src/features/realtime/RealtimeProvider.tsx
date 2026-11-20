@@ -136,11 +136,18 @@ export function RealtimeProvider({
           const finalize = () => {
             if (isTurnReply) useSupervisorStreamStore.getState().finish()
             const key = queryKeys.supervisorMessages(workspaceId)
-            queryClient.setQueryData<SupervisorMessagesResponse>(key, (previous) =>
-              previous && !previous.messages.some((message) => message.id === event.payload.id)
-                ? { ...previous, messages: [...previous.messages, event.payload] }
-                : previous,
-            )
+            queryClient.setQueryData<SupervisorMessagesResponse>(key, (previous) => {
+              if (!previous) return previous
+              const exists = previous.messages.some((message) => message.id === event.payload.id)
+              return exists
+                ? {
+                    ...previous,
+                    messages: previous.messages.map((message) =>
+                      message.id === event.payload.id ? event.payload : message,
+                    ),
+                  }
+                : { ...previous, messages: [...previous.messages, event.payload] }
+            })
             // 让 REST 校正 nextBefore / threadId 等分页字段。
             void queryClient.invalidateQueries({ queryKey: key })
             // create_task 不经过 task.status 事件；任务列表/看板必须在这里刷新。

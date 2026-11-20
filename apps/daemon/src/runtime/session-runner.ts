@@ -333,6 +333,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
           workspacePath: input.workspacePath,
           taskId: task.id,
           existingPath: task.worktreePath,
+          existingBranch: task.branch,
         })
         if (!prepared.ok) {
           failTask(task.id, input.sessionId, appError('worktree_unavailable', prepared.reason))

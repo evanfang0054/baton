@@ -209,6 +209,56 @@ describe('RealtimeProvider', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.tasks('w1') })
   })
 
+  it('replaces a notification when the polished version arrives', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const initial: SupervisorMessagesResponse = {
+      threadId: 'th1',
+      messages: [
+        {
+          id: 'n1',
+          threadId: 'th1',
+          role: 'assistant',
+          content: '模板：任务进入待验收',
+          toolCalls: [],
+          decision: null,
+          meta: null,
+          status: 'ok',
+          error: null,
+          createdAt: 41,
+        },
+      ],
+    }
+    client.setQueryData(queryKeys.supervisorMessages('w1'), initial)
+    renderProvider(client)
+    const socket = FakeSocket.instances[0]!
+    socket.open()
+
+    socket.message({
+      v: 1,
+      ts: 42,
+      type: 'supervisor.message',
+      payload: {
+        id: 'n1',
+        threadId: 'th1',
+        role: 'assistant',
+        content: '润色后：任务已经进入待验收，我派了验收员。',
+        toolCalls: [],
+        decision: null,
+        meta: null,
+        status: 'ok',
+        error: null,
+        createdAt: 42,
+      },
+    })
+    await waitFor(() => {
+      const messages =
+        client.getQueryData<SupervisorMessagesResponse>(queryKeys.supervisorMessages('w1'))
+          ?.messages ?? []
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.content).toContain('润色后')
+    })
+  })
+
   it('keeps an active stream when an observer notification arrives', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const initial: SupervisorMessagesResponse = { threadId: 'th1', messages: [] }

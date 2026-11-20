@@ -61,6 +61,8 @@ export async function createWorktree(input: {
   workspacePath: string
   taskId: string
   existingPath?: string | null
+  /** 复用已有 worktree 时保留它实际所在的分支；验收员会借用目标任务的 worktree。 */
+  existingBranch?: string | null
 }): Promise<CreateWorktreeResult> {
   if (!TASK_ID.test(input.taskId)) {
     return { ok: false, reason: 'invalid_task_id' }
@@ -74,7 +76,7 @@ export async function createWorktree(input: {
     if (!isInsideDataDir(input.dataDir, input.existingPath)) {
       return { ok: false, reason: 'worktree_escape' }
     }
-    return { ok: true, path: input.existingPath, branch }
+    return { ok: true, path: input.existingPath, branch: input.existingBranch || branch }
   }
   mkdirSync(dirname(path), { recursive: true })
   mkdirSync(input.dataDir, { recursive: true })

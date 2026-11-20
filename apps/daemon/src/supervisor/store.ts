@@ -60,6 +60,7 @@ export interface SupervisorStore {
     duplicate: boolean
   }
   hasNotification(threadId: string, dedupeKey: string): boolean
+  updateNotificationContent(messageId: string, content: string): SupervisorMessageValue | null
   listMessages(
     threadId: string,
     limit: number,
@@ -307,6 +308,21 @@ export function createSupervisorStore(deps: SupervisorStoreDeps): SupervisorStor
         )
         .get()
       return row !== undefined
+    },
+
+    updateNotificationContent(messageId, content) {
+      const result = deps.db
+        .update(supervisorMessage)
+        .set({ content })
+        .where(and(eq(supervisorMessage.id, messageId), eq(supervisorMessage.role, 'assistant')))
+        .run()
+      if (result.changes === 0) return null
+      const row = deps.db
+        .select()
+        .from(supervisorMessage)
+        .where(eq(supervisorMessage.id, messageId))
+        .get()
+      return row ? toMessage(row, null) : null
     },
 
     listMessages(threadId, limit, before) {

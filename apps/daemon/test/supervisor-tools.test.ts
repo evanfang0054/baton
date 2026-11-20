@@ -1,4 +1,5 @@
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -23,6 +24,7 @@ function setup() {
   const seeded = seedTask(database.raw, { withSession: false })
   seedTextNode(database.raw, seeded.canvasId, 'text-1', '需求 A')
   mkdirSync(join(root, seeded.relPath), { recursive: true })
+  execFileSync('git', ['init', join(root, seeded.relPath)], { stdio: 'ignore' })
 
   const taskService = createTaskService({
     db: database.db,
@@ -97,6 +99,20 @@ describe('supervisor tools', () => {
       threadId: 'th1',
       policyVersion: 'p1',
     })
+  })
+
+  it('creates a worktree task when explicitly requested', async () => {
+    const { database, seeded, tools } = setup()
+    await tools.create_task.execute(
+      {
+        title: '隔离改动',
+        targetNodeId: seeded.nodeId,
+        contextNodeIds: [],
+        workspaceMode: 'worktree',
+      },
+      ctx(seeded),
+    )
+    expect(getTask(database.db, 'task-new')?.workspaceMode).toBe('worktree')
   })
 
   it('creates text and agent nodes with the default engine', async () => {

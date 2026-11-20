@@ -1,4 +1,5 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -65,6 +66,7 @@ function setup(
   })
   const frames: string[] = []
   const transitions: Array<{ taskId: string; event: TaskTransitionEvent }> = []
+  const pending: Array<Promise<void>> = []
   let sequence = 0
   const service = createSupervisorService({
     db: database.db,
@@ -91,11 +93,16 @@ function setup(
     newId: () => `id-${++sequence}`,
     broadcastRaw: (frame) => frames.push(frame),
     track: (action) => {
-      void action()
+      pending.push(Promise.resolve().then(action))
     },
     logger: { warn() {}, error() {}, info() {} } as never,
   })
-  return { database, seeded, service, frames, transitions }
+  const drain = async () => {
+    while (pending.length > 0) {
+      await Promise.all(pending.splice(0))
+    }
+  }
+  return { database, seeded, service, frames, transitions, root, drain }
 }
 
 describe('supervisor service', () => {
@@ -162,6 +169,48 @@ describe('supervisor service', () => {
       .prepare("select status from supervisor_message where role='assistant'")
       .get() as { status: string }
     expect(row.status).toBe('error')
+  })
+
+  it('polishes observer notifications through the supervisor model', async () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        throw new Error('unused')
+      },
+      async summarize({ prompt }) {
+        return `秘书润色：${prompt.slice(0, 24)}`
+      },
+    }
+    const { database, seeded, service, frames, drain } = setup(engine)
+    seedSupervisorReview(database, seeded)
+    database.raw.prepare("update task set status = 'failed' where id = ?").run(seeded.taskId)
+
+    service.observeTask({ taskId: seeded.taskId, status: 'failed', waitingReason: null })
+    await drain()
+
+    const last = service.history(seeded.workspaceId, 50).messages.at(-1)
+    expect(last?.content).toContain('秘书润色')
+    expect(last?.content).toContain('任务「demo」')
+    expect(frames.filter((frame) => frame.includes('supervisor.message')).length).toBeGreaterThan(1)
+  })
+
+  it('keeps the template when notification polish fails', async () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        throw new Error('unused')
+      },
+      async summarize() {
+        throw new Error('provider down')
+      },
+    }
+    const { database, seeded, service, drain } = setup(engine)
+    seedSupervisorReview(database, seeded)
+    database.raw.prepare("update task set status = 'failed' where id = ?").run(seeded.taskId)
+
+    service.observeTask({ taskId: seeded.taskId, status: 'failed', waitingReason: null })
+    await drain()
+
+    const last = service.history(seeded.workspaceId, 50).messages.at(-1)
+    expect(last?.content).toContain('执行失败')
   })
 
   function seedSupervisorReview(database: TestDb, seeded: ReturnType<typeof seedTask>) {
@@ -308,6 +357,41 @@ describe('supervisor service', () => {
     const messages = service.history(seeded.workspaceId, 50).messages
     expect(messages.at(-1)?.content).toContain('派出新 Agent')
     expect(frames.some((frame) => frame.includes('supervisor.message'))).toBe(true)
+  })
+
+  it('reuses the target worktree so the verifier can inspect isolated changes', () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        throw new Error('unused')
+      },
+    }
+    const { database, seeded, service, root } = setup(engine, {
+      trusted: true,
+      delegatedAcceptance: true,
+    })
+    seedSupervisorReview(database, seeded)
+    // taskService 会校验 workspace 是 git 仓库；worktree 本身由运行时准备，这里只验证路径复用。
+    execFileSync('git', ['init', join(root, seeded.relPath)], { stdio: 'ignore' })
+    const worktreePath = join(root, 'worktrees', seeded.taskId)
+    database.raw
+      .prepare(
+        "update task set workspace_mode = 'worktree', worktree_path = ?, branch = ? where id = ?",
+      )
+      .run(worktreePath, `baton/${seeded.taskId}`, seeded.taskId)
+
+    service.observeTask({ taskId: seeded.taskId, status: 'review', waitingReason: null })
+
+    const verifier = database.raw
+      .prepare(
+        'select workspace_mode, worktree_path, branch from task where id != ? order by created_at desc limit 1',
+      )
+      .get(seeded.taskId) as
+      { workspace_mode: string; worktree_path: string; branch: string } | undefined
+    expect(verifier).toMatchObject({
+      workspace_mode: 'worktree',
+      worktree_path: worktreePath,
+      branch: `baton/${seeded.taskId}`,
+    })
   })
 
   it('accepts the target when the verifier returns PASS and writes audit', () => {

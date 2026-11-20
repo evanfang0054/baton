@@ -42,5 +42,5 @@ M2 的 Router v0 只有“建待办”的权限，开工、审批、验收都归
 ## 实施状态（2026-11-20）
 
 - 已完成：`autopilot.delegatedAuthority`、`autopilot.delegatedAcceptance`、policy patch/UI 开关、`evaluateApproval` 委派分支、`session-runner` 传入 `delegatedAuthority`、core 单测与 UI 单测。
-- 已完成：runtime 完成感知（review/failed/waiting_input）、验收员 Agent 任务派发、VERDICT 解析、stalled 验收员结论恢复、代验收审计与 reopen 兼容。
+- 已完成：runtime 完成感知（review/failed/waiting_input）、验收员 Agent 任务派发、VERDICT 解析（含 outcome reason 兜底）、stalled 验收员结论恢复、worktree 验收员复用目标 worktree、通知模型润色、代验收审计与 reopen 兼容。
 - 待观察：高风险委派审批的实际使用面；建议后续补默认凭据路径 deny 规则。

@@ -1,7 +1,7 @@
 import { SUPERVISOR_POLICY } from '@baton/core'
 import type { SupervisorMessage, ToolCallRecord } from '@baton/protocol'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import { stepCountIs, streamText, tool, type ToolSet } from 'ai'
+import { generateText, stepCountIs, streamText, tool, type ToolSet } from 'ai'
 import type { SupervisorConfig } from './config.js'
 import type { BoundToolset } from './tools.js'
 
@@ -17,6 +17,8 @@ export interface SupervisorEngine {
     toolCalls: ToolCallRecord[]
     finishReason: string
   }>
+  /** 可选：把模板通知润色成更像人的汇报；不可用时保留模板。 */
+  summarize?(input: { system: string; prompt: string; signal: AbortSignal }): Promise<string>
 }
 
 export function createAiSdkSupervisorEngine(config: SupervisorConfig): SupervisorEngine {
@@ -81,6 +83,17 @@ export function createAiSdkSupervisorEngine(config: SupervisorConfig): Superviso
       }
 
       return { text, toolCalls, finishReason: await result.finishReason }
+    },
+
+    async summarize({ system, prompt, signal }) {
+      const result = await generateText({
+        model: provider.languageModel(config.model),
+        system,
+        prompt,
+        maxOutputTokens: 320,
+        abortSignal: signal,
+      })
+      return result.text
     },
   }
 }

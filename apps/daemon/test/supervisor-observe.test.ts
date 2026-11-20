@@ -17,6 +17,20 @@ describe('parseVerdict', () => {
     expect(parseVerdict('看起来不错')).toMatchObject({ verdict: 'unknown' })
     expect(parseVerdict('')).toMatchObject({ verdict: 'unknown' })
   })
+
+  it('falls back to the session outcome reason when the model omits VERDICT', () => {
+    expect(
+      parseVerdict('改动核验完成，满足原始要求', 'README.md 末尾已正确添加目标行，满足任务要求'),
+    ).toMatchObject({ verdict: 'pass' })
+    expect(parseVerdict('', '未满足原始要求，需要修改')).toMatchObject({ verdict: 'fail' })
+    expect(parseVerdict('', '无法确认改动')).toMatchObject({ verdict: 'fail' })
+  })
+
+  it('prefers an explicit VERDICT over the outcome reason', () => {
+    expect(parseVerdict('VERDICT: FAIL', '整体满足要求，但存在边界问题')).toMatchObject({
+      verdict: 'fail',
+    })
+  })
 })
 
 describe('buildVerifierPrompt', () => {

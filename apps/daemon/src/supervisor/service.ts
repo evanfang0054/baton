@@ -26,12 +26,14 @@ import {
   getAssistantTranscriptText,
   getLastAssistantText,
   getReviewByTask,
+  getSessionOutcomeReason,
   getTaskDetail,
   getWorkspace,
   insertAudit,
   insertNode,
   listNodes,
   listSessionsByTask,
+  updateTaskWorktreePath,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError, isAppError } from '../errors.js'
@@ -43,7 +45,7 @@ import { resolveWorkspaceDir } from '../workspace/resolver.js'
 import { loadSupervisorConfig, type SupervisorConfig } from './config.js'
 import { createAiSdkSupervisorEngine, type SupervisorEngine } from './engine.js'
 import { buildVerifierPrompt, parseVerdict } from './observe.js'
-import { PROMPT_VERSION, SUPERVISOR_PROMPT } from './prompt.js'
+import { PROMPT_VERSION, REPORT_PROMPT, SUPERVISOR_PROMPT } from './prompt.js'
 import { createSupervisorStore } from './store.js'
 import {
   bindTools,
@@ -177,6 +179,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
   const policyVersion = supervisorPolicyVersion(SUPERVISOR_POLICY, PROMPT_VERSION)
   const active = new Set<string>()
   const controllers = new Map<string, AbortController>()
+  const polishControllers = new Set<AbortController>()
   const idleWaiters: Array<() => void> = []
   const track = deps.track ?? ((action: () => void | Promise<void>) => void action())
 
@@ -231,10 +234,54 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     }
   }
 
+  function reportEngine(): SupervisorEngine | null {
+    // 注入的引擎若没有 summarize（测试/自定义），保留模板，绝不偷偷换真实模型。
+    if (deps.engine) return deps.engine
+    const loaded = loadSupervisorConfig(deps.dataDir)
+    return loaded.ok ? createAiSdkSupervisorEngine(loaded.config) : null
+  }
+
+  /** 先落模板保证即时可见，再异步润色；失败或超时都保留模板。 */
+  function polishNotification(messageId: string, template: string): void {
+    const engine = reportEngine()
+    if (!engine?.summarize) return
+    const controller = new AbortController()
+    polishControllers.add(controller)
+    const timeout = setTimeout(() => controller.abort(), 20_000)
+    track(async () => {
+      try {
+        const text = (
+          await engine.summarize!({
+            system: REPORT_PROMPT,
+            prompt: template,
+            signal: controller.signal,
+          })
+        ).trim()
+        if (!text) return
+        const updated = store.updateNotificationContent(messageId, text)
+        if (updated) emit('supervisor.message', updated.id, updated)
+      } catch (error) {
+        deps.logger?.warn(
+          {
+            event: 'supervisor.polish_failed',
+            messageId,
+            message: error instanceof Error ? error.message : 'unknown error',
+          },
+          'supervisor notification polish failed',
+        )
+      } finally {
+        clearTimeout(timeout)
+        polishControllers.delete(controller)
+      }
+    })
+  }
+
   function notify(threadId: string, key: string, content: string): void {
     try {
       const result = store.insertNotification({ threadId, dedupeKey: key, content })
-      if (!result.duplicate) emit('supervisor.message', result.message.id, result.message)
+      if (result.duplicate) return
+      emit('supervisor.message', result.message.id, result.message)
+      polishNotification(result.message.id, content)
     } catch (error) {
       deps.logger?.warn(
         {
@@ -305,11 +352,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
   function dispatchVerifier(task: TaskDetail, origin: TaskOrigin, review: Review): void {
     const dedupeKey = `observe:dispatch:${task.id}:${review.id}`
     if (store.hasNotification(origin.threadId, dedupeKey)) return
-    if (task.workspaceMode === 'worktree') {
+    const isolated = task.workspaceMode === 'worktree'
+    if (isolated && !task.worktreePath) {
       notify(
         origin.threadId,
         `observe:review:${task.id}:${review.id}`,
-        `任务「${task.title}」进入待验收。worktree 任务暂不支持自动验收，需要你确认。`,
+        `任务「${task.title}」进入待验收，但 worktree 路径缺失，无法派验收员；需要你确认。`,
       )
       return
     }
@@ -337,6 +385,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       workerOutput,
       verifyExitCode: review.verifyExitCode,
       diffStat: review.diffStat,
+      isolatedWorktree: isolated,
     })
     const created = deps.taskService.createTask(
       {
@@ -346,7 +395,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         prompt,
         contextNodeIds: [],
         engine: deps.defaultEngine,
-        workspaceMode: 'main',
+        workspaceMode: task.workspaceMode,
         dangerouslySkipPermissions: false,
       },
       {
@@ -385,6 +434,17 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       return
     }
 
+    // 验收员借用目标的 worktree：目标已在 review，不会并发写；复用路径让验收员能看到未提交改动。
+    if (isolated && task.worktreePath) {
+      updateTaskWorktreePath(
+        deps.db,
+        created.taskId,
+        task.worktreePath,
+        deps.now(),
+        task.branch ?? null,
+      )
+    }
+
     const enqueued = deps.enqueueTask(created.taskId)
     const startNote = enqueued.ok ? '验收员已开工。' : `验收员开工失败：${enqueued.error.message}。`
     notify(
@@ -407,7 +467,8 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     }
     const session = listSessionsByTask(deps.db, task.id).at(-1)
     const output = session ? getAssistantTranscriptText(deps.db, session.id) : ''
-    const parsed = parseVerdict(output)
+    const outcomeReason = session ? getSessionOutcomeReason(deps.db, session.id) : null
+    const parsed = parseVerdict(output, outcomeReason)
 
     // 验收员任务本身不需要人再验收；它的产出就是结论。
     const closed = deps.applyTransition(task.id, {
@@ -432,7 +493,8 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     if (!origin?.reviewOfTaskId || !origin.reviewOfReviewId) return
     const session = listSessionsByTask(deps.db, task.id).at(-1)
     const output = session ? getAssistantTranscriptText(deps.db, session.id) : ''
-    const parsed = parseVerdict(output)
+    const outcomeReason = session ? getSessionOutcomeReason(deps.db, session.id) : null
+    const parsed = parseVerdict(output, outcomeReason)
     if (parsed.verdict === 'unknown') {
       notify(
         origin.threadId,
@@ -931,6 +993,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
 
     close(): void {
       for (const controller of controllers.values()) controller.abort()
+      for (const controller of polishControllers) controller.abort()
     },
   }
 }

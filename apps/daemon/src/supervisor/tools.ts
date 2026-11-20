@@ -116,6 +116,7 @@ const createTaskInput = z.object({
   targetNodeId: z.string().min(1).optional(),
   contextNodeIds: z.array(z.string().min(1)).max(40).optional(),
   engine: Engine.optional(),
+  workspaceMode: z.enum(['main', 'worktree']).default('main'),
   start: z.boolean().default(false),
 })
 
@@ -406,7 +407,8 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     },
 
     create_task: {
-      description: '创建任务；没有目标 Agent 时会自动创建一个 Agent 节点。start=true 时立即开工。',
+      description:
+        '创建任务；没有目标 Agent 时会自动创建一个 Agent 节点。只有用户明确要求隔离/worktree 时才传 workspaceMode=worktree。start=true 时立即开工。',
       parameters: createTaskInput,
       async execute(input, ctx) {
         const parsed = createTaskInput.parse(input)
@@ -464,7 +466,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             prompt: ctx.text,
             contextNodeIds,
             engine,
-            workspaceMode: 'main',
+            workspaceMode: parsed.workspaceMode,
             dangerouslySkipPermissions: false,
           },
           {

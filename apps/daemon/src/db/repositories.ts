@@ -12,6 +12,7 @@ import {
   Review,
   ReviewView,
   Session,
+  SESSION_OUTCOME_EVENT,
   Task,
   TaskDetail,
   TaskOrigin,
@@ -343,6 +344,35 @@ export function listSessionEvents(
     })),
     hasMore: rows.length > limit,
   }
+}
+
+/**
+ * 取 worker 最后上报的 outcome reason。
+ * 验收员有时只在 report_outcome 的 reason 里写结论，不写最后一条消息。
+ */
+export function getSessionOutcomeReason(db: Db, sessionId: string): string | null {
+  const rows = db
+    .select({ payloadJson: event.payloadJson })
+    .from(event)
+    .where(and(eq(event.sessionId, sessionId), eq(event.type, 'CUSTOM')))
+    .orderBy(desc(event.seq))
+    .limit(20)
+    .all()
+  for (const row of rows) {
+    try {
+      const payload = JSON.parse(row.payloadJson) as {
+        name?: unknown
+        value?: { outcome?: unknown; reason?: unknown }
+      }
+      if (payload.name !== SESSION_OUTCOME_EVENT) continue
+      if (typeof payload.value?.reason === 'string' && payload.value.reason.trim()) {
+        return payload.value.reason
+      }
+    } catch {
+      continue
+    }
+  }
+  return null
 }
 
 /**
