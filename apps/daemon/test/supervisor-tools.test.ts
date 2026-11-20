@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { appError } from '../src/errors.js'
 import { getNode, getTask, insertApproval } from '../src/db/repositories.js'
 import { createTaskService } from '../src/runtime/task-service.js'
 import { createSupervisorTools, type ToolContext } from '../src/supervisor/tools.js'
@@ -48,6 +49,7 @@ function setup() {
   })
   let nodeSeq = 0
   const transitions: Array<{ taskId: string; type: string }> = []
+  const replies: Array<{ taskId: string; text: string }> = []
   const tools = createSupervisorTools({
     db: database.db,
     taskService,
@@ -68,8 +70,27 @@ function setup() {
         events: [],
       }
     },
+    replyToTask: (taskId, text) => {
+      const task = getTask(database.db, taskId)
+      if (!task || task.status !== 'waiting_input') {
+        return {
+          ok: false,
+          error: appError('reply_not_allowed', 'task is not waiting for input', { taskId }),
+        }
+      }
+      if (task.waitingReason === 'approval') {
+        return {
+          ok: false,
+          error: appError('reply_not_allowed', 'approval must be decided with approval.decide', {
+            taskId,
+          }),
+        }
+      }
+      replies.push({ taskId, text })
+      return { ok: true }
+    },
   })
-  return { database, seeded, tools, root, transitions }
+  return { database, seeded, tools, root, transitions, replies }
 }
 
 function ctx(seeded: ReturnType<typeof seedTask>): ToolContext {
@@ -291,6 +312,27 @@ describe('supervisor tools', () => {
     )) as { ok: boolean; status: string }
     expect(done).toMatchObject({ ok: true, status: 'cancelled' })
     expect(transitions.at(-1)).toEqual({ taskId: seeded.taskId, type: 'cancel' })
+  })
+
+  it('replies only to non-approval waiting tasks', async () => {
+    const { database, seeded, tools, replies } = setup()
+    database.raw
+      .prepare('update task set status = ?, waiting_reason = ? where id = ?')
+      .run('waiting_input', 'question', seeded.taskId)
+
+    const ok = (await tools.reply_task.execute(
+      { taskId: seeded.taskId, text: '用方案 A' },
+      ctx(seeded),
+    )) as { ok: boolean }
+    expect(ok.ok).toBe(true)
+    expect(replies).toEqual([{ taskId: seeded.taskId, text: '用方案 A' }])
+
+    database.raw
+      .prepare('update task set status = ?, waiting_reason = ? where id = ?')
+      .run('waiting_input', 'approval', seeded.taskId)
+    await expect(
+      tools.reply_task.execute({ taskId: seeded.taskId, text: '同意' }, ctx(seeded)),
+    ).rejects.toMatchObject({ code: 'reply_not_allowed' })
   })
 
   it('creates a worktree task when explicitly requested', async () => {

@@ -63,6 +63,7 @@ export interface SupervisorServiceDeps {
   defaultEngine: EngineValue
   enqueueTask: (taskId: string) => EnqueueTaskResult
   applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
+  replyToTask: (taskId: string, text: string) => { ok: boolean; error?: AppError }
   workspacesRoot: string
   killSwitch: () => boolean
   engine?: SupervisorEngine
@@ -144,6 +145,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     defaultEngine: deps.defaultEngine,
     enqueueTask: deps.enqueueTask,
     applyTransition: deps.applyTransition,
+    replyToTask: deps.replyToTask,
   })
   const policyVersion = supervisorPolicyVersion(SUPERVISOR_POLICY, PROMPT_VERSION)
   const active = new Set<string>()
@@ -737,6 +739,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           input.threadId,
         ),
         get_task: wrapTool('get_task', bound.get_task, input.assistantMessageId, input.threadId),
+        get_task_history: wrapTool(
+          'get_task_history',
+          bound.get_task_history,
+          input.assistantMessageId,
+          input.threadId,
+        ),
         create_task: wrapTool(
           'create_task',
           bound.create_task,
@@ -746,6 +754,30 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         enqueue_task: wrapTool(
           'enqueue_task',
           bound.enqueue_task,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        retry_task: wrapTool(
+          'retry_task',
+          bound.retry_task,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        reopen_task: wrapTool(
+          'reopen_task',
+          bound.reopen_task,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        cancel_task: wrapTool(
+          'cancel_task',
+          bound.cancel_task,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        reply_task: wrapTool(
+          'reply_task',
+          bound.reply_task,
           input.assistantMessageId,
           input.threadId,
         ),

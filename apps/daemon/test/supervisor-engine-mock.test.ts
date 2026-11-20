@@ -97,7 +97,12 @@ function tools(): BoundToolset {
     list_canvas: noop,
     list_tasks: noop,
     get_task: noop,
+    get_task_history: noop,
     enqueue_task: noop,
+    retry_task: noop,
+    reopen_task: noop,
+    cancel_task: noop,
+    reply_task: noop,
     create_text: noop,
     create_agent: noop,
     create_edge: noop,
@@ -160,14 +165,19 @@ describe('createAiSdkSupervisorEngine with a mock OpenAI-compatible model', () =
       args: { title: '登录页暗黑模式' },
     })
     expect(sentTools.sort()).toEqual([
+      'cancel_task',
       'create_agent',
       'create_edge',
       'create_task',
       'create_text',
       'enqueue_task',
       'get_task',
+      'get_task_history',
       'list_canvas',
       'list_tasks',
+      'reopen_task',
+      'reply_task',
+      'retry_task',
     ])
   })
 })

@@ -224,6 +224,39 @@ export function createRuntime(deps: RuntimeDeps) {
   rescheduleDigest = () => digestScheduler.reschedule()
   const defaultEngine: Engine =
     deps.engines && deps.engines.get('claude-sdk').status === 'unavailable' ? 'fake' : 'claude-sdk'
+
+  function replyToTask(taskId: string, text: string): CommandOutcome {
+    const task = getTask(deps.db, taskId)
+    if (!task) {
+      return { ok: false, error: appError('task_not_found', 'task not found', { taskId }) }
+    }
+    if (task.status !== 'waiting_input') {
+      return {
+        ok: false,
+        error: appError('reply_not_allowed', 'task is not waiting for input', {
+          taskId: task.id,
+          status: task.status,
+        }),
+      }
+    }
+    if (!canAcceptUserInput(task.waitingReason)) {
+      return {
+        ok: false,
+        error: appError('reply_not_allowed', 'approval must be decided with approval.decide', {
+          taskId: task.id,
+          waitingReason: task.waitingReason,
+        }),
+      }
+    }
+    if (!sessionHolder.value?.has(task.id)) {
+      return {
+        ok: false,
+        error: appError('session_not_active', 'no active session for task', { taskId: task.id }),
+      }
+    }
+    return ackFromOutcome(applyTransition(task.id, { type: 'user_input', text }))
+  }
+
   const supervisor = createSupervisorService({
     db: deps.db,
     dataDir: deps.config.dataDir,
@@ -240,6 +273,7 @@ export function createRuntime(deps: RuntimeDeps) {
             ok: false,
             error: appError('runtime_not_ready', 'transition runner is not ready'),
           },
+    replyToTask,
     workspacesRoot: deps.config.workspacesRoot,
     killSwitch: () => automationState.isKillSwitchOn(),
     ...(deps.supervisorEngine ? { engine: deps.supervisorEngine } : {}),
@@ -424,46 +458,8 @@ export function createRuntime(deps: RuntimeDeps) {
             ...(message.payload.note ? { note: message.payload.note } : {}),
           }),
         )
-      case 'session.reply': {
-        const task = getTask(deps.db, message.payload.taskId)
-        if (!task) {
-          return {
-            ok: false,
-            error: appError('task_not_found', 'task not found', {
-              taskId: message.payload.taskId,
-            }),
-          }
-        }
-        if (task.status !== 'waiting_input') {
-          return {
-            ok: false,
-            error: appError('reply_not_allowed', 'task is not waiting for input', {
-              taskId: task.id,
-              status: task.status,
-            }),
-          }
-        }
-        if (!canAcceptUserInput(task.waitingReason)) {
-          return {
-            ok: false,
-            error: appError('reply_not_allowed', 'approval must be decided with approval.decide', {
-              taskId: task.id,
-              waitingReason: task.waitingReason,
-            }),
-          }
-        }
-        if (!sessionHolder.value?.has(task.id)) {
-          return {
-            ok: false,
-            error: appError('session_not_active', 'no active session for task', {
-              taskId: task.id,
-            }),
-          }
-        }
-        return ackFromOutcome(
-          applyTransition(task.id, { type: 'user_input', text: message.payload.text }),
-        )
-      }
+      case 'session.reply':
+        return replyToTask(message.payload.taskId, message.payload.text)
       case 'approval.decide':
         return ackFromOutcome(decideApproval(message.payload))
       case 'review.decide':

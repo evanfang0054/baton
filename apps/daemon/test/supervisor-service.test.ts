@@ -79,6 +79,7 @@ function setup(
         events: [],
       }
     },
+    replyToTask: () => ({ ok: true }),
     workspacesRoot: root,
     killSwitch: () => options.killSwitch === true,
     engine,

@@ -80,6 +80,7 @@ export interface SupervisorToolset {
   retry_task: SupervisorTool
   reopen_task: SupervisorTool
   cancel_task: SupervisorTool
+  reply_task: SupervisorTool
   create_text: SupervisorTool
   create_agent: SupervisorTool
   create_edge: SupervisorTool
@@ -101,6 +102,7 @@ export interface BoundToolset {
   retry_task: BoundTool
   reopen_task: BoundTool
   cancel_task: BoundTool
+  reply_task: BoundTool
   create_text: BoundTool
   create_agent: BoundTool
   create_edge: BoundTool
@@ -122,6 +124,7 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     retry_task: bind(tools.retry_task),
     reopen_task: bind(tools.reopen_task),
     cancel_task: bind(tools.cancel_task),
+    reply_task: bind(tools.reply_task),
     create_text: bind(tools.create_text),
     create_agent: bind(tools.create_agent),
     create_edge: bind(tools.create_edge),
@@ -175,6 +178,11 @@ const cancelTaskInput = z.object({
   confirm: z.boolean().default(false),
 })
 
+const replyTaskInput = z.object({
+  taskId: z.string().min(1),
+  text: z.string().min(1).max(16_384),
+})
+
 const createTextInput = z.object({
   content: z.string().min(1).max(16_384),
   title: z.string().min(1).max(80).optional(),
@@ -200,6 +208,7 @@ export interface SupervisorToolsDeps {
   defaultEngine: EngineValue
   enqueueTask: (taskId: string) => EnqueueTaskResult
   applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
+  replyToTask: (taskId: string, text: string) => { ok: boolean; error?: AppError }
 }
 
 const CONTENT_TYPES = new Set(['text', 'file', 'image'])
@@ -802,6 +811,20 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         )
         audit('supervisor.task.cancel', task.id, ctx, { hasReason: Boolean(parsed.reason) })
         return result
+      },
+    },
+
+    reply_task: {
+      description:
+        '回复一个等待输入的任务；只转发用户原话，不处理审批。审批请让用户在任务详情/审批卡处理。',
+      parameters: replyTaskInput,
+      async execute(input, ctx) {
+        const parsed = replyTaskInput.parse(input)
+        const task = requireTask(ctx, parsed.taskId)
+        const result = deps.replyToTask(task.id, parsed.text)
+        if (!result.ok) throw result.error
+        audit('supervisor.task.reply', task.id, ctx, { length: parsed.text.length })
+        return { ok: true, taskId: task.id, status: 'running' }
       },
     },
   }
