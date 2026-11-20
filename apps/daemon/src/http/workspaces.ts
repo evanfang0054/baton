@@ -1,4 +1,6 @@
 import {
+  WorkspaceBrowseQuery,
+  WorkspaceBrowseResponse,
   WorkspaceCapabilitiesResponse,
   WorkspaceCreateInput,
   WorkspaceCreateResponse,
@@ -10,7 +12,7 @@ import {
 } from '@baton/protocol'
 import type { FastifyInstance } from 'fastify'
 import { realpathSync } from 'node:fs'
-import { relative, sep } from 'node:path'
+import { isAbsolute, relative } from 'node:path'
 import type { Config } from '../config.js'
 import {
   getWorkspace,
@@ -22,8 +24,9 @@ import {
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
-import { resolveWorkspaceDir } from '../workspace/resolver.js'
-import { isGitRepo } from '../workspace/worktree.js'
+import { browseWorkspaceDirectories } from '../workspace/browse.js'
+import { resolveWorkspaceDir, toWorkspaceRelPath } from '../workspace/resolver.js'
+import { isGitRepo, isInsideDataDir } from '../workspace/worktree.js'
 
 export interface WorkspaceRoutesDeps {
   db: Db
@@ -38,15 +41,43 @@ export function registerWorkspaceRoutes(app: FastifyInstance, deps: WorkspaceRou
     WorkspaceListResponse.parse({ workspaces: listWorkspaces(deps.db) }),
   )
 
+  app.get('/api/workspaces/browse', async (req) => {
+    const parsed = WorkspaceBrowseQuery.safeParse(req.query)
+    if (!parsed.success) {
+      throw appError('invalid_payload', 'invalid browse query', parsed.error.issues)
+    }
+    return WorkspaceBrowseResponse.parse(
+      browseWorkspaceDirectories({
+        root: deps.config.workspacesRoot,
+        ...(parsed.data.path ? { path: parsed.data.path } : {}),
+        ...(parsed.data.q ? { q: parsed.data.q } : {}),
+      }),
+    )
+  })
+
   app.post('/api/workspaces', async (req, reply) => {
     const parsed = WorkspaceCreateInput.safeParse(req.body)
     if (!parsed.success) {
       throw appError('invalid_payload', 'invalid workspace payload', parsed.error.issues)
     }
 
-    const realTarget = resolveWorkspaceDir(deps.config.workspacesRoot, parsed.data.relPath)
     const realRoot = realpathSync(deps.config.workspacesRoot)
-    const relPath = relative(realRoot, realTarget).split(sep).join('/')
+    // 用户经常直接粘贴绝对路径；只要落在 root 内就转成相对路径，不再一律拒绝。
+    let inputPath = parsed.data.relPath
+    if (isAbsolute(inputPath)) {
+      let absolute: string
+      try {
+        absolute = realpathSync(inputPath)
+      } catch {
+        throw appError('invalid_path', 'workspace directory not found')
+      }
+      if (!isInsideDataDir(realRoot, absolute)) {
+        throw appError('invalid_path', 'workspace must be inside workspaces root')
+      }
+      inputPath = relative(realRoot, absolute)
+    }
+    const realTarget = resolveWorkspaceDir(realRoot, inputPath)
+    const relPath = toWorkspaceRelPath(realRoot, realTarget)
     if (!relPath || relPath === '.') {
       throw appError('invalid_path', 'workspace must be a subdirectory')
     }

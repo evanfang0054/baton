@@ -16,6 +16,7 @@ import {
   TaskDetailResponse,
   TaskHistoryResponse,
   TaskListResponse,
+  WorkspaceBrowseResponse,
   WorkspaceCapabilitiesResponse,
   WorkspaceCreateInput,
   WorkspaceCreateResponse,
@@ -76,6 +77,16 @@ export async function createWorkspace(input: WorkspaceCreateInput) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),
     }),
+  )
+}
+
+export async function browseWorkspaceDirectories(input: { path?: string; q?: string } = {}) {
+  const params = new URLSearchParams()
+  if (input.path) params.set('path', input.path)
+  if (input.q?.trim()) params.set('q', input.q.trim())
+  const query = params.toString()
+  return WorkspaceBrowseResponse.parse(
+    await request(`/api/workspaces/browse${query ? `?${query}` : ''}`),
   )
 }
 

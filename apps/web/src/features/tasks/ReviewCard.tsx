@@ -1,4 +1,4 @@
-import type { ReviewView } from '@baton/protocol'
+import { VERIFY_SKIPPED, type ReviewView } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
 import { TextArea } from '@heroui/react/textarea'
@@ -19,13 +19,18 @@ export function ReviewCard({
   const [showDiff, setShowDiff] = useState(false)
   const action = useCommandAction(onDone)
   const decided = review.verdict !== null
+  const verifySkipped = review.verifyExitCode === VERIFY_SKIPPED
 
   return (
     <section className="shrink-0 rounded-lg border border-accent bg-surface p-3">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-medium">验收</h3>
-        <Chip size="sm" variant="soft" color={review.verifyExitCode === 0 ? 'success' : 'danger'}>
-          退出码 {review.verifyExitCode}
+        <Chip
+          size="sm"
+          variant="soft"
+          color={verifySkipped ? 'warning' : review.verifyExitCode === 0 ? 'success' : 'danger'}
+        >
+          {verifySkipped ? '未执行自动校验' : `退出码 ${review.verifyExitCode}`}
         </Chip>
       </div>
       <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted">

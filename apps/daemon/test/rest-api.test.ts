@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { DiffSnapshot, Review } from '@baton/protocol'
 import { execa } from 'execa'
@@ -81,6 +82,73 @@ describe('REST API', () => {
       payload: { name: 'escape', relPath: '../escape' },
     })
     expect(escaped.statusCode).toBe(400)
+
+    const absoluteDir = join(handle.root, 'absolute-ws')
+    mkdirSync(absoluteDir)
+    const absolute = await app.inject({
+      method: 'POST',
+      url: '/api/workspaces',
+      headers: auth,
+      payload: { name: 'absolute', relPath: absoluteDir },
+    })
+    expect(absolute.statusCode).toBe(201)
+    expect((absolute.json() as { workspace: { relPath: string } }).workspace.relPath).toBe(
+      'absolute-ws',
+    )
+
+    const outside = mkdtempSync(join(tmpdir(), 'baton-outside-'))
+    try {
+      const outsideResponse = await app.inject({
+        method: 'POST',
+        url: '/api/workspaces',
+        headers: auth,
+        payload: { name: 'outside', relPath: outside },
+      })
+      expect(outsideResponse.statusCode).toBe(400)
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('browses workspace directories and rejects path escapes', async () => {
+    const { app, handle } = await setup()
+    mkdirSync(join(handle.root, 'demo-project', '.git'), { recursive: true })
+
+    const listed = await app.inject({
+      method: 'GET',
+      url: '/api/workspaces/browse',
+      headers: auth,
+    })
+    expect(listed.statusCode).toBe(200)
+    const body = listed.json() as {
+      entries: Array<{ name: string; relPath: string; hasGit: boolean }>
+    }
+    expect(body.entries).toContainEqual({
+      name: 'demo-project',
+      relPath: 'demo-project',
+      hasGit: true,
+    })
+
+    const searched = await app.inject({
+      method: 'GET',
+      url: '/api/workspaces/browse?q=demo',
+      headers: auth,
+    })
+    expect(searched.statusCode).toBe(200)
+    const searchEntries = (searched.json() as { entries: Array<{ name: string; relPath: string }> })
+      .entries
+    expect(searchEntries).toContainEqual(
+      expect.objectContaining({ name: 'demo-project', relPath: 'demo-project' }),
+    )
+    expect(searchEntries.every((entry) => entry.name.toLowerCase().includes('demo'))).toBe(true)
+
+    const escaped = await app.inject({
+      method: 'GET',
+      url: '/api/workspaces/browse?path=../outside',
+      headers: auth,
+    })
+    expect(escaped.statusCode).toBe(400)
+    expect((escaped.json() as { code: string }).code).toBe('invalid_path')
   })
 
   it('returns 400 for malformed JSON instead of 500', async () => {

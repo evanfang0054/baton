@@ -38,7 +38,7 @@ async function readBody(req: IncomingMessage): Promise<string> {
 }
 
 /** 模拟 OpenAI-compatible SSE：第一次返回 create_task 工具调用，第二次返回文本。 */
-async function startMockModel() {
+async function startMockModel(onRequest?: (body: unknown) => void) {
   const server = createServer(async (req, res) => {
     if (!req.url?.endsWith('/chat/completions')) {
       res.writeHead(404).end()
@@ -47,6 +47,7 @@ async function startMockModel() {
     const body = JSON.parse(await readBody(req)) as {
       messages?: Array<{ role?: string }>
     }
+    onRequest?.(body)
     const hasToolResult = body.messages?.some((message) => message.role === 'tool') ?? false
     res.writeHead(200, {
       'content-type': 'text/event-stream',
@@ -93,6 +94,7 @@ function tools(): BoundToolset {
     execute: async () => ({}),
   }
   return {
+    list_canvas: noop,
     list_tasks: noop,
     get_task: noop,
     enqueue_task: noop,
@@ -115,7 +117,12 @@ function tools(): BoundToolset {
 
 describe('createAiSdkSupervisorEngine with a mock OpenAI-compatible model', () => {
   it('streams text and executes a tool call without a real provider key', async () => {
-    const baseUrl = await startMockModel()
+    const sentTools: string[] = []
+    const baseUrl = await startMockModel((body) => {
+      if (sentTools.length > 0) return
+      const requestTools = (body as { tools?: Array<{ function?: { name?: string } }> }).tools ?? []
+      sentTools.push(...requestTools.map((item) => item.function?.name ?? '').filter(Boolean))
+    })
     const engine = createAiSdkSupervisorEngine({
       baseUrl,
       apiKey: 'test-key',
@@ -152,5 +159,15 @@ describe('createAiSdkSupervisorEngine with a mock OpenAI-compatible model', () =
       ok: true,
       args: { title: '登录页暗黑模式' },
     })
+    expect(sentTools.sort()).toEqual([
+      'create_agent',
+      'create_edge',
+      'create_task',
+      'create_text',
+      'enqueue_task',
+      'get_task',
+      'list_canvas',
+      'list_tasks',
+    ])
   })
 })

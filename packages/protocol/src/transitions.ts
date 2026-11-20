@@ -38,6 +38,8 @@ export const TaskTransitionEvent = z.discriminatedUnion('type', [
       .refine((n) => n !== 0, { message: 'exitCode must be non-zero' }),
     output: z.string(),
     diffStat: DiffStat,
+    /** false 表示重试也不会成功（如未配置 verify 命令），禁止自动重试。 */
+    retryable: z.boolean().optional(),
   }),
   z.object({ type: z.literal('approve'), reviewId: Id }),
   z.object({ type: z.literal('reject'), reviewId: Id, feedback: z.string().min(1) }),

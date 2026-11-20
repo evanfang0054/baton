@@ -209,6 +209,80 @@ describe('RealtimeProvider', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.tasks('w1') })
   })
 
+  it('invalidates the canvas as soon as a supervisor tool writes to it', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    renderProvider(client)
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const socket = FakeSocket.instances[0]!
+    socket.open()
+    invalidate.mockClear()
+
+    socket.message({
+      v: 1,
+      ts: 33,
+      type: 'supervisor.tool',
+      payload: {
+        threadId: 'th1',
+        messageId: 'm1',
+        toolCallId: 'tc2',
+        name: 'create_text',
+        phase: 'end',
+        ok: true,
+      },
+    })
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.canvas('w1') }),
+    )
+
+    invalidate.mockClear()
+    socket.message({
+      v: 1,
+      ts: 34,
+      type: 'supervisor.tool',
+      payload: {
+        threadId: 'th1',
+        messageId: 'm1',
+        toolCallId: 'tc3',
+        name: 'create_text',
+        phase: 'end',
+        ok: false,
+      },
+    })
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: queryKeys.canvas('w1') })
+  })
+
+  it('refreshes the canvas when a finished turn created nodes', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const initial: SupervisorMessagesResponse = { threadId: 'th1', messages: [] }
+    client.setQueryData(queryKeys.supervisorMessages('w1'), initial)
+    renderProvider(client)
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const socket = FakeSocket.instances[0]!
+    socket.open()
+    invalidate.mockClear()
+
+    socket.message({
+      v: 1,
+      ts: 35,
+      type: 'supervisor.message',
+      payload: {
+        id: 'm2',
+        threadId: 'th1',
+        role: 'assistant',
+        content: '已创建文本节点',
+        toolCalls: [{ id: 'tc4', name: 'create_text', args: {}, ok: true, result: {} }],
+        decision: null,
+        meta: null,
+        status: 'ok',
+        error: null,
+        createdAt: 35,
+      },
+    })
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.canvas('w1') }),
+    )
+  })
+
   it('replaces a notification when the polished version arrives', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const initial: SupervisorMessagesResponse = {

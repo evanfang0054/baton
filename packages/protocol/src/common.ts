@@ -6,6 +6,9 @@ export type Id = z.infer<typeof Id>
 export const Timestamp = z.number().int().nonnegative()
 export type Timestamp = z.infer<typeof Timestamp>
 
+/** verify 未执行（工作区没有可用命令）；负值不会与 OS 退出码冲突。 */
+export const VERIFY_SKIPPED = -1
+
 export const DiffStat = z.object({
   filesChanged: z.number().int().nonnegative(),
   insertions: z.number().int().nonnegative(),

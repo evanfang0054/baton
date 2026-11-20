@@ -71,6 +71,7 @@ describe('effective autopilot', () => {
       diffStat: { filesChanged: 1, insertions: 1, deletions: 0 },
     }
     expect(transition(ctx, event)).toMatchObject({ ok: true, status: 'queued' })
+    expect(transition(ctx, { ...event, retryable: false })).toMatchObject({ status: 'review' })
     expect(transition({ ...ctx, workspaceTrusted: false }, event)).toMatchObject({
       status: 'review',
     })

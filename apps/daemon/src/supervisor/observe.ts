@@ -1,4 +1,5 @@
-import type { DiffStat } from '@baton/protocol'
+import { VERIFY_SKIPPED, type DiffStat } from '@baton/protocol'
+import { xmlEscape } from './xml.js'
 
 export type Verdict = 'pass' | 'fail' | 'unknown'
 
@@ -63,15 +64,6 @@ function diffLine(diffStat: DiffStat | null): string {
     : '没有 diff 快照'
 }
 
-function xmlEscape(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&apos;')
-}
-
 /** 验收员只做检查；总管只拿结论，不直接读代码或日志。 */
 export function buildVerifierPrompt(input: VerifierPromptInput): string {
   const workspaceNote = input.isolatedWorktree
@@ -92,7 +84,11 @@ VERDICT: FAIL
 ${targetPrompt}
 </target_task>
 <evidence>
-verify 退出码：${input.verifyExitCode ?? '未执行'}
+verify 退出码：${
+    input.verifyExitCode === VERIFY_SKIPPED
+      ? '未执行（工作区未配置 verify 命令）'
+      : (input.verifyExitCode ?? '未执行')
+  }
 diff：${diffLine(input.diffStat)}
 工人最后回复（截断）：
 ${workerOutput}

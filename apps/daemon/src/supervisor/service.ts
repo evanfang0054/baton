@@ -2,6 +2,7 @@ import { buildTaskOrigin, SUPERVISOR_POLICY, supervisorPolicyVersion } from '@ba
 import {
   Node,
   SupervisorTaskCard,
+  VERIFY_SKIPPED,
   type AppError,
   type Engine as EngineValue,
   type Review,
@@ -16,6 +17,7 @@ import {
   type WaitingReason,
 } from '@baton/protocol'
 import {
+  countEdges,
   findActiveVerifierIdsForTarget,
   getCanvasByWorkspace,
   getAssistantTranscriptText,
@@ -35,11 +37,13 @@ import { appError, isAppError } from '../errors.js'
 import type { Logger } from '../log.js'
 import type { TaskService } from '../runtime/task-service.js'
 import type { TransitionOutcome } from '../runtime/types.js'
+import { canvasOverviewXml, nodeTitle } from './canvas-summary.js'
 import { loadSupervisorConfig, type SupervisorConfig } from './config.js'
 import { createAiSdkSupervisorEngine, type SupervisorEngine } from './engine.js'
 import { buildVerifierPrompt, parseVerdict } from './observe.js'
 import { PROMPT_VERSION, REPORT_PROMPT, SUPERVISOR_PROMPT } from './prompt.js'
 import { createSupervisorStore } from './store.js'
+import { xmlEscape } from './xml.js'
 import {
   bindTools,
   createSupervisorTools,
@@ -75,38 +79,6 @@ export interface ObserveTaskInput {
   waitingReason: WaitingReason | null
 }
 
-function xmlEscape(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&apos;')
-}
-
-function nodeTitle(node: Node): string {
-  switch (node.type) {
-    case 'text':
-      return (
-        node.data.content
-          .split('\n')
-          .find((line) => line.trim())
-          ?.trim()
-          .slice(0, 60) ?? 'text'
-      )
-    case 'file':
-      return node.data.name
-    case 'image':
-      return node.data.alt ?? 'image'
-    case 'agent':
-      return node.data.title
-    case 'group':
-      return node.data.label
-    case 'review':
-      return 'review'
-  }
-}
-
 function trimHistory(messages: SupervisorMessage[], maxChars = 32_000): SupervisorMessage[] {
   let total = 0
   const kept: SupervisorMessage[] = []
@@ -125,6 +97,8 @@ function candidateCard(input: {
   threadId: string
   text: string
   nodes: Node[]
+  canvasNodes: Node[]
+  edgeCount: number
   targetNodeId?: string
   policyVersion: string
   defaultEngine: string
@@ -148,6 +122,7 @@ function candidateCard(input: {
   return `<workspace id="${xmlEscape(input.workspaceId)}" name="${xmlEscape(input.workspaceName)}" />
 <thread id="${xmlEscape(input.threadId)}" />
 <user_message>${xmlEscape(input.text)}</user_message>
+${canvasOverviewXml(input.canvasNodes, input.edgeCount)}
 <selection>
 ${selected}
 </selection>
@@ -562,6 +537,17 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       return
     }
 
+    // 未执行自动校验时不能把主观 PASS 当成机器通过。
+    if (currentReview.verifyExitCode === VERIFY_SKIPPED) {
+      notify(
+        threadId,
+        `observe:verdict:${task.id}`,
+        `验收员初步验收为 PASS，但目标任务没有执行自动 verify（工作区未配置命令），` +
+          `建议你人工确认。\n任务仍在待验收，最终由你决定。\n${parsed.reason}`,
+      )
+      return
+    }
+
     // 机器证据优先：verify 没过时，验收员的主观 PASS 只能作为参考。
     if (currentReview.verifyExitCode !== 0) {
       notify(
@@ -737,6 +723,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       }
       const bound = bindTools(tools, toolContext)
       const wrapped: BoundToolset = {
+        list_canvas: wrapTool(
+          'list_canvas',
+          bound.list_canvas,
+          input.assistantMessageId,
+          input.threadId,
+        ),
         list_tasks: wrapTool(
           'list_tasks',
           bound.list_tasks,
@@ -784,6 +776,8 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           threadId: input.threadId,
           text: input.request.text,
           nodes: selected,
+          canvasNodes: nodes,
+          edgeCount: countEdges(deps.db, canvas.id),
           targetNodeId,
           policyVersion,
           defaultEngine: deps.defaultEngine,
@@ -811,7 +805,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         .find((parsed) => parsed.success)
       const kind = hasCreate
         ? 'create_task'
-        : result.toolCalls.some((call) => call.name === 'list_tasks' || call.name === 'get_task')
+        : result.toolCalls.some(
+              (call) =>
+                call.name === 'list_tasks' ||
+                call.name === 'get_task' ||
+                call.name === 'list_canvas',
+            )
           ? 'query_status'
           : 'chat'
       const turn = store.insertAssistantTurn({

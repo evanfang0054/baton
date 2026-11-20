@@ -42,6 +42,32 @@ export const WorkspaceCapabilitiesResponse = z.object({ worktree: z.boolean() })
 export type WorkspaceCapabilitiesResponse = z.infer<typeof WorkspaceCapabilitiesResponse>
 
 /**
+ * 目录选择器只暴露 root 内的相对路径；不返回本机绝对路径。
+ * path 省略表示 root，q 非空时递归搜索目录名。
+ */
+export const WorkspaceBrowseQuery = z.object({
+  path: z.string().max(1024).optional(),
+  q: z.string().trim().max(200).optional(),
+})
+export type WorkspaceBrowseQuery = z.infer<typeof WorkspaceBrowseQuery>
+
+export const WorkspaceBrowseEntry = z.object({
+  name: z.string().min(1),
+  relPath: z.string().min(1),
+  hasGit: z.boolean(),
+})
+export type WorkspaceBrowseEntry = z.infer<typeof WorkspaceBrowseEntry>
+
+export const WorkspaceBrowseResponse = z.object({
+  path: z.string(),
+  parent: z.string().nullable(),
+  entries: z.array(WorkspaceBrowseEntry),
+  truncated: z.boolean(),
+  searching: z.boolean(),
+})
+export type WorkspaceBrowseResponse = z.infer<typeof WorkspaceBrowseResponse>
+
+/**
  * 外部文件先落到 workspace 的 .baton/uploads/，再以相对路径挂到 file 节点。
  * 这样上下文装配仍走同一条 workspace 读取与 jail 校验，不需要第二套文件存储。
  */

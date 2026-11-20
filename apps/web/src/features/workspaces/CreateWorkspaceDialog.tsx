@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { createWorkspace, ApiError } from '../../lib/api'
 import { queryKeys } from '../../lib/query'
+import { WorkspaceDirectoryPicker } from './WorkspaceDirectoryPicker'
 
 interface CreateWorkspaceDialogProps {
   onCreated: (workspaceId: string) => void
@@ -12,6 +13,10 @@ interface CreateWorkspaceDialogProps {
   onOpenChange?: (open: boolean) => void
   mobile?: boolean
 }
+
+const PATH_DISPLAY_CLASS = [
+  'min-w-0 flex-1 rounded-lg border border-separator bg-surface-secondary px-3 py-2 text-sm',
+].join(' ')
 
 export function CreateWorkspaceDialog({
   onCreated,
@@ -25,7 +30,12 @@ export function CreateWorkspaceDialog({
   const [name, setName] = useState('')
   const [relPath, setRelPath] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const queryClient = useQueryClient()
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next)
+    if (!next) setPickerOpen(false)
+  }
 
   const mutation = useMutation({
     mutationFn: () => createWorkspace({ name, relPath }),
@@ -35,6 +45,7 @@ export function CreateWorkspaceDialog({
       setName('')
       setRelPath('')
       setError(null)
+      setPickerOpen(false)
       onCreated(result.workspace.id)
     },
     onError: (cause) => {
@@ -51,7 +62,7 @@ export function CreateWorkspaceDialog({
   })
 
   return (
-    <Modal isOpen={open} onOpenChange={setOpen}>
+    <Modal isOpen={open} onOpenChange={handleOpenChange}>
       {controlledOpen === undefined ? <Button variant="secondary">新建工作区</Button> : null}
       <Modal.Backdrop>
         <Modal.Container>
@@ -68,13 +79,33 @@ export function CreateWorkspaceDialog({
                   onChange={(event) => setName(event.target.value)}
                   fullWidth
                 />
-                <Input
-                  aria-label="工作区相对路径"
-                  placeholder="相对路径，如 baton"
-                  value={relPath}
-                  onChange={(event) => setRelPath(event.target.value)}
-                  fullWidth
-                />
+                <div className="flex flex-col gap-2">
+                  <span className="text-sm font-medium text-foreground">工作区目录</span>
+                  <div className="flex items-center gap-2">
+                    <div className={PATH_DISPLAY_CLASS}>
+                      {relPath ? (
+                        <span className="block truncate text-foreground">{relPath}</span>
+                      ) : (
+                        <span className="text-muted">尚未选择目录</span>
+                      )}
+                    </div>
+                    <Button
+                      variant="secondary"
+                      onPress={() => setPickerOpen((current) => !current)}
+                    >
+                      {pickerOpen ? '收起' : '选择目录'}
+                    </Button>
+                  </div>
+                  {pickerOpen ? (
+                    <WorkspaceDirectoryPicker
+                      onSelect={(entry) => {
+                        setRelPath(entry.relPath)
+                        if (!name.trim()) setName(entry.name)
+                        setPickerOpen(false)
+                      }}
+                    />
+                  ) : null}
+                </div>
                 {error ? (
                   <p role="alert" className="text-sm text-danger">
                     {error}
@@ -83,7 +114,7 @@ export function CreateWorkspaceDialog({
               </div>
             </Modal.Body>
             <Modal.Footer>
-              <Button variant="tertiary" onPress={() => setOpen(false)}>
+              <Button variant="tertiary" onPress={() => handleOpenChange(false)}>
                 取消
               </Button>
               <Button

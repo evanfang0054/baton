@@ -348,6 +348,15 @@ export function findActiveVerifierIdsForTarget(db: Db, targetTaskId: string): st
     .map((row) => row.id)
 }
 
+export function countEdges(db: Db, canvasId: string): number {
+  const row = db
+    .select({ count: sql<number>`count(*)` })
+    .from(edge)
+    .where(eq(edge.canvasId, canvasId))
+    .get()
+  return row?.count ?? 0
+}
+
 /** 验收员会复用目标任务的 worktree；清理前必须确认没有其他未结束任务还引用同一路径。 */
 export function hasOtherWorktreeReference(db: Db, worktreePath: string, taskId: string): boolean {
   const row = db

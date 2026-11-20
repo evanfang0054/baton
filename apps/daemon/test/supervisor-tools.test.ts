@@ -131,6 +131,38 @@ describe('supervisor tools', () => {
     expect(node?.type === 'agent' ? node.data.engine : null).toBe('claude-sdk')
   })
 
+  it('lists canvas nodes and edges without reading files', async () => {
+    const { seeded, tools } = setup()
+    await tools.create_edge.execute({ sourceId: 'text-1', targetId: seeded.nodeId }, ctx(seeded))
+
+    const result = (await tools.list_canvas.execute({}, ctx(seeded))) as {
+      nodes: Array<{ id: string; type: string; title: string; preview?: string }>
+      edges: Array<{ sourceId: string; targetId: string; type: string }>
+      totalNodes: number
+      totalEdges: number
+      truncated: boolean
+    }
+    expect(result.totalNodes).toBe(2)
+    expect(result.totalEdges).toBe(1)
+    expect(result.truncated).toBe(false)
+    expect(result.nodes).toContainEqual(
+      expect.objectContaining({ id: 'text-1', type: 'text', title: '需求 A', preview: '需求 A' }),
+    )
+    expect(result.nodes.find((entry) => entry.id === seeded.nodeId)).toMatchObject({
+      type: 'agent',
+    })
+    expect(result.edges).toEqual([
+      { id: expect.any(String), sourceId: 'text-1', targetId: seeded.nodeId, type: 'context' },
+    ])
+
+    const limited = (await tools.list_canvas.execute({ limit: 1 }, ctx(seeded))) as {
+      nodes: unknown[]
+      truncated: boolean
+    }
+    expect(limited.nodes).toHaveLength(1)
+    expect(limited.truncated).toBe(true)
+  })
+
   it('auto-creates an agent and can start the task', async () => {
     const { database, seeded, tools } = setup()
     const bare: ToolContext = {
