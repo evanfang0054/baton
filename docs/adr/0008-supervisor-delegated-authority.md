@@ -1,6 +1,6 @@
 # ADR 0008：总管委派验收与委派审批
 
-- **状态**：Accepted（2026-11-20 用户确认高风险也自动批；同日确认代验收由总管派独立验收 Agent）
+- **状态**：Accepted（委派审批）；代验收部分已被 ADR 0009 取代
 - **日期**：2026-11-20
 - **关联**：`docs/specs/2026-11-20-m4-supervisor-secretary-design.md`、`docs/specs/2026-11-18-m2-supervisor-design.md`、`docs/specs/2026-11-19-m3-delivery-acceptance-design.md`
 
@@ -24,9 +24,8 @@ M2 的 Router v0 只有“建待办”的权限，开工、审批、验收都归
 - 只有当 workspace trusted、kill switch 关闭、policy `autopilot.enabled` 与 `delegatedAuthority` 都为 true、且 task 由总管创建时，`evaluateApproval` 才对**除 deny 规则外**的所有工具自动放行，包括高风险 Bash。
 - 人类创建的 task 永远走人工审批；`AskUserQuestion` 与工作区逃逸仍降级为人工确认。
 - 每次自动放行写 `approval.auto_allow` audit；kill switch 立即生效。
-- 代验收采用“验收员模式”：总管不亲自验收，任务进入 review 后由总管派一个新的验收 Agent 任务；只有验收员输出 `VERDICT: PASS`、目标 verify 退出码为 0、workspace trusted、kill switch 关闭且 `autopilot.delegatedAcceptance` 开启时，才自动 approve 目标并写 `supervisor.review.accept` 审计。
-- 验收员结果只回到总管对话，不直接读完整 transcript；验收员任务自身进入 review 时由系统自动关闭，不递归派验收员。
-- 人类创建的 task 永远不代验收；worktree 任务暂不自动验收。
+- ~~代验收~~：2026-11-20 晚用户明确改回“结束只能由我来”，代验收由 ADR 0009 取代；总管只派验收员做初步验收，任务始终停在 review，最终由人通过/打回。
+- 人类创建的 task 永远不代验收。
 
 ## 后果
 
@@ -37,10 +36,11 @@ M2 的 Router v0 只有“建待办”的权限，开工、审批、验收都归
 
 ## 待确认
 
-- 无。diff 阈值暂未作为硬门槛：v1 依赖 verify 0 + 独立验收员 PASS；后续可再加阈值。
+- 无。委派验收已撤销，见 ADR 0009。
 
 ## 实施状态（2026-11-20）
 
-- 已完成：`autopilot.delegatedAuthority`、`autopilot.delegatedAcceptance`、policy patch/UI 开关、`evaluateApproval` 委派分支、`session-runner` 传入 `delegatedAuthority`、core 单测与 UI 单测。
-- 已完成：runtime 完成感知（review/failed/waiting_input）、验收员 Agent 任务派发、VERDICT 解析（含 outcome reason 兜底）、stalled 验收员结论恢复、worktree 验收员复用目标 worktree、通知模型润色、代验收审计与 reopen 兼容。
+- 已完成：`autopilot.delegatedAuthority`、policy patch/UI 开关、`evaluateApproval` 委派分支、`session-runner` 传入 `delegatedAuthority`、core 单测与 UI 单测。
+- 已完成：runtime 完成感知、预验收验收员、VERDICT 解析、stalled 恢复、worktree 复用、通知润色、recommendation 审计。
+- 已移除：`autopilot.delegatedAcceptance` 与自动通过路径。
 - 待观察：高风险委派审批的实际使用面；建议后续补默认凭据路径 deny 规则。

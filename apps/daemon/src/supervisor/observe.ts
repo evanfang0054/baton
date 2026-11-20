@@ -74,7 +74,7 @@ export function buildVerifierPrompt(input: VerifierPromptInput): string {
 VERDICT: PASS
 VERDICT: FAIL
 理由放在这条消息之前。上报 session outcome 时，reason 也必须以 VERDICT: PASS 或 VERDICT: FAIL 开头。
-没有这一行，系统会视为验收未完成，目标任务不会自动通过。
+没有这一行，系统会视为初步验收未完成，目标任务仍等你决定。
 </verdict_protocol>
 <target_task id="${input.taskId}" title="${input.title}">
 ${input.prompt.slice(0, 2000)}

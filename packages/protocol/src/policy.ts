@@ -43,11 +43,6 @@ const AutopilotPolicy = z.object({
    * 除 deny 规则外，所有工具（含高风险 Bash）自动批准；仍受 trust 与 kill switch 约束。
    */
   delegatedAuthority: z.boolean().default(false),
-  /**
-   * 总管代验收：仅对总管任务、且由其派出的验收员给出 PASS 时生效。
-   * 仍需 workspace trusted、kill switch 关闭，并写审计。
-   */
-  delegatedAcceptance: z.boolean().default(false),
 })
 
 export const PolicySchema = z.object({

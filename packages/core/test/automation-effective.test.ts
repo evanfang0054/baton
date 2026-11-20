@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PolicySchema } from '@baton/protocol'
 import {
-  canDelegatedAcceptance,
   effectiveAutopilot,
   evaluateApproval,
   transition,
@@ -41,37 +40,6 @@ describe('effective autopilot', () => {
     })
     expect(decision.decision).toBe('ask')
     expect(decision.autoApproved).toBe(false)
-  })
-
-  it('only allows delegated acceptance when explicitly enabled and safe', () => {
-    const acceptancePolicy = {
-      ...policy,
-      autopilot: { ...policy.autopilot, enabled: true, delegatedAcceptance: true },
-    }
-    expect(
-      canDelegatedAcceptance(acceptancePolicy, { workspaceTrusted: true, killSwitch: false }),
-    ).toBe(true)
-    expect(
-      canDelegatedAcceptance(acceptancePolicy, { workspaceTrusted: false, killSwitch: false }),
-    ).toBe(false)
-    expect(
-      canDelegatedAcceptance(acceptancePolicy, { workspaceTrusted: true, killSwitch: true }),
-    ).toBe(false)
-    expect(
-      canDelegatedAcceptance(
-        { ...acceptancePolicy, autopilot: { ...acceptancePolicy.autopilot, enabled: false } },
-        { workspaceTrusted: true, killSwitch: false },
-      ),
-    ).toBe(false)
-    expect(
-      canDelegatedAcceptance(
-        {
-          ...acceptancePolicy,
-          autopilot: { ...acceptancePolicy.autopilot, delegatedAcceptance: false },
-        },
-        { workspaceTrusted: true, killSwitch: false },
-      ),
-    ).toBe(false)
   })
 
   it('never auto-approves high risk', () => {

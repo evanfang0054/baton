@@ -1,6 +1,6 @@
 ---
 spec_topic: m4-supervisor-secretary
-decision_summary: "总管可创建节点/任务并开工；完成感知已实现；代验收由总管派独立验收 Agent，按 PASS 与授权决定是否自动通过"
+decision_summary: "总管可创建节点/任务并开工；完成感知已实现；总管派独立验收 Agent 做初步验收，最终通过仍由人决定"
 design_approved: false
 gates: []
 spec_ref: 2026-11-18-m2-supervisor-design.md
@@ -37,8 +37,8 @@ M2 的 Router v0 是刻意保守的：只暴露 `list_tasks` / `get_task` / `cre
 **目标（Phase 2，已实现）**
 
 1. 总管感知自己创建的 task 进入 `review` / `failed` / `waiting_input`，在对话里追加一条汇总。
-2. 代验收：总管**不亲自验收**，而是派一个新的验收 Agent 任务检查产出；验收员最后一行给出 `VERDICT: PASS/FAIL`。
-3. 只有 workspace 显式开启 `autopilot.delegatedAcceptance`、verify 退出码为 0、验收员 PASS 时，总管才自动通过，并写审计；人仍可 reopen。
+2. 预验收：总管**不亲自验收**，而是派一个新的验收 Agent 任务做初步检查；验收员最后一行给出 `VERDICT: PASS/FAIL`。
+3. 验收员结论只是建议，任务始终停在 `review`，必须由人 approve 才进入 `done`；验收员不能替老板结束任务。
 4. 验收员自身进入 review 时由系统自动关闭，不再递归派验收员。
 
 **非目标**
@@ -58,7 +58,7 @@ M2 的 Router v0 是刻意保守的：只暴露 `list_tasks` / `get_task` / `cre
 | D4 | 开工 | 默认 `start=false`；用户明确说开工时 `start=true` | 保持“无要求不开工”的安全边界 |
 | D5 | 同一轮去重 | 同一轮只保留一个任务；todo 阶段允许改标题 | 模型可能先建错再补，不能留下两张工单 |
 | D6 | 完成感知 | 已实现；只在 `review` / `failed` / `waiting_input`（非审批）时追加通知；先模板后异步模型润色，失败回退模板 | 事件即时可见，同时让汇报更像秘书而不是系统日志 |
-| D7 | 代验收 | 已实现；总管派独立验收 Agent，验收员 PASS + verify 0 + workspace 显式开启才自动通过；写审计；可 reopen | 老板需要结果，但验收不能由总管自己说了算 |
+| D7 | 预验收 | 已实现；总管派独立验收 Agent 给初步意见；任务保持 review，最终由人通过或打回；写 recommendation 审计 | 老板需要结果，但“结束只能由我来” |
 | D8 | 代审批 | 已实现：`autopilot.delegatedAuthority` 对总管任务放开高风险（deny 优先，trust/kill switch 约束，写审计） | 用户 2026-11-20 明确选择“高风险也自动批” |
 
 ## 4. 协议与工具增量（Phase 1）
@@ -80,7 +80,7 @@ enqueueTaskInput = { taskId: string }
 
 `SupervisorTaskCard.status` 从 `'todo'` 扩为 `'todo' | 'queued'`，UI 对应显示“待办/已开工”。这是向 M2 卡片形状的兼容扩展（旧值仍是合法值）。
 
-## 5. 完成感知与代验收（Phase 2，已实现）
+## 5. 完成感知与预验收（Phase 2，已实现）
 
 ### 5.1 完成感知
 
@@ -91,23 +91,22 @@ enqueueTaskInput = { taskId: string }
 - 通知先落模板并立即推送，再由总管模型异步润色成 2-4 句自然汇报；润色失败或超时保留模板，前端按同一条消息 id 原位更新。
 - UI 收到 `supervisor.message`：无 `decision` 的消息是观察者通知，不能误关正在流式的总管气泡。
 
-### 5.2 代验收（验收员模式）
+### 5.2 预验收（验收员模式，最终由人决定）
 
-- workspace policy 增加 `autopilot.delegatedAcceptance: boolean`（默认 false）。
-- 任务进入 review 且满足授权时，总管创建：
+- 任务进入 review 时，总管创建：
   1. 一个新的 Agent 节点（标题 `验收员 · <任务标题>`）；
   2. 一个新的任务，`origin.source=supervisor-review`，并通过 `reviewOfTaskId` / `reviewOfReviewId` 绑定目标轮次；
   3. 任务 prompt 只带任务元数据、verify/diff 摘要和工人最后回复（截断），不把完整 transcript 交给总管；
   4. 任务立即开工。
 - 验收员独立检查 git diff、运行只读校验，最后一行必须输出 `VERDICT: PASS` 或 `VERDICT: FAIL`。
 - 验收员任务进入 review 时：
-  1. 系统自动关闭验收员任务（它不需要人再验收）；
+  1. 系统只关闭验收员任务（内部工具任务），**不会改动目标任务状态**；
   2. 解析最后一条 assistant 文本，取最后一次 VERDICT；模型漏写 VERDICT 时，再用 `session.outcome.reason` 的明确结论（满足/通过 vs 不满足/需修改）兜底；仍不明确则视为未验收；
-  3. 若目标仍停在**同一轮** review、验收员 PASS、目标 verify 退出码为 0、workspace trusted、kill switch 关闭、`autopilot.enabled` 与 `delegatedAcceptance` 都为 true，则自动 approve 目标；
-  4. 写 `supervisor.review.dispatch` 与 `supervisor.review.accept` 审计；
-  5. 把验收结论、依据和是否已通过汇总到总管 thread。
-- FAIL / 无结论 / verify 非 0 / 授权关闭 / 目标已被处理时，只汇总，不自动通过。
-- 验收员回合结束但没上报 outcome 而停在 `waiting_input(stalled)` 时，若 transcript 已有明确 VERDICT，就用 `cancel` 收口验收员任务并继续按结论处理；这避免模型漏报 outcome 卡死整条验收链。
+  3. 写 `supervisor.review.dispatch` 与 `supervisor.review.recommend` 审计；
+  4. 把“初步验收 PASS/FAIL + 建议通过/打回 + 依据”汇总到总管 thread。
+- 目标任务始终停在 `review`；只有人 approve 才进入 `done`，人 reject 则打回重跑。**结束只能由人来。**
+- 初步 PASS 但目标 verify 退出码非 0 时，汇报会明确指出机器证据不一致，建议人先排查。
+- 验收员回合结束但没上报 outcome 而停在 `waiting_input(stalled)` 时，若 transcript 已有明确 VERDICT，就用 `cancel` 收口验收员任务并继续给出建议；这避免模型漏报 outcome 卡死整条预验收链。
 - 人仍可 reopen；reopen 后的新轮次需要新的验收员，旧结论不会误批新尝试。
 - worktree 任务：验收员任务复用目标任务的 `worktreePath` 与分支，直接在隔离 worktree 里检查未提交改动并运行校验；目标处于 review，不会并发写。验收员任务自身仍以 worktree 模式启动，但 `createWorktree` 识别已有路径后不再新建。
 
@@ -132,14 +131,14 @@ enqueueTaskInput = { taskId: string }
 
 ## 7. 开放问题
 
-1. ~~是否开启 Phase 2 的“代验收”？~~ 已由用户 2026-11-20 确认：要自动验收，且验收由总管派新的 Agent 完成。
+1. ~~是否开启 Phase 2 的“代验收”？~~ 用户 2026-11-20 最终确认：只做初步验收，最终通过/打回必须由人决定。
 2. ~~完成汇总是否触发一次模型总结？~~ 采用模板先落、异步润色；模型不可用时保留模板。
 
 ## 8. 验证
 
 - Phase 1：`pnpm verify`；`supervisor-tools` 覆盖 create_text/create_agent、auto agent、start、标题纠正、enqueue 守卫。
-- 完成感知：`supervisor-service` 覆盖 review 通知、未授权不派验收员、授权后派验收员、验收员 PASS 自动通过并写审计、FAIL 不通过、stalled 结论恢复、模型润色与失败回退。
+- 完成感知：`supervisor-service` 覆盖 review 派预验收、验收员 PASS 仍留在 review、FAIL 只建议打回、stalled 结论恢复、模型润色与失败回退。
 - worktree：tools 覆盖总管显式创建 worktree 任务；service 覆盖验收员复用目标 worktree 路径与分支。
 - 验收员协议：`supervisor-observe` 覆盖 VERDICT 解析（含全角冒号/多次出现）与 prompt 证据。
-- 代审批：core 单测覆盖高风险自动放行、人类任务不生效、deny 优先、kill switch/未信任不放行；UI 单测覆盖“总管全权”与“总管代验收”开关保存。
-- 手工验收：对总管说“做 XX，直接开工”，应依次出现：任务卡 → 完成通知 → 新验收员 Agent/任务 → 验收结论与自动通过汇总。
+- 代审批：core 单测覆盖高风险自动放行、人类任务不生效、deny 优先、kill switch/未信任不放行；UI 单测覆盖“总管全权”开关保存。
+- 手工验收：对总管说“做 XX，直接开工”，应依次出现：任务卡 → 完成通知 → 新验收员 Agent/任务 → 初步结论 → 任务仍待验收 → 人点通过后才完成。

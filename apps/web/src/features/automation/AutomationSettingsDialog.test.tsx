@@ -26,7 +26,6 @@ function summary(overrides: Partial<AutomationSummary> = {}): AutomationSummary 
         retryMax: 2,
         digestCron: '0 9,21 * * *',
         delegatedAuthority: false,
-        delegatedAcceptance: false,
       },
     },
     policyVersion: 'abc123abc123',
@@ -84,22 +83,6 @@ describe('AutomationSettingsDialog', () => {
     await waitFor(() =>
       expect(updateAutomationPolicy).toHaveBeenCalledWith('w1', {
         autopilot: { delegatedAuthority: true },
-      }),
-    )
-  })
-
-  it('enables delegated acceptance for verifier-based auto approval', async () => {
-    vi.mocked(getAutomation).mockResolvedValue(summary())
-    vi.mocked(listAudit).mockResolvedValue([])
-    vi.mocked(updateAutomationPolicy).mockResolvedValue(summary())
-    wrap()
-
-    await userEvent.click(await screen.findByLabelText('总管代验收'))
-    await userEvent.click(screen.getByRole('button', { name: '保存' }))
-
-    await waitFor(() =>
-      expect(updateAutomationPolicy).toHaveBeenCalledWith('w1', {
-        autopilot: { delegatedAcceptance: true },
       }),
     )
   })

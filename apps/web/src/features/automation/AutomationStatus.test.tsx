@@ -16,7 +16,6 @@ function summary(overrides: Partial<AutomationSummary> = {}): AutomationSummary 
         retryMax: 2,
         digestCron: '0 9,21 * * *',
         delegatedAuthority: false,
-        delegatedAcceptance: false,
       },
     },
     policyVersion: 'abc123abc123',
@@ -76,7 +75,6 @@ describe('AutomationStatus', () => {
               retryMax: 2,
               digestCron: '0 9,21 * * *',
               delegatedAuthority: false,
-              delegatedAcceptance: false,
             },
           },
         })}

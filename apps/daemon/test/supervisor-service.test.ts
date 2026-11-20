@@ -18,10 +18,7 @@ afterEach(() => {
   dbs.splice(0).forEach((entry) => entry.raw.close())
 })
 
-function setup(
-  engine: SupervisorEngine,
-  options: { trusted?: boolean; delegatedAcceptance?: boolean } = {},
-) {
+function setup(engine: SupervisorEngine, options: { trusted?: boolean } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'baton-svc-'))
   dirs.push(root)
   const database = createTestDb()
@@ -32,13 +29,6 @@ function setup(
   })
   seedTextNode(database.raw, seeded.canvasId, 'text-1', '需求 A')
   mkdirSync(join(root, seeded.relPath), { recursive: true })
-  if (options.delegatedAcceptance) {
-    mkdirSync(join(root, seeded.relPath, '.baton'), { recursive: true })
-    writeFileSync(
-      join(root, seeded.relPath, '.baton', 'policy.json'),
-      JSON.stringify({ autopilot: { enabled: true, delegatedAcceptance: true } }),
-    )
-  }
   writeFileSync(
     join(root, 'supervisor.json'),
     JSON.stringify({ baseUrl: 'https://example.com/v1', apiKey: 'sk-test', model: 'demo' }),
@@ -308,7 +298,7 @@ describe('supervisor service', () => {
     return 'verifier-1'
   }
 
-  it('notifies the supervisor when a task needs review without dispatching a verifier', () => {
+  it('dispatches a preliminary verifier and keeps the target in review', () => {
     const engine: SupervisorEngine = {
       async run() {
         throw new Error('unused')
@@ -319,13 +309,13 @@ describe('supervisor service', () => {
 
     service.observeTask({ taskId: seeded.taskId, status: 'review', waitingReason: null })
 
+    expect(database.raw.prepare('select count(*) as n from task').get()).toEqual({ n: 2 })
     const messages = service.history(seeded.workspaceId, 50).messages
-    expect(messages.at(-1)?.content).toContain('进入待验收')
-    expect(messages.at(-1)?.content).toContain('需要你确认')
-    expect(database.raw.prepare('select count(*) as n from task').get()).toEqual({ n: 1 })
+    expect(messages.at(-1)?.content).toContain('初步验收')
+    expect(messages.at(-1)?.content).toContain('最终通过仍由你决定')
   })
 
-  it('dispatches a fresh verifier agent when delegated acceptance is on', () => {
+  it('dispatches a fresh verifier agent for preliminary review', () => {
     const engine: SupervisorEngine = {
       async run() {
         throw new Error('unused')
@@ -333,7 +323,6 @@ describe('supervisor service', () => {
     }
     const { database, seeded, service, frames } = setup(engine, {
       trusted: true,
-      delegatedAcceptance: true,
     })
     seedSupervisorReview(database, seeded)
 
@@ -367,7 +356,6 @@ describe('supervisor service', () => {
     }
     const { database, seeded, service, root } = setup(engine, {
       trusted: true,
-      delegatedAcceptance: true,
     })
     seedSupervisorReview(database, seeded)
     // taskService 会校验 workspace 是 git 仓库；worktree 本身由运行时准备，这里只验证路径复用。
@@ -394,7 +382,7 @@ describe('supervisor service', () => {
     })
   })
 
-  it('accepts the target when the verifier returns PASS and writes audit', () => {
+  it('keeps the target in review when the verifier returns PASS and records a recommendation', () => {
     const engine: SupervisorEngine = {
       async run() {
         throw new Error('unused')
@@ -402,21 +390,26 @@ describe('supervisor service', () => {
     }
     const { database, seeded, service, transitions } = setup(engine, {
       trusted: true,
-      delegatedAcceptance: true,
     })
     const targetOrigin = seedSupervisorReview(database, seeded)
     const verifierTaskId = seedVerifierTask(database, seeded, targetOrigin, 'PASS')
 
     service.observeTask({ taskId: verifierTaskId, status: 'review', waitingReason: null })
 
-    expect(transitions.map((entry) => entry.taskId)).toEqual([verifierTaskId, seeded.taskId])
-    expect(transitions[1]?.event).toMatchObject({ type: 'approve', reviewId: 'rv1' })
+    // 只关闭验收员任务，不替老板通过目标任务。
+    expect(transitions.map((entry) => entry.taskId)).toEqual([verifierTaskId])
     const audit = database.raw
-      .prepare("select action from audit where action = 'supervisor.review.accept'")
+      .prepare("select action from audit where action = 'supervisor.review.recommend'")
       .get() as { action: string } | undefined
-    expect(audit?.action).toBe('supervisor.review.accept')
+    expect(audit?.action).toBe('supervisor.review.recommend')
+    expect(
+      database.raw
+        .prepare("select count(*) as n from audit where action = 'supervisor.review.accept'")
+        .get(),
+    ).toEqual({ n: 0 })
     const messages = service.history(seeded.workspaceId, 50).messages
-    expect(messages.at(-1)?.content).toContain('已把「demo」标记为完成')
+    expect(messages.at(-1)?.content).toContain('建议通过')
+    expect(messages.at(-1)?.content).toContain('等你最终确认')
   })
 
   it('leaves the target in review when the verifier returns FAIL', () => {
@@ -427,7 +420,6 @@ describe('supervisor service', () => {
     }
     const { database, seeded, service, transitions } = setup(engine, {
       trusted: true,
-      delegatedAcceptance: true,
     })
     const targetOrigin = seedSupervisorReview(database, seeded)
     const verifierTaskId = seedVerifierTask(database, seeded, targetOrigin, 'FAIL')
@@ -441,10 +433,11 @@ describe('supervisor service', () => {
         .get(),
     ).toEqual({ n: 0 })
     const messages = service.history(seeded.workspaceId, 50).messages
-    expect(messages.at(-1)?.content).toContain('未自动通过')
+    expect(messages.at(-1)?.content).toContain('建议打回')
+    expect(messages.at(-1)?.content).toContain('最终由你决定')
   })
 
-  it('recovers a stalled verifier verdict and accepts the target', () => {
+  it('recovers a stalled verifier verdict and recommends pass without accepting', () => {
     const engine: SupervisorEngine = {
       async run() {
         throw new Error('unused')
@@ -452,7 +445,6 @@ describe('supervisor service', () => {
     }
     const { database, seeded, service, transitions } = setup(engine, {
       trusted: true,
-      delegatedAcceptance: true,
     })
     const targetOrigin = seedSupervisorReview(database, seeded)
     const verifierTaskId = seedVerifierTask(database, seeded, targetOrigin, 'PASS', 'waiting_input')
@@ -463,10 +455,10 @@ describe('supervisor service', () => {
       waitingReason: 'stalled',
     })
 
-    expect(transitions.map((entry) => entry.taskId)).toEqual([verifierTaskId, seeded.taskId])
+    expect(transitions.map((entry) => entry.taskId)).toEqual([verifierTaskId])
     expect(transitions[0]?.event).toMatchObject({ type: 'cancel' })
-    expect(transitions[1]?.event).toMatchObject({ type: 'approve', reviewId: 'rv1' })
     const messages = service.history(seeded.workspaceId, 50).messages
-    expect(messages.at(-1)?.content).toContain('标记为完成')
+    expect(messages.at(-1)?.content).toContain('建议通过')
+    expect(messages.at(-1)?.content).toContain('等你最终确认')
   })
 })
