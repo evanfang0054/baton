@@ -22,6 +22,14 @@
   - 不得把任务列表当作画布内容，也不得在没查画布时说“不知道”。
 - 仍然不读代码、日志、transcript 或文件内容；画布摘要只到文本预览。
 
+## 实时刷新
+
+总管工具直接写 DB，不经过画布 WS 命令，所以客户端不会自动收到 `node.create`/`edge.create`。修复：
+
+- 收到 `supervisor.tool` 的 `phase=end` 且 `ok=true` 时，如果工具是 `create_text`/`create_agent`/`create_edge`/`create_task`，立即失效当前 workspace 的画布查询。
+- 收到 `supervisor.message` 时，若本轮 `toolCalls` 含上述成功工具，再兜底失效一次，避免工具事件丢失。
+- 失败的工具不刷新，避免无意义的请求。
+
 ## 后果
 
 - 总管能回答“画布上有什么”，也能基于画布节点组织任务。
@@ -33,4 +41,5 @@
 
 - 画布上有文本 + 文件节点、无选中时，问“画布有什么”，总管回复节点标题/类型，而不是“没有任务”。
 - 候选卡包含 `<canvas_overview>`；`list_canvas` 返回节点与连线摘要并有 truncated 标记。
-- 跨 workspace 不可见；现有 7 个工具行为不变。
+- 总管 `create_text`/`create_agent`/`create_edge` 成功后，画布无需手动刷新即可看到新节点/连线。
+- 跨 workspace 不可见；现有工具行为不变。

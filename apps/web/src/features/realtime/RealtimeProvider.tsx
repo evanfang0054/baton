@@ -14,6 +14,8 @@ import { useSupervisorStreamStore } from '../supervisor/stream-store'
 import { appendSessionEvents } from './session-cache'
 
 const INVALIDATING_EVENTS = new Set(['task.status', 'approval.request', 'verify.result'])
+// 总管工具直接写 DB，不经过 canvas WS 命令；这些工具完成后必须主动刷新画布。
+const CANVAS_MUTATING_TOOLS = new Set(['create_text', 'create_agent', 'create_edge', 'create_task'])
 
 export function RealtimeProvider({
   workspaceId,
@@ -128,6 +130,14 @@ export function RealtimeProvider({
         }
         if (event.type === 'supervisor.delta' || event.type === 'supervisor.tool') {
           useSupervisorStreamStore.getState().apply(event.payload)
+          if (
+            event.type === 'supervisor.tool' &&
+            event.payload.phase === 'end' &&
+            event.payload.ok !== false &&
+            CANVAS_MUTATING_TOOLS.has(event.payload.name)
+          ) {
+            void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+          }
           return
         }
         if (event.type === 'supervisor.message') {
@@ -152,6 +162,14 @@ export function RealtimeProvider({
             void queryClient.invalidateQueries({ queryKey: key })
             // create_task 不经过 task.status 事件；任务列表/看板必须在这里刷新。
             void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+            // 工具事件丢失时的兜底：本轮有画布写入就再刷新一次。
+            if (
+              event.payload.toolCalls.some(
+                (call) => call.ok && CANVAS_MUTATING_TOOLS.has(call.name),
+              )
+            ) {
+              void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+            }
             const taskId = event.payload.decision?.taskId
             if (taskId) {
               void queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
