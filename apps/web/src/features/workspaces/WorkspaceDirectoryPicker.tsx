@@ -12,6 +12,10 @@ interface WorkspaceDirectoryPickerProps {
 
 const LIST_CLASS =
   'max-h-64 overflow-y-auto rounded-lg border border-separator bg-surface-secondary'
+const CRUMB_BUTTON_CLASS = [
+  'rounded px-1 py-0.5 hover:text-foreground',
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent',
+].join(' ')
 
 function crumbsFor(path: string): Array<{ label: string; path: string }> {
   const parts = path ? path.split('/') : []
@@ -69,7 +73,7 @@ export function WorkspaceDirectoryPicker({ onSelect }: WorkspaceDirectoryPickerP
               {index > 0 ? <span aria-hidden="true">/</span> : null}
               <button
                 type="button"
-                className="rounded px-1 py-0.5 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                className={CRUMB_BUTTON_CLASS}
                 onClick={() => setPath(crumb.path)}
                 aria-current={crumb.path === path ? 'page' : undefined}
               >
@@ -131,7 +135,9 @@ export function WorkspaceDirectoryPicker({ onSelect }: WorkspaceDirectoryPickerP
         ) : null}
       </div>
       {data?.truncated ? (
-        <p className="text-xs text-warning">结果过多，只显示前一部分，请输入更精确的搜索词。</p>
+        <p className="text-xs text-warning">
+          结果可能不完整：已达到搜索数量或深度上限，请缩小范围或输入更精确的关键词。
+        </p>
       ) : null}
       <p className="text-xs text-muted">只能选择工作区根目录下的子目录；选择后自动填入名称。</p>
     </div>

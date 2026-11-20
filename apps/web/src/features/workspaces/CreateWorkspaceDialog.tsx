@@ -14,6 +14,10 @@ interface CreateWorkspaceDialogProps {
   mobile?: boolean
 }
 
+const PATH_DISPLAY_CLASS = [
+  'min-w-0 flex-1 rounded-lg border border-separator bg-surface-secondary px-3 py-2 text-sm',
+].join(' ')
+
 export function CreateWorkspaceDialog({
   onCreated,
   open: controlledOpen,
@@ -78,7 +82,7 @@ export function CreateWorkspaceDialog({
                 <div className="flex flex-col gap-2">
                   <span className="text-sm font-medium text-foreground">工作区目录</span>
                   <div className="flex items-center gap-2">
-                    <div className="min-w-0 flex-1 rounded-lg border border-separator bg-surface-secondary px-3 py-2 text-sm">
+                    <div className={PATH_DISPLAY_CLASS}>
                       {relPath ? (
                         <span className="block truncate text-foreground">{relPath}</span>
                       ) : (

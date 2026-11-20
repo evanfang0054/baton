@@ -223,7 +223,7 @@ describe('App shell', () => {
             path: '',
             parent: null,
             entries: searching
-              ? [{ name: 'baton', relPath: 'Desktop/Arwen/baton', hasGit: true }]
+              ? [{ name: 'baton', relPath: 'projects/baton-demo', hasGit: true }]
               : [{ name: 'Desktop', relPath: 'Desktop', hasGit: false }],
             truncated: false,
             searching,
@@ -237,9 +237,9 @@ describe('App shell', () => {
     await user.click(screen.getByRole('button', { name: '选择目录' }))
     await screen.findByRole('button', { name: '选择目录 Desktop' })
     await user.type(screen.getByLabelText('搜索目录'), 'baton')
-    await user.click(await screen.findByRole('button', { name: '选择目录 Desktop/Arwen/baton' }))
+    await user.click(await screen.findByRole('button', { name: '选择目录 projects/baton-demo' }))
 
-    expect(screen.getByText('Desktop/Arwen/baton')).toBeInTheDocument()
+    expect(screen.getByText('projects/baton-demo')).toBeInTheDocument()
   })
 
   it('shows an unauthenticated hint when the API returns 401', async () => {
