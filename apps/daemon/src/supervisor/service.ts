@@ -832,7 +832,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       const hasCreate = result.toolCalls.some(
         (call) => (call.name === 'create_task' || call.name === 'create_tasks') && call.ok,
       )
-      if (/已(建|创建)|建好了|任务.*(创建|建好)/.test(text) && !hasCreate) {
+      if (/已(建|创建)(了)?|已经(建|创建)|建好了|任务(已|已经)(建|创建)/.test(text) && !hasCreate) {
         text += '\n\n（我没有创建任务；请明确说要做什么，我再建任务。）'
         reason = 'claim_without_tool'
       }
