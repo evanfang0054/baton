@@ -4,7 +4,7 @@ spec_topic: m5-3-context-handoff
 task_count: 7
 estimated_phases: [core, daemon, verification]
 dod: "buildHandoffSummary 纯函数；handoff service；WS task.handoff；总管 handoff_task；prompt/claim/策略；daemon 集成测试"
-status: pending
+status: completed
 depends_on: none
 ---
 
@@ -580,7 +580,10 @@ git commit -m "test(daemon): 交接节点与总管交接"
 
 ## 执行记录
 
-（实现后填写：提交、测试数量、偏离与原因。）
+- 2026-11-21：Task 1/2 完成，提交 `325c1ab`；`buildHandoffSummary` 12 条测试（含快照、限长、路径、worktree、确定性）。
+- 2026-11-21：Task 3/4/5/6 完成，提交 `c9217b9`（`task.handoff`）、`d587624`（`allowedTools` 15）、`0dd714e`（service、runtime、总管 `handoff_task`、prompt/claim）。
+- 2026-11-21：Task 7 完成，`apps/daemon/test/handoff.test.ts` 7 条；daemon 294 tests、core 140 tests 全绿；`pnpm verify` 通过。
+- 关键实现：`HandoffDeps` 用 `workspacesRoot` 而不是整份 Config；`task.handoff` payload 增加可选 `workspaceId` 用于归属校验；`handoff_task` 不写 `ctx.memo.taskId`，避免同轮 `create_task` 复用；抽 `createTaskForTool` 复用建任务逻辑。
 
 ## 计划自检
 

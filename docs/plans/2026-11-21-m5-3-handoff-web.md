@@ -4,7 +4,7 @@ spec_topic: m5-3-context-handoff
 task_count: 4
 estimated_phases: [web, verification]
 dod: "任务详情交接按钮；task.handoff 命令；Toast/warnings；总管 handoff_task 多卡与来源行；移动端；组件测试"
-status: pending
+status: completed
 depends_on: docs/plans/2026-11-21-m5-3-handoff-core-daemon.md
 ---
 
@@ -266,7 +266,9 @@ git commit -m "chore(web): M5-3 交接收口"
 
 ## 执行记录
 
-（实现后填写：提交、测试数量、偏离与原因。）
+- 2026-11-21：Task 1 完成，提交 `95a276d`；`HandoffButton` 4 条组件测试（状态门槛、命令、warnings、失败 Toast）。
+- 2026-11-21：Task 2/3/4 完成，提交 `14c0c30`；`SupervisorMessage` 渲染交接来源与 worktree 警告；`RealtimeProvider` 把 `handoff_task` 纳入 tasks/canvas 失效集合；web 204 tests 全绿。
+- 未新增移动专属交互：按钮在任务详情滚动区内，移动端复用同一组件。
 
 ## 计划自检
 

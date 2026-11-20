@@ -4,7 +4,7 @@ spec_topic: m5-3-context-handoff
 task_count: 5
 estimated_phases: [tests, verification, documentation]
 dod: "Playwright UI/总管交接；真实 Claude A→B；证据落库；docs 索引与 contract 收口；全量命令通过"
-status: pending
+status: in-progress
 depends_on: docs/plans/2026-11-21-m5-3-handoff-core-daemon.md, docs/plans/2026-11-21-m5-3-handoff-web.md
 ---
 
@@ -275,7 +275,9 @@ git commit -m "chore: M5-3 全量验证收口"
 
 ## 执行记录
 
-（实现后填写：Playwright 数量、真实 Claude 链路、偏离与原因。）
+- 2026-11-21：Task 1/2 完成，提交 `7a7820a`；`handoff.spec.ts` 2 条（任务详情生成节点并刷新画布；总管交接卡 + worktree 警告）全绿。
+- 2026-11-21：Task 5 全量命令通过：`pnpm verify:full`（protocol 119、core 140、adapters 27、web 204、daemon 294 tests；Playwright 37 条全绿）、`pnpm pack:check` 通过。
+- Task 3/4（真实 Claude + ego-lite 证据）待执行；证据 README 计划落 `docs/evidence/2026-11-21-m5-3-context-handoff/`。
 
 ## 计划自检
 
