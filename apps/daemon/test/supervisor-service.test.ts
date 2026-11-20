@@ -79,6 +79,16 @@ function setup(
         events: [],
       }
     },
+    replyToTask: () => ({ ok: true }),
+    cancelTask: (taskId) => ({
+      ok: true,
+      taskId,
+      status: 'cancelled',
+      previousStatus: 'running',
+      retryCount: 0,
+      waitingReason: null,
+      events: [],
+    }),
     workspacesRoot: root,
     killSwitch: () => options.killSwitch === true,
     engine,
@@ -142,6 +152,78 @@ describe('supervisor service', () => {
     expect(duplicate.ok).toBe(true)
     // seedTask 已有一条占位任务；重复 requestId 不应再建第二条新任务。
     expect(database.raw.prepare('select count(*) as n from task').get()).toEqual({ n: 2 })
+  })
+
+  it('corrects after-sales claims without tool results', async () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        return { text: '已重试那个任务。', toolCalls: [], finishReason: 'stop' }
+      },
+    }
+    const { seeded, service, frames } = setup(engine)
+    const ack = service.send({
+      workspaceId: seeded.workspaceId,
+      requestId: 'r-claim',
+      text: '重试那个任务',
+      contextNodeIds: [],
+      targetNodeId: seeded.nodeId,
+    })
+    expect(ack.ok).toBe(true)
+    await service.waitForIdle()
+    const message = frames.find((frame) => frame.includes('supervisor.message'))
+    expect(message).toContain('没有对应的工具结果')
+  })
+
+  it('does not treat a task title containing 创建 as a create claim', async () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        return {
+          text: '已重开任务《在 demo 仓库创建 hello.txt 并写入 hello》，状态 queued。',
+          toolCalls: [
+            {
+              id: 'tc-reopen',
+              name: 'reopen_task',
+              args: { taskId: 't1', start: true },
+              ok: true,
+              result: { ok: true, taskId: 't1', status: 'queued' },
+            },
+          ],
+          finishReason: 'stop',
+        }
+      },
+    }
+    const { seeded, service, frames } = setup(engine)
+    const ack = service.send({
+      workspaceId: seeded.workspaceId,
+      requestId: 'r-reopen',
+      text: '上次那个任务跟进一下',
+      contextNodeIds: [],
+      targetNodeId: seeded.nodeId,
+    })
+    expect(ack.ok).toBe(true)
+    await service.waitForIdle()
+    const message = frames.find((frame) => frame.includes('supervisor.message')) ?? ''
+    expect(message).not.toContain('我没有创建任务')
+  })
+
+  it('corrects batch create claims without tool results', async () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        return { text: '已批量建好 3 个待办。', toolCalls: [], finishReason: 'stop' }
+      },
+    }
+    const { seeded, service, frames } = setup(engine)
+    const ack = service.send({
+      workspaceId: seeded.workspaceId,
+      requestId: 'r-batch-claim',
+      text: '分别建三个任务',
+      contextNodeIds: [],
+      targetNodeId: seeded.nodeId,
+    })
+    expect(ack.ok).toBe(true)
+    await service.waitForIdle()
+    const message = frames.find((frame) => frame.includes('supervisor.message'))
+    expect(message).toContain('没有创建任务')
   })
 
   it('includes the canvas overview when nothing is selected', async () => {

@@ -1,11 +1,17 @@
 import {
+  Ban,
   CheckCircle2,
   ChevronDown,
   FileSearch,
+  History,
   LayoutGrid,
   ListChecks,
+  ListPlus,
   Loader2,
+  MessageSquare,
   PlusCircle,
+  RefreshCw,
+  RotateCcw,
   Wrench,
   XCircle,
 } from 'lucide-react'
@@ -26,7 +32,13 @@ const icons: Record<string, ComponentType<{ size?: number; className?: string }>
   list_canvas: LayoutGrid,
   list_tasks: ListChecks,
   get_task: FileSearch,
+  get_task_history: History,
   create_task: PlusCircle,
+  create_tasks: ListPlus,
+  retry_task: RefreshCw,
+  reopen_task: RotateCcw,
+  cancel_task: Ban,
+  reply_task: MessageSquare,
 }
 
 function preview(value: unknown): string {

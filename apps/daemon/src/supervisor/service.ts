@@ -63,6 +63,8 @@ export interface SupervisorServiceDeps {
   defaultEngine: EngineValue
   enqueueTask: (taskId: string) => EnqueueTaskResult
   applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
+  replyToTask: (taskId: string, text: string) => { ok: boolean; error?: AppError }
+  cancelTask: (taskId: string, reason?: string) => TransitionOutcome
   workspacesRoot: string
   killSwitch: () => boolean
   engine?: SupervisorEngine
@@ -143,6 +145,9 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     newId: deps.newId,
     defaultEngine: deps.defaultEngine,
     enqueueTask: deps.enqueueTask,
+    applyTransition: deps.applyTransition,
+    replyToTask: deps.replyToTask,
+    cancelTask: deps.cancelTask,
   })
   const policyVersion = supervisorPolicyVersion(SUPERVISOR_POLICY, PROMPT_VERSION)
   const active = new Set<string>()
@@ -736,6 +741,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           input.threadId,
         ),
         get_task: wrapTool('get_task', bound.get_task, input.assistantMessageId, input.threadId),
+        get_task_history: wrapTool(
+          'get_task_history',
+          bound.get_task_history,
+          input.assistantMessageId,
+          input.threadId,
+        ),
         create_task: wrapTool(
           'create_task',
           bound.create_task,
@@ -745,6 +756,36 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         enqueue_task: wrapTool(
           'enqueue_task',
           bound.enqueue_task,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        retry_task: wrapTool(
+          'retry_task',
+          bound.retry_task,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        reopen_task: wrapTool(
+          'reopen_task',
+          bound.reopen_task,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        cancel_task: wrapTool(
+          'cancel_task',
+          bound.cancel_task,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        reply_task: wrapTool(
+          'reply_task',
+          bound.reply_task,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        create_tasks: wrapTool(
+          'create_tasks',
+          bound.create_tasks,
           input.assistantMessageId,
           input.threadId,
         ),
@@ -790,13 +831,26 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       flush()
       let text = result.text.trim() || '（总管没有返回内容）'
       let reason = 'explicit request'
-      const hasCreate = result.toolCalls.some((call) => call.name === 'create_task' && call.ok)
-      if (/已(建|创建)|建好了|任务.*(创建|建好)/.test(text) && !hasCreate) {
+      const hasCreate = result.toolCalls.some(
+        (call) => (call.name === 'create_task' || call.name === 'create_tasks') && call.ok,
+      )
+      if (
+        /已(批量)?(建|创建)|已经(批量)?(建|创建)|建好了|任务(已|已经)(建|创建)/.test(text) &&
+        !hasCreate
+      ) {
         text += '\n\n（我没有创建任务；请明确说要做什么，我再建任务。）'
         reason = 'claim_without_tool'
       }
       if (/已完成|已通过/.test(text) && !result.toolCalls.some((call) => call.ok)) {
         text += '\n\n（我没有工具结果证明完成；请以看板/任务详情状态为准。）'
+        reason = 'claim_without_tool'
+      }
+      const hasAfterSales = result.toolCalls.some(
+        (call) =>
+          ['retry_task', 'reopen_task', 'cancel_task', 'reply_task'].includes(call.name) && call.ok,
+      )
+      if (/已(经)?(为你|帮你)?(重试|重开|取消|回复)/.test(text) && !hasAfterSales) {
+        text += '\n\n（我没有对应的工具结果；请以任务详情/看板状态为准。）'
         reason = 'claim_without_tool'
       }
       const card = result.toolCalls
@@ -809,6 +863,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
               (call) =>
                 call.name === 'list_tasks' ||
                 call.name === 'get_task' ||
+                call.name === 'get_task_history' ||
                 call.name === 'list_canvas',
             )
           ? 'query_status'

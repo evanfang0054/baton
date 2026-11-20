@@ -9,29 +9,38 @@ import {
   Engine,
   Node,
   SupervisorTaskCard,
+  TaskStatus,
   type Actor,
   type AppError,
   type Engine as EngineValue,
   type SupervisorTaskCard as SupervisorTaskCardValue,
-  type TaskStatus,
+  type Task,
+  type TaskTransitionEvent,
 } from '@baton/protocol'
 import { z } from 'zod'
 import {
   getCanvasByWorkspace,
   getNode,
   getReviewByTask,
+  getTask,
   getTaskDetail,
+  insertAudit,
   insertNode,
   listEdges,
   listNodes,
+  listApprovalsByTask,
+  listReviewsByTask,
   listSessionsByTask,
+  listTaskStatusHistory,
   listTasks,
   updateTaskTitle,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
 import { createEdge as createCanvasEdge } from '../runtime/edge-service.js'
+import { ASK_USER_QUESTION_TOOL, readQuestions } from '../runtime/questions.js'
 import type { TaskService } from '../runtime/task-service.js'
+import type { TransitionOutcome } from '../runtime/types.js'
 import { nodeSummary, textTitle } from './canvas-summary.js'
 
 export interface AgentCandidate {
@@ -53,7 +62,11 @@ export interface ToolContext {
   }
   policyVersion: string
   promptVersion: string
-  memo: { taskId?: string; createdNodeIds?: string[] }
+  memo: {
+    taskId?: string
+    createdNodeIds?: string[]
+    batch?: { key: string; result: unknown }
+  }
 }
 
 export interface SupervisorTool {
@@ -66,8 +79,14 @@ export interface SupervisorToolset {
   list_canvas: SupervisorTool
   list_tasks: SupervisorTool
   get_task: SupervisorTool
+  get_task_history: SupervisorTool
   create_task: SupervisorTool
   enqueue_task: SupervisorTool
+  retry_task: SupervisorTool
+  reopen_task: SupervisorTool
+  cancel_task: SupervisorTool
+  reply_task: SupervisorTool
+  create_tasks: SupervisorTool
   create_text: SupervisorTool
   create_agent: SupervisorTool
   create_edge: SupervisorTool
@@ -83,8 +102,14 @@ export interface BoundToolset {
   list_canvas: BoundTool
   list_tasks: BoundTool
   get_task: BoundTool
+  get_task_history: BoundTool
   create_task: BoundTool
   enqueue_task: BoundTool
+  retry_task: BoundTool
+  reopen_task: BoundTool
+  cancel_task: BoundTool
+  reply_task: BoundTool
+  create_tasks: BoundTool
   create_text: BoundTool
   create_agent: BoundTool
   create_edge: BoundTool
@@ -100,8 +125,14 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     list_canvas: bind(tools.list_canvas),
     list_tasks: bind(tools.list_tasks),
     get_task: bind(tools.get_task),
+    get_task_history: bind(tools.get_task_history),
     create_task: bind(tools.create_task),
     enqueue_task: bind(tools.enqueue_task),
+    retry_task: bind(tools.retry_task),
+    reopen_task: bind(tools.reopen_task),
+    cancel_task: bind(tools.cancel_task),
+    reply_task: bind(tools.reply_task),
+    create_tasks: bind(tools.create_tasks),
     create_text: bind(tools.create_text),
     create_agent: bind(tools.create_agent),
     create_edge: bind(tools.create_edge),
@@ -110,6 +141,8 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
 
 const listTasksInput = z.object({
   filter: z.enum(['all', 'attention']).default('all'),
+  status: TaskStatus.optional(),
+  q: z.string().trim().min(1).max(120).optional(),
   limit: z.number().int().min(1).max(50).default(20),
 })
 
@@ -118,6 +151,12 @@ const listCanvasInput = z.object({
 })
 
 const getTaskInput = z.object({ taskId: z.string().min(1) })
+
+const getTaskHistoryInput = z.object({
+  taskId: z.string().min(1),
+  limit: z.number().int().min(1).max(50).default(20),
+  beforeOrdinal: z.number().int().nonnegative().optional(),
+})
 
 const createTaskInput = z.object({
   title: z.string().min(1).max(80),
@@ -130,6 +169,37 @@ const createTaskInput = z.object({
 })
 
 const enqueueTaskInput = z.object({ taskId: z.string().min(1) })
+
+const retryTaskInput = z.object({
+  taskId: z.string().min(1),
+  note: z.string().min(1).max(16_384).optional(),
+})
+
+const reopenTaskInput = z.object({
+  taskId: z.string().min(1),
+  note: z.string().min(1).max(16_384).optional(),
+  start: z.boolean().default(false),
+})
+
+const cancelTaskInput = z.object({
+  taskId: z.string().min(1),
+  reason: z.string().min(1).max(1_000).optional(),
+  confirm: z.boolean().default(false),
+})
+
+const replyTaskInput = z.object({
+  taskId: z.string().min(1),
+  text: z.string().min(1).max(16_384),
+})
+
+const createTasksInput = z.object({
+  nodeIds: z.array(z.string().min(1)).min(1),
+  targetNodeId: z.string().min(1).optional(),
+  agentTitle: z.string().min(1).max(80).optional(),
+  engine: Engine.optional(),
+  contextNodeIds: z.array(z.string().min(1)).max(40).optional(),
+  start: z.boolean().default(false),
+})
 
 const createTextInput = z.object({
   content: z.string().min(1).max(16_384),
@@ -148,6 +218,8 @@ const createEdgeInput = z.object({
 
 export type EnqueueTaskResult = { ok: true; status: TaskStatus } | { ok: false; error: AppError }
 
+type BatchFailure = { nodeId: string; stage: 'create' | 'enqueue'; error: AppError }
+
 export interface SupervisorToolsDeps {
   db: Db
   taskService: TaskService
@@ -155,9 +227,34 @@ export interface SupervisorToolsDeps {
   newId: () => string
   defaultEngine: EngineValue
   enqueueTask: (taskId: string) => EnqueueTaskResult
+  applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
+  replyToTask: (taskId: string, text: string) => { ok: boolean; error?: AppError }
+  cancelTask: (taskId: string, reason?: string) => TransitionOutcome
 }
 
 const CONTENT_TYPES = new Set(['text', 'file', 'image'])
+
+function pendingForTask(db: Db, task: Task): unknown {
+  if (task.status !== 'waiting_input') return null
+  if (task.waitingReason !== 'approval') {
+    return task.waitingReason ? { kind: task.waitingReason } : null
+  }
+  const approval = listApprovalsByTask(db, task.id)
+    .filter((item) => item.decision === null)
+    .at(-1)
+  if (!approval) return { kind: 'approval' }
+  const base = {
+    kind: 'approval' as const,
+    approval: {
+      toolName: approval.request.toolName,
+      risk: approval.request.risk,
+      ...(approval.request.reason ? { reason: approval.request.reason } : {}),
+    },
+  }
+  if (approval.request.toolName !== ASK_USER_QUESTION_TOOL) return base
+  const questions = readQuestions(approval.request)
+  return questions ? { kind: 'question' as const, question: { questions } } : base
+}
 
 export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorToolset {
   function taskSummary(task: ReturnType<typeof listTasks>[number], column: string) {
@@ -230,7 +327,12 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
 
   function resolveAgentTarget(
     ctx: ToolContext,
-    parsed: z.infer<typeof createTaskInput>,
+    parsed: {
+      title: string
+      targetNodeId?: string
+      agentTitle?: string
+      engine?: EngineValue
+    },
   ): { id: string; title: string; engine: EngineValue; created: boolean } {
     const canvas = canvasFor(ctx)
     const requested =
@@ -288,6 +390,40 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     return target.engine
   }
 
+  function requireTask(ctx: ToolContext, taskId: string): Task {
+    const task = getTask(deps.db, taskId)
+    if (!task || task.workspaceId !== ctx.workspaceId) {
+      throw appError('task_not_found', 'task not found', { taskId })
+    }
+    return task
+  }
+
+  function audit(
+    action: string,
+    taskId: string,
+    ctx: ToolContext,
+    detail: Record<string, unknown> = {},
+  ): void {
+    deps.db.transaction((tx) => {
+      insertAudit(tx, {
+        id: deps.newId(),
+        ts: deps.now(),
+        actor: 'supervisor',
+        action,
+        detail: { taskId, triggerId: ctx.triggerId, threadId: ctx.threadId, ...detail },
+      })
+    })
+  }
+
+  function transitionResult(outcome: TransitionOutcome): {
+    ok: true
+    taskId: string
+    status: TaskStatus
+  } {
+    if (!outcome.ok) throw outcome.error
+    return { ok: true, taskId: outcome.taskId, status: outcome.status }
+  }
+
   return {
     list_canvas: {
       description:
@@ -322,7 +458,17 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       parameters: listTasksInput,
       async execute(input, ctx) {
         const parsed = listTasksInput.parse(input)
-        const tasks = listTasks(deps.db, { workspaceId: ctx.workspaceId })
+        const needle = parsed.q?.toLowerCase()
+        const tasks = listTasks(deps.db, {
+          workspaceId: ctx.workspaceId,
+          ...(parsed.status ? { status: parsed.status } : {}),
+        })
+          .filter(
+            (task) =>
+              !needle ||
+              task.title.toLowerCase().includes(needle) ||
+              task.id.toLowerCase().startsWith(needle),
+          )
           .map((task) => taskSummary(task, boardColumn(task.status)))
           .filter((task) => (parsed.filter === 'attention' ? task.needsPerson : true))
           .sort((a, b) => {
@@ -384,6 +530,52 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
                 truncated: task.context.truncated || task.context.relationsTruncated,
               }
             : null,
+          pending: pendingForTask(deps.db, task),
+        }
+      },
+    },
+
+    get_task_history: {
+      description:
+        '读取任务状态转移、session 与 review 摘要；不返回 transcript、日志或 diff 正文。',
+      parameters: getTaskHistoryInput,
+      async execute(input, ctx) {
+        const parsed = getTaskHistoryInput.parse(input)
+        const detail = getTaskDetail(deps.db, parsed.taskId)
+        if (!detail || detail.task.workspaceId !== ctx.workspaceId) {
+          throw appError('task_not_found', 'task not found', { taskId: parsed.taskId })
+        }
+        const history = listTaskStatusHistory(
+          deps.db,
+          parsed.taskId,
+          parsed.limit,
+          parsed.beforeOrdinal,
+        )
+        return {
+          taskId: parsed.taskId,
+          statusEvents: history.items,
+          sessions: listSessionsByTask(deps.db, parsed.taskId)
+            .slice(-20)
+            .map((session) => ({
+              id: session.id,
+              status: session.status,
+              outcome: session.outcome,
+              startedAt: session.startedAt,
+              endedAt: session.endedAt,
+            })),
+          reviews: listReviewsByTask(deps.db, parsed.taskId)
+            .slice(0, 20)
+            .map((review) => ({
+              id: review.id,
+              verdict: review.verdict,
+              verifyExitCode: review.verifyExitCode,
+              diffStat: review.diffStat,
+              diffAvailable: review.diffAvailable,
+              decidedAt: review.decidedAt,
+            })),
+          ...(history.nextBeforeOrdinal !== undefined
+            ? { nextBeforeOrdinal: history.nextBeforeOrdinal }
+            : {}),
         }
       },
     },
@@ -537,6 +729,144 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       },
     },
 
+    create_tasks: {
+      description:
+        '从 1-6 个文本节点批量创建任务；共享一个 Agent；默认全部待办；start=true 时才批量开工。',
+      parameters: createTasksInput,
+      async execute(input, ctx) {
+        const parsed = createTasksInput.parse(input)
+        if (parsed.nodeIds.length < 1 || parsed.nodeIds.length > 6) {
+          throw appError('supervisor_batch_invalid', 'nodeIds must contain 1-6 ids', {
+            nodeIds: parsed.nodeIds,
+          })
+        }
+        if (parsed.nodeIds.length !== new Set(parsed.nodeIds).size) {
+          throw appError('supervisor_batch_invalid', 'nodeIds must be unique', {
+            nodeIds: parsed.nodeIds,
+          })
+        }
+        const batchKey = JSON.stringify({
+          nodeIds: [...parsed.nodeIds].sort(),
+          targetNodeId: parsed.targetNodeId ?? null,
+          contextNodeIds: parsed.contextNodeIds ?? [],
+          engine: parsed.engine ?? null,
+          start: parsed.start,
+        })
+        if (ctx.memo.batch?.key === batchKey) {
+          return ctx.memo.batch.result as {
+            created: SupervisorTaskCardValue[]
+            failed: BatchFailure[]
+          }
+        }
+        const canvas = canvasFor(ctx)
+        const textNodes = parsed.nodeIds.map((id) => {
+          const node = getNode(deps.db, id)
+          if (
+            !node ||
+            node.canvasId !== canvas.id ||
+            node.type !== 'text' ||
+            !node.data.content.trim()
+          ) {
+            throw appError(
+              'supervisor_batch_invalid',
+              'all nodeIds must be non-empty text nodes on this canvas',
+              { nodeIds: parsed.nodeIds, invalidNodeId: id },
+            )
+          }
+          return node
+        })
+        const target = resolveAgentTarget(ctx, {
+          title: textTitle(textNodes[0]!.data.content),
+          ...(parsed.targetNodeId ? { targetNodeId: parsed.targetNodeId } : {}),
+          ...(parsed.agentTitle ? { agentTitle: parsed.agentTitle } : {}),
+          ...(parsed.engine ? { engine: parsed.engine } : {}),
+        })
+        const engine = resolveEngine(parsed.engine, target)
+        const sharedContext = (parsed.contextNodeIds ?? ctx.selection.contextNodeIds).filter(
+          (id) => !parsed.nodeIds.includes(id),
+        )
+        const contextNodeIds = resolveContext(ctx, sharedContext, target.id)
+
+        const created: SupervisorTaskCardValue[] = []
+        const failed: BatchFailure[] = []
+
+        for (const node of textNodes) {
+          const title = textTitle(node.data.content).slice(0, 80)
+          const origin = buildTaskOrigin({
+            source: 'supervisor-chat',
+            triggerId: ctx.triggerId,
+            threadId: ctx.threadId,
+            workspaceId: ctx.workspaceId,
+            targetNodeId: target.id,
+            contextNodeIds,
+            policyVersion: ctx.policyVersion,
+            promptVersion: ctx.promptVersion,
+            createdAt: deps.now(),
+          })
+          const result = deps.taskService.createTask(
+            {
+              workspaceId: ctx.workspaceId,
+              nodeId: target.id,
+              title,
+              prompt: node.data.content,
+              contextNodeIds,
+              engine,
+              workspaceMode: 'main',
+              dangerouslySkipPermissions: false,
+            },
+            {
+              origin,
+              audit: {
+                actor: 'supervisor',
+                action: 'supervisor.task.create',
+                detail: {
+                  triggerId: ctx.triggerId,
+                  threadId: ctx.threadId,
+                  policyVersion: ctx.policyVersion,
+                  contextNodeIds,
+                  engine,
+                  createdAgent: target.created,
+                  batch: true,
+                  sourceNodeId: node.id,
+                },
+              },
+            },
+          )
+          if (!result.ok) {
+            failed.push({ nodeId: node.id, stage: 'create', error: result.error })
+            continue
+          }
+          let status: 'todo' | 'queued' = 'todo'
+          if (parsed.start) {
+            const enqueued = deps.enqueueTask(result.taskId)
+            if (enqueued.ok) status = 'queued'
+            else failed.push({ nodeId: node.id, stage: 'enqueue', error: enqueued.error })
+          }
+          created.push(card(result.taskId, title, target, contextNodeIds.length, status))
+        }
+
+        audit('supervisor.task.batch', created[0]?.taskId ?? parsed.nodeIds[0]!, ctx, {
+          nodeIds: parsed.nodeIds,
+          createdTaskIds: created.map((item) => item.taskId),
+          failed: failed.map((item) => item.nodeId),
+          started: parsed.start,
+        })
+        if (created.length === 0) {
+          throw appError('supervisor_batch_failed', 'no tasks were created', {
+            nodeIds: parsed.nodeIds,
+            failed: failed.map((item) => ({
+              nodeId: item.nodeId,
+              stage: item.stage,
+              code: item.error.code,
+            })),
+          })
+        }
+        const batchResult = { created, failed }
+        ctx.memo.batch = { key: batchKey, result: batchResult }
+        return batchResult
+      },
+    },
+
     enqueue_task: {
       description: '把一个待办任务立即开工；只接受 todo 状态，验收仍由用户决定。',
       parameters: enqueueTaskInput,
@@ -558,6 +888,106 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         const outcome = deps.enqueueTask(parsed.taskId)
         if (!outcome.ok) throw outcome.error
         return { taskId: parsed.taskId, status: outcome.status }
+      },
+    },
+
+    retry_task: {
+      description: '重试一个失败任务；只有 failed 可用。note 用用户原话，写入 <feedback>。',
+      parameters: retryTaskInput,
+      async execute(input, ctx) {
+        const parsed = retryTaskInput.parse(input)
+        const task = requireTask(ctx, parsed.taskId)
+        if (task.status !== 'failed') {
+          throw appError('invalid_transition', 'only failed tasks can be retried', {
+            taskId: task.id,
+            status: task.status,
+          })
+        }
+        const result = transitionResult(
+          deps.applyTransition(task.id, {
+            type: 'retry',
+            ...(parsed.note ? { note: parsed.note } : {}),
+          }),
+        )
+        audit('supervisor.task.retry', task.id, ctx, { hasNote: Boolean(parsed.note) })
+        return result
+      },
+    },
+
+    reopen_task: {
+      description:
+        '重开一个已完成/已取消的任务；start=true 时重开后立即开工。note 用用户原话，写入 <reopen_note>。',
+      parameters: reopenTaskInput,
+      async execute(input, ctx) {
+        const parsed = reopenTaskInput.parse(input)
+        const task = requireTask(ctx, parsed.taskId)
+        if (task.status !== 'done' && task.status !== 'cancelled') {
+          throw appError('invalid_transition', 'only done/cancelled tasks can be reopened', {
+            taskId: task.id,
+            status: task.status,
+          })
+        }
+        const result = transitionResult(
+          deps.applyTransition(task.id, {
+            type: 'reopen',
+            ...(parsed.note ? { note: parsed.note } : {}),
+          }),
+        )
+        let status: TaskStatus = result.status
+        let startError: string | undefined
+        if (parsed.start) {
+          const outcome = deps.enqueueTask(task.id)
+          if (outcome.ok) status = outcome.status
+          else startError = outcome.error.message
+        }
+        audit('supervisor.task.reopen', task.id, ctx, {
+          hasNote: Boolean(parsed.note),
+          started: Boolean(parsed.start && !startError),
+        })
+        return {
+          ok: true,
+          taskId: task.id,
+          status,
+          ...(startError ? { startError } : {}),
+        }
+      },
+    },
+
+    cancel_task: {
+      description: '取消一个非终态任务；运行中任务需要 confirm=true。reason 用用户原话，可选。',
+      parameters: cancelTaskInput,
+      async execute(input, ctx) {
+        const parsed = cancelTaskInput.parse(input)
+        const task = requireTask(ctx, parsed.taskId)
+        if (task.status === 'done' || task.status === 'failed' || task.status === 'cancelled') {
+          throw appError('invalid_transition', 'terminal tasks cannot be cancelled', {
+            taskId: task.id,
+            status: task.status,
+          })
+        }
+        if (task.status === 'running' && !parsed.confirm) {
+          throw appError('confirmation_required', 'task is running; confirm before cancelling', {
+            taskId: task.id,
+            status: task.status,
+          })
+        }
+        const result = transitionResult(deps.cancelTask(task.id, parsed.reason))
+        audit('supervisor.task.cancel', task.id, ctx, { hasReason: Boolean(parsed.reason) })
+        return result
+      },
+    },
+
+    reply_task: {
+      description:
+        '回复一个等待输入的任务；只转发用户原话，不处理审批。审批请让用户在任务详情/审批卡处理。',
+      parameters: replyTaskInput,
+      async execute(input, ctx) {
+        const parsed = replyTaskInput.parse(input)
+        const task = requireTask(ctx, parsed.taskId)
+        const result = deps.replyToTask(task.id, parsed.text)
+        if (!result.ok) throw result.error
+        audit('supervisor.task.reply', task.id, ctx, { length: parsed.text.length })
+        return { ok: true, taskId: task.id, status: 'running' }
       },
     },
   }
