@@ -6,6 +6,7 @@ describe('supervisor policy', () => {
   it('locks the v0 tool whitelist and explicit mode', () => {
     expect(SUPERVISOR_POLICY.mode).toBe('explicit')
     expect(SUPERVISOR_POLICY.allowedTools).toEqual([
+      'list_canvas',
       'list_tasks',
       'get_task',
       'create_task',

@@ -22,6 +22,7 @@ import {
   getReviewByTask,
   getTaskDetail,
   insertNode,
+  listEdges,
   listNodes,
   listSessionsByTask,
   listTasks,
@@ -31,6 +32,7 @@ import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
 import { createEdge as createCanvasEdge } from '../runtime/edge-service.js'
 import type { TaskService } from '../runtime/task-service.js'
+import { nodeSummary } from './canvas-summary.js'
 
 export interface AgentCandidate {
   id: string
@@ -61,6 +63,7 @@ export interface SupervisorTool {
 }
 
 export interface SupervisorToolset {
+  list_canvas: SupervisorTool
   list_tasks: SupervisorTool
   get_task: SupervisorTool
   create_task: SupervisorTool
@@ -77,6 +80,7 @@ export interface BoundTool {
 }
 
 export interface BoundToolset {
+  list_canvas: BoundTool
   list_tasks: BoundTool
   get_task: BoundTool
   create_task: BoundTool
@@ -93,6 +97,7 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     execute: (input: unknown) => tool.execute(input, ctx),
   })
   return {
+    list_canvas: bind(tools.list_canvas),
     list_tasks: bind(tools.list_tasks),
     get_task: bind(tools.get_task),
     create_task: bind(tools.create_task),
@@ -106,6 +111,10 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
 const listTasksInput = z.object({
   filter: z.enum(['all', 'attention']).default('all'),
   limit: z.number().int().min(1).max(50).default(20),
+})
+
+const listCanvasInput = z.object({
+  limit: z.number().int().min(1).max(200).default(100),
 })
 
 const getTaskInput = z.object({ taskId: z.string().min(1) })
@@ -288,6 +297,34 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
   }
 
   return {
+    list_canvas: {
+      description:
+        '读取当前画布的节点与连线摘要（文本给预览，文件只给名称/路径，不读文件内容）；' +
+        '用户问画布上有什么、收集了哪些信息时使用。',
+      parameters: listCanvasInput,
+      async execute(input, ctx) {
+        const parsed = listCanvasInput.parse(input)
+        const canvas = canvasFor(ctx)
+        const nodes = listNodes(deps.db, canvas.id)
+        const edges = listEdges(deps.db, canvas.id)
+        const shownNodes = nodes.slice(0, parsed.limit)
+        const shownEdges = edges.slice(0, 200)
+        return {
+          canvasId: canvas.id,
+          nodes: shownNodes.map(nodeSummary),
+          edges: shownEdges.map((edge) => ({
+            id: edge.id,
+            sourceId: edge.sourceId,
+            targetId: edge.targetId,
+            type: edge.type,
+          })),
+          totalNodes: nodes.length,
+          totalEdges: edges.length,
+          truncated: nodes.length > shownNodes.length || edges.length > shownEdges.length,
+        }
+      },
+    },
+
     list_tasks: {
       description: '列出当前 workspace 的任务；filter=attention 只返回需要人处理的任务。',
       parameters: listTasksInput,

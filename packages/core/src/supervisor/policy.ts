@@ -9,6 +9,7 @@ export interface SupervisorPolicy {
 export const SUPERVISOR_POLICY: SupervisorPolicy = {
   mode: 'explicit',
   allowedTools: [
+    'list_canvas',
     'list_tasks',
     'get_task',
     'create_task',

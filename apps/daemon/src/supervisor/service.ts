@@ -26,6 +26,7 @@ import {
   getWorkspace,
   insertAudit,
   insertNode,
+  listEdges,
   listNodes,
   listSessionsByTask,
   updateTaskWorktreePath,
@@ -35,11 +36,13 @@ import { appError, isAppError } from '../errors.js'
 import type { Logger } from '../log.js'
 import type { TaskService } from '../runtime/task-service.js'
 import type { TransitionOutcome } from '../runtime/types.js'
+import { canvasOverviewXml, nodeTitle } from './canvas-summary.js'
 import { loadSupervisorConfig, type SupervisorConfig } from './config.js'
 import { createAiSdkSupervisorEngine, type SupervisorEngine } from './engine.js'
 import { buildVerifierPrompt, parseVerdict } from './observe.js'
 import { PROMPT_VERSION, REPORT_PROMPT, SUPERVISOR_PROMPT } from './prompt.js'
 import { createSupervisorStore } from './store.js'
+import { xmlEscape } from './xml.js'
 import {
   bindTools,
   createSupervisorTools,
@@ -75,38 +78,6 @@ export interface ObserveTaskInput {
   waitingReason: WaitingReason | null
 }
 
-function xmlEscape(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&apos;')
-}
-
-function nodeTitle(node: Node): string {
-  switch (node.type) {
-    case 'text':
-      return (
-        node.data.content
-          .split('\n')
-          .find((line) => line.trim())
-          ?.trim()
-          .slice(0, 60) ?? 'text'
-      )
-    case 'file':
-      return node.data.name
-    case 'image':
-      return node.data.alt ?? 'image'
-    case 'agent':
-      return node.data.title
-    case 'group':
-      return node.data.label
-    case 'review':
-      return 'review'
-  }
-}
-
 function trimHistory(messages: SupervisorMessage[], maxChars = 32_000): SupervisorMessage[] {
   let total = 0
   const kept: SupervisorMessage[] = []
@@ -125,6 +96,8 @@ function candidateCard(input: {
   threadId: string
   text: string
   nodes: Node[]
+  canvasNodes: Node[]
+  edgeCount: number
   targetNodeId?: string
   policyVersion: string
   defaultEngine: string
@@ -148,6 +121,7 @@ function candidateCard(input: {
   return `<workspace id="${xmlEscape(input.workspaceId)}" name="${xmlEscape(input.workspaceName)}" />
 <thread id="${xmlEscape(input.threadId)}" />
 <user_message>${xmlEscape(input.text)}</user_message>
+${canvasOverviewXml(input.canvasNodes, input.edgeCount)}
 <selection>
 ${selected}
 </selection>
@@ -737,6 +711,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       }
       const bound = bindTools(tools, toolContext)
       const wrapped: BoundToolset = {
+        list_canvas: wrapTool(
+          'list_canvas',
+          bound.list_canvas,
+          input.assistantMessageId,
+          input.threadId,
+        ),
         list_tasks: wrapTool(
           'list_tasks',
           bound.list_tasks,
@@ -784,6 +764,8 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           threadId: input.threadId,
           text: input.request.text,
           nodes: selected,
+          canvasNodes: nodes,
+          edgeCount: listEdges(deps.db, canvas.id).length,
           targetNodeId,
           policyVersion,
           defaultEngine: deps.defaultEngine,
@@ -811,7 +793,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         .find((parsed) => parsed.success)
       const kind = hasCreate
         ? 'create_task'
-        : result.toolCalls.some((call) => call.name === 'list_tasks' || call.name === 'get_task')
+        : result.toolCalls.some(
+              (call) =>
+                call.name === 'list_tasks' ||
+                call.name === 'get_task' ||
+                call.name === 'list_canvas',
+            )
           ? 'query_status'
           : 'chat'
       const turn = store.insertAssistantTurn({

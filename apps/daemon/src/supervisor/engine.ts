@@ -31,6 +31,11 @@ export function createAiSdkSupervisorEngine(config: SupervisorConfig): Superviso
   return {
     async run({ system, messages, tools, signal, onDelta }) {
       const sdkTools: ToolSet = {
+        list_canvas: tool({
+          description: tools.list_canvas.description,
+          inputSchema: tools.list_canvas.parameters,
+          execute: (input) => tools.list_canvas.execute(input),
+        }),
         list_tasks: tool({
           description: tools.list_tasks.description,
           inputSchema: tools.list_tasks.parameters,
@@ -45,6 +50,26 @@ export function createAiSdkSupervisorEngine(config: SupervisorConfig): Superviso
           description: tools.create_task.description,
           inputSchema: tools.create_task.parameters,
           execute: (input) => tools.create_task.execute(input),
+        }),
+        enqueue_task: tool({
+          description: tools.enqueue_task.description,
+          inputSchema: tools.enqueue_task.parameters,
+          execute: (input) => tools.enqueue_task.execute(input),
+        }),
+        create_text: tool({
+          description: tools.create_text.description,
+          inputSchema: tools.create_text.parameters,
+          execute: (input) => tools.create_text.execute(input),
+        }),
+        create_agent: tool({
+          description: tools.create_agent.description,
+          inputSchema: tools.create_agent.parameters,
+          execute: (input) => tools.create_agent.execute(input),
+        }),
+        create_edge: tool({
+          description: tools.create_edge.description,
+          inputSchema: tools.create_edge.parameters,
+          execute: (input) => tools.create_edge.execute(input),
         }),
       }
 

@@ -2,6 +2,7 @@ import {
   CheckCircle2,
   ChevronDown,
   FileSearch,
+  LayoutGrid,
   ListChecks,
   Loader2,
   PlusCircle,
@@ -22,6 +23,7 @@ export interface SupervisorToolView {
 }
 
 const icons: Record<string, ComponentType<{ size?: number; className?: string }>> = {
+  list_canvas: LayoutGrid,
   list_tasks: ListChecks,
   get_task: FileSearch,
   create_task: PlusCircle,

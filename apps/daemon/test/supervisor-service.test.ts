@@ -144,6 +144,57 @@ describe('supervisor service', () => {
     expect(database.raw.prepare('select count(*) as n from task').get()).toEqual({ n: 2 })
   })
 
+  it('includes the canvas overview when nothing is selected', async () => {
+    const systems: string[] = []
+    const engine: SupervisorEngine = {
+      async run({ system }) {
+        systems.push(system)
+        return { text: '画布上有文本节点和 Agent 节点。', toolCalls: [], finishReason: 'stop' }
+      },
+    }
+    const { seeded, service } = setup(engine)
+
+    const ack = service.send({
+      workspaceId: seeded.workspaceId,
+      requestId: 'r-canvas',
+      text: '画布有什么？',
+      contextNodeIds: [],
+    })
+    expect(ack.ok).toBe(true)
+    await service.waitForIdle()
+
+    expect(systems).toHaveLength(1)
+    expect(systems[0]).toContain(
+      '<canvas_overview total="2" edges="0" shown="2" truncated="false">',
+    )
+    expect(systems[0]).toContain('title="需求 A"')
+    expect(systems[0]).toContain('type="agent"')
+  })
+
+  it('exposes list_canvas to the engine', async () => {
+    let canvasResult: unknown
+    const engine: SupervisorEngine = {
+      async run({ tools }) {
+        canvasResult = await tools.list_canvas.execute({})
+        return { text: '画布上有 2 个节点。', toolCalls: [], finishReason: 'stop' }
+      },
+    }
+    const { seeded, service } = setup(engine)
+
+    service.send({
+      workspaceId: seeded.workspaceId,
+      requestId: 'r-canvas-tool',
+      text: '画布上具体有什么？',
+      contextNodeIds: [],
+    })
+    await service.waitForIdle()
+
+    expect(canvasResult).toMatchObject({ totalNodes: 2, totalEdges: 0, truncated: false })
+    expect((canvasResult as { nodes: Array<{ title: string }> }).nodes).toContainEqual(
+      expect.objectContaining({ title: '需求 A' }),
+    )
+  })
+
   it('records an error message when the engine throws', async () => {
     const engine: SupervisorEngine = {
       async run() {
