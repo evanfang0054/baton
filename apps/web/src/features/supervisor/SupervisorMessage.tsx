@@ -23,6 +23,15 @@ function toToolView(call: ToolCallRecord): SupervisorToolView {
   }
 }
 
+type BatchResult = {
+  created?: unknown[]
+  failed?: Array<{
+    nodeId: string
+    stage: string
+    error: { code: string; message: string }
+  }>
+}
+
 export function SupervisorMessage({
   message,
   onRetry,
@@ -30,10 +39,21 @@ export function SupervisorMessage({
   message: SupervisorMessageRecord
   onRetry?: () => void
 }) {
-  const cards = message.toolCalls
+  const singleCards = message.toolCalls
     .filter((call) => call.name === 'create_task' && call.ok)
     .map((call) => SupervisorTaskCardSchema.safeParse(call.result))
     .flatMap((parsed) => (parsed.success ? [parsed.data] : []))
+
+  const batchResults = message.toolCalls
+    .filter((call) => call.name === 'create_tasks' && call.ok)
+    .map((call) => (call.result ?? {}) as BatchResult)
+  const batchCards = batchResults
+    .flatMap((result) => result.created ?? [])
+    .map((item) => SupervisorTaskCardSchema.safeParse(item))
+    .flatMap((parsed) => (parsed.success ? [parsed.data] : []))
+  const batchFailures = batchResults.flatMap((result) => result.failed ?? [])
+
+  const cards = [...singleCards, ...batchCards]
   // 同一轮可能先建待办、再补一次开工/改标题；保留最后一次，避免卡片显示旧状态。
   const uniqueCards = [...new Map(cards.map((card) => [card.taskId, card])).values()]
 
@@ -63,6 +83,16 @@ export function SupervisorMessage({
         {message.toolCalls.map((call) => (
           <SupervisorToolCard key={call.id} tool={toToolView(call)} />
         ))}
+        {batchFailures.length > 0 ? (
+          <ul className="space-y-1 text-xs text-danger">
+            {batchFailures.map((item) => (
+              <li key={`${item.nodeId}-${item.stage}`}>
+                {item.nodeId} {item.stage === 'enqueue' ? '入队失败' : '创建失败'}：
+                {item.error.message}
+              </li>
+            ))}
+          </ul>
+        ) : null}
         {uniqueCards.map((card) => (
           <SupervisorTaskCard key={card.taskId} card={card} />
         ))}
