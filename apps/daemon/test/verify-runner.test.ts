@@ -43,6 +43,26 @@ describe('verify runner', () => {
     expect(handle.events.map((event) => event.type)).toContain('verify.result')
   })
 
+  it('skips fallback verify when the workspace has no package.json', async () => {
+    const handle = setup()
+    const taskId = handle.createTask()
+    handle.runtime.applyTransition(taskId, { type: 'enqueue' })
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'waiting_input', 5000)
+
+    const session = handle.database.raw
+      .prepare('select id from session where task_id = ?')
+      .get(taskId) as { id: string }
+    const approval = handle.database.raw
+      .prepare('select id from approval where session_id = ?')
+      .get(session.id) as { id: string }
+    handle.runtime.decideApproval({ approvalId: approval.id, decision: 'allow' })
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'review', 5000)
+
+    const review = handle.runtime.getReviewByTask(taskId)!
+    expect(review.verifyExitCode).toBe(0)
+    expect(review.verifyOutput).toContain('已跳过自动校验')
+  })
+
   it('creates a failed review when verify exits non-zero', async () => {
     const handle = setup()
     const taskId = handle.createTask({ verifyCommand: 'node -e "process.exit(3)"' })

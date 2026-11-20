@@ -1,6 +1,6 @@
 import { resolveVerifyCommand } from '@baton/core'
 import type { DiffSnapshot, TaskTransitionEvent } from '@baton/protocol'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Config } from '../config.js'
 import { getTask, getWorkspace, updateReviewDiff } from '../db/repositories.js'
@@ -64,6 +64,19 @@ function failure(exitCode: number, output: string): VerifyCommandRunResult {
   }
 }
 
+/**
+ * 非项目目录（如桌面）没有 package.json，兜底的 `pnpm test` 必然失败；
+ * 继续跑会让 verify_fail 触发自动重试，反复创建会话。这里直接进入人工验收。
+ */
+function skipped(): VerifyCommandRunResult {
+  return {
+    exitCode: 0,
+    output: '未配置 verify 命令（工作区没有 package.json）；已跳过自动校验，请人工验收。',
+    diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+    durationMs: 0,
+  }
+}
+
 export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
   const active = new Map<string, { controller: AbortController; promise: Promise<void> }>()
 
@@ -99,6 +112,11 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
         })
         if (!resolved.ok) {
           result = failure(127, resolved.error.message)
+        } else if (
+          resolved.source === 'fallback' &&
+          !existsSync(join(executionPath, 'package.json'))
+        ) {
+          result = skipped()
         } else {
           result = await runVerifyCommand({
             command: resolved.command,
