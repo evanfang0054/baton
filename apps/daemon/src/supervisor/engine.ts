@@ -71,6 +71,36 @@ export function createAiSdkSupervisorEngine(config: SupervisorConfig): Superviso
           inputSchema: tools.create_edge.parameters,
           execute: (input) => tools.create_edge.execute(input),
         }),
+        get_task_history: tool({
+          description: tools.get_task_history.description,
+          inputSchema: tools.get_task_history.parameters,
+          execute: (input) => tools.get_task_history.execute(input),
+        }),
+        retry_task: tool({
+          description: tools.retry_task.description,
+          inputSchema: tools.retry_task.parameters,
+          execute: (input) => tools.retry_task.execute(input),
+        }),
+        reopen_task: tool({
+          description: tools.reopen_task.description,
+          inputSchema: tools.reopen_task.parameters,
+          execute: (input) => tools.reopen_task.execute(input),
+        }),
+        cancel_task: tool({
+          description: tools.cancel_task.description,
+          inputSchema: tools.cancel_task.parameters,
+          execute: (input) => tools.cancel_task.execute(input),
+        }),
+        reply_task: tool({
+          description: tools.reply_task.description,
+          inputSchema: tools.reply_task.parameters,
+          execute: (input) => tools.reply_task.execute(input),
+        }),
+        create_tasks: tool({
+          description: tools.create_tasks.description,
+          inputSchema: tools.create_tasks.parameters,
+          execute: (input) => tools.create_tasks.execute(input),
+        }),
       }
 
       const result = streamText({

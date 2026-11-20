@@ -781,6 +781,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           input.assistantMessageId,
           input.threadId,
         ),
+        create_tasks: wrapTool(
+          'create_tasks',
+          bound.create_tasks,
+          input.assistantMessageId,
+          input.threadId,
+        ),
         create_text: wrapTool(
           'create_text',
           bound.create_text,

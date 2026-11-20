@@ -81,6 +81,7 @@ export interface SupervisorToolset {
   reopen_task: SupervisorTool
   cancel_task: SupervisorTool
   reply_task: SupervisorTool
+  create_tasks: SupervisorTool
   create_text: SupervisorTool
   create_agent: SupervisorTool
   create_edge: SupervisorTool
@@ -103,6 +104,7 @@ export interface BoundToolset {
   reopen_task: BoundTool
   cancel_task: BoundTool
   reply_task: BoundTool
+  create_tasks: BoundTool
   create_text: BoundTool
   create_agent: BoundTool
   create_edge: BoundTool
@@ -125,6 +127,7 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     reopen_task: bind(tools.reopen_task),
     cancel_task: bind(tools.cancel_task),
     reply_task: bind(tools.reply_task),
+    create_tasks: bind(tools.create_tasks),
     create_text: bind(tools.create_text),
     create_agent: bind(tools.create_agent),
     create_edge: bind(tools.create_edge),
@@ -181,6 +184,15 @@ const cancelTaskInput = z.object({
 const replyTaskInput = z.object({
   taskId: z.string().min(1),
   text: z.string().min(1).max(16_384),
+})
+
+const createTasksInput = z.object({
+  nodeIds: z.array(z.string().min(1)).min(1),
+  targetNodeId: z.string().min(1).optional(),
+  agentTitle: z.string().min(1).max(80).optional(),
+  engine: Engine.optional(),
+  contextNodeIds: z.array(z.string().min(1)).max(40).optional(),
+  start: z.boolean().default(false),
 })
 
 const createTextInput = z.object({
@@ -321,7 +333,12 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
 
   function resolveAgentTarget(
     ctx: ToolContext,
-    parsed: z.infer<typeof createTaskInput>,
+    parsed: {
+      title: string
+      targetNodeId?: string
+      agentTitle?: string
+      engine?: EngineValue
+    },
   ): { id: string; title: string; engine: EngineValue; created: boolean } {
     const canvas = canvasFor(ctx)
     const requested =
@@ -693,6 +710,128 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           started: status === 'queued',
           ...(startError ? { startError } : {}),
         }
+      },
+    },
+
+    create_tasks: {
+      description:
+        '从 1-6 个文本节点批量创建任务；共享一个 Agent；默认全部待办；start=true 时才批量开工。',
+      parameters: createTasksInput,
+      async execute(input, ctx) {
+        const parsed = createTasksInput.parse(input)
+        if (parsed.nodeIds.length < 1 || parsed.nodeIds.length > 6) {
+          throw appError('supervisor_batch_invalid', 'nodeIds must contain 1-6 ids', {
+            nodeIds: parsed.nodeIds,
+          })
+        }
+        if (parsed.nodeIds.length !== new Set(parsed.nodeIds).size) {
+          throw appError('supervisor_batch_invalid', 'nodeIds must be unique', {
+            nodeIds: parsed.nodeIds,
+          })
+        }
+        const canvas = canvasFor(ctx)
+        const textNodes = parsed.nodeIds.map((id) => {
+          const node = getNode(deps.db, id)
+          if (
+            !node ||
+            node.canvasId !== canvas.id ||
+            node.type !== 'text' ||
+            !node.data.content.trim()
+          ) {
+            throw appError(
+              'supervisor_batch_invalid',
+              'all nodeIds must be non-empty text nodes on this canvas',
+              { nodeIds: parsed.nodeIds, invalidNodeId: id },
+            )
+          }
+          return node
+        })
+        const target = resolveAgentTarget(ctx, {
+          title: textTitle(textNodes[0]!.data.content),
+          ...(parsed.targetNodeId ? { targetNodeId: parsed.targetNodeId } : {}),
+          ...(parsed.agentTitle ? { agentTitle: parsed.agentTitle } : {}),
+          ...(parsed.engine ? { engine: parsed.engine } : {}),
+        })
+        const engine = resolveEngine(parsed.engine, target)
+        const sharedContext = (parsed.contextNodeIds ?? ctx.selection.contextNodeIds).filter(
+          (id) => !parsed.nodeIds.includes(id),
+        )
+        const contextNodeIds = resolveContext(ctx, sharedContext, target.id)
+
+        const created: SupervisorTaskCardValue[] = []
+        const failed: Array<{
+          nodeId: string
+          stage: 'create' | 'enqueue'
+          error: AppError
+        }> = []
+
+        for (const node of textNodes) {
+          const title = textTitle(node.data.content).slice(0, 80)
+          const origin = buildTaskOrigin({
+            source: 'supervisor-chat',
+            triggerId: ctx.triggerId,
+            threadId: ctx.threadId,
+            workspaceId: ctx.workspaceId,
+            targetNodeId: target.id,
+            contextNodeIds,
+            policyVersion: ctx.policyVersion,
+            promptVersion: ctx.promptVersion,
+            createdAt: deps.now(),
+          })
+          const result = deps.taskService.createTask(
+            {
+              workspaceId: ctx.workspaceId,
+              nodeId: target.id,
+              title,
+              prompt: node.data.content,
+              contextNodeIds,
+              engine,
+              workspaceMode: 'main',
+              dangerouslySkipPermissions: false,
+            },
+            {
+              origin,
+              audit: {
+                actor: 'supervisor',
+                action: 'supervisor.task.create',
+                detail: {
+                  triggerId: ctx.triggerId,
+                  threadId: ctx.threadId,
+                  policyVersion: ctx.policyVersion,
+                  contextNodeIds,
+                  engine,
+                  createdAgent: target.created,
+                  batch: true,
+                  sourceNodeId: node.id,
+                },
+              },
+            },
+          )
+          if (!result.ok) {
+            failed.push({ nodeId: node.id, stage: 'create', error: result.error })
+            continue
+          }
+          let status: 'todo' | 'queued' = 'todo'
+          if (parsed.start) {
+            const enqueued = deps.enqueueTask(result.taskId)
+            if (enqueued.ok) status = 'queued'
+            else failed.push({ nodeId: node.id, stage: 'enqueue', error: enqueued.error })
+          }
+          created.push(card(result.taskId, title, target, contextNodeIds.length, status))
+        }
+
+        audit(
+          'supervisor.task.batch',
+          created[0]?.taskId ?? parsed.nodeIds[0]!,
+          ctx,
+          {
+            nodeIds: parsed.nodeIds,
+            createdTaskIds: created.map((item) => item.taskId),
+            failed: failed.map((item) => item.nodeId),
+            started: parsed.start,
+          },
+        )
+        return { created, failed }
       },
     },
 

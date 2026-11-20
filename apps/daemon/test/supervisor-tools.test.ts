@@ -27,6 +27,7 @@ function setup() {
   mkdirSync(join(root, seeded.relPath), { recursive: true })
   execFileSync('git', ['init', join(root, seeded.relPath)], { stdio: 'ignore' })
 
+  let taskSeq = 0
   const taskService = createTaskService({
     db: database.db,
     config: {
@@ -45,7 +46,7 @@ function setup() {
       killSwitch: false,
     },
     now: () => 10,
-    newId: () => 'task-new',
+    newId: () => (taskSeq++ === 0 ? 'task-new' : `task-${taskSeq}`),
   })
   let nodeSeq = 0
   const transitions: Array<{ taskId: string; type: string }> = []
@@ -333,6 +334,60 @@ describe('supervisor tools', () => {
     await expect(
       tools.reply_task.execute({ taskId: seeded.taskId, text: '同意' }, ctx(seeded)),
     ).rejects.toMatchObject({ code: 'reply_not_allowed' })
+  })
+
+  it('creates one todo task per text node with a shared agent', async () => {
+    const { database, seeded, tools } = setup()
+    seedTextNode(database.raw, seeded.canvasId, 'text-2', '需求 B')
+    seedTextNode(database.raw, seeded.canvasId, 'text-3', '需求 C')
+
+    const result = (await tools.create_tasks.execute(
+      { nodeIds: ['text-1', 'text-2', 'text-3'], targetNodeId: seeded.nodeId },
+      ctx(seeded),
+    )) as { created: Array<{ taskId: string; status: string }>; failed: unknown[] }
+
+    expect(result.failed).toEqual([])
+    expect(result.created).toHaveLength(3)
+    expect(result.created.every((card) => card.status === 'todo')).toBe(true)
+    const rows = database.raw
+      .prepare('select node_id, prompt, status from task where id like ?')
+      .all('task-%') as Array<{ node_id: string; prompt: string; status: string }>
+    expect(rows).toHaveLength(3)
+    expect(new Set(rows.map((row) => row.node_id))).toEqual(new Set([seeded.nodeId]))
+    for (const [index, text] of ['需求 A', '需求 B', '需求 C'].entries()) {
+      expect(rows[index]?.prompt).toContain(text)
+    }
+  })
+
+  it('rejects duplicate, non-text and over-limit nodeIds', async () => {
+    const { database, seeded, tools } = setup()
+    await expect(
+      tools.create_tasks.execute({ nodeIds: ['text-1', 'text-1'] }, ctx(seeded)),
+    ).rejects.toMatchObject({ code: 'supervisor_batch_invalid' })
+    await expect(
+      tools.create_tasks.execute({ nodeIds: [seeded.nodeId] }, ctx(seeded)),
+    ).rejects.toMatchObject({ code: 'supervisor_batch_invalid' })
+    for (let index = 2; index <= 7; index += 1) {
+      seedTextNode(database.raw, seeded.canvasId, `text-${index}`, `需求 ${index}`)
+    }
+    await expect(
+      tools.create_tasks.execute(
+        {
+          nodeIds: ['text-1', 'text-2', 'text-3', 'text-4', 'text-5', 'text-6', 'text-7'],
+        },
+        ctx(seeded),
+      ),
+    ).rejects.toMatchObject({ code: 'supervisor_batch_invalid' })
+  })
+
+  it('starts every batch task when explicitly requested', async () => {
+    const { database, seeded, tools } = setup()
+    seedTextNode(database.raw, seeded.canvasId, 'text-2', '需求 2')
+    const result = (await tools.create_tasks.execute(
+      { nodeIds: ['text-1', 'text-2'], targetNodeId: seeded.nodeId, start: true },
+      ctx(seeded),
+    )) as { created: Array<{ status: string }> }
+    expect(result.created.every((card) => card.status === 'queued')).toBe(true)
   })
 
   it('creates a worktree task when explicitly requested', async () => {
