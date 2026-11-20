@@ -3,14 +3,21 @@ import { buildTaskOrigin } from '../src/supervisor/origin.js'
 import { SUPERVISOR_POLICY, supervisorPolicyVersion } from '../src/supervisor/policy.js'
 
 describe('supervisor policy', () => {
-  it('locks the v0 tool whitelist and explicit mode', () => {
+  it('locks the tool whitelist and explicit mode', () => {
     expect(SUPERVISOR_POLICY.mode).toBe('explicit')
     expect(SUPERVISOR_POLICY.allowedTools).toEqual([
       'list_canvas',
       'list_tasks',
       'get_task',
+      'get_task_history',
       'create_task',
+      'create_tasks',
       'enqueue_task',
+      'retry_task',
+      'reopen_task',
+      'cancel_task',
+      'reply_task',
+      'handoff_task',
       'create_text',
       'create_agent',
       'create_edge',
