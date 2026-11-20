@@ -32,6 +32,18 @@ type BatchResult = {
   }>
 }
 
+type HandoffResult = {
+  task?: unknown
+  handoff?: {
+    nodeId: string
+    fromTaskId: string
+    fromTitle: string
+    fromStatus: string
+    worktree: boolean
+    warnings: string[]
+  }
+}
+
 export function SupervisorMessage({
   message,
   onRetry,
@@ -56,6 +68,14 @@ export function SupervisorMessage({
   const cards = [...singleCards, ...batchCards]
   // 同一轮可能先建待办、再补一次开工/改标题；保留最后一次，避免卡片显示旧状态。
   const uniqueCards = [...new Map(cards.map((card) => [card.taskId, card])).values()]
+
+  const handoffEntries = message.toolCalls
+    .filter((call) => call.name === 'handoff_task' && call.ok)
+    .map((call) => (call.result ?? {}) as HandoffResult)
+    .flatMap((result) => {
+      const parsed = SupervisorTaskCardSchema.safeParse(result.task)
+      return parsed.success ? [{ card: parsed.data, meta: result.handoff }] : []
+    })
 
   return (
     <article className="flex gap-3">
@@ -95,6 +115,22 @@ export function SupervisorMessage({
         ) : null}
         {uniqueCards.map((card) => (
           <SupervisorTaskCard key={card.taskId} card={card} />
+        ))}
+        {handoffEntries.map(({ card, meta }) => (
+          <div key={`handoff-${card.taskId}`} className="flex flex-col gap-1">
+            <p className="text-xs text-muted">
+              交接自《{meta?.fromTitle ?? '未知任务'}》
+              {meta?.worktree ? ' · 源任务在隔离 worktree，变更文件不可读' : ''}
+            </p>
+            <SupervisorTaskCard card={card} />
+            {meta && meta.warnings.length > 0 ? (
+              <ul className="space-y-1 text-xs text-warning">
+                {meta.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         ))}
       </div>
     </article>
