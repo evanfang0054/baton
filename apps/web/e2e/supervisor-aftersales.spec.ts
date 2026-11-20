@@ -39,11 +39,7 @@ const canvasNodes = [
   },
 ]
 
-function supervisorMessage(
-  id: string,
-  content: string,
-  toolCalls: Array<Record<string, unknown>>,
-) {
+function supervisorMessage(id: string, content: string, toolCalls: Array<Record<string, unknown>>) {
   return {
     id,
     threadId: 'th1',
