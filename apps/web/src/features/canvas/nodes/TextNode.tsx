@@ -3,6 +3,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useCanvasActions } from '../actions'
 import { NodeShell, type CanvasFlowNodeProps } from './NodeShell'
 
+const TEXTAREA_CLASS = [
+  'nodrag nowheel mt-2 min-h-0 flex-1 resize-none rounded border border-separator',
+  'bg-background p-2 font-mono text-xs text-foreground outline-none focus:border-accent',
+].join(' ')
+
 export function TextNode({ id, data, selected }: CanvasFlowNodeProps) {
   const content = data.node.type === 'text' ? data.node.data.content : ''
   const actions = useCanvasActions()
@@ -38,7 +43,7 @@ export function TextNode({ id, data, selected }: CanvasFlowNodeProps) {
       {editing ? (
         <textarea
           aria-label="文本节点内容"
-          className="nodrag nowheel mt-2 min-h-0 flex-1 resize-none rounded border border-separator bg-background p-2 font-mono text-xs text-foreground outline-none focus:border-accent"
+          className={TEXTAREA_CLASS}
           value={draft}
           autoFocus
           onChange={(event) => setDraft(event.target.value)}

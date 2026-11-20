@@ -63,11 +63,23 @@ function diffLine(diffStat: DiffStat | null): string {
     : '没有 diff 快照'
 }
 
+function xmlEscape(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;')
+}
+
 /** 验收员只做检查；总管只拿结论，不直接读代码或日志。 */
 export function buildVerifierPrompt(input: VerifierPromptInput): string {
   const workspaceNote = input.isolatedWorktree
     ? '\n<workspace_note>你运行在目标任务的隔离 worktree 中，直接检查当前目录即可；不要切换目录。</workspace_note>'
     : ''
+  const title = xmlEscape(input.title)
+  const targetPrompt = xmlEscape(input.prompt.slice(0, 2000))
+  const workerOutput = xmlEscape(input.workerOutput.slice(-4000) || '（没有文本输出）')
   return `<role>你是 baton 的验收员。你只验收，不实现、不修改文件、不提交代码。</role>
 <verdict_protocol>
 结束前必须单独发送一条消息，内容只能是下面两行之一，不能有任何其他文字、标点或代码块：
@@ -76,14 +88,14 @@ VERDICT: FAIL
 理由放在这条消息之前。上报 session outcome 时，reason 也必须以 VERDICT: PASS 或 VERDICT: FAIL 开头。
 没有这一行，系统会视为初步验收未完成，目标任务仍等你决定。
 </verdict_protocol>
-<target_task id="${input.taskId}" title="${input.title}">
-${input.prompt.slice(0, 2000)}
+<target_task id="${xmlEscape(input.taskId)}" title="${title}">
+${targetPrompt}
 </target_task>
 <evidence>
 verify 退出码：${input.verifyExitCode ?? '未执行'}
 diff：${diffLine(input.diffStat)}
 工人最后回复（截断）：
-${input.workerOutput.slice(-4000) || '（没有文本输出）'}
+${workerOutput}
 </evidence>${workspaceNote}
 <instructions>
 1. 用 git status / git diff 检查实际改动（如果有），核对是否满足原始要求。

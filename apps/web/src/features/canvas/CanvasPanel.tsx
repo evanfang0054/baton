@@ -59,6 +59,11 @@ interface CanvasPanelProps {
 const nodeTypes = { text: TextNode, file: FileNode, agent: AgentNode }
 const DEFAULT_SIZE = { w: 320, h: 200 }
 
+const DROP_OVERLAY_CLASS = [
+  'pointer-events-none absolute inset-0 z-20 flex items-center justify-center',
+  'bg-accent/10 ring-2 ring-accent ring-inset',
+].join(' ')
+
 export const CanvasPanel = forwardRef<CanvasPanelHandle, CanvasPanelProps>(
   function CanvasPanel(props, ref) {
     return (
@@ -417,7 +422,7 @@ function FlowCanvas({
         </div>
       ) : null}
       {dropActive ? (
-        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-accent/10 ring-2 ring-accent ring-inset">
+        <div className={DROP_OVERLAY_CLASS}>
           <div className="rounded-lg border border-accent bg-surface px-4 py-2 text-sm text-foreground shadow-overlay">
             松开以添加文件节点
           </div>

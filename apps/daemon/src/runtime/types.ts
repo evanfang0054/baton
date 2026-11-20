@@ -29,6 +29,7 @@ export interface RuntimeHooks {
   runVerify(taskId: string): void | Promise<void>
   sendToSession(taskId: string, text: string): void | Promise<void>
   observeTask(input: TaskObservation): void | Promise<void>
+  cancelVerifiers?(targetTaskId: string): void | Promise<void>
   kick(): void
   track(action: () => void | Promise<void>): void
 }

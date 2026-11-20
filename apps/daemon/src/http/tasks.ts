@@ -14,6 +14,7 @@ import {
   getTask,
   getTaskDetail,
   getWorkspace,
+  hasOtherWorktreeReference,
   hasReviewDiff,
   insertAudit,
   listApprovalsByTask,
@@ -165,6 +166,9 @@ export function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesDeps): 
     }
     if (!isInsideDataDir(deps.config.dataDir, task.worktreePath)) {
       throw appError('invalid_path', 'worktree path escapes data dir', { taskId: id })
+    }
+    if (hasOtherWorktreeReference(deps.db, task.worktreePath, task.id)) {
+      throw appError('worktree_shared', 'worktree is shared with another task', { taskId: id })
     }
     const workspace = getWorkspace(deps.db, task.workspaceId)
     if (!workspace) {

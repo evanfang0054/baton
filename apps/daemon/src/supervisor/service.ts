@@ -16,6 +16,7 @@ import {
   type WaitingReason,
 } from '@baton/protocol'
 import {
+  findActiveVerifierIdsForTarget,
   getCanvasByWorkspace,
   getAssistantTranscriptText,
   getLastAssistantText,
@@ -172,6 +173,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
   const active = new Set<string>()
   const controllers = new Map<string, AbortController>()
   const polishControllers = new Set<AbortController>()
+  let polishInFlight = 0
   const idleWaiters: Array<() => void> = []
   const track = deps.track ?? ((action: () => void | Promise<void>) => void action())
 
@@ -235,8 +237,10 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
 
   /** 先落模板保证即时可见，再异步润色；失败或超时都保留模板。 */
   function polishNotification(messageId: string, template: string): void {
+    if (deps.killSwitch() || polishInFlight >= 2) return
     const engine = reportEngine()
     if (!engine?.summarize) return
+    polishInFlight += 1
     const controller = new AbortController()
     polishControllers.add(controller)
     const timeout = setTimeout(() => controller.abort(), 20_000)
@@ -262,6 +266,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           'supervisor notification polish failed',
         )
       } finally {
+        polishInFlight -= 1
         clearTimeout(timeout)
         polishControllers.delete(controller)
       }
@@ -323,6 +328,14 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
   function dispatchVerifier(task: TaskDetail, origin: TaskOrigin, review: Review): void {
     const dedupeKey = `observe:dispatch:${task.id}:${review.id}`
     if (store.hasNotification(origin.threadId, dedupeKey)) return
+    if (deps.killSwitch()) {
+      notify(
+        origin.threadId,
+        dedupeKey,
+        `自动化已暂停。任务「${task.title}」仍在待验收，等你决定。`,
+      )
+      return
+    }
     const isolated = task.workspaceMode === 'worktree'
     if (isolated && !task.worktreePath) {
       notify(
@@ -469,7 +482,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     if (parsed.verdict === 'unknown') {
       notify(
         origin.threadId,
-        `observe:verifier:${task.id}:waiting`,
+        `observe:verifier:${task.id}:waiting:${task.updatedAt}`,
         `验收员任务「${task.title}」${fallbackReason}，且没有给出 VERDICT；目标任务仍在待验收，等你决定。`,
       )
       return
@@ -569,6 +582,29 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     )
   }
 
+  /**
+   * 目标离开 review（通过/打回/重开/取消）后，这一轮的验收结论已经失效。
+   * 取消仍在跑的验收员，避免它继续读取或与目标任务共用同一个 worktree。
+   */
+  function cancelVerifiersForTarget(targetTaskId: string): void {
+    for (const verifierTaskId of findActiveVerifierIdsForTarget(deps.db, targetTaskId)) {
+      const outcome = deps.applyTransition(verifierTaskId, {
+        type: 'cancel',
+        reason: 'target task left review',
+      })
+      if (!outcome.ok) {
+        deps.logger?.warn(
+          {
+            event: 'supervisor.verifier_cancel_failed',
+            taskId: verifierTaskId,
+            code: outcome.error.code,
+          },
+          'failed to cancel stale verifier',
+        )
+      }
+    }
+  }
+
   function observeTask(input: ObserveTaskInput): void {
     const detail = getTaskDetail(deps.db, input.taskId)
     const task = detail?.task
@@ -583,7 +619,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       if (input.status === 'failed') {
         notify(
           origin.threadId,
-          `observe:verifier:${task.id}:failed`,
+          `observe:verifier:${task.id}:failed:${task.updatedAt}`,
           `验收员任务「${task.title}」执行失败，目标任务仍在待验收。请查看任务详情。`,
         )
         return
@@ -607,7 +643,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     if (input.status === 'failed') {
       notify(
         origin.threadId,
-        `observe:failed:${task.id}`,
+        `observe:failed:${task.id}:${task.retryCount}`,
         `任务「${task.title}」执行失败，需要你看一下任务详情。`,
       )
       return
@@ -616,7 +652,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     if (input.status === 'waiting_input' && input.waitingReason !== 'approval') {
       notify(
         origin.threadId,
-        `observe:waiting:${task.id}:${input.waitingReason ?? 'unknown'}`,
+        `observe:waiting:${task.id}:${input.waitingReason ?? 'unknown'}:${task.updatedAt}`,
         `任务「${task.title}」停下等待输入（${input.waitingReason ?? '未知原因'}）。`,
       )
     }
@@ -863,6 +899,9 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
 
     /** runtime 在 task 状态转移提交后调用；只做通知与验收员派发，不改任务状态。 */
     observeTask,
+
+    /** target 离开 review 时由 runtime 调用，取消这一轮仍在运行的验收员。 */
+    cancelVerifiersForTarget,
 
     send(input: SupervisorSendInput): SupervisorSendResult {
       const loaded = loadSupervisorConfig(deps.dataDir)

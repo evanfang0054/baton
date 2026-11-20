@@ -139,6 +139,17 @@ export function createRuntime(deps: RuntimeDeps) {
         )
       }
     },
+    cancelVerifiers: (targetTaskId) => {
+      try {
+        supervisorHolder.value?.cancelVerifiersForTarget(targetTaskId)
+      } catch (error) {
+        const failure = toAppError(error)
+        deps.logger?.error(
+          { event: 'supervisor.cancel_verifiers_failed', taskId: targetTaskId, code: failure.code },
+          'failed to cancel verifiers',
+        )
+      }
+    },
     kick: () => {
       if (closing || booting) {
         return

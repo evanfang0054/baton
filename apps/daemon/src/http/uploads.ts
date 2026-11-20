@@ -1,6 +1,6 @@
 import { WorkspaceUploadInput, WorkspaceUploadResponse } from '@baton/protocol'
 import type { FastifyInstance } from 'fastify'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { lstatSync, mkdirSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { Config } from '../config.js'
 import { getWorkspace } from '../db/repositories.js'
@@ -18,6 +18,18 @@ function safeFileName(value: string): string {
     .trim()
     .slice(-120)
   return name.length > 0 ? name : 'file'
+}
+
+/** mkdir 会跟随软链；先拒绝 .baton / uploads 本身是软链，避免在工作区外建目录。 */
+function rejectSymlink(path: string): void {
+  try {
+    if (lstatSync(path).isSymbolicLink()) {
+      throw appError('upload_failed', 'upload directory must not be a symlink')
+    }
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return
+    throw error
+  }
 }
 
 export interface UploadRoutesDeps {
@@ -55,6 +67,8 @@ export function registerUploadRoutes(app: FastifyInstance, deps: UploadRoutesDep
     const uploadDir = resolveWithin(workspacePath, UPLOAD_DIR)
     const fileName = `${Date.now().toString(36)}-${deps.newId().slice(0, 8)}-${name}`
     try {
+      rejectSymlink(join(workspacePath, '.baton'))
+      rejectSymlink(uploadDir)
       mkdirSync(uploadDir, { recursive: true, mode: 0o700 })
       // mkdir 后再 realpath 一次，确保 .baton 不是指向工作区外的软链。
       const realDir = resolveWithin(workspacePath, UPLOAD_DIR)

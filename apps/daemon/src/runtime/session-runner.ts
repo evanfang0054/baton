@@ -33,6 +33,43 @@ import type { AdapterFactory } from './adapter-factory.js'
 import { ASK_USER_QUESTION_TOOL, parseStoredAnswers, validateQuestionAnswers } from './questions.js'
 import type { StartSessionInput, TransitionOutcome } from './types.js'
 
+const VERIFIER_READ_TOOLS = new Set(['Read', 'Grep', 'Glob'])
+const VERIFIER_SAFE_GIT =
+  /^git(\s+-C\s+\S+)?\s+(status|diff|log|show|rev-parse|ls-files|worktree\s+list)\b/
+const VERIFIER_SAFE_READ = /^(ls|cat|head|tail|wc|stat|grep|rg|od|which|pwd)\b/
+const VERIFIER_SAFE_RUN = /^(node\s+(--version|-v)|pnpm\s+(test|lint|typecheck|build))\b/
+// 这些参数能把“只读”命令变成写文件或执行子进程。
+const VERIFIER_DENY_FLAGS =
+  /(^|\s)(--output|--ext-diff|--pre)(=|\s|$)|(^|\s)-(delete|exec|execdir|ok|okdir|fprint0?|fls)(\s|$)/
+
+/**
+ * 验收员只应读；总管全权不能让它获得任意 Bash。
+ * 这里只给只读工具和安全只读命令放行，其他请求仍走正常 policy/人工闸门。
+ */
+export function isReadOnlyVerifierRequest(request: { toolName: string; input: unknown }): boolean {
+  if (VERIFIER_READ_TOOLS.has(request.toolName)) return true
+  if (request.toolName !== 'Bash') return false
+  const command =
+    typeof request.input === 'object' && request.input !== null
+      ? (request.input as { command?: unknown }).command
+      : undefined
+  if (typeof command !== 'string') return false
+  const withoutAnd = command.replaceAll('&&', ' ')
+  if (/[;&|><\n\r`]|\$\(/.test(withoutAnd)) return false
+  if (VERIFIER_DENY_FLAGS.test(command)) return false
+  const segments = command
+    .split('&&')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+  if (segments.length === 0) return false
+  return segments.every(
+    (segment) =>
+      VERIFIER_SAFE_GIT.test(segment) ||
+      VERIFIER_SAFE_READ.test(segment) ||
+      VERIFIER_SAFE_RUN.test(segment),
+  )
+}
+
 export interface SessionRunnerDeps {
   db: Db
   dataDir: string
@@ -111,7 +148,8 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     // 总管派发的任务（含它派出的验收员）才可能获得 workspace 的委派授权；人工任务永远走人工闸门。
     const originSource = taskDetail?.task.origin?.source
     const delegatedAuthority =
-      originSource === 'supervisor-chat' || originSource === 'supervisor-review'
+      originSource === 'supervisor-chat' ||
+      (originSource === 'supervisor-review' && isReadOnlyVerifierRequest(request))
     // 结构化提问不能被策略自动放行：没有答案的 allow 会让 SDK 停在 pending。
     // 先跑策略，保证 deny 永远优先；symlink 逃逸只能把 allow/ask 降级为人工确认。
     const evaluated =
@@ -327,6 +365,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     let workspacePath = input.workspacePath
     if (task.workspaceMode === 'worktree') {
       let preparedPath: string | null = null
+      let preparedCreated = false
       try {
         const prepared = await createWorktree({
           dataDir: deps.dataDir,
@@ -340,6 +379,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
           return
         }
         preparedPath = prepared.path
+        preparedCreated = prepared.created
         workspacePath = prepared.path
         if (task.worktreePath !== prepared.path || task.branch !== prepared.branch) {
           updateTaskWorktreePath(deps.db, task.id, prepared.path, deps.now(), prepared.branch)
@@ -347,7 +387,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       } catch {
         // 创建或落库失败都要把任务收敛到 failed；
         // 否则 afterCommit 只记日志，任务会永久停在 running。
-        if (preparedPath) {
+        if (preparedPath && preparedCreated) {
           await removeWorktree({
             workspacePath: input.workspacePath,
             path: preparedPath,

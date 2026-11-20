@@ -18,7 +18,10 @@ afterEach(() => {
   dbs.splice(0).forEach((entry) => entry.raw.close())
 })
 
-function setup(engine: SupervisorEngine, options: { trusted?: boolean } = {}) {
+function setup(
+  engine: SupervisorEngine,
+  options: { trusted?: boolean; killSwitch?: boolean } = {},
+) {
   const root = mkdtempSync(join(tmpdir(), 'baton-svc-'))
   dirs.push(root)
   const database = createTestDb()
@@ -77,7 +80,7 @@ function setup(engine: SupervisorEngine, options: { trusted?: boolean } = {}) {
       }
     },
     workspacesRoot: root,
-    killSwitch: () => false,
+    killSwitch: () => options.killSwitch === true,
     engine,
     now: () => 10,
     newId: () => `id-${++sequence}`,
@@ -239,7 +242,7 @@ describe('supervisor service', () => {
     seeded: ReturnType<typeof seedTask>,
     targetOrigin: ReturnType<typeof seedSupervisorReview>,
     verdict: 'PASS' | 'FAIL',
-    status: 'review' | 'waiting_input' = 'review',
+    status: 'review' | 'waiting_input' | 'running' = 'review',
   ): string {
     const origin = {
       source: 'supervisor-review',
@@ -313,6 +316,23 @@ describe('supervisor service', () => {
     const messages = service.history(seeded.workspaceId, 50).messages
     expect(messages.at(-1)?.content).toContain('初步验收')
     expect(messages.at(-1)?.content).toContain('最终通过仍由你决定')
+  })
+
+  it('does not dispatch a verifier when the kill switch is on', () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        throw new Error('unused')
+      },
+    }
+    const { database, seeded, service } = setup(engine, { killSwitch: true })
+    seedSupervisorReview(database, seeded)
+
+    service.observeTask({ taskId: seeded.taskId, status: 'review', waitingReason: null })
+
+    expect(database.raw.prepare('select count(*) as n from task').get()).toEqual({ n: 1 })
+    expect(service.history(seeded.workspaceId, 50).messages.at(-1)?.content).toContain(
+      '自动化已暂停',
+    )
   })
 
   it('dispatches a fresh verifier agent for preliminary review', () => {
@@ -435,6 +455,26 @@ describe('supervisor service', () => {
     const messages = service.history(seeded.workspaceId, 50).messages
     expect(messages.at(-1)?.content).toContain('建议打回')
     expect(messages.at(-1)?.content).toContain('最终由你决定')
+  })
+
+  it('cancels a running verifier when the target leaves review', () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        throw new Error('unused')
+      },
+    }
+    const { database, seeded, service, transitions } = setup(engine, {
+      trusted: true,
+    })
+    const targetOrigin = seedSupervisorReview(database, seeded)
+    const verifierTaskId = seedVerifierTask(database, seeded, targetOrigin, 'PASS', 'running')
+
+    service.cancelVerifiersForTarget(seeded.taskId)
+
+    expect(transitions).toContainEqual({
+      taskId: verifierTaskId,
+      event: { type: 'cancel', reason: 'target task left review' },
+    })
   })
 
   it('recovers a stalled verifier verdict and recommends pass without accepting', () => {

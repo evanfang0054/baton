@@ -28,7 +28,7 @@ import {
   type TaskStatusHistoryItem,
   type WaitingReason,
 } from '@baton/protocol'
-import { and, asc, desc, eq, gt, gte, inArray, lt, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, lt, ne, notInArray, or, sql } from 'drizzle-orm'
 import {
   approval,
   audit,
@@ -319,6 +319,50 @@ export function hasTaskForNode(db: Db, nodeId: string): boolean {
     db.select({ id: task.id }).from(task).where(eq(task.nodeId, nodeId)).limit(1).get() !==
     undefined
   )
+}
+
+/**
+ * 找出为某个目标任务派出、还没结束的验收员。
+ * 目标离开 review 后本轮验收结论失效，需要取消它们，避免验收员继续占用共享 worktree。
+ */
+export function findActiveVerifierIdsForTarget(db: Db, targetTaskId: string): string[] {
+  const rows = db
+    .select({ id: task.id, originJson: task.originJson })
+    .from(task)
+    .where(notInArray(task.status, ['done', 'cancelled', 'failed']))
+    .all()
+  return rows
+    .filter((row) => {
+      if (!row.originJson) return false
+      try {
+        const origin = TaskOrigin.safeParse(JSON.parse(row.originJson) as unknown)
+        return (
+          origin.success &&
+          origin.data.source === 'supervisor-review' &&
+          origin.data.reviewOfTaskId === targetTaskId
+        )
+      } catch {
+        return false
+      }
+    })
+    .map((row) => row.id)
+}
+
+/** 验收员会复用目标任务的 worktree；清理前必须确认没有其他未结束任务还引用同一路径。 */
+export function hasOtherWorktreeReference(db: Db, worktreePath: string, taskId: string): boolean {
+  const row = db
+    .select({ id: task.id })
+    .from(task)
+    .where(
+      and(
+        eq(task.worktreePath, worktreePath),
+        ne(task.id, taskId),
+        notInArray(task.status, ['done', 'cancelled', 'failed']),
+      ),
+    )
+    .limit(1)
+    .get()
+  return row !== undefined
 }
 
 export function listSessionEvents(

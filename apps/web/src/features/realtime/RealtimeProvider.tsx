@@ -131,8 +131,8 @@ export function RealtimeProvider({
           return
         }
         if (event.type === 'supervisor.message') {
-          // 观察者通知没有 decision，不是一次模型回合的收尾；不能误关正在流式的气泡。
-          const isTurnReply = event.payload.decision !== null
+          // 观察者通知没有 decision，不是一次模型回合的收尾；错误消息仍要收尾。
+          const isTurnReply = event.payload.decision !== null || event.payload.status === 'error'
           const finalize = () => {
             if (isTurnReply) useSupervisorStreamStore.getState().finish()
             const key = queryKeys.supervisorMessages(workspaceId)
