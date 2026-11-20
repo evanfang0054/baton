@@ -31,6 +31,7 @@
 - [2026-11-20 工作区目录选择器](specs/2026-11-20-workspace-directory-picker.md)
 - [2026-11-20 总管画布感知](specs/2026-11-20-supervisor-canvas-awareness.md)
 - [2026-11-20 M5-1 总管售后与批量设计](specs/2026-11-20-m5-supervisor-aftersales-design.md)
+- [2026-11-21 M5-3 上下文交接设计](specs/2026-11-21-m5-3-context-handoff-design.md)
 
 ## 现行 ADR
 
@@ -59,6 +60,7 @@
 - [M2-2b 移动端响应式控制台](contracts/M2-2b-mobile-console.contract.md)
 - [M3-1 交付验收增强](contracts/M3-1-delivery-acceptance.contract.md)
 - [M5-1 总管售后与批量](contracts/M5-1-supervisor-aftersales.contract.md)
+- [M5-3 上下文交接](contracts/M5-3-context-handoff.contract.md)
 
 ## 现行 plan
 
@@ -96,6 +98,9 @@
 - [M5-1 总管售后 daemon 实施计划](plans/2026-11-20-m5-1-aftersales-daemon.md)
 - [M5-1 总管售后 web 实施计划](plans/2026-11-20-m5-1-aftersales-web.md)
 - [M5-1 总管售后验收实施计划](plans/2026-11-20-m5-1-aftersales-acceptance.md)
+- [M5-3 交接 core + daemon 实施计划](plans/2026-11-21-m5-3-handoff-core-daemon.md)
+- [M5-3 交接 web 实施计划](plans/2026-11-21-m5-3-handoff-web.md)
+- [M5-3 交接验收实施计划](plans/2026-11-21-m5-3-handoff-acceptance.md)
 
 ## 验收证据
 
