@@ -58,6 +58,7 @@
 - [M2-2a 无人值守与汇报 v0](contracts/M2-autopilot-v0.contract.md)
 - [M2-2b 移动端响应式控制台](contracts/M2-2b-mobile-console.contract.md)
 - [M3-1 交付验收增强](contracts/M3-1-delivery-acceptance.contract.md)
+- [M5-1 总管售后与批量](contracts/M5-1-supervisor-aftersales.contract.md)
 
 ## 现行 plan
 
@@ -92,6 +93,9 @@
 - [M3-1 worktree 隔离实施计划](plans/2026-11-19-m3-1-worktree.md)
 - [M3-1 retry/reopen/任务历史实施计划](plans/2026-11-19-m3-1-aftersales-history.md)
 - [M3-1 验收与文档收口实施计划](plans/2026-11-19-m3-1-acceptance.md)
+- [M5-1 总管售后 daemon 实施计划](plans/2026-11-20-m5-1-aftersales-daemon.md)
+- [M5-1 总管售后 web 实施计划](plans/2026-11-20-m5-1-aftersales-web.md)
+- [M5-1 总管售后验收实施计划](plans/2026-11-20-m5-1-aftersales-acceptance.md)
 
 ## 验收证据
 

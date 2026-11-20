@@ -2,8 +2,8 @@
 spec_topic: m5-supervisor-aftersales
 decision_summary: "M5-1 总管售后与批量：把 retry/reopen/cancel/reply、搜索/历史、从文本节点批量建任务接到总管；复用 core 转移与 session.reply guard；不扩审批/验收权限"
 design_approved: true
-user_approved_at: "2026-11-20T23:45:06+08:00"
-gates: [design-approved]
+user_approved_at: "2026-11-20T23:48:40+08:00"
+gates: [design-approved, user-review-passed]
 spec_ref: 2026-11-18-m2-supervisor-design.md
 domain_terms:
   [
@@ -31,7 +31,7 @@ domain_terms:
 
 ## 0. 文档信息
 
-- **状态**：设计已获用户逐项确认（2026-11-20）；spec 待用户审阅，尚未实现。
+- **状态**：设计已获用户确认，spec 已获用户审阅通过（2026-11-20）；尚未实现。
 - **范围**：`apps/daemon/src/supervisor/**`、`apps/daemon/src/runtime/index.ts`、`apps/daemon/src/db/repositories.ts`、`apps/web/src/features/**`、`apps/web/src/lib/**`、测试与 `docs/**`。
 - **预期不改**：`packages/protocol/**`、`packages/core/**`、数据库 migration。售后动作全部复用既有转移与仓储；若实现中发现必须改协议或 core，先停下补 spec/ADR，不在实现里顺手扩。
 - **不在范围**：外部 Source（GitHub/飞书）、DAG/任务依赖、运行中 `context.inject`、挂起提醒/外部推送、cost/turn UI、续已结束旧 session（idle eviction/resume）、批量 worktree、自动验收/代验收、读取 transcript/代码/日志、多用户。
@@ -382,4 +382,4 @@ pending: null | {
 ## 13. 评审记录
 
 - 2026-11-20：三轮 brainstorming 逐项确认范围、确认方式、session 语义、批量来源/目标/失败/上限、提醒、UI、取消确认与歧义处理；设计通过。
-- 待评审：本 spec 正文。评审通过后写 contract（DoD）与 3 个实施 plan。
+- 2026-11-20：用户审阅 spec 通过；下一步写 contract（DoD）与 3 个实施 plan。
