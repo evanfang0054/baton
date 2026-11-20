@@ -2,6 +2,7 @@ import { buildTaskOrigin, SUPERVISOR_POLICY, supervisorPolicyVersion } from '@ba
 import {
   Node,
   SupervisorTaskCard,
+  VERIFY_SKIPPED,
   type AppError,
   type Engine as EngineValue,
   type Review,
@@ -16,6 +17,7 @@ import {
   type WaitingReason,
 } from '@baton/protocol'
 import {
+  countEdges,
   findActiveVerifierIdsForTarget,
   getCanvasByWorkspace,
   getAssistantTranscriptText,
@@ -26,7 +28,6 @@ import {
   getWorkspace,
   insertAudit,
   insertNode,
-  listEdges,
   listNodes,
   listSessionsByTask,
   updateTaskWorktreePath,
@@ -536,6 +537,17 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       return
     }
 
+    // 未执行自动校验时不能把主观 PASS 当成机器通过。
+    if (currentReview.verifyExitCode === VERIFY_SKIPPED) {
+      notify(
+        threadId,
+        `observe:verdict:${task.id}`,
+        `验收员初步验收为 PASS，但目标任务没有执行自动 verify（工作区未配置命令），` +
+          `建议你人工确认。\n任务仍在待验收，最终由你决定。\n${parsed.reason}`,
+      )
+      return
+    }
+
     // 机器证据优先：verify 没过时，验收员的主观 PASS 只能作为参考。
     if (currentReview.verifyExitCode !== 0) {
       notify(
@@ -765,7 +777,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           text: input.request.text,
           nodes: selected,
           canvasNodes: nodes,
-          edgeCount: listEdges(deps.db, canvas.id).length,
+          edgeCount: countEdges(deps.db, canvas.id),
           targetNodeId,
           policyVersion,
           defaultEngine: deps.defaultEngine,

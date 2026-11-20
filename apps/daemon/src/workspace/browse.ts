@@ -1,12 +1,14 @@
 import type { WorkspaceBrowseEntry, WorkspaceBrowseResponse } from '@baton/protocol'
 import { existsSync, readdirSync, realpathSync } from 'node:fs'
-import { dirname, join, relative, sep } from 'node:path'
+import { dirname, join } from 'node:path'
 import { appError } from '../errors.js'
-import { resolveWorkspaceDir } from './resolver.js'
+import { resolveWorkspaceDir, toWorkspaceRelPath } from './resolver.js'
 
 const MAX_ENTRIES = 300
 const MAX_SEARCH_RESULTS = 50
 const MAX_SEARCH_DEPTH = 4
+// 搜索是同步 IO；给访问目录数设上限，避免在 home 根下阻塞 daemon 事件循环。
+const MAX_SEARCH_VISITS = 3000
 // 搜索时跳过这些目录，避免在 home 根下一头扎进依赖或构建产物。
 const SKIPPED_SEARCH_DIRS = new Set([
   'node_modules',
@@ -17,6 +19,9 @@ const SKIPPED_SEARCH_DIRS = new Set([
   '.next',
   '.cache',
   '.turbo',
+  'Library',
+  'Applications',
+  '.Trash',
 ])
 
 function joinRel(base: string, name: string): string {
@@ -60,36 +65,86 @@ function listDirectories(current: string, relPath: string) {
   return { entries, truncated }
 }
 
+interface SearchBudget {
+  visits: number
+  truncated: boolean
+  stop: boolean
+}
+
+function hasVisibleChildren(path: string, budget: SearchBudget): boolean {
+  if (budget.visits >= MAX_SEARCH_VISITS) {
+    budget.truncated = true
+    budget.stop = true
+    return false
+  }
+  budget.visits += 1
+  try {
+    return readVisibleDirents(path).length > 0
+  } catch {
+    // 读不到就按“可能有更深内容”处理，避免静默漏报。
+    return true
+  }
+}
+
 function searchDirectories(
   current: string,
   relPath: string,
   query: string,
   depth: number,
   results: WorkspaceBrowseEntry[],
-): boolean {
+  budget: SearchBudget,
+): void {
+  if (budget.stop) return
+  if (results.length >= MAX_SEARCH_RESULTS) {
+    budget.truncated = true
+    budget.stop = true
+    return
+  }
+  if (budget.visits >= MAX_SEARCH_VISITS) {
+    budget.truncated = true
+    budget.stop = true
+    return
+  }
+  budget.visits += 1
+
   let dirents: Array<{ name: string }>
   try {
     dirents = readVisibleDirents(current)
   } catch {
     // 搜索时遇到无权限或并发删除的目录直接跳过，不打断整个搜索。
-    return false
+    return
   }
   for (const dirent of dirents) {
     if (SKIPPED_SEARCH_DIRS.has(dirent.name)) continue
-    const childPath = join(current, dirent.name)
-    const childRel = joinRel(relPath, dirent.name)
+    const childDepth = depth + 1
+    if (childDepth > MAX_SEARCH_DEPTH) {
+      budget.truncated = true
+      continue
+    }
     if (dirent.name.toLowerCase().includes(query)) {
       results.push(entryFor(current, relPath, dirent.name))
-      if (results.length >= MAX_SEARCH_RESULTS) return true
+      if (results.length >= MAX_SEARCH_RESULTS) {
+        budget.truncated = true
+        budget.stop = true
+        return
+      }
     }
-    if (
-      depth < MAX_SEARCH_DEPTH &&
-      searchDirectories(childPath, childRel, query, depth + 1, results)
-    ) {
-      return true
+    if (childDepth < MAX_SEARCH_DEPTH) {
+      searchDirectories(
+        join(current, dirent.name),
+        joinRel(relPath, dirent.name),
+        query,
+        childDepth,
+        results,
+        budget,
+      )
+      if (budget.stop) return
+    } else if (hasVisibleChildren(join(current, dirent.name), budget)) {
+      // 已到深度上限且下面还有目录：标记不完整，但继续搜索同级目录。
+      budget.truncated = true
+      if (budget.stop) return
     }
   }
-  return false
 }
 
 /**
@@ -110,7 +165,7 @@ export function browseWorkspaceDirectories(input: {
 
   const requested = input.path?.trim() ?? ''
   const current = requested ? resolveWorkspaceDir(realRoot, requested) : realRoot
-  const relPath = requested ? relative(realRoot, current).split(sep).join('/') : ''
+  const relPath = requested ? toWorkspaceRelPath(realRoot, current) : ''
   const query = input.q?.trim().toLowerCase() ?? ''
   const searching = query.length > 0
 
@@ -118,7 +173,9 @@ export function browseWorkspaceDirectories(input: {
   let truncated: boolean
   if (searching) {
     entries = []
-    truncated = searchDirectories(current, relPath, query, 0, entries)
+    const budget: SearchBudget = { visits: 0, truncated: false, stop: false }
+    searchDirectories(current, relPath, query, 0, entries, budget)
+    truncated = budget.truncated
     entries.sort((a, b) => a.relPath.localeCompare(b.relPath, 'zh-Hans-CN'))
   } else {
     ;({ entries, truncated } = listDirectories(current, relPath))

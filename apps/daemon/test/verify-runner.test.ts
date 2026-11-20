@@ -1,3 +1,4 @@
+import { VERIFY_SKIPPED } from '@baton/protocol'
 import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { execa } from 'execa'
@@ -59,8 +60,31 @@ describe('verify runner', () => {
     await waitFor(() => handle.runtime.getTask(taskId)?.status === 'review', 5000)
 
     const review = handle.runtime.getReviewByTask(taskId)!
-    expect(review.verifyExitCode).toBe(0)
+    expect(review.verifyExitCode).toBe(VERIFY_SKIPPED)
     expect(review.verifyOutput).toContain('已跳过自动校验')
+    expect(handle.runtime.getTask(taskId)?.status).toBe('review')
+    expect(handle.runtime.getTask(taskId)?.retryCount).toBe(0)
+  })
+
+  it('skips fallback verify when package.json has no test script', async () => {
+    const handle = setup()
+    writeFileSync(join(handle.root, handle.seeded.relPath, 'package.json'), '{}')
+    const taskId = handle.createTask()
+    handle.runtime.applyTransition(taskId, { type: 'enqueue' })
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'waiting_input', 5000)
+
+    const session = handle.database.raw
+      .prepare('select id from session where task_id = ?')
+      .get(taskId) as { id: string }
+    const approval = handle.database.raw
+      .prepare('select id from approval where session_id = ?')
+      .get(session.id) as { id: string }
+    handle.runtime.decideApproval({ approvalId: approval.id, decision: 'allow' })
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'review', 5000)
+
+    const review = handle.runtime.getReviewByTask(taskId)!
+    expect(review.verifyExitCode).toBe(VERIFY_SKIPPED)
+    expect(handle.runtime.getTask(taskId)?.retryCount).toBe(0)
   })
 
   it('creates a failed review when verify exits non-zero', async () => {

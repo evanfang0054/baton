@@ -69,6 +69,25 @@ describe('browseWorkspaceDirectories', () => {
     expect(browseWorkspaceDirectories({ root, q: 'node_modules' }).entries).toEqual([])
   })
 
+  it('marks results as truncated when the depth limit prunes deeper directories', () => {
+    const root = tempDir()
+    mkdirSync(join(root, 'a', 'b', 'c', 'd', 'e', 'too-deep'), { recursive: true })
+
+    const found = browseWorkspaceDirectories({ root, q: 'too-deep' })
+    expect(found.entries).toEqual([])
+    expect(found.truncated).toBe(true)
+  })
+
+  it('keeps searching siblings after hitting the depth limit', () => {
+    const root = tempDir()
+    mkdirSync(join(root, 'aaa', 'a', 'b', 'c', 'd', 'e'), { recursive: true })
+    mkdirSync(join(root, 'zzz-match'))
+
+    const found = browseWorkspaceDirectories({ root, q: 'zzz-match' })
+    expect(found.entries).toEqual([{ name: 'zzz-match', relPath: 'zzz-match', hasGit: false }])
+    expect(found.truncated).toBe(true)
+  })
+
   it('scopes search to the current directory and caps results', () => {
     const root = tempDir()
     mkdirSync(join(root, 'a', 'match-a'), { recursive: true })

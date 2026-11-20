@@ -12,7 +12,7 @@ import {
 } from '@baton/protocol'
 import type { FastifyInstance } from 'fastify'
 import { realpathSync } from 'node:fs'
-import { isAbsolute, relative, sep } from 'node:path'
+import { isAbsolute, relative } from 'node:path'
 import type { Config } from '../config.js'
 import {
   getWorkspace,
@@ -25,8 +25,8 @@ import {
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
 import { browseWorkspaceDirectories } from '../workspace/browse.js'
-import { resolveWorkspaceDir } from '../workspace/resolver.js'
-import { isGitRepo } from '../workspace/worktree.js'
+import { resolveWorkspaceDir, toWorkspaceRelPath } from '../workspace/resolver.js'
+import { isGitRepo, isInsideDataDir } from '../workspace/worktree.js'
 
 export interface WorkspaceRoutesDeps {
   db: Db
@@ -71,13 +71,13 @@ export function registerWorkspaceRoutes(app: FastifyInstance, deps: WorkspaceRou
       } catch {
         throw appError('invalid_path', 'workspace directory not found')
       }
-      if (absolute !== realRoot && !absolute.startsWith(`${realRoot}${sep}`)) {
+      if (!isInsideDataDir(realRoot, absolute)) {
         throw appError('invalid_path', 'workspace must be inside workspaces root')
       }
       inputPath = relative(realRoot, absolute)
     }
     const realTarget = resolveWorkspaceDir(realRoot, inputPath)
-    const relPath = relative(realRoot, realTarget).split(sep).join('/')
+    const relPath = toWorkspaceRelPath(realRoot, realTarget)
     if (!relPath || relPath === '.') {
       throw appError('invalid_path', 'workspace must be a subdirectory')
     }

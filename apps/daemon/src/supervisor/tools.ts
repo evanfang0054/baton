@@ -32,7 +32,7 @@ import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
 import { createEdge as createCanvasEdge } from '../runtime/edge-service.js'
 import type { TaskService } from '../runtime/task-service.js'
-import { nodeSummary } from './canvas-summary.js'
+import { nodeSummary, textTitle } from './canvas-summary.js'
 
 export interface AgentCandidate {
   id: string
@@ -158,14 +158,6 @@ export interface SupervisorToolsDeps {
 }
 
 const CONTENT_TYPES = new Set(['text', 'file', 'image'])
-
-function summaryOfContent(content: string): string {
-  const first = content
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find((line) => line.length > 0)
-  return (first ?? 'text').slice(0, 60)
-}
 
 export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorToolset {
   function taskSummary(task: ReturnType<typeof listTasks>[number], column: string) {
@@ -406,7 +398,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         return {
           nodeId: node.id,
           type: 'text',
-          title: parsed.title ?? summaryOfContent(parsed.content),
+          title: parsed.title ?? textTitle(parsed.content),
         }
       },
     },

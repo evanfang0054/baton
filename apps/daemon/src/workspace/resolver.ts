@@ -1,7 +1,12 @@
 import { isSensitivePath } from '@baton/core'
 import { readFileSync, realpathSync, statSync } from 'node:fs'
-import { extname, isAbsolute, normalize, resolve, sep } from 'node:path'
+import { extname, isAbsolute, normalize, relative, resolve, sep } from 'node:path'
 import { appError } from '../errors.js'
+
+/** 协议里的 workspace 路径统一用 POSIX 分隔符，便于前端与跨平台比较。 */
+export function toWorkspaceRelPath(root: string, target: string): string {
+  return relative(root, target).split(sep).join('/')
+}
 
 const MAX_TEXT_BYTES = 256 * 1024
 

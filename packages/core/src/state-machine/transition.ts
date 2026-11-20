@@ -191,6 +191,7 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
           event.diffStat,
         )
         if (
+          event.retryable !== false &&
           ctx.autopilot.enabled &&
           canAutopilot({
             workspaceTrusted: ctx.workspaceTrusted,

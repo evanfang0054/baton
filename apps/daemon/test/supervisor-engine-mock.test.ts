@@ -120,8 +120,8 @@ describe('createAiSdkSupervisorEngine with a mock OpenAI-compatible model', () =
     const sentTools: string[] = []
     const baseUrl = await startMockModel((body) => {
       if (sentTools.length > 0) return
-      const tools = (body as { tools?: Array<{ function?: { name?: string } }> }).tools ?? []
-      sentTools.push(...tools.map((item) => item.function?.name ?? '').filter(Boolean))
+      const requestTools = (body as { tools?: Array<{ function?: { name?: string } }> }).tools ?? []
+      sentTools.push(...requestTools.map((item) => item.function?.name ?? '').filter(Boolean))
     })
     const engine = createAiSdkSupervisorEngine({
       baseUrl,

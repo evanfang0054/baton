@@ -1,6 +1,6 @@
 import { resolveVerifyCommand } from '@baton/core'
-import type { DiffSnapshot, TaskTransitionEvent } from '@baton/protocol'
-import { existsSync, readFileSync } from 'node:fs'
+import { VERIFY_SKIPPED, type DiffSnapshot, type TaskTransitionEvent } from '@baton/protocol'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Config } from '../config.js'
 import { getTask, getWorkspace, updateReviewDiff } from '../db/repositories.js'
@@ -65,17 +65,11 @@ function failure(exitCode: number, output: string): VerifyCommandRunResult {
 }
 
 /**
- * 非项目目录（如桌面）没有 package.json，兜底的 `pnpm test` 必然失败；
- * 继续跑会让 verify_fail 触发自动重试，反复创建会话。这里直接进入人工验收。
+ * 非项目目录没有可用的 verify 脚本时，兜底的 `pnpm test` 必然失败；
+ * 记录为不可重试的 verify_fail，直接进入人工验收，避免反复创建会话。
  */
-function skipped(): VerifyCommandRunResult {
-  return {
-    exitCode: 0,
-    output: '未配置 verify 命令（工作区没有 package.json）；已跳过自动校验，请人工验收。',
-    diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
-    durationMs: 0,
-  }
-}
+const MISSING_VERIFY_OUTPUT =
+  '未配置可用的 verify 命令（没有 package.json 或 test 脚本）；已跳过自动校验，请人工验收。'
 
 export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
   const active = new Map<string, { controller: AbortController; promise: Promise<void> }>()
@@ -88,9 +82,11 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
 
     let result: VerifyCommandRunResult
     let workspacePath: string | null = null
+    let retryable = true
     const workspace = getWorkspace(deps.db, task.workspaceId)
     if (!workspace) {
       result = failure(127, 'workspace not found')
+      retryable = false
     } else {
       try {
         workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
@@ -112,11 +108,10 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
         })
         if (!resolved.ok) {
           result = failure(127, resolved.error.message)
-        } else if (
-          resolved.source === 'fallback' &&
-          !existsSync(join(executionPath, 'package.json'))
-        ) {
-          result = skipped()
+          retryable = false
+        } else if (resolved.source === 'fallback' && !pkg?.scripts?.test?.trim()) {
+          result = failure(VERIFY_SKIPPED, MISSING_VERIFY_OUTPUT)
+          retryable = false
         } else {
           result = await runVerifyCommand({
             command: resolved.command,
@@ -128,6 +123,7 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
         }
       } catch {
         result = failure(127, 'workspace or policy unavailable')
+        retryable = false
       }
     }
 
@@ -180,6 +176,7 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
             exitCode: result.exitCode,
             output: result.output,
             diffStat,
+            ...(retryable ? {} : { retryable: false }),
           }
     const outcome = deps.applyTransition(taskId, event)
     if (!outcome.ok) {

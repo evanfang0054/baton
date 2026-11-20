@@ -4,16 +4,20 @@ import { xmlEscape } from './xml.js'
 const OVERVIEW_LIMIT = 20
 const TEXT_PREVIEW = 200
 
+export function textTitle(content: string): string {
+  return (
+    content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0)
+      ?.slice(0, 60) ?? 'text'
+  )
+}
+
 export function nodeTitle(node: Node): string {
   switch (node.type) {
     case 'text':
-      return (
-        node.data.content
-          .split('\n')
-          .find((line) => line.trim())
-          ?.trim()
-          .slice(0, 60) ?? 'text'
-      )
+      return textTitle(node.data.content)
     case 'file':
       return node.data.name
     case 'image':
@@ -61,9 +65,11 @@ export function canvasOverviewXml(nodes: Node[], edgeCount: number): string {
     }
     return `  <node ${attrs.join(' ')} />`
   })
-  return [
-    `<canvas_overview total="${nodes.length}" edges="${edgeCount}" shown="${shown.length}" truncated="${nodes.length > shown.length}">`,
-    ...lines,
-    '</canvas_overview>',
-  ].join('\n')
+  const attributes = [
+    `total="${nodes.length}"`,
+    `edges="${edgeCount}"`,
+    `shown="${shown.length}"`,
+    `truncated="${nodes.length > shown.length}"`,
+  ].join(' ')
+  return [`<canvas_overview ${attributes}>`, ...lines, '</canvas_overview>'].join('\n')
 }
