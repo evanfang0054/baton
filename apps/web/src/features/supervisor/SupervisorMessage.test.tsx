@@ -56,4 +56,37 @@ describe('SupervisorMessage', () => {
     expect(screen.getByText(/text-3/)).toBeVisible()
     expect(screen.getByText(/bad node/)).toBeVisible()
   })
+
+  it('renders a pending question summary from get_task', () => {
+    render(
+      <SupervisorMessage
+        message={{
+          ...message,
+          id: 'm-pending',
+          content: '任务 t1 在等你选方案：A 或 B。',
+          toolCalls: [
+            {
+              id: 'tc-get',
+              name: 'get_task',
+              args: { taskId: 't1' },
+              ok: true,
+              result: {
+                task: { id: 't1', title: '整理需求', status: 'waiting_input' },
+                pending: {
+                  kind: 'question',
+                  question: {
+                    questions: [
+                      { question: '用哪个方案？', options: [{ label: 'A' }, { label: 'B' }] },
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+        }}
+      />,
+    )
+    expect(screen.getByText(/在等你选方案/)).toBeVisible()
+    expect(screen.getByText('get_task')).toBeVisible()
+  })
 })
