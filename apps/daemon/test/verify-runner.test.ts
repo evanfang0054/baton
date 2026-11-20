@@ -108,6 +108,7 @@ describe('verify runner', () => {
     await waitFor(() => handle.runtime.getTask(taskId)?.status === 'waiting_input', 5000)
 
     const worktree = handle.runtime.getTask(taskId)!.worktreePath!
+    expect(handle.runtime.getTask(taskId)!.branch).toBe(branchFor(taskId))
     writeFileSync(join(worktree, 'worktree-only.txt'), 'wt\n')
     writeFileSync(join(worktree, 'a.txt'), 'changed\n')
 
@@ -122,6 +123,8 @@ describe('verify runner', () => {
 
     const review = handle.runtime.getReviewByTask(taskId)!
     expect(review.verifyExitCode).toBe(0)
+    // 验收卡与 diff 使用同一份证据：untracked 文件的行数也要计入。
+    expect(review.diffStat).toEqual({ filesChanged: 2, insertions: 2, deletions: 1 })
     expect(existsSync(join(main, 'worktree-only.txt'))).toBe(false)
     const snapshot = getReviewDiff(handle.database.db, review.id)
     expect(snapshot?.files.find((file) => file.path === 'a.txt')?.patch).toContain('+changed')

@@ -94,3 +94,15 @@ export function applyTool(
 export function finishStream(): SupervisorStreamProjection {
   return createStreamState()
 }
+
+/**
+ * 总管正文按纯文本展示（spec 不做 Markdown 渲染）；模型偶尔仍会输出
+ * 加粗、行内代码或标题标记，这里只去掉标记本身，不改写内容。
+ */
+export function toPlainText(value: string): string {
+  return value
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/__([^_\n]+)__/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+}

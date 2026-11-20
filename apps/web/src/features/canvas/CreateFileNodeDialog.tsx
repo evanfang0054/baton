@@ -1,20 +1,55 @@
 import { Button } from '@heroui/react/button'
 import { Input } from '@heroui/react/input'
 import { Modal } from '@heroui/react/modal'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { uploadWorkspaceFile } from '../../lib/api'
+import { fileToBase64 } from '../../lib/file'
+
+export interface FileNodeValue {
+  path: string
+  name: string
+  mime?: string
+}
 
 export function CreateFileNodeDialog({
+  workspaceId,
   open,
   onOpenChange,
   onCreate,
 }: {
+  workspaceId: string
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreate: (file: { path: string; name: string }) => void
+  onCreate: (file: FileNodeValue) => void
 }) {
   const [path, setPath] = useState('README.md')
   const [name, setName] = useState('README.md')
   const [error, setError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const upload = async (file: File) => {
+    setUploading(true)
+    setError(null)
+    try {
+      const dataBase64 = await fileToBase64(file)
+      const uploaded = await uploadWorkspaceFile(workspaceId, {
+        name: file.name,
+        ...(file.type ? { mime: file.type } : {}),
+        dataBase64,
+      })
+      onCreate({
+        name: uploaded.name,
+        path: uploaded.path,
+        ...(uploaded.mime ? { mime: uploaded.mime } : {}),
+      })
+      onOpenChange(false)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '上传失败')
+    } finally {
+      setUploading(false)
+    }
+  }
 
   return (
     <Modal isOpen={open} onOpenChange={onOpenChange}>
@@ -43,6 +78,33 @@ export function CreateFileNodeDialog({
                   onChange={(event) => setPath(event.target.value)}
                   fullWidth
                 />
+                <div className="rounded-lg border border-dashed border-separator p-3">
+                  <p className="text-xs text-muted">
+                    也可以从本机选择文件；上传后会保存到工作区
+                    <span className="font-mono"> .baton/uploads/ </span>
+                    并作为文件节点使用。
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="mt-2"
+                    isDisabled={uploading}
+                    onPress={() => inputRef.current?.click()}
+                  >
+                    {uploading ? '上传中…' : '选择文件上传'}
+                  </Button>
+                  <input
+                    ref={inputRef}
+                    type="file"
+                    aria-label="选择要上传的文件"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0]
+                      event.target.value = ''
+                      if (file) void upload(file)
+                    }}
+                  />
+                </div>
                 {error ? (
                   <p role="alert" className="text-sm text-danger">
                     {error}
@@ -56,7 +118,7 @@ export function CreateFileNodeDialog({
               </Button>
               <Button
                 variant="primary"
-                isDisabled={!name.trim() || !path.trim()}
+                isDisabled={!name.trim() || !path.trim() || uploading}
                 onPress={() => {
                   if (!name.trim() || !path.trim()) {
                     setError('名称和路径不能为空')

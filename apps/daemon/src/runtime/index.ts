@@ -4,6 +4,7 @@ import type {
   AppError,
   ApprovalDecideInput,
   ClientMessage,
+  Engine,
   ReviewDecideInput,
   TaskTransitionEvent,
 } from '@baton/protocol'
@@ -100,6 +101,8 @@ export function createRuntime(deps: RuntimeDeps) {
   const schedulerHolder: { value?: Scheduler } = {}
   const sessionHolder: { value?: SessionRunner } = {}
   const verifyHolder: { value?: VerifyRunner } = {}
+  const supervisorHolder: { value?: ReturnType<typeof createSupervisorService> } = {}
+  const transitionRunnerHolder: { value?: ReturnType<typeof createTransitionRunner> } = {}
   let closing = false
   let booting = false
 
@@ -125,6 +128,28 @@ export function createRuntime(deps: RuntimeDeps) {
       deps.sendToSession ??
       ((taskId, text) =>
         sessionHolder.value ? sessionHolder.value.reply(taskId, text) : undefined),
+    observeTask: (input) => {
+      try {
+        supervisorHolder.value?.observeTask(input)
+      } catch (error) {
+        const failure = toAppError(error)
+        deps.logger?.error(
+          { event: 'supervisor.observe_failed', taskId: input.taskId, code: failure.code },
+          'supervisor observation failed',
+        )
+      }
+    },
+    cancelVerifiers: (targetTaskId) => {
+      try {
+        supervisorHolder.value?.cancelVerifiersForTarget(targetTaskId)
+      } catch (error) {
+        const failure = toAppError(error)
+        deps.logger?.error(
+          { event: 'supervisor.cancel_verifiers_failed', taskId: targetTaskId, code: failure.code },
+          'failed to cancel verifiers',
+        )
+      }
+    },
     kick: () => {
       if (closing || booting) {
         return
@@ -197,10 +222,26 @@ export function createRuntime(deps: RuntimeDeps) {
     ...(deps.logger ? { logger: deps.logger } : {}),
   })
   rescheduleDigest = () => digestScheduler.reschedule()
+  const defaultEngine: Engine =
+    deps.engines && deps.engines.get('claude-sdk').status === 'unavailable' ? 'fake' : 'claude-sdk'
   const supervisor = createSupervisorService({
     db: deps.db,
     dataDir: deps.config.dataDir,
     taskService,
+    defaultEngine,
+    enqueueTask: (taskId) => {
+      const outcome = enqueue(taskId)
+      return outcome.ok ? { ok: true, status: outcome.status } : { ok: false, error: outcome.error }
+    },
+    applyTransition: (taskId, event) =>
+      transitionRunnerHolder.value
+        ? transitionRunnerHolder.value.applyTransition(taskId, event)
+        : {
+            ok: false,
+            error: appError('runtime_not_ready', 'transition runner is not ready'),
+          },
+    workspacesRoot: deps.config.workspacesRoot,
+    killSwitch: () => automationState.isKillSwitchOn(),
     ...(deps.supervisorEngine ? { engine: deps.supervisorEngine } : {}),
     now,
     newId,
@@ -208,6 +249,7 @@ export function createRuntime(deps: RuntimeDeps) {
     ...(deps.broadcastRaw ? { broadcastRaw: deps.broadcastRaw } : {}),
     track: hooks.track,
   })
+  supervisorHolder.value = supervisor
   const transitionRunner = createTransitionRunner({
     db: deps.db,
     config: deps.config,
@@ -218,6 +260,7 @@ export function createRuntime(deps: RuntimeDeps) {
     verifyMeta,
     killSwitch: () => automationState.isKillSwitchOn(),
   })
+  transitionRunnerHolder.value = transitionRunner
 
   function applyTransition(taskId: string, event: TaskTransitionEvent): TransitionOutcome {
     return transitionRunner.applyTransition(taskId, event)

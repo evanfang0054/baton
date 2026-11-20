@@ -22,6 +22,8 @@ import {
   WorkspaceListResponse,
   WorkspaceTrustInput,
   WorkspaceTrustResponse,
+  WorkspaceUploadInput,
+  WorkspaceUploadResponse,
 } from '@baton/protocol'
 
 export class ApiError extends Error {
@@ -91,6 +93,16 @@ export async function getWorkspaceCapabilities(workspaceId: string) {
   return WorkspaceCapabilitiesResponse.parse(
     await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/capabilities`),
   )
+}
+
+export async function uploadWorkspaceFile(workspaceId: string, input: WorkspaceUploadInput) {
+  return WorkspaceUploadResponse.parse(
+    await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/uploads`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    }),
+  ).file
 }
 
 export async function cleanupWorktree(taskId: string) {

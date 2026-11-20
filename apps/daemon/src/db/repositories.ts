@@ -12,6 +12,7 @@ import {
   Review,
   ReviewView,
   Session,
+  SESSION_OUTCOME_EVENT,
   Task,
   TaskDetail,
   TaskOrigin,
@@ -27,7 +28,7 @@ import {
   type TaskStatusHistoryItem,
   type WaitingReason,
 } from '@baton/protocol'
-import { and, asc, desc, eq, gt, gte, inArray, lt, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, lt, ne, notInArray, or, sql } from 'drizzle-orm'
 import {
   approval,
   audit,
@@ -320,6 +321,50 @@ export function hasTaskForNode(db: Db, nodeId: string): boolean {
   )
 }
 
+/**
+ * 找出为某个目标任务派出、还没结束的验收员。
+ * 目标离开 review 后本轮验收结论失效，需要取消它们，避免验收员继续占用共享 worktree。
+ */
+export function findActiveVerifierIdsForTarget(db: Db, targetTaskId: string): string[] {
+  const rows = db
+    .select({ id: task.id, originJson: task.originJson })
+    .from(task)
+    .where(notInArray(task.status, ['done', 'cancelled', 'failed']))
+    .all()
+  return rows
+    .filter((row) => {
+      if (!row.originJson) return false
+      try {
+        const origin = TaskOrigin.safeParse(JSON.parse(row.originJson) as unknown)
+        return (
+          origin.success &&
+          origin.data.source === 'supervisor-review' &&
+          origin.data.reviewOfTaskId === targetTaskId
+        )
+      } catch {
+        return false
+      }
+    })
+    .map((row) => row.id)
+}
+
+/** 验收员会复用目标任务的 worktree；清理前必须确认没有其他未结束任务还引用同一路径。 */
+export function hasOtherWorktreeReference(db: Db, worktreePath: string, taskId: string): boolean {
+  const row = db
+    .select({ id: task.id })
+    .from(task)
+    .where(
+      and(
+        eq(task.worktreePath, worktreePath),
+        ne(task.id, taskId),
+        notInArray(task.status, ['done', 'cancelled', 'failed']),
+      ),
+    )
+    .limit(1)
+    .get()
+  return row !== undefined
+}
+
 export function listSessionEvents(
   db: Db,
   sessionId: string,
@@ -343,6 +388,81 @@ export function listSessionEvents(
     })),
     hasMore: rows.length > limit,
   }
+}
+
+/**
+ * 取 worker 最后上报的 outcome reason。
+ * 验收员有时只在 report_outcome 的 reason 里写结论，不写最后一条消息。
+ */
+export function getSessionOutcomeReason(db: Db, sessionId: string): string | null {
+  const rows = db
+    .select({ payloadJson: event.payloadJson })
+    .from(event)
+    .where(and(eq(event.sessionId, sessionId), eq(event.type, 'CUSTOM')))
+    .orderBy(desc(event.seq))
+    .limit(20)
+    .all()
+  for (const row of rows) {
+    try {
+      const payload = JSON.parse(row.payloadJson) as {
+        name?: unknown
+        value?: { outcome?: unknown; reason?: unknown }
+      }
+      if (payload.name !== SESSION_OUTCOME_EVENT) continue
+      if (typeof payload.value?.reason === 'string' && payload.value.reason.trim()) {
+        return payload.value.reason
+      }
+    } catch {
+      continue
+    }
+  }
+  return null
+}
+
+/**
+ * 取最近一条 assistant 文本消息的尾部。
+ * 验收员把 VERDICT 放在最后一行，因此从最新事件倒推并保留尾部。
+ */
+export function getLastAssistantText(db: Db, sessionId: string, maxChars = 6000): string {
+  return getAssistantTranscriptText(db, sessionId, maxChars, 'last')
+}
+
+/**
+ * 取整个 session 的 assistant 文本；`last` 只保留最后一条消息。
+ * 验收员有时把 VERDICT 写在倒数第二条，解析时要能看到全文。
+ */
+export function getAssistantTranscriptText(
+  db: Db,
+  sessionId: string,
+  maxChars = 6000,
+  mode: 'last' | 'all' = 'all',
+): string {
+  const rows = db
+    .select({ seq: event.seq, payloadJson: event.payloadJson })
+    .from(event)
+    .where(and(eq(event.sessionId, sessionId), eq(event.type, 'TEXT_MESSAGE_CONTENT')))
+    .orderBy(asc(event.seq))
+    .all()
+  if (rows.length === 0) return ''
+
+  const byMessage = new Map<string, string[]>()
+  for (const row of rows) {
+    try {
+      const payload = JSON.parse(row.payloadJson) as {
+        messageId?: unknown
+        delta?: unknown
+      }
+      if (typeof payload.messageId !== 'string' || typeof payload.delta !== 'string') continue
+      const chunks = byMessage.get(payload.messageId) ?? []
+      chunks.push(payload.delta)
+      byMessage.set(payload.messageId, chunks)
+    } catch {
+      continue
+    }
+  }
+  const texts = [...byMessage.values()].map((chunks) => chunks.join(''))
+  const selected = mode === 'last' ? (texts.at(-1) ?? '') : texts.join('\n')
+  return selected.slice(-maxChars)
 }
 
 export function listEdges(db: Db, canvasId: string): Edge[] {
@@ -476,8 +596,22 @@ export function updateTaskWorktreePath(
   id: string,
   worktreePath: string | null,
   updatedAt: number,
+  branch?: string | null,
 ): void {
-  db.update(task).set({ worktreePath, updatedAt }).where(eq(task.id, id)).run()
+  db.update(task)
+    .set({ worktreePath, ...(branch === undefined ? {} : { branch }), updatedAt })
+    .where(eq(task.id, id))
+    .run()
+}
+
+/** 总管同一轮内先建后改标题时使用；只允许 todo 任务由调用方自行约束。 */
+export function updateTaskTitle(
+  db: Pick<Db, 'update'>,
+  id: string,
+  title: string,
+  updatedAt: number,
+): void {
+  db.update(task).set({ title, updatedAt }).where(eq(task.id, id)).run()
 }
 
 export function getTaskPolicy(db: Db, id: string): Policy | null {

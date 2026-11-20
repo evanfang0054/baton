@@ -95,6 +95,10 @@ function tools(): BoundToolset {
   return {
     list_tasks: noop,
     get_task: noop,
+    enqueue_task: noop,
+    create_text: noop,
+    create_agent: noop,
+    create_edge: noop,
     create_task: {
       description: 'create a todo task',
       parameters: z.object({ title: z.string().min(1) }),

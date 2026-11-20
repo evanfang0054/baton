@@ -52,6 +52,7 @@ describe('worktree manager', () => {
     expect(first.ok).toBe(true)
     if (!first.ok) return
     expect(first.branch).toBe('baton/t1')
+    expect(first.created).toBe(true)
     expect(existsSync(first.path)).toBe(true)
     expect(await branchExists(repo, 'baton/t1')).toBe(true)
 
@@ -66,6 +67,28 @@ describe('worktree manager', () => {
       expect(second.path).toBe(first.path)
       expect(await branchExists(repo, 'baton/t1')).toBe(true)
     }
+  })
+
+  it('reuses an existing worktree without claiming ownership', async () => {
+    const repo = await makeRepo()
+    const dataDir = makeDataDir()
+    const first = await createWorktree({ dataDir, workspacePath: repo, taskId: 't1' })
+    expect(first.ok).toBe(true)
+    if (!first.ok) return
+
+    const reused = await createWorktree({
+      dataDir,
+      workspacePath: repo,
+      taskId: 't2',
+      existingPath: first.path,
+      existingBranch: first.branch,
+    })
+    expect(reused).toMatchObject({
+      ok: true,
+      path: first.path,
+      branch: 'baton/t1',
+      created: false,
+    })
   })
 
   it('rejects reusing a worktree path outside the data dir', async () => {

@@ -127,6 +127,57 @@ describe('evaluateApproval', () => {
     expect(decision).toMatchObject({ decision: 'ask', autoApproved: false })
   })
 
+  it('delegates high-risk requests for supervisor tasks when full authority is on', () => {
+    const decision = evaluateApproval(
+      policy({ autopilot: { ...autopilotOn, delegatedAuthority: true } }),
+      request('Bash', { command: 'which baton; baton --help' }, 'high'),
+      { killSwitch: false, workspaceTrusted: true, delegatedAuthority: true },
+    )
+    expect(decision).toMatchObject({
+      decision: 'allow',
+      autoApproved: true,
+      risk: 'high',
+      reason: 'delegated supervisor authority',
+    })
+  })
+
+  it('does not delegate high-risk requests for human tasks', () => {
+    const decision = evaluateApproval(
+      policy({ autopilot: { ...autopilotOn, delegatedAuthority: true } }),
+      request('Bash', { command: 'which baton; baton --help' }, 'high'),
+      { killSwitch: false, workspaceTrusted: true },
+    )
+    expect(decision).toMatchObject({ decision: 'ask', autoApproved: false })
+  })
+
+  it('keeps deny rules above delegated authority', () => {
+    const decision = evaluateApproval(
+      policy({ autopilot: { ...autopilotOn, delegatedAuthority: true } }),
+      request('Bash', { command: 'rm -rf /tmp/demo' }, 'high'),
+      { killSwitch: false, workspaceTrusted: true, delegatedAuthority: true },
+    )
+    expect(decision).toMatchObject({ decision: 'deny', autoApproved: false })
+  })
+
+  it('does not delegate when the kill switch is on or workspace is untrusted', () => {
+    const delegatedPolicy = policy({ autopilot: { ...autopilotOn, delegatedAuthority: true } })
+    const requestHigh = request('Bash', { command: 'which baton' }, 'high')
+    expect(
+      evaluateApproval(delegatedPolicy, requestHigh, {
+        killSwitch: true,
+        workspaceTrusted: true,
+        delegatedAuthority: true,
+      }),
+    ).toMatchObject({ decision: 'ask' })
+    expect(
+      evaluateApproval(delegatedPolicy, requestHigh, {
+        killSwitch: false,
+        workspaceTrusted: false,
+        delegatedAuthority: true,
+      }),
+    ).toMatchObject({ decision: 'ask' })
+  })
+
   it('denies before allowing', () => {
     const decision = evaluateApproval(
       policy(),

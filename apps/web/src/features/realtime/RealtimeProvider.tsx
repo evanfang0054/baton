@@ -131,14 +131,23 @@ export function RealtimeProvider({
           return
         }
         if (event.type === 'supervisor.message') {
+          // 观察者通知没有 decision，不是一次模型回合的收尾；错误消息仍要收尾。
+          const isTurnReply = event.payload.decision !== null || event.payload.status === 'error'
           const finalize = () => {
-            useSupervisorStreamStore.getState().finish()
+            if (isTurnReply) useSupervisorStreamStore.getState().finish()
             const key = queryKeys.supervisorMessages(workspaceId)
-            queryClient.setQueryData<SupervisorMessagesResponse>(key, (previous) =>
-              previous && !previous.messages.some((message) => message.id === event.payload.id)
-                ? { ...previous, messages: [...previous.messages, event.payload] }
-                : previous,
-            )
+            queryClient.setQueryData<SupervisorMessagesResponse>(key, (previous) => {
+              if (!previous) return previous
+              const exists = previous.messages.some((message) => message.id === event.payload.id)
+              return exists
+                ? {
+                    ...previous,
+                    messages: previous.messages.map((message) =>
+                      message.id === event.payload.id ? event.payload : message,
+                    ),
+                  }
+                : { ...previous, messages: [...previous.messages, event.payload] }
+            })
             // 让 REST 校正 nextBefore / threadId 等分页字段。
             void queryClient.invalidateQueries({ queryKey: key })
             // create_task 不经过 task.status 事件；任务列表/看板必须在这里刷新。
@@ -150,7 +159,8 @@ export function RealtimeProvider({
           }
           // 模型可能把一大段文本一次性吐出来；让流式气泡先按帧展示完，
           // 再切到最终消息，避免肉眼看到“整段闪现”。短回复几乎没有延迟。
-          const streaming = useSupervisorStreamStore.getState().status === 'streaming'
+          const streaming =
+            isTurnReply && useSupervisorStreamStore.getState().status === 'streaming'
           const delay = streaming
             ? Math.min(900, Math.max(120, Math.round(event.payload.content.length * 2)))
             : 0

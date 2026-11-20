@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyDelta, applyTool, createStreamState } from './supervisor-model'
+import { applyDelta, applyTool, createStreamState, toPlainText } from './supervisor-model'
 
 describe('supervisor stream projection', () => {
   it('appends deltas and dedupes final message', () => {
@@ -40,5 +40,17 @@ describe('supervisor stream projection', () => {
     })
     const next = applyDelta(state, { threadId: 'th1', messageId: 'm2', delta: '串台' })
     expect(next).toBe(state)
+  })
+})
+
+describe('toPlainText', () => {
+  it('strips common inline markdown markers without changing content', () => {
+    expect(toPlainText('**补 greet 单元测试**（`done`）\n# 标题\n- 列表')).toBe(
+      '补 greet 单元测试（done）\n标题\n- 列表',
+    )
+  })
+
+  it('leaves unmatched markers alone while a message is still streaming', () => {
+    expect(toPlainText('**补 greet')).toBe('**补 greet')
   })
 })

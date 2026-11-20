@@ -11,7 +11,12 @@ function summary(overrides: Partial<AutomationSummary> = {}): AutomationSummary 
     policy: {
       verify: { timeoutSec: 900, maxOutputBytes: 262144 },
       approval: { default: 'ask', allow: ['Read'], deny: [], autoApproveMaxRisk: 'low' },
-      autopilot: { enabled: true, retryMax: 2, digestCron: '0 9,21 * * *' },
+      autopilot: {
+        enabled: true,
+        retryMax: 2,
+        digestCron: '0 9,21 * * *',
+        delegatedAuthority: false,
+      },
     },
     policyVersion: 'abc123abc123',
     killSwitch: false,
@@ -65,7 +70,12 @@ describe('AutomationStatus', () => {
           policy: {
             verify: { timeoutSec: 900, maxOutputBytes: 262144 },
             approval: { default: 'ask', allow: [], deny: [], autoApproveMaxRisk: 'low' },
-            autopilot: { enabled: false, retryMax: 2, digestCron: '0 9,21 * * *' },
+            autopilot: {
+              enabled: false,
+              retryMax: 2,
+              digestCron: '0 9,21 * * *',
+              delegatedAuthority: false,
+            },
           },
         })}
         onPause={() => {}}

@@ -223,7 +223,7 @@ export function SupervisorComposer({
       />
       <div className="flex items-center gap-2">
         <p className="min-w-0 flex-1 text-xs text-muted">
-          {busy ? '总管正在处理上一条' : '总管只建待办，不会自动开工。'}
+          {busy ? '总管正在处理上一条' : '总管可建节点、派活并开工；验收仍由你决定。'}
         </p>
         <Button
           variant="primary"

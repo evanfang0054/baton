@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { createEventStore } from '../src/db/event-store.js'
 import { listApprovalsByTask, updateApprovalResponse } from '../src/db/repositories.js'
 import { createAdapterFactory } from '../src/runtime/adapter-factory.js'
-import { createSessionRunner } from '../src/runtime/session-runner.js'
+import { createSessionRunner, isReadOnlyVerifierRequest } from '../src/runtime/session-runner.js'
 import type { TransitionOutcome } from '../src/runtime/types.js'
 import { waitFor } from './helpers/async.js'
 import { createTestDb, seedTask } from './helpers/db.js'
@@ -276,5 +276,42 @@ describe('session runner approval failures', () => {
 
     await runner.close()
     database.raw.close()
+  })
+})
+
+describe('verifier read-only delegation', () => {
+  it('allows read tools and safe read commands', () => {
+    expect(isReadOnlyVerifierRequest({ toolName: 'Read', input: { file_path: 'a.ts' } })).toBe(true)
+    expect(isReadOnlyVerifierRequest({ toolName: 'Grep', input: { pattern: 'foo' } })).toBe(true)
+    expect(
+      isReadOnlyVerifierRequest({ toolName: 'Bash', input: { command: 'git status && git diff' } }),
+    ).toBe(true)
+    expect(isReadOnlyVerifierRequest({ toolName: 'Bash', input: { command: 'pnpm test' } })).toBe(
+      true,
+    )
+  })
+
+  it('does not delegate writes, shell escapes or commands that can write', () => {
+    expect(isReadOnlyVerifierRequest({ toolName: 'Edit', input: { file_path: 'a.ts' } })).toBe(
+      false,
+    )
+    expect(isReadOnlyVerifierRequest({ toolName: 'Bash', input: { command: 'rm -rf src' } })).toBe(
+      false,
+    )
+    expect(
+      isReadOnlyVerifierRequest({ toolName: 'Bash', input: { command: 'ls; rm -rf src' } }),
+    ).toBe(false)
+    expect(
+      isReadOnlyVerifierRequest({
+        toolName: 'Bash',
+        input: { command: 'git diff --output=leak.txt' },
+      }),
+    ).toBe(false)
+    expect(
+      isReadOnlyVerifierRequest({ toolName: 'Bash', input: { command: 'rg --pre "sh" foo' } }),
+    ).toBe(false)
+    expect(
+      isReadOnlyVerifierRequest({ toolName: 'Bash', input: { command: 'find . -delete' } }),
+    ).toBe(false)
   })
 })

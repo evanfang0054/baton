@@ -54,6 +54,13 @@ export interface SupervisorStore {
     message: SupervisorMessageValue
     decision: SupervisorDecision
   }
+  /** 观察者消息：assistant 角色、无 decision，用 dedupeKey 保证同一事件只落一次。 */
+  insertNotification(input: { threadId: string; dedupeKey: string; content: string }): {
+    message: SupervisorMessageValue
+    duplicate: boolean
+  }
+  hasNotification(threadId: string, dedupeKey: string): boolean
+  updateNotificationContent(messageId: string, content: string): SupervisorMessageValue | null
   listMessages(
     threadId: string,
     limit: number,
@@ -252,6 +259,70 @@ export function createSupervisorStore(deps: SupervisorStoreDeps): SupervisorStor
         .get()
       if (!row) throw new Error('failed to persist supervisor assistant message')
       return { message: toMessage(row, decision), decision }
+    },
+
+    insertNotification(input) {
+      const messageId = deps.newId()
+      const at = deps.now()
+      deps.db.transaction((tx) => {
+        tx.insert(supervisorMessage)
+          .values({
+            id: messageId,
+            threadId: input.threadId,
+            role: 'assistant',
+            content: input.content,
+            toolCallsJson: null,
+            metaJson: null,
+            triggerId: input.dedupeKey,
+            status: 'ok',
+            errorJson: null,
+            createdAt: at,
+          })
+          .onConflictDoNothing()
+          .run()
+        tx.update(supervisorThread)
+          .set({ updatedAt: at })
+          .where(eq(supervisorThread.id, input.threadId))
+          .run()
+      })
+      const row = deps.db
+        .select()
+        .from(supervisorMessage)
+        .where(
+          and(
+            eq(supervisorMessage.threadId, input.threadId),
+            eq(supervisorMessage.triggerId, input.dedupeKey),
+          ),
+        )
+        .get()
+      if (!row) throw new Error('failed to persist supervisor notification')
+      return { message: toMessage(row, null), duplicate: row.id !== messageId }
+    },
+
+    hasNotification(threadId, dedupeKey) {
+      const row = deps.db
+        .select({ id: supervisorMessage.id })
+        .from(supervisorMessage)
+        .where(
+          and(eq(supervisorMessage.threadId, threadId), eq(supervisorMessage.triggerId, dedupeKey)),
+        )
+        .get()
+      return row !== undefined
+    },
+
+    updateNotificationContent(messageId, content) {
+      const result = deps.db
+        .update(supervisorMessage)
+        .set({ content })
+        .where(and(eq(supervisorMessage.id, messageId), eq(supervisorMessage.role, 'assistant')))
+        .run()
+      if (result.changes === 0) return null
+      const row = deps.db
+        .select()
+        .from(supervisorMessage)
+        .where(eq(supervisorMessage.id, messageId))
+        .get()
+      return row ? toMessage(row, null) : null
     },
 
     listMessages(threadId, limit, before) {

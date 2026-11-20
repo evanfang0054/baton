@@ -2,6 +2,7 @@ import type { TaskOrigin } from '@baton/protocol'
 
 const sourceLabels: Record<TaskOrigin['source'], string> = {
   'supervisor-chat': '总管对话',
+  'supervisor-review': '总管验收员',
   canvas: '画布',
   github: 'GitHub',
   feishu: '飞书',
@@ -37,6 +38,12 @@ export function TaskOriginCard({
         <dd className="break-all font-mono text-muted">{origin.policyVersion}</dd>
         <dt className="text-muted">提示词</dt>
         <dd className="break-all font-mono text-muted">{origin.promptVersion}</dd>
+        {origin.reviewOfTaskId ? (
+          <>
+            <dt className="text-muted">验收对象</dt>
+            <dd className="break-all font-mono text-muted">{origin.reviewOfTaskId}</dd>
+          </>
+        ) : null}
       </dl>
     </section>
   )

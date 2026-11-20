@@ -3,8 +3,17 @@ import { Id, Timestamp } from './common.js'
 import { Engine } from './enums.js'
 import { AppError } from './errors.js'
 
-/** 总管 v0 只有 supervisor-chat 真实可用；其余是给外部 Source 预留的枚举值。 */
-export const SourceKind = z.enum(['supervisor-chat', 'canvas', 'github', 'feishu'])
+/**
+ * supervisor-chat 是总管链路；supervisor-review 是总管派出的验收员任务。
+ * 其余值是给外部 Source 预留的枚举值。
+ */
+export const SourceKind = z.enum([
+  'supervisor-chat',
+  'supervisor-review',
+  'canvas',
+  'github',
+  'feishu',
+])
 export type SourceKind = z.infer<typeof SourceKind>
 
 export const Actor = z.object({
@@ -113,6 +122,9 @@ export const TaskOrigin = z
     contextNodeIds: z.array(Id).max(40),
     policyVersion: z.string().min(1),
     promptVersion: z.string().min(1),
+    /** 验收员任务指向被验收的任务与那一轮 review，避免旧结论误批新尝试。 */
+    reviewOfTaskId: Id.optional(),
+    reviewOfReviewId: Id.optional(),
     createdAt: Timestamp,
   })
   .strict()
@@ -124,7 +136,7 @@ export const SupervisorTaskCard = z.object({
   title: z.string().min(1),
   target: z.object({ id: Id, title: z.string().min(1), engine: Engine }),
   contextCount: z.number().int().nonnegative(),
-  status: z.literal('todo'),
+  status: z.enum(['todo', 'queued']),
 })
 export type SupervisorTaskCard = z.infer<typeof SupervisorTaskCard>
 

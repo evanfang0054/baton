@@ -104,24 +104,36 @@ export function nextNodePosition(
   const stepX = size.w + gap
   const stepY = size.h + gap
 
-  for (let row = 0; row < MAX_ROWS; row += 1) {
-    for (const column of COLUMN_ORDER) {
-      const candidate: NodeRect = {
-        x: baseX + column * stepX,
-        y: baseY + row * stepY,
-        w: size.w,
-        h: size.h,
-      }
-      if (bounds && !withinBounds(candidate, bounds)) {
-        continue
-      }
-      if (!nodes.some((node) => overlaps(candidate, node, gap))) {
-        return { x: candidate.x, y: candidate.y }
+  const search = (respectBounds: boolean): { x: number; y: number } | null => {
+    for (let row = 0; row < MAX_ROWS; row += 1) {
+      for (const column of COLUMN_ORDER) {
+        const candidate: NodeRect = {
+          x: baseX + column * stepX,
+          y: baseY + row * stepY,
+          w: size.w,
+          h: size.h,
+        }
+        if (respectBounds && bounds && !withinBounds(candidate, bounds)) {
+          continue
+        }
+        if (!nodes.some((node) => overlaps(candidate, node, gap))) {
+          return { x: candidate.x, y: candidate.y }
+        }
       }
     }
+    return null
   }
 
-  return { x: baseX, y: baseY }
+  const inBounds = search(true)
+  if (inBounds) return inBounds
+
+  // 视口内没有空位时，宁可把节点放到视野外，也不能盖在已有节点上：
+  // 重叠会让连线手柄互相遮挡，用户连“拖开再连线”都做不到。
+  const anywhere = search(false)
+  if (anywhere) return anywhere
+
+  const bottom = nodes.reduce((max, node) => Math.max(max, node.y + node.h), baseY)
+  return { x: baseX, y: bottom + gap }
 }
 
 /** 合并服务端快照；拖拽中的节点保留本地位置，避免任务刷新把节点拉回去。 */
