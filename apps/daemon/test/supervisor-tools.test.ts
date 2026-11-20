@@ -381,6 +381,17 @@ describe('supervisor tools', () => {
     expect(result.created.every((card) => card.status === 'queued')).toBe(true)
   })
 
+  it('does not expose another workspace task', async () => {
+    const { database, seeded, tools } = setup()
+    const other = seedTask(database.raw, { withSession: false })
+    await expect(
+      tools.retry_task.execute({ taskId: other.taskId }, ctx(seeded)),
+    ).rejects.toMatchObject({ code: 'task_not_found' })
+    await expect(
+      tools.get_task_history.execute({ taskId: other.taskId }, ctx(seeded)),
+    ).rejects.toMatchObject({ code: 'task_not_found' })
+  })
+
   it('creates a worktree task when explicitly requested', async () => {
     const { database, seeded, tools } = setup()
     await tools.create_task.execute(
