@@ -26,7 +26,9 @@ import {
   listEdges,
   listNodes,
   listApprovalsByTask,
+  listReviewsByTask,
   listSessionsByTask,
+  listTaskStatusHistory,
   listTasks,
   updateTaskTitle,
 } from '../db/repositories.js'
@@ -68,6 +70,7 @@ export interface SupervisorToolset {
   list_canvas: SupervisorTool
   list_tasks: SupervisorTool
   get_task: SupervisorTool
+  get_task_history: SupervisorTool
   create_task: SupervisorTool
   enqueue_task: SupervisorTool
   create_text: SupervisorTool
@@ -85,6 +88,7 @@ export interface BoundToolset {
   list_canvas: BoundTool
   list_tasks: BoundTool
   get_task: BoundTool
+  get_task_history: BoundTool
   create_task: BoundTool
   enqueue_task: BoundTool
   create_text: BoundTool
@@ -102,6 +106,7 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     list_canvas: bind(tools.list_canvas),
     list_tasks: bind(tools.list_tasks),
     get_task: bind(tools.get_task),
+    get_task_history: bind(tools.get_task_history),
     create_task: bind(tools.create_task),
     enqueue_task: bind(tools.enqueue_task),
     create_text: bind(tools.create_text),
@@ -122,6 +127,11 @@ const listCanvasInput = z.object({
 })
 
 const getTaskInput = z.object({ taskId: z.string().min(1) })
+
+const getTaskHistoryInput = z.object({
+  taskId: z.string().min(1),
+  limit: z.number().int().min(1).max(50).default(20),
+})
 
 const createTaskInput = z.object({
   title: z.string().min(1).max(80),
@@ -436,6 +446,29 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
               }
             : null,
           pending: pendingForTask(deps.db, task),
+        }
+      },
+    },
+
+    get_task_history: {
+      description:
+        '读取任务状态转移、session 与 review 摘要；不返回 transcript、日志或 diff 正文。',
+      parameters: getTaskHistoryInput,
+      async execute(input, ctx) {
+        const parsed = getTaskHistoryInput.parse(input)
+        const detail = getTaskDetail(deps.db, parsed.taskId)
+        if (!detail || detail.task.workspaceId !== ctx.workspaceId) {
+          throw appError('task_not_found', 'task not found', { taskId: parsed.taskId })
+        }
+        const history = listTaskStatusHistory(deps.db, parsed.taskId, parsed.limit)
+        return {
+          taskId: parsed.taskId,
+          statusEvents: history.items,
+          sessions: listSessionsByTask(deps.db, parsed.taskId),
+          reviews: listReviewsByTask(deps.db, parsed.taskId),
+          ...(history.nextBeforeOrdinal !== undefined
+            ? { nextBeforeOrdinal: history.nextBeforeOrdinal }
+            : {}),
         }
       },
     },

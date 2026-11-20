@@ -200,6 +200,48 @@ describe('supervisor tools', () => {
     })
   })
 
+  it('returns status, session and review summaries without transcript', async () => {
+    const { database, seeded, tools } = setup()
+    database.raw
+      .prepare('insert into ws_event (id, type, payload_json, ts, task_id) values (?, ?, ?, ?, ?)')
+      .run(
+        'e1',
+        'task.status',
+        JSON.stringify({
+          taskId: seeded.taskId,
+          status: 'queued',
+          previousStatus: 'todo',
+          retryCount: 0,
+          updatedAt: 1,
+        }),
+        1,
+        seeded.taskId,
+      )
+    database.raw
+      .prepare('insert into ws_event (id, type, payload_json, ts, task_id) values (?, ?, ?, ?, ?)')
+      .run(
+        'e2',
+        'session.event',
+        JSON.stringify({ text: 'secret transcript' }),
+        2,
+        seeded.taskId,
+      )
+
+    const result = (await tools.get_task_history.execute(
+      { taskId: seeded.taskId },
+      ctx(seeded),
+    )) as {
+      taskId: string
+      statusEvents: Array<{ status: string }>
+      sessions: unknown[]
+      reviews: unknown[]
+    }
+    expect(result.taskId).toBe(seeded.taskId)
+    expect(result.statusEvents).toHaveLength(1)
+    expect(result.statusEvents[0]?.status).toBe('queued')
+    expect(JSON.stringify(result)).not.toContain('secret transcript')
+  })
+
   it('creates a worktree task when explicitly requested', async () => {
     const { database, seeded, tools } = setup()
     await tools.create_task.execute(
