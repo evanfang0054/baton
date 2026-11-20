@@ -27,8 +27,10 @@
 - [2026-11-19 M2-2a 无人值守与汇报设计](specs/2026-11-19-m2-autopilot-design.md)
 - [2026-11-19 M2-2b 移动端响应式控制台设计](specs/2026-11-19-m2-2b-mobile-console-design.md)
 - [2026-11-19 M3-1 交付验收增强设计](specs/2026-11-19-m3-delivery-acceptance-design.md)
+- [2026-11-20 M4 总管秘书化设计](specs/2026-11-20-m4-supervisor-secretary-design.md)
 - [2026-11-20 工作区目录选择器](specs/2026-11-20-workspace-directory-picker.md)
 - [2026-11-20 总管画布感知](specs/2026-11-20-supervisor-canvas-awareness.md)
+- [2026-11-20 M5-1 总管售后与批量设计](specs/2026-11-20-m5-supervisor-aftersales-design.md)
 
 ## 现行 ADR
 
@@ -39,6 +41,8 @@
 - [0005 按任务跳过审批与结构化提问](adr/0005-bypass-permissions-and-questions.md)
 - [0006 M2-2a 契约实现校正](adr/0006-m2-autopilot-contract-adjustments.md)
 - [0007 移动端从只读改为响应式控制台](adr/0007-mobile-control-console.md)
+- [0008 总管委派验收与委派审批（代验收被 0009 取代）](adr/0008-supervisor-delegated-authority.md)
+- [0009 总管预验收与人工终审](adr/0009-supervisor-preliminary-review.md)
 
 ## 现行 contract
 
