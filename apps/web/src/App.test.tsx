@@ -180,7 +180,66 @@ describe('App shell', () => {
     await user.click(await screen.findByRole('button', { name: '新建工作区' }))
     expect(await screen.findByRole('heading', { name: '新建工作区' })).toBeInTheDocument()
     expect(screen.getByLabelText('工作区名称')).toBeInTheDocument()
-    expect(screen.getByLabelText('工作区相对路径')).toBeInTheDocument()
+    expect(screen.getByText('工作区目录')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '选择目录' })).toBeInTheDocument()
+  })
+
+  it('selects a workspace directory from the picker and fills the name', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.startsWith('/api/workspaces/browse')) {
+          return json({
+            path: '',
+            parent: null,
+            entries: [{ name: 'baton', relPath: 'Desktop/baton', hasGit: true }],
+            truncated: false,
+            searching: url.includes('q='),
+          })
+        }
+        return json({ workspaces: [] })
+      }),
+    )
+    renderApp()
+    await user.click(await screen.findByRole('button', { name: '新建工作区' }))
+    await user.click(screen.getByRole('button', { name: '选择目录' }))
+    await user.click(await screen.findByRole('button', { name: '选择目录 Desktop/baton' }))
+
+    expect(screen.getByText('Desktop/baton')).toBeInTheDocument()
+    expect(screen.getByLabelText('工作区名称')).toHaveValue('baton')
+  })
+
+  it('searches directories and selects a nested result', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.startsWith('/api/workspaces/browse')) {
+          const searching = url.includes('q=')
+          return json({
+            path: '',
+            parent: null,
+            entries: searching
+              ? [{ name: 'baton', relPath: 'Desktop/Arwen/baton', hasGit: true }]
+              : [{ name: 'Desktop', relPath: 'Desktop', hasGit: false }],
+            truncated: false,
+            searching,
+          })
+        }
+        return json({ workspaces: [] })
+      }),
+    )
+    renderApp()
+    await user.click(await screen.findByRole('button', { name: '新建工作区' }))
+    await user.click(screen.getByRole('button', { name: '选择目录' }))
+    await screen.findByRole('button', { name: '选择目录 Desktop' })
+    await user.type(screen.getByLabelText('搜索目录'), 'baton')
+    await user.click(await screen.findByRole('button', { name: '选择目录 Desktop/Arwen/baton' }))
+
+    expect(screen.getByText('Desktop/Arwen/baton')).toBeInTheDocument()
   })
 
   it('shows an unauthenticated hint when the API returns 401', async () => {
