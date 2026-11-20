@@ -4,7 +4,7 @@ spec_topic: m5-supervisor-aftersales
 task_count: 7
 estimated_phases: [tests, implementation, verification]
 dod: "14 个工具全部接线；售后动作复用 core 转移并可审计；批量从文本节点建任务；提示词与 claim 守卫覆盖新动作；daemon 单元与集成测试通过"
-status: active
+status: completed
 depends_on: none
 ---
 
@@ -935,6 +935,10 @@ pnpm verify
 ```
 
 ---
+
+## 执行记录
+
+- 2026-11-21：Task 1-7 全部完成；daemon 285 tests；关键提交 `a449d8d`（q/status）、`d6f6bfb`（pending）、`ca31afc`（history）、`a575235`（retry/reopen/cancel）、`5c05f1f`（reply）、`0b8f57a`（batch）、`5f6fc88`（prompt/claim）。真实售后链路发现 claim 误判，修复 `a8f5846`。
 
 ## 计划自检
 

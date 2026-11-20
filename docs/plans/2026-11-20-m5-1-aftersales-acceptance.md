@@ -4,7 +4,7 @@ spec_topic: m5-supervisor-aftersales
 task_count: 5
 estimated_phases: [tests, verification, documentation]
 dod: "Playwright 覆盖售后/批量/取消确认；真实 Claude 售后链路与截图证据落库；docs 索引与 contract 收口；全量命令通过"
-status: active
+status: completed
 depends_on: docs/plans/2026-11-20-m5-1-aftersales-web.md
 ---
 
@@ -442,6 +442,10 @@ git commit -m "chore: M5-1 全量验证收口"
 ```
 
 ---
+
+## 执行记录
+
+- 2026-11-21：Playwright `supervisor-aftersales.spec.ts` 3 条全绿；`pnpm verify:full` 35 条全绿；真实 Claude 售后链路（Write 审批 → review → done → reopen → 新会话 Edit 审批 → review）通过，证据 `docs/evidence/2026-11-21-m5-supervisor-aftersales/`。验收中修复 claim 误判 `a8f5846`。
 
 ## 计划自检
 

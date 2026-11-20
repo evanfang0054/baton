@@ -4,7 +4,7 @@ spec_topic: m5-supervisor-aftersales
 task_count: 5
 estimated_phases: [tests, implementation, verification]
 dod: "总管消息能渲染多张 create_tasks 任务卡与批量失败；新工具有一行回执/图标；新工具成功后刷新 tasks/canvas；组件与 RealtimeProvider 测试通过"
-status: active
+status: completed
 depends_on: docs/plans/2026-11-20-m5-1-aftersales-daemon.md
 ---
 
@@ -426,6 +426,10 @@ git commit -m "chore(web): 格式与测试收口"
 ```
 
 ---
+
+## 执行记录
+
+- 2026-11-21：Task 1-5 完成；web 198 tests；提交 `daab4de`（批量卡/失败列表）、`aedd023`（图标/刷新）、`b02294f`（pending 测试）。`pnpm --filter @baton/web typecheck` 与 `format:check` 通过。
 
 ## 计划自检
 
