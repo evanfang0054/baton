@@ -47,6 +47,7 @@ function setup() {
     newId: () => 'task-new',
   })
   let nodeSeq = 0
+  const transitions: Array<{ taskId: string; type: string }> = []
   const tools = createSupervisorTools({
     db: database.db,
     taskService,
@@ -54,8 +55,21 @@ function setup() {
     newId: () => `node-${++nodeSeq}`,
     defaultEngine: 'claude-sdk',
     enqueueTask: () => ({ ok: true, status: 'queued' }),
+    applyTransition: (taskId, event) => {
+      transitions.push({ taskId, type: event.type })
+      return {
+        ok: true,
+        taskId,
+        status:
+          event.type === 'retry' ? 'queued' : event.type === 'reopen' ? 'todo' : 'cancelled',
+        previousStatus: 'failed',
+        retryCount: 0,
+        waitingReason: null,
+        events: [],
+      }
+    },
   })
-  return { database, seeded, tools, root }
+  return { database, seeded, tools, root, transitions }
 }
 
 function ctx(seeded: ReturnType<typeof seedTask>): ToolContext {
@@ -240,6 +254,43 @@ describe('supervisor tools', () => {
     expect(result.statusEvents).toHaveLength(1)
     expect(result.statusEvents[0]?.status).toBe('queued')
     expect(JSON.stringify(result)).not.toContain('secret transcript')
+  })
+
+  it('retries only failed tasks and reopens only finished tasks', async () => {
+    const { database, seeded, tools, transitions } = setup()
+    database.raw.prepare('update task set status = ? where id = ?').run('failed', seeded.taskId)
+    const retry = (await tools.retry_task.execute(
+      { taskId: seeded.taskId, note: '再试一次' },
+      ctx(seeded),
+    )) as { status: string }
+    expect(retry.status).toBe('queued')
+    expect(transitions.at(-1)).toEqual({ taskId: seeded.taskId, type: 'retry' })
+
+    database.raw.prepare('update task set status = ? where id = ?').run('done', seeded.taskId)
+    const reopen = (await tools.reopen_task.execute(
+      { taskId: seeded.taskId, start: true },
+      ctx(seeded),
+    )) as { status: string }
+    expect(reopen.status).toBe('queued')
+    expect(transitions.at(-1)).toEqual({ taskId: seeded.taskId, type: 'reopen' })
+  })
+
+  it('requires confirmation before cancelling a running task', async () => {
+    const { database, seeded, tools, transitions } = setup()
+    database.raw.prepare('update task set status = ? where id = ?').run('running', seeded.taskId)
+    const pending = (await tools.cancel_task.execute(
+      { taskId: seeded.taskId },
+      ctx(seeded),
+    )) as { ok: boolean; code: string }
+    expect(pending).toMatchObject({ ok: false, code: 'confirmation_required' })
+    expect(transitions).toHaveLength(0)
+
+    const done = (await tools.cancel_task.execute(
+      { taskId: seeded.taskId, confirm: true },
+      ctx(seeded),
+    )) as { ok: boolean; status: string }
+    expect(done).toMatchObject({ ok: true, status: 'cancelled' })
+    expect(transitions.at(-1)).toEqual({ taskId: seeded.taskId, type: 'cancel' })
   })
 
   it('creates a worktree task when explicitly requested', async () => {

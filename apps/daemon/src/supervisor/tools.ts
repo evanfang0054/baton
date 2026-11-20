@@ -15,13 +15,16 @@ import {
   type Engine as EngineValue,
   type SupervisorTaskCard as SupervisorTaskCardValue,
   type Task,
+  type TaskTransitionEvent,
 } from '@baton/protocol'
 import { z } from 'zod'
 import {
   getCanvasByWorkspace,
   getNode,
   getReviewByTask,
+  getTask,
   getTaskDetail,
+  insertAudit,
   insertNode,
   listEdges,
   listNodes,
@@ -36,6 +39,7 @@ import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
 import { createEdge as createCanvasEdge } from '../runtime/edge-service.js'
 import type { TaskService } from '../runtime/task-service.js'
+import type { TransitionOutcome } from '../runtime/types.js'
 import { nodeSummary, textTitle } from './canvas-summary.js'
 
 export interface AgentCandidate {
@@ -73,6 +77,9 @@ export interface SupervisorToolset {
   get_task_history: SupervisorTool
   create_task: SupervisorTool
   enqueue_task: SupervisorTool
+  retry_task: SupervisorTool
+  reopen_task: SupervisorTool
+  cancel_task: SupervisorTool
   create_text: SupervisorTool
   create_agent: SupervisorTool
   create_edge: SupervisorTool
@@ -91,6 +98,9 @@ export interface BoundToolset {
   get_task_history: BoundTool
   create_task: BoundTool
   enqueue_task: BoundTool
+  retry_task: BoundTool
+  reopen_task: BoundTool
+  cancel_task: BoundTool
   create_text: BoundTool
   create_agent: BoundTool
   create_edge: BoundTool
@@ -109,6 +119,9 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     get_task_history: bind(tools.get_task_history),
     create_task: bind(tools.create_task),
     enqueue_task: bind(tools.enqueue_task),
+    retry_task: bind(tools.retry_task),
+    reopen_task: bind(tools.reopen_task),
+    cancel_task: bind(tools.cancel_task),
     create_text: bind(tools.create_text),
     create_agent: bind(tools.create_agent),
     create_edge: bind(tools.create_edge),
@@ -145,6 +158,23 @@ const createTaskInput = z.object({
 
 const enqueueTaskInput = z.object({ taskId: z.string().min(1) })
 
+const retryTaskInput = z.object({
+  taskId: z.string().min(1),
+  note: z.string().min(1).max(16_384).optional(),
+})
+
+const reopenTaskInput = z.object({
+  taskId: z.string().min(1),
+  note: z.string().min(1).max(16_384).optional(),
+  start: z.boolean().default(false),
+})
+
+const cancelTaskInput = z.object({
+  taskId: z.string().min(1),
+  reason: z.string().min(1).max(1_000).optional(),
+  confirm: z.boolean().default(false),
+})
+
 const createTextInput = z.object({
   content: z.string().min(1).max(16_384),
   title: z.string().min(1).max(80).optional(),
@@ -169,6 +199,7 @@ export interface SupervisorToolsDeps {
   newId: () => string
   defaultEngine: EngineValue
   enqueueTask: (taskId: string) => EnqueueTaskResult
+  applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
 }
 
 const CONTENT_TYPES = new Set(['text', 'file', 'image'])
@@ -337,6 +368,40 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     // 用户手工建节点时默认是 fake（演示引擎）；总管派活默认用真实引擎。
     if (target.engine === 'fake' && deps.defaultEngine !== 'fake') return deps.defaultEngine
     return target.engine
+  }
+
+  function requireTask(ctx: ToolContext, taskId: string): Task {
+    const task = getTask(deps.db, taskId)
+    if (!task || task.workspaceId !== ctx.workspaceId) {
+      throw appError('task_not_found', 'task not found', { taskId })
+    }
+    return task
+  }
+
+  function audit(
+    action: string,
+    taskId: string,
+    ctx: ToolContext,
+    detail: Record<string, unknown> = {},
+  ): void {
+    deps.db.transaction((tx) => {
+      insertAudit(tx, {
+        id: deps.newId(),
+        ts: deps.now(),
+        actor: 'supervisor',
+        action,
+        detail: { taskId, triggerId: ctx.triggerId, threadId: ctx.threadId, ...detail },
+      })
+    })
+  }
+
+  function transitionResult(outcome: TransitionOutcome): {
+    ok: true
+    taskId: string
+    status: TaskStatus
+  } {
+    if (!outcome.ok) throw outcome.error
+    return { ok: true, taskId: outcome.taskId, status: outcome.status }
   }
 
   return {
@@ -643,6 +708,100 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         const outcome = deps.enqueueTask(parsed.taskId)
         if (!outcome.ok) throw outcome.error
         return { taskId: parsed.taskId, status: outcome.status }
+      },
+    },
+
+    retry_task: {
+      description: '重试一个失败任务；只有 failed 可用。note 用用户原话，写入 <feedback>。',
+      parameters: retryTaskInput,
+      async execute(input, ctx) {
+        const parsed = retryTaskInput.parse(input)
+        const task = requireTask(ctx, parsed.taskId)
+        if (task.status !== 'failed') {
+          throw appError('invalid_transition', 'only failed tasks can be retried', {
+            taskId: task.id,
+            status: task.status,
+          })
+        }
+        const result = transitionResult(
+          deps.applyTransition(task.id, {
+            type: 'retry',
+            ...(parsed.note ? { note: parsed.note } : {}),
+          }),
+        )
+        audit('supervisor.task.retry', task.id, ctx, { hasNote: Boolean(parsed.note) })
+        return result
+      },
+    },
+
+    reopen_task: {
+      description:
+        '重开一个已完成/已取消的任务；start=true 时重开后立即开工。note 用用户原话，写入 <reopen_note>。',
+      parameters: reopenTaskInput,
+      async execute(input, ctx) {
+        const parsed = reopenTaskInput.parse(input)
+        const task = requireTask(ctx, parsed.taskId)
+        if (task.status !== 'done' && task.status !== 'cancelled') {
+          throw appError('invalid_transition', 'only done/cancelled tasks can be reopened', {
+            taskId: task.id,
+            status: task.status,
+          })
+        }
+        const result = transitionResult(
+          deps.applyTransition(task.id, {
+            type: 'reopen',
+            ...(parsed.note ? { note: parsed.note } : {}),
+          }),
+        )
+        let status: TaskStatus = result.status
+        let startError: string | undefined
+        if (parsed.start) {
+          const outcome = deps.enqueueTask(task.id)
+          if (outcome.ok) status = outcome.status
+          else startError = outcome.error.message
+        }
+        audit('supervisor.task.reopen', task.id, ctx, {
+          hasNote: Boolean(parsed.note),
+          started: Boolean(parsed.start && !startError),
+        })
+        return {
+          ok: true,
+          taskId: task.id,
+          status,
+          ...(startError ? { startError } : {}),
+        }
+      },
+    },
+
+    cancel_task: {
+      description:
+        '取消一个非终态任务；运行中任务需要 confirm=true。reason 用用户原话，可选。',
+      parameters: cancelTaskInput,
+      async execute(input, ctx) {
+        const parsed = cancelTaskInput.parse(input)
+        const task = requireTask(ctx, parsed.taskId)
+        if (task.status === 'done' || task.status === 'failed' || task.status === 'cancelled') {
+          throw appError('invalid_transition', 'terminal tasks cannot be cancelled', {
+            taskId: task.id,
+            status: task.status,
+          })
+        }
+        if (task.status === 'running' && !parsed.confirm) {
+          return {
+            ok: false,
+            code: 'confirmation_required',
+            taskId: task.id,
+            status: task.status,
+          }
+        }
+        const result = transitionResult(
+          deps.applyTransition(task.id, {
+            type: 'cancel',
+            ...(parsed.reason ? { reason: parsed.reason } : {}),
+          }),
+        )
+        audit('supervisor.task.cancel', task.id, ctx, { hasReason: Boolean(parsed.reason) })
+        return result
       },
     },
   }

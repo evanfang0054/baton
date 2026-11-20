@@ -143,6 +143,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     newId: deps.newId,
     defaultEngine: deps.defaultEngine,
     enqueueTask: deps.enqueueTask,
+    applyTransition: deps.applyTransition,
   })
   const policyVersion = supervisorPolicyVersion(SUPERVISOR_POLICY, PROMPT_VERSION)
   const active = new Set<string>()
