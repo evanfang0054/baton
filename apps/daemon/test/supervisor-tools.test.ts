@@ -63,8 +63,7 @@ function setup() {
       return {
         ok: true,
         taskId,
-        status:
-          event.type === 'retry' ? 'queued' : event.type === 'reopen' ? 'todo' : 'cancelled',
+        status: event.type === 'retry' ? 'queued' : event.type === 'reopen' ? 'todo' : 'cancelled',
         previousStatus: 'failed',
         retryCount: 0,
         waitingReason: null,
@@ -209,9 +208,7 @@ describe('supervisor tools', () => {
         request: {
           toolName: 'AskUserQuestion',
           input: {
-            questions: [
-              { question: '用哪个方案？', options: [{ label: 'A' }, { label: 'B' }] },
-            ],
+            questions: [{ question: '用哪个方案？', options: [{ label: 'A' }, { label: 'B' }] }],
           },
           risk: 'low',
         },
@@ -255,13 +252,7 @@ describe('supervisor tools', () => {
       )
     database.raw
       .prepare('insert into ws_event (id, type, payload_json, ts, task_id) values (?, ?, ?, ?, ?)')
-      .run(
-        'e2',
-        'session.event',
-        JSON.stringify({ text: 'secret transcript' }),
-        2,
-        seeded.taskId,
-      )
+      .run('e2', 'session.event', JSON.stringify({ text: 'secret transcript' }), 2, seeded.taskId)
 
     const result = (await tools.get_task_history.execute(
       { taskId: seeded.taskId },
@@ -300,10 +291,10 @@ describe('supervisor tools', () => {
   it('requires confirmation before cancelling a running task', async () => {
     const { database, seeded, tools, transitions } = setup()
     database.raw.prepare('update task set status = ? where id = ?').run('running', seeded.taskId)
-    const pending = (await tools.cancel_task.execute(
-      { taskId: seeded.taskId },
-      ctx(seeded),
-    )) as { ok: boolean; code: string }
+    const pending = (await tools.cancel_task.execute({ taskId: seeded.taskId }, ctx(seeded))) as {
+      ok: boolean
+      code: string
+    }
     expect(pending).toMatchObject({ ok: false, code: 'confirmation_required' })
     expect(transitions).toHaveLength(0)
 

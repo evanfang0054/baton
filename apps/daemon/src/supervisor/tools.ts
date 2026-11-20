@@ -820,17 +820,12 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           created.push(card(result.taskId, title, target, contextNodeIds.length, status))
         }
 
-        audit(
-          'supervisor.task.batch',
-          created[0]?.taskId ?? parsed.nodeIds[0]!,
-          ctx,
-          {
-            nodeIds: parsed.nodeIds,
-            createdTaskIds: created.map((item) => item.taskId),
-            failed: failed.map((item) => item.nodeId),
-            started: parsed.start,
-          },
-        )
+        audit('supervisor.task.batch', created[0]?.taskId ?? parsed.nodeIds[0]!, ctx, {
+          nodeIds: parsed.nodeIds,
+          createdTaskIds: created.map((item) => item.taskId),
+          failed: failed.map((item) => item.nodeId),
+          started: parsed.start,
+        })
         return { created, failed }
       },
     },
@@ -922,8 +917,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     },
 
     cancel_task: {
-      description:
-        '取消一个非终态任务；运行中任务需要 confirm=true。reason 用用户原话，可选。',
+      description: '取消一个非终态任务；运行中任务需要 confirm=true。reason 用用户原话，可选。',
       parameters: cancelTaskInput,
       async execute(input, ctx) {
         const parsed = cancelTaskInput.parse(input)
