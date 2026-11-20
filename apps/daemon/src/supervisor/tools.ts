@@ -9,11 +9,11 @@ import {
   Engine,
   Node,
   SupervisorTaskCard,
+  TaskStatus,
   type Actor,
   type AppError,
   type Engine as EngineValue,
   type SupervisorTaskCard as SupervisorTaskCardValue,
-  type TaskStatus,
 } from '@baton/protocol'
 import { z } from 'zod'
 import {
@@ -110,6 +110,8 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
 
 const listTasksInput = z.object({
   filter: z.enum(['all', 'attention']).default('all'),
+  status: TaskStatus.optional(),
+  q: z.string().trim().min(1).max(120).optional(),
   limit: z.number().int().min(1).max(50).default(20),
 })
 
@@ -322,7 +324,17 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       parameters: listTasksInput,
       async execute(input, ctx) {
         const parsed = listTasksInput.parse(input)
-        const tasks = listTasks(deps.db, { workspaceId: ctx.workspaceId })
+        const needle = parsed.q?.toLowerCase()
+        const tasks = listTasks(deps.db, {
+          workspaceId: ctx.workspaceId,
+          ...(parsed.status ? { status: parsed.status } : {}),
+        })
+          .filter(
+            (task) =>
+              !needle ||
+              task.title.toLowerCase().includes(needle) ||
+              task.id.toLowerCase().startsWith(needle),
+          )
           .map((task) => taskSummary(task, boardColumn(task.status)))
           .filter((task) => (parsed.filter === 'attention' ? task.needsPerson : true))
           .sort((a, b) => {

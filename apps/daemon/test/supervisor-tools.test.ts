@@ -101,6 +101,34 @@ describe('supervisor tools', () => {
     })
   })
 
+  it('filters tasks by q and status in the current workspace', async () => {
+    const { database, seeded, tools } = setup()
+    const insert = database.raw.prepare(
+      `insert into task (
+         id, workspace_id, node_id, title, prompt, status, engine, workspace_mode,
+         branch, worktree_path, verify_command, retry_count, created_at, updated_at
+       ) values (?, ?, ?, ?, 'p', ?, 'fake', 'main', null, null, null, 0, ?, ?)`,
+    )
+    insert.run('task-login', seeded.workspaceId, seeded.nodeId, '登录页修复', 'todo', 3, 3)
+    insert.run('task-home', seeded.workspaceId, seeded.nodeId, '首页登录入口', 'done', 2, 2)
+    insert.run('task-other', seeded.workspaceId, seeded.nodeId, '支付回调', 'todo', 1, 1)
+
+    const byQ = (await tools.list_tasks.execute({ q: '登录' }, ctx(seeded))) as {
+      tasks: Array<{ id: string }>
+    }
+    expect(byQ.tasks.map((task) => task.id)).toEqual(['task-login', 'task-home'])
+
+    const byStatus = (await tools.list_tasks.execute({ status: 'done' }, ctx(seeded))) as {
+      tasks: Array<{ id: string }>
+    }
+    expect(byStatus.tasks.map((task) => task.id)).toEqual(['task-home'])
+
+    const byId = (await tools.list_tasks.execute({ q: 'task-log' }, ctx(seeded))) as {
+      tasks: Array<{ id: string }>
+    }
+    expect(byId.tasks.map((task) => task.id)).toEqual(['task-login'])
+  })
+
   it('creates a worktree task when explicitly requested', async () => {
     const { database, seeded, tools } = setup()
     await tools.create_task.execute(
