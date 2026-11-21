@@ -323,6 +323,8 @@ export function sceneDetail(): TaskDetailResponse {
     review: reviewView(),
     waitingSince: Date.now() - 40 * 60_000,
     attention: 'needs_review',
+    acceptance: acceptanceSummary(),
+    budget: budgetSummary(),
   }
 }
 

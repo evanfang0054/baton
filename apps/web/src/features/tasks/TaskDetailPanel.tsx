@@ -98,6 +98,7 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
     const taskId = detail.data?.task.id
     if (!taskId) return
     await queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.taskAcceptance(taskId) })
     await queryClient.invalidateQueries({ queryKey: queryKeys.taskHistory(taskId) })
     if (activeWorkspaceId) {
       await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(activeWorkspaceId) })
@@ -269,6 +270,7 @@ function DetailContent({
           .map((item) => ({ text: item.text, evidence: item.evidence })),
       }
     : null
+  const budgetSummary = detail.budget ?? acceptance?.budget ?? null
 
   return (
     <>
@@ -340,8 +342,8 @@ function DetailContent({
           />
         ) : null}
       </div>
-      {acceptance && ['todo', 'queued', 'failed'].includes(task.status) ? (
-        <BudgetEditor taskId={task.id} budget={acceptance.budget} onDone={onDone} />
+      {budgetSummary && ['todo', 'queued', 'failed'].includes(task.status) ? (
+        <BudgetEditor taskId={task.id} budget={budgetSummary} onDone={onDone} />
       ) : null}
 
       <TaskHistory taskId={task.id} onOpenDiff={setHistoryDiffReviewId} />
@@ -375,7 +377,7 @@ function DetailContent({
             review={detail.review}
             usage={lastSession ? { costUsd: lastSession.costUsd, turns: lastSession.turns } : null}
             acceptance={acceptanceSummary}
-            budget={acceptance?.budget ?? null}
+            budget={budgetSummary}
             contextNodes={contextNodes}
             onDone={onDone}
           />
@@ -393,7 +395,7 @@ function DetailContent({
           status={task.status}
           attention={detail.attention}
           waitingReason={task.waitingReason}
-          budget={acceptance?.budget ?? null}
+          budget={budgetSummary}
           sticky={mobile}
         />
       ) : null}

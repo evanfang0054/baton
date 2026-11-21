@@ -100,6 +100,7 @@ export function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesDeps): 
     }
     const task = detail.task
     const review = getReviewByTask(deps.db, task.id)
+    const acceptance = listAcceptanceSummaries(deps.db, [task.id]).get(task.id) ?? null
     return TaskDetailResponse.parse({
       task,
       contextInvalid: detail.contextInvalid,
@@ -109,6 +110,8 @@ export function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesDeps): 
       review: review ? { ...review, diffAvailable: hasReviewDiff(deps.db, review.id) } : null,
       waitingSince: waitingSinceFor(task),
       attention: attentionFor(task.status, task.waitingReason),
+      acceptance,
+      budget: getTaskBudgetSummary(deps.db, task, deps.config),
     })
   })
 

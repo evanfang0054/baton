@@ -191,6 +191,8 @@ export const TaskDetailResponse = z.object({
   review: ReviewView.nullable(),
   waitingSince: Timestamp.nullable(),
   attention: Attention,
+  acceptance: TaskAcceptanceSummary.nullable().default(null),
+  budget: TaskBudgetSummary.nullable().default(null),
 })
 export type TaskDetailResponse = z.infer<typeof TaskDetailResponse>
 

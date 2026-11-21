@@ -61,6 +61,18 @@ function stubDetail() {
           review: null,
           waitingSince: null,
           attention: 'none',
+          acceptance: null,
+          budget: {
+            budgetUsd: 2,
+            spentUsd: 0,
+            remainingUsd: 2,
+            ratio: 0,
+            overBudget: false,
+            nearBudget: false,
+            workerCostUsd: 0,
+            verifierCostUsd: 0,
+            turns: 0,
+          },
           contextInvalid: false,
           originInvalid: false,
         })

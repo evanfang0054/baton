@@ -62,9 +62,13 @@ describe('acceptance REST', () => {
     expect(before.statusCode).toBe(200)
     const beforeTask = (
       before.json() as {
-        tasks: Array<{ acceptance: TaskAcceptanceSummary | null; budget: TaskBudgetSummary }>
+        tasks: Array<{
+          id: string
+          acceptance: TaskAcceptanceSummary | null
+          budget: TaskBudgetSummary
+        }>
       }
-    ).tasks[0]
+    ).tasks.find((task) => task.id === handle.seeded.taskId)
     expect(beforeTask?.acceptance).toBeNull()
     expect(beforeTask?.budget).toMatchObject({ budgetUsd: 2, spentUsd: 0, overBudget: false })
 
@@ -72,14 +76,41 @@ describe('acceptance REST', () => {
     const after = await app.inject({ method: 'GET', url: listUrl, headers: auth })
     const afterTask = (
       after.json() as {
-        tasks: Array<{ acceptance: TaskAcceptanceSummary | null; budget: TaskBudgetSummary }>
+        tasks: Array<{
+          id: string
+          acceptance: TaskAcceptanceSummary | null
+          budget: TaskBudgetSummary
+        }>
       }
-    ).tasks[0]
+    ).tasks.find((task) => task.id === handle.seeded.taskId)
     expect(afterTask?.acceptance).toMatchObject({
       version: 1,
       status: 'draft',
       counts: { total: 0, pass: 0, fail: 0, pending: 0, waived: 0 },
       verdict: 'incomplete',
+    })
+  })
+
+  it('exposes acceptance and budget on task detail', async () => {
+    const { app, handle } = await setup()
+    const url = `/api/tasks/${handle.seeded.taskId}`
+    const before = await app.inject({ method: 'GET', url, headers: auth })
+    expect(before.statusCode).toBe(200)
+    expect(before.json()).toMatchObject({
+      acceptance: null,
+      budget: { budgetUsd: 2, spentUsd: 0, overBudget: false },
+    })
+
+    enterReview(handle)
+    const after = await app.inject({ method: 'GET', url, headers: auth })
+    expect(after.json()).toMatchObject({
+      acceptance: {
+        version: 1,
+        status: 'draft',
+        counts: { total: 0, pass: 0, fail: 0, pending: 0, waived: 0 },
+        verdict: 'incomplete',
+      },
+      budget: { budgetUsd: 2, spentUsd: 0, overBudget: false },
     })
   })
 
