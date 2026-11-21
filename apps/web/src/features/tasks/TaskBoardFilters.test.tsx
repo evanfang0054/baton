@@ -35,15 +35,16 @@ describe('filterTasks', () => {
       task({ id: 'b', status: 'waiting_input', attention: 'needs_reply', waitingSince: 10 }),
       task({ id: 'c', status: 'running', attention: 'none', waitingSince: null }),
     ]
-    expect(
-      filterTasks(tasks, { filter: 'needs_me', query: '', now: 100 }).map((item) => item.id),
-    ).toEqual(['b', 'a'])
+    expect(filterTasks(tasks, { filter: 'needs_me', query: '' }).map((item) => item.id)).toEqual([
+      'b',
+      'a',
+    ])
   })
 
   it('searches title case-insensitively', () => {
     const tasks = [task({ id: 'a', title: 'Login Page' }), task({ id: 'b', title: '看板' })]
-    expect(filterTasks(tasks, { filter: 'all', query: 'login', now: 1 })).toHaveLength(1)
-    expect(filterTasks(tasks, { filter: 'all', query: '看板', now: 1 })).toHaveLength(1)
+    expect(filterTasks(tasks, { filter: 'all', query: 'login' })).toHaveLength(1)
+    expect(filterTasks(tasks, { filter: 'all', query: '看板' })).toHaveLength(1)
   })
 
   it('filters review and waiting_input', () => {
@@ -52,12 +53,8 @@ describe('filterTasks', () => {
       task({ id: 'b', status: 'waiting_input', attention: 'needs_reply' }),
       task({ id: 'c', status: 'todo' }),
     ]
-    expect(filterTasks(tasks, { filter: 'review', query: '', now: 1 }).map((t) => t.id)).toEqual([
-      'a',
-    ])
-    expect(filterTasks(tasks, { filter: 'waiting', query: '', now: 1 }).map((t) => t.id)).toEqual([
-      'b',
-    ])
+    expect(filterTasks(tasks, { filter: 'review', query: '' }).map((t) => t.id)).toEqual(['a'])
+    expect(filterTasks(tasks, { filter: 'waiting', query: '' }).map((t) => t.id)).toEqual(['b'])
   })
 })
 

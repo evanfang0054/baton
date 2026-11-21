@@ -42,7 +42,7 @@ export function reviewCardId(taskId: string): string {
 /** 本地图片走受控读取路由；外链原样交给浏览器，daemon 不代理。 */
 export function resolveImageUrl(src: string, workspaceId?: string): string | undefined {
   const prefix = '.baton/uploads/'
-  if (!src.startsWith(prefix)) return src
+  if (!src.startsWith(prefix)) return src.startsWith('https://') ? src : undefined
   if (!workspaceId) return undefined
   return `/api/workspaces/${workspaceId}/uploads/${encodeURIComponent(src.slice(prefix.length))}`
 }
@@ -126,7 +126,7 @@ export function toFlowNodes(
       type: 'review',
       position,
       draggable: false,
-      selectable: true,
+      selectable: false,
       connectable: false,
       style: { width: 280, height: 180 },
       data: {
@@ -153,10 +153,18 @@ export function toFlowNodes(
   return [...groups, ...base, ...reviewCards]
 }
 
-export function toFlowEdges(edges: ProtocolEdge[], scene?: TaskScene | null): FlowEdge[] {
+export function toFlowEdges(
+  edges: ProtocolEdge[],
+  scene?: TaskScene | null,
+  hiddenNodeIds?: ReadonlySet<string>,
+): FlowEdge[] {
   const allowed = scene ? new Set(scene.relatedEdgeIds) : null
   return edges
     .filter((edge) => !allowed || allowed.has(edge.id))
+    .filter(
+      (edge) =>
+        !hiddenNodeIds || (!hiddenNodeIds.has(edge.sourceId) && !hiddenNodeIds.has(edge.targetId)),
+    )
     .map((edge) => ({
       id: edge.id,
       source: edge.sourceId,
@@ -206,7 +214,11 @@ export function groupMovePlan(
   const children = all.filter((item) => item.parentId === node.id)
   return [
     { nodeId: node.id, x: node.position.x, y: node.position.y },
-    ...children.map((child) => ({ nodeId: child.id, ...absolutePosition(child, all) })),
+    ...children.map((child) => ({
+      nodeId: child.id,
+      x: node.position.x + child.position.x,
+      y: node.position.y + child.position.y,
+    })),
   ]
 }
 

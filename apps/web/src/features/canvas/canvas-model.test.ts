@@ -149,6 +149,8 @@ describe('canvas model', () => {
     expect(card).toMatchObject({
       type: 'review',
       draggable: false,
+      selectable: false,
+      connectable: false,
       position: { x: 410, y: 60 },
       data: { task: reviewTask, review },
     })
@@ -208,6 +210,18 @@ describe('canvas model', () => {
       focusable: true,
       deletable: true,
     })
+  })
+
+  it('hides edges touching collapsed group children', () => {
+    const edges = toFlowEdges(
+      [
+        { id: 'e1', canvasId: 'c1', sourceId: 'n1', targetId: 'n2', type: 'context' },
+        { id: 'e2', canvasId: 'c1', sourceId: 'n2', targetId: 'n3', type: 'context' },
+      ],
+      null,
+      new Set(['n1']),
+    )
+    expect(edges.map((edge) => edge.id)).toEqual(['e2'])
   })
 
   it('rejects self loops, duplicates and empty endpoints', () => {

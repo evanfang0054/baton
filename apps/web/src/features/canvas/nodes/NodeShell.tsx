@@ -14,6 +14,7 @@ export function NodeShell({
 }) {
   const id = useNodeId()
   const actions = useCanvasActions()
+  const readOnly = actions.readOnly
 
   return (
     <div
@@ -22,24 +23,24 @@ export function NodeShell({
       } ${dimmed ? 'pointer-events-none opacity-25' : ''}`}
     >
       <NodeResizer
-        isVisible={selected && !dimmed}
+        isVisible={selected && !dimmed && !readOnly}
         minWidth={160}
         minHeight={100}
         color="var(--accent)"
         onResizeEnd={(_, params) => {
-          if (id) actions.updateSize(id, params.width, params.height)
+          if (id && !readOnly) actions.updateSize(id, params.width, params.height)
         }}
       />
       <Handle
         type="target"
         position={Position.Top}
-        isConnectable
+        isConnectable={!readOnly}
         className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
       />
       <Handle
         type="source"
         position={Position.Bottom}
-        isConnectable
+        isConnectable={!readOnly}
         className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
       />
       {children}

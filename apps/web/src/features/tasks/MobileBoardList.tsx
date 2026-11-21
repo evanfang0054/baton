@@ -113,7 +113,6 @@ export function MobileBoardList({
       filterTasks(tasks, {
         filter: needsMe ? 'needs_me' : 'all',
         query,
-        now: Date.now(),
       }),
     [needsMe, query, tasks],
   )

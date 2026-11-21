@@ -462,3 +462,4 @@ Expected: 全部通过；现有 web 204 tests 不回归。
 - 验证：`pnpm verify` 退出码 0；web 231 tests、daemon 309 tests、core 161 tests、protocol 127 tests；typecheck/lint/format/boundaries/protocol/build 全绿。
 - 关键落地：`filterTasks` 复用 core `needsPerson`/`sortByWaiting`；桌面与手机看板共用筛选；stale 文案带 Clock 图标；rail 计数=同一 `needsPerson` 口径；任务详情与任务卡都可进现场；review 卡展示初步结论并保留“最终由你决定”；`review.preliminary` 实时失效任务详情与列表。
 - 偏差：手机看板保留原有 5 个分类 tab，并额外增加“需要我”开关 + 搜索，而不是替换为两个 tab；`TaskBoard.filter.test.tsx` 只覆盖筛选/搜索主路径，未模拟键盘或触控；六个 task 合并为一个提交，原因同 Plan 3（改动集中在同一批组件）。
+- 2026-11-21 代码评审修复：总管 `update_node` 纳入画布失效工具集（测试事件时间戳改为整数，避免被协议层丢弃）；进入现场统一清空节点选中，任务切换时清理不匹配的现场；`filterTasks` 移除未使用的 `now` 参数；筛选容器改为 `role="group"`。

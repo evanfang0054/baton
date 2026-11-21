@@ -60,6 +60,7 @@ export function App() {
   const activeTaskId = useAppStore((state) => state.activeTaskId)
   const selectedNodeId = useAppStore((state) => state.selectedNodeId)
   const selectedNodeIds = useAppStore((state) => state.selectedNodeIds)
+  const sceneTaskId = useAppStore((state) => state.sceneTaskId)
   const contextNodeIds = useAppStore((state) => state.contextNodeIds)
   const boardExpanded = useAppStore((state) => state.boardExpanded)
   const boardPinned = useAppStore((state) => state.boardPinned)
@@ -478,6 +479,7 @@ export function App() {
               onOpenScene={(id) => {
                 setSceneTask(id)
                 setTask(id)
+                setSelectedNode(null)
                 setRightPanel('task')
                 setBoardExpanded(false)
                 writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
@@ -506,7 +508,7 @@ export function App() {
               mode={rightPanel}
               onModeChange={setRightPanel}
               hasTask={Boolean(activeTaskId)}
-              hasNode={Boolean(selectedNode)}
+              hasNode={Boolean(selectedNode) && sceneTaskId === null}
               hasUnreadNotice={notices.data?.notices[0]?.readAt === null}
               supervisor={
                 <SupervisorPanel

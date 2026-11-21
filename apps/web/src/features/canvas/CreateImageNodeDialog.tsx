@@ -1,7 +1,7 @@
 import { Button } from '@heroui/react/button'
 import { Input } from '@heroui/react/input'
 import { Modal } from '@heroui/react/modal'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { uploadWorkspaceFile } from '../../lib/api'
 import { fileToBase64 } from '../../lib/file'
 
@@ -50,8 +50,20 @@ export function CreateImageNodeDialog({
   const [uploading, setUploading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  useEffect(() => {
+    if (!open) return
+    setMode('local')
+    setUrl('')
+    setAlt('')
+    setLocalSrc(null)
+    setError(null)
+  }, [open])
+
   const upload = async (file: File) => {
-    if (!IMAGE_MIME.has(file.type) || !IMAGE_EXTENSIONS.has(extensionOf(file.name))) {
+    if (
+      !IMAGE_EXTENSIONS.has(extensionOf(file.name)) ||
+      (file.type !== '' && !IMAGE_MIME.has(file.type))
+    ) {
       setError('只支持 png/jpeg/webp/gif/svg 图片')
       return
     }

@@ -18,7 +18,7 @@ export function TaskSceneBar({
     <div
       data-testid="task-scene-bar"
       className="absolute top-3 left-1/2 z-20 flex max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center gap-3 rounded-lg border border-accent bg-surface px-4 py-2 text-xs shadow-overlay"
-      role="status"
+      role="region"
       aria-label="任务现场"
     >
       <span className="font-medium text-foreground">{task.title}</span>

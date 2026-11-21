@@ -2,7 +2,7 @@ import { buildTaskScene, groupBounds } from '@baton/core'
 import type { CanvasResponse, NodeCreateValue, ReviewView, TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
-import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Background,
   ReactFlow,
@@ -10,6 +10,7 @@ import {
   useNodesState,
   useReactFlow,
   type Connection,
+  type Viewport,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import {
@@ -105,7 +106,9 @@ function FlowCanvas({
   const send = useCommand()
   const queryClient = useQueryClient()
   const containerRef = useRef<HTMLDivElement>(null)
-  const { screenToFlowPosition, fitView, zoomIn, zoomOut } = useReactFlow()
+  const dragSeq = useRef(0)
+  const { screenToFlowPosition, fitView, zoomIn, zoomOut, getViewport, setViewport } =
+    useReactFlow()
   const [fileDialogOpen, setFileDialogOpen] = useState(false)
   const [imageDialogOpen, setImageDialogOpen] = useState(false)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
@@ -129,43 +132,11 @@ function FlowCanvas({
     [canvas, sceneDetail.data],
   )
 
-  // 待验收任务卡需要 review 明细；只有 review 任务才会发请求。
-  const reviewTasks = useMemo(() => tasks.filter((task) => task.status === 'review'), [tasks])
-  const reviewQueries = useQueries({
-    queries: reviewTasks.map((task) => ({
-      queryKey: queryKeys.task(task.id),
-      queryFn: () => getTask(task.id),
-      staleTime: 15_000,
-    })),
-  })
-  const reviewSignature = JSON.stringify(
-    reviewQueries.map((query) => {
-      const review = query.data?.review
-      if (!review) return null
-      return [
-        review.id,
-        review.verdict,
-        review.verifyExitCode,
-        review.preliminaryVerdict,
-        review.preliminaryAt,
-        review.diffStat.filesChanged,
-        review.diffStat.insertions,
-        review.diffStat.deletions,
-      ]
-    }),
-  )
+  // 全局画布只显示简化 review 卡；详情只随现场加载，避免为每张卡拉 task detail。
   const reviewDetails = useMemo(() => {
-    const details: Record<string, ReviewView> = {}
-    reviewQueries.forEach((query, index) => {
-      const task = reviewTasks[index]
-      if (task && query.data?.review) details[task.id] = query.data.review
-    })
-    if (sceneTaskId && sceneDetail.data?.review) {
-      details[sceneTaskId] = sceneDetail.data.review
-    }
-    return details
-    // useQueries 每次渲染都返回新数组；用内容签名稳定引用，避免画布无限同步。
-  }, [reviewSignature, reviewTasks, sceneDetail.data, sceneTaskId])
+    if (!sceneTaskId || !sceneDetail.data?.review) return {}
+    return { [sceneTaskId]: sceneDetail.data.review } satisfies Record<string, ReviewView>
+  }, [sceneDetail.data, sceneTaskId])
 
   const flowNodes = useMemo(() => {
     if (!canvas) return []
@@ -175,7 +146,14 @@ function FlowCanvas({
       workspaceId: canvas.canvas.workspaceId,
     })
   }, [canvas, reviewDetails, scene, tasks])
-  const flowEdges = useMemo(() => (canvas ? toFlowEdges(canvas.edges, scene) : []), [canvas, scene])
+  const hiddenNodeIds = useMemo(
+    () => new Set(flowNodes.filter((node) => node.hidden).map((node) => node.id)),
+    [flowNodes],
+  )
+  const flowEdges = useMemo(
+    () => (canvas ? toFlowEdges(canvas.edges, scene, hiddenNodeIds) : []),
+    [canvas, hiddenNodeIds, scene],
+  )
 
   const [nodes, setNodes, onNodesChange] = useNodesState<CanvasFlowNode>(flowNodes)
   // React Flow 的 setNodes 每次渲染可能换身份；用 ref 只让数据/选中变化触发同步，
@@ -188,15 +166,39 @@ function FlowCanvas({
   }, [flowNodes])
 
   // 现场只在进入/展开变化时收敛视口；用户之后仍可自己缩放。
+  const sceneFitKey = scene
+    ? [
+        scene.taskId,
+        scene.relatedNodeIds.join(','),
+        scene.relatedGroupIds.join(','),
+        scene.expandGroupIds.join(','),
+        scene.showReviewCard ? '1' : '0',
+      ].join('|')
+    : null
+  const savedViewport = useRef<Viewport | null>(null)
+  const sceneWasActive = useRef(false)
   useEffect(() => {
-    if (!scene) return
+    if (scene && !sceneWasActive.current) {
+      savedViewport.current = getViewport()
+      sceneWasActive.current = true
+    }
+    if (!scene && sceneWasActive.current) {
+      sceneWasActive.current = false
+      const saved = savedViewport.current
+      savedViewport.current = null
+      if (saved) void setViewport(saved)
+    }
+  }, [getViewport, scene, setViewport])
+
+  useEffect(() => {
+    if (!scene || !sceneFitKey) return
     const ids = [...scene.relatedNodeIds]
     if (scene.showReviewCard) ids.push(reviewCardId(scene.taskId))
     const timer = window.setTimeout(() => {
       void fitView({ nodes: ids.map((id) => ({ id })), padding: 0.2, duration: 300 })
     }, 0)
     return () => window.clearTimeout(timer)
-  }, [fitView, scene])
+  }, [fitView, sceneFitKey])
 
   // React Flow 自己维护选中态；外部清空 selectedNodeId（如打开任务、关闭节点详情）时
   // 同步清掉它的选中标记，避免画布上残留高亮。只在目标尚未选中时补选中，
@@ -222,13 +224,13 @@ function FlowCanvas({
   }, [canvas, queryClient])
 
   const updateNode = useCallback(
-    async (nodeId: string, patch: Record<string, unknown>) => {
+    async (nodeId: string, patch: Record<string, unknown>, refresh = true) => {
       try {
         await send({ type: 'node.update', payload: { nodeId, patch } })
       } catch (cause) {
         toast.danger(cause instanceof Error ? cause.message : '节点更新失败')
       } finally {
-        await refreshCanvas()
+        if (refresh) await refreshCanvas()
       }
     },
     [refreshCanvas, send],
@@ -383,9 +385,9 @@ function FlowCanvas({
   )
 
   const exitScene = useCallback(() => {
+    // 视口由上面的 effect 恢复，避免退出时把用户视角重置成全局 fitView。
     setSceneTask(null)
-    void fitView({ padding: 0.2, duration: 300 })
-  }, [fitView, setSceneTask])
+  }, [setSceneTask])
 
   useImperativeHandle(handleRef, () => ({ addNode }), [addNode])
 
@@ -494,6 +496,7 @@ function FlowCanvas({
 
   const actions = useMemo(
     () => ({
+      readOnly: Boolean(scene),
       updatePosition: (id: string, x: number, y: number) => {
         void updateNode(id, { x, y })
       },
@@ -512,7 +515,7 @@ function FlowCanvas({
         setRightPanel('task')
       },
     }),
-    [onSelectNode, setRightPanel, setTask, updateNode],
+    [onSelectNode, scene, setRightPanel, setTask, updateNode],
   )
 
   if (!canvas) {
@@ -583,6 +586,7 @@ function FlowCanvas({
           onNodesChange={onNodesChange}
           onNodeDragStop={(_, node) => {
             if (!canvas || scene) return
+            const seq = ++dragSeq.current
             if (node.data.node.type === 'group') {
               const moves = groupMovePlan(node, nodes)
               void (async () => {
@@ -594,17 +598,21 @@ function FlowCanvas({
                 } catch (cause) {
                   toast.danger(cause instanceof Error ? cause.message : '分组移动失败')
                 } finally {
-                  await refreshCanvas()
+                  if (seq === dragSeq.current) await refreshCanvas()
                 }
               })()
               return
             }
-            void updateNode(node.id, dropPatch(node, nodes, canvas.nodes))
+            void updateNode(node.id, dropPatch(node, nodes, canvas.nodes), false).finally(() => {
+              if (seq === dragSeq.current) void refreshCanvas()
+            })
           }}
           // 用 onNodeClick 而不是 onSelectionChange：后者会在外部清空选中后
           // 把 React Flow 的旧选中反复推回 store，触发更新死循环。
           onNodeClick={(event, node) => {
             if (scene) return
+            // 派生 review 卡自己负责打开任务，不能让按钮点击冒泡成“选中一个不存在的节点”。
+            if (node.data.node.type === 'review') return
             // Cmd/Ctrl/Shift 点击是多选/反选，不要覆盖单选面板状态。
             if (event.metaKey || event.ctrlKey || event.shiftKey) return
             onSelectNode(node.id)

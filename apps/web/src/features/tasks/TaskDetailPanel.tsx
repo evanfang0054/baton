@@ -26,6 +26,7 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId)
   const activeTaskId = useAppStore((state) => state.activeTaskId)
   const setSceneTask = useAppStore((state) => state.setSceneTask)
+  const setSelectedNode = useAppStore((state) => state.setSelectedNode)
   const setRightPanel = useAppStore((state) => state.setRightPanel)
   const queryClient = useQueryClient()
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
@@ -75,8 +76,9 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
   const openScene = useCallback(() => {
     if (!activeTaskId) return
     setSceneTask(activeTaskId)
+    setSelectedNode(null)
     setRightPanel('task')
-  }, [activeTaskId, setRightPanel, setSceneTask])
+  }, [activeTaskId, setRightPanel, setSceneTask, setSelectedNode])
 
   return (
     <div

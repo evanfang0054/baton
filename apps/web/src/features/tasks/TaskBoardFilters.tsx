@@ -15,7 +15,7 @@ const FILTERS: Array<{ id: TaskFilter; label: string }> = [
 /** 筛选后再按等待时长排序，保证“需要我”里等最久的排最前。 */
 export function filterTasks(
   tasks: TaskSummary[],
-  input: { filter: TaskFilter; query: string; now: number },
+  input: { filter: TaskFilter; query: string },
 ): TaskSummary[] {
   const query = input.query.trim().toLowerCase()
   return sortByWaiting(
@@ -44,7 +44,7 @@ export function TaskBoardFilters({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-separator px-3 py-2">
-      <div role="tablist" aria-label="任务筛选" className="flex flex-wrap gap-1">
+      <div role="group" aria-label="任务筛选" className="flex flex-wrap gap-1">
         {FILTERS.map((item) => (
           <Button
             key={item.id}

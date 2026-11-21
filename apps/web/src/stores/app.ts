@@ -67,7 +67,11 @@ export const useAppStore = create<AppState>((set) => ({
       rightPanel: 'supervisor',
       mobileTab: 'board',
     }),
-  setTask: (activeTaskId) => set({ activeTaskId }),
+  setTask: (activeTaskId) =>
+    set((state) => ({
+      activeTaskId,
+      sceneTaskId: state.sceneTaskId === activeTaskId ? state.sceneTaskId : null,
+    })),
   setSelectedNode: (selectedNodeId) => set({ selectedNodeId }),
   setSceneTask: (sceneTaskId) => set({ sceneTaskId }),
   setSelection: (nodes) =>

@@ -242,6 +242,24 @@ describe('RealtimeProvider', () => {
       payload: {
         threadId: 'th1',
         messageId: 'm1',
+        toolCallId: 'tc-update',
+        name: 'update_node',
+        phase: 'end',
+        ok: true,
+      },
+    })
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.canvas('w1') }),
+    )
+
+    invalidate.mockClear()
+    socket.message({
+      v: 1,
+      ts: 35,
+      type: 'supervisor.tool',
+      payload: {
+        threadId: 'th1',
+        messageId: 'm1',
         toolCallId: 'tc3',
         name: 'create_text',
         phase: 'end',

@@ -42,10 +42,7 @@ export function TaskBoard({
   const [batching, setBatching] = useState(false)
   const [filter, setFilter] = useState<TaskFilter>('all')
   const [query, setQuery] = useState('')
-  const visibleTasks = useMemo(
-    () => filterTasks(tasks, { filter, query, now: Date.now() }),
-    [filter, query, tasks],
-  )
+  const visibleTasks = useMemo(() => filterTasks(tasks, { filter, query }), [filter, query, tasks])
 
   const todoTasks = visibleTasks.filter((task) => task.status === 'todo')
   // 任务列表或 workspace 变化后，选择集里可能留下已不在当前看板的 id；提交前必须收敛。

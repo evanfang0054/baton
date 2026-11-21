@@ -46,6 +46,7 @@ const task: TaskSummary = {
 
 function actions(overrides: Partial<CanvasActions> = {}): CanvasActions {
   return {
+    readOnly: false,
     updatePosition: vi.fn(),
     updateSize: vi.fn(),
     updateContent: vi.fn(),
@@ -123,6 +124,18 @@ describe('canvas nodes', () => {
     expect(screen.getByText('2 个节点')).toBeInTheDocument()
     screen.getByRole('button', { name: '展开分组' }).click()
     expect(updateGroupCollapsed).toHaveBeenCalledWith('g1', false)
+  })
+
+  it('hides the group collapse control in a read-only scene', () => {
+    const node: ProtocolNode = {
+      ...taskNode(),
+      id: 'g1',
+      type: 'group',
+      data: { label: '需求区', collapsed: false },
+    }
+    renderNode(<GroupNode {...props(node, { childCount: 2 })} />, { readOnly: true })
+    expect(screen.getByText('已展开')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '折叠分组' })).not.toBeInTheDocument()
   })
 
   it('renders a read-only review card and opens the task', () => {

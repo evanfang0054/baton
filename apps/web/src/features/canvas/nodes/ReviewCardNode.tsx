@@ -42,10 +42,14 @@ export function ReviewCardNode({ data }: CanvasFlowNodeProps) {
           </span>
         ) : null}
       </div>
-      <p className="mt-auto text-xs text-muted">
-        初步验收：{preliminaryLabel(review)}
-        <span className="block">最终由你决定</span>
-      </p>
+      {review ? (
+        <p className="mt-auto text-xs text-muted">
+          初步验收：{preliminaryLabel(review)}
+          <span className="block">最终由你决定</span>
+        </p>
+      ) : (
+        <p className="mt-auto text-xs text-muted">打开任务查看验收详情</p>
+      )}
     </button>
   )
 }

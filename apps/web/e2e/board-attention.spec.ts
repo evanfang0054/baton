@@ -58,9 +58,9 @@ test('needs me filter, stale and review card', async ({ page }) => {
   await expect(board.getByText('待验收任务')).toBeVisible()
   await expect(board.getByText('运行中')).toHaveCount(0)
   await expect(board.getByText('已等待超过 30 分钟')).toBeVisible()
-  await expect(page.getByText('初步验收：PASS').first()).toBeVisible()
 
   await board.getByText('待验收任务').click()
+  await expect(page.getByText('初步验收：PASS')).toBeVisible()
   await expect(page.getByRole('button', { name: '通过' })).toBeVisible()
   await page.getByRole('button', { name: '通过' }).click()
 

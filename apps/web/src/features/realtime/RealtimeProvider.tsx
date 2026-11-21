@@ -28,6 +28,7 @@ const CANVAS_MUTATING_TOOLS = new Set([
   'create_text',
   'create_agent',
   'create_edge',
+  'update_node',
 ])
 
 export function RealtimeProvider({
