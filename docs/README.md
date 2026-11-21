@@ -64,6 +64,7 @@
 - [M5-1 总管售后与批量](contracts/M5-1-supervisor-aftersales.contract.md)
 - [M5-3 上下文交接](contracts/M5-3-context-handoff.contract.md)
 - [M6-1 任务现场](contracts/M6-1-task-scene.contract.md)
+- [M6-2 上下文再注入与轻验收证据](contracts/M6-2-context-injection.contract.md)
 
 ## 现行 plan
 
