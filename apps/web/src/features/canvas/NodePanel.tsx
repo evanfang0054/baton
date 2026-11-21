@@ -33,6 +33,7 @@ export function NodePanel({
   workspaceId,
   workspaceTrusted,
   contextNodes,
+  groupChildCount = 0,
   onOpenTask,
   onDeleted,
   onClose,
@@ -42,6 +43,7 @@ export function NodePanel({
   workspaceId: string
   workspaceTrusted: boolean
   contextNodes: ProtocolNode[]
+  groupChildCount?: number
   onOpenTask: (taskId: string) => void
   onDeleted: () => void
   onClose: () => void
@@ -52,7 +54,15 @@ export function NodePanel({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const editableValue =
-    node.type === 'text' ? node.data.content : node.type === 'agent' ? node.data.title : ''
+    node.type === 'text'
+      ? node.data.content
+      : node.type === 'agent'
+        ? node.data.title
+        : node.type === 'image'
+          ? (node.data.alt ?? '')
+          : node.type === 'group'
+            ? node.data.label
+            : ''
   const [draft, setDraft] = useState(editableValue)
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
@@ -71,24 +81,82 @@ export function NodePanel({
   }, [node.id])
 
   const saveEdit = async () => {
-    if (node.type !== 'text' && node.type !== 'agent') return
-    const next = draft.trim()
-    if (!next || next === editableValue || saving) return
+    if (node.type === 'agent') {
+      const next = draft.trim()
+      if (!next || next === editableValue || saving) return
+      setSaving(true)
+      setEditError(null)
+      try {
+        await send({
+          type: 'node.update',
+          payload: { nodeId: node.id, patch: { data: { title: next } } },
+        })
+        await queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : '节点更新失败'
+        setEditError(message)
+        toast.danger(message)
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+    if (node.type === 'text') {
+      const next = draft.trim()
+      if (!next || next === editableValue || saving) return
+      setSaving(true)
+      setEditError(null)
+      try {
+        await send({
+          type: 'node.update',
+          payload: { nodeId: node.id, patch: { data: { content: draft } } },
+        })
+        await queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : '节点更新失败'
+        setEditError(message)
+        toast.danger(message)
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+    if (node.type === 'image' || node.type === 'group') {
+      const next = draft.trim()
+      if ((node.type === 'group' && !next) || next === editableValue || saving) return
+      setSaving(true)
+      setEditError(null)
+      try {
+        await send({
+          type: 'node.update',
+          payload: {
+            nodeId: node.id,
+            patch: { data: node.type === 'image' ? { alt: draft } : { label: next } },
+          },
+        })
+        await queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : '节点更新失败'
+        setEditError(message)
+        toast.danger(message)
+      } finally {
+        setSaving(false)
+      }
+    }
+  }
+
+  const toggleCollapsed = async () => {
+    if (node.type !== 'group' || saving) return
     setSaving(true)
     setEditError(null)
     try {
       await send({
         type: 'node.update',
-        payload: {
-          nodeId: node.id,
-          patch: {
-            data: node.type === 'text' ? { content: draft } : { title: next },
-          },
-        },
+        payload: { nodeId: node.id, patch: { data: { collapsed: !node.data.collapsed } } },
       })
       await queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : '节点更新失败'
+      const message = cause instanceof Error ? cause.message : '分组更新失败'
       setEditError(message)
       toast.danger(message)
     } finally {
@@ -159,6 +227,65 @@ export function NodePanel({
         <div className="rounded-lg border border-separator bg-background p-3">
           <p className="text-sm text-foreground">{node.data.name}</p>
           <p className="mt-1 font-mono text-xs text-muted">{node.data.path}</p>
+        </div>
+      ) : null}
+      {node.type === 'image' ? (
+        <div className="flex flex-col gap-2 rounded-lg border border-separator bg-background p-3">
+          <div>
+            <p className="text-sm text-foreground">{node.data.alt || '图片'}</p>
+            <p className="mt-1 break-all font-mono text-xs text-muted">{node.data.src}</p>
+          </div>
+          <Input
+            aria-label="图片描述"
+            value={draft}
+            maxLength={200}
+            onChange={(event) => setDraft(event.target.value)}
+            fullWidth
+          />
+          <div className="flex justify-end">
+            <Button
+              variant="secondary"
+              isDisabled={saving || draft === editableValue}
+              onPress={() => void saveEdit()}
+            >
+              保存修改
+            </Button>
+          </div>
+          {editError ? (
+            <p role="alert" className="text-sm text-danger">
+              {editError}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {node.type === 'group' ? (
+        <div className="flex flex-col gap-2 rounded-lg border border-separator bg-background p-3">
+          <p className="text-xs text-muted">{groupChildCount} 个节点</p>
+          <Input
+            aria-label="分组名称"
+            value={draft}
+            maxLength={80}
+            onChange={(event) => setDraft(event.target.value)}
+            fullWidth
+          />
+          <div className="flex justify-between gap-2">
+            <Button variant="tertiary" isDisabled={saving} onPress={() => void toggleCollapsed()}>
+              {node.data.collapsed ? '展开分组' : '折叠分组'}
+            </Button>
+            <Button
+              variant="secondary"
+              isDisabled={saving || !draft.trim() || draft === editableValue}
+              onPress={() => void saveEdit()}
+            >
+              保存修改
+            </Button>
+          </div>
+          {editError ? (
+            <p role="alert" className="text-sm text-danger">
+              {editError}
+            </p>
+          ) : null}
+          <p className="text-xs text-muted">删除分组只解绑子节点，不删除内容。</p>
         </div>
       ) : null}
       {node.type === 'agent' ? (

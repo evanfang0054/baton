@@ -117,6 +117,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@baton/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@baton/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol

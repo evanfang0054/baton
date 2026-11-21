@@ -3,7 +3,15 @@ import type { ReactNode } from 'react'
 import type { CanvasNodeData } from '../model'
 import { useCanvasActions } from '../actions'
 
-export function NodeShell({ selected, children }: { selected?: boolean; children: ReactNode }) {
+export function NodeShell({
+  selected,
+  dimmed,
+  children,
+}: {
+  selected?: boolean
+  dimmed?: boolean
+  children: ReactNode
+}) {
   const id = useNodeId()
   const actions = useCanvasActions()
 
@@ -11,10 +19,10 @@ export function NodeShell({ selected, children }: { selected?: boolean; children
     <div
       className={`group flex h-full w-full flex-col rounded-lg border bg-surface p-3 text-left shadow-surface ${
         selected ? 'border-accent' : 'border-separator'
-      }`}
+      } ${dimmed ? 'pointer-events-none opacity-25' : ''}`}
     >
       <NodeResizer
-        isVisible={selected}
+        isVisible={selected && !dimmed}
         minWidth={160}
         minHeight={100}
         color="var(--accent)"

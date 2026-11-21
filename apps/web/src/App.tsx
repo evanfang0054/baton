@@ -513,6 +513,10 @@ export function App() {
                     workspaceId={activeWorkspaceId}
                     workspaceTrusted={activeWorkspace?.trusted ?? false}
                     contextNodes={contextNodes}
+                    groupChildCount={
+                      canvas.data?.nodes.filter((node) => node.groupId === selectedNode.id)
+                        .length ?? 0
+                    }
                     onOpenTask={(id) => {
                       setSelectedNode(null)
                       setTask(id)

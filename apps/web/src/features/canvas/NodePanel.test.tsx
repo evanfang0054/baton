@@ -180,4 +180,57 @@ describe('NodePanel', () => {
     expect(screen.queryByText('确认删除这个节点？')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '删除节点' })).toBeInTheDocument()
   })
+
+  it('edits image alt text', async () => {
+    const image: ProtocolNode = {
+      ...agent,
+      id: 'n-image',
+      type: 'image',
+      data: { src: '.baton/uploads/a.png', alt: '旧描述' },
+    }
+    const send = vi.fn().mockResolvedValue(undefined)
+    renderPanel(image, null, send)
+
+    expect(screen.getByText('.baton/uploads/a.png')).toBeInTheDocument()
+    const input = screen.getByLabelText('图片描述')
+    fireEvent.change(input, { target: { value: '新描述' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存修改' }))
+
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({
+        type: 'node.update',
+        payload: { nodeId: 'n-image', patch: { data: { alt: '新描述' } } },
+      }),
+    )
+  })
+
+  it('edits group label and toggles collapse', async () => {
+    const group: ProtocolNode = {
+      ...agent,
+      id: 'n-group',
+      type: 'group',
+      data: { label: '需求区', collapsed: false },
+    }
+    const send = vi.fn().mockResolvedValue(undefined)
+    renderPanel(group, null, send)
+
+    expect(screen.getByText('0 个节点')).toBeInTheDocument()
+    const input = screen.getByLabelText('分组名称')
+    fireEvent.change(input, { target: { value: '交付区' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存修改' }))
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({
+        type: 'node.update',
+        payload: { nodeId: 'n-group', patch: { data: { label: '交付区' } } },
+      }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '折叠分组' }))
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({
+        type: 'node.update',
+        payload: { nodeId: 'n-group', patch: { data: { collapsed: true } } },
+      }),
+    )
+  })
 })

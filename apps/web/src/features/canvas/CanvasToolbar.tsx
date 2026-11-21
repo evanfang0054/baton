@@ -1,6 +1,16 @@
 import { Button } from '@heroui/react/button'
-import { Bot, FileText, Maximize, Type, ZoomIn, ZoomOut } from 'lucide-react'
+import {
+  Bot,
+  FileText,
+  FolderPlus,
+  Image as ImageIcon,
+  Maximize,
+  Type,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react'
 import type { ReactNode } from 'react'
+import type { CanvasAddType } from './model'
 
 const toolbarClass = [
   'absolute top-3 left-3 z-10 flex items-center gap-1 rounded-lg border border-separator',
@@ -33,24 +43,36 @@ export function CanvasToolbar({
   onFit,
   onZoomIn,
   onZoomOut,
+  readOnly = false,
 }: {
-  onAdd: (type: 'text' | 'file' | 'agent') => void
+  onAdd: (type: CanvasAddType) => void
   onFit: () => void
   onZoomIn: () => void
   onZoomOut: () => void
+  readOnly?: boolean
 }) {
   return (
     <div className={toolbarClass}>
-      <ToolButton label="添加文本" hint="添加文本节点" onPress={() => onAdd('text')}>
-        <Type size={16} />
-      </ToolButton>
-      <ToolButton label="添加文件" hint="添加文件节点" onPress={() => onAdd('file')}>
-        <FileText size={16} />
-      </ToolButton>
-      <ToolButton label="添加 Agent" hint="添加 Agent 节点" onPress={() => onAdd('agent')}>
-        <Bot size={16} />
-      </ToolButton>
-      <span className="mx-1 h-5 w-px bg-separator" />
+      {readOnly ? null : (
+        <>
+          <ToolButton label="添加文本" hint="添加文本节点" onPress={() => onAdd('text')}>
+            <Type size={16} />
+          </ToolButton>
+          <ToolButton label="添加文件" hint="添加文件节点" onPress={() => onAdd('file')}>
+            <FileText size={16} />
+          </ToolButton>
+          <ToolButton label="添加图片" hint="添加图片节点" onPress={() => onAdd('image')}>
+            <ImageIcon size={16} />
+          </ToolButton>
+          <ToolButton label="建分组" hint="把选中节点放进新分组" onPress={() => onAdd('group')}>
+            <FolderPlus size={16} />
+          </ToolButton>
+          <ToolButton label="添加 Agent" hint="添加 Agent 节点" onPress={() => onAdd('agent')}>
+            <Bot size={16} />
+          </ToolButton>
+          <span className="mx-1 h-5 w-px bg-separator" />
+        </>
+      )}
       <ToolButton label="适应视图" onPress={onFit}>
         <Maximize size={16} />
       </ToolButton>
