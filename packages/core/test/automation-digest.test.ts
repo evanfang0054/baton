@@ -17,6 +17,7 @@ const base = {
   verifyCommand: null,
   retryCount: 1,
   dangerouslySkipPermissions: false,
+  enqueuedAt: null,
   createdAt: 10,
   updatedAt: 90,
 } satisfies Task

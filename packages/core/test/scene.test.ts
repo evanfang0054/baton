@@ -67,6 +67,7 @@ const task = {
   verifyCommand: null,
   retryCount: 0,
   dangerouslySkipPermissions: false,
+  enqueuedAt: null,
   createdAt: 1,
   updatedAt: 1,
   context: {
@@ -76,6 +77,7 @@ const task = {
     redactedPaths: [],
     relations: [],
     relationsTruncated: false,
+    injections: [],
   },
   origin: {
     source: 'supervisor-chat',
