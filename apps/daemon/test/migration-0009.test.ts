@@ -26,17 +26,24 @@ function copyMigrationsThrough0008(): string {
   dirs.push(dir)
   mkdirSync(join(dir, 'meta'), { recursive: true })
   for (const file of readdirSync(migrationsDir)) {
-    if (file.endsWith('.sql') && !file.startsWith('0009_')) {
+    if (file.endsWith('.sql') && !file.startsWith('0009_') && !file.startsWith('0010_')) {
       copyFileSync(join(migrationsDir, file), join(dir, file))
     }
   }
   const journal = JSON.parse(
     readFileSync(join(migrationsDir, 'meta', '_journal.json'), 'utf8'),
   ) as { entries: Array<{ tag: string }> }
-  journal.entries = journal.entries.filter((entry) => !entry.tag.startsWith('0009_'))
+  journal.entries = journal.entries.filter(
+    (entry) => !entry.tag.startsWith('0009_') && !entry.tag.startsWith('0010_'),
+  )
   writeFileSync(join(dir, 'meta', '_journal.json'), JSON.stringify(journal))
   for (const file of readdirSync(join(migrationsDir, 'meta'))) {
-    if (file.endsWith('.json') && file !== '_journal.json' && !file.startsWith('0009_')) {
+    if (
+      file.endsWith('.json') &&
+      file !== '_journal.json' &&
+      !file.startsWith('0009_') &&
+      !file.startsWith('0010_')
+    ) {
       copyFileSync(join(migrationsDir, 'meta', file), join(dir, 'meta', file))
     }
   }

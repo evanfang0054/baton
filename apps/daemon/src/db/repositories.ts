@@ -155,6 +155,9 @@ function toReview(row: typeof review.$inferSelect): Review | null {
     verifyOutput: row.verifyOutput,
     diffStat: JSON.parse(row.diffStatJson) as unknown,
     decidedAt: row.decidedAt,
+    preliminaryVerdict: row.preliminaryVerdict as Review['preliminaryVerdict'],
+    preliminaryReason: row.preliminaryReason,
+    preliminaryAt: row.preliminaryAt,
   })
 }
 
@@ -885,6 +888,9 @@ export function insertReview(tx: Tx, input: ReviewInsert): void {
       verifyOutput: input.verifyOutput,
       diffStatJson: JSON.stringify(input.diffStat),
       decidedAt: input.decidedAt,
+      preliminaryVerdict: input.preliminaryVerdict ?? null,
+      preliminaryReason: input.preliminaryReason ?? null,
+      preliminaryAt: input.preliminaryAt ?? null,
     })
     .run()
 }

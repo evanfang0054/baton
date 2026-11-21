@@ -229,6 +229,9 @@ export const review = sqliteTable(
     diffStatJson: text('diff_stat_json'),
     diffJson: text('diff_json'),
     decidedAt: integer('decided_at'),
+    preliminaryVerdict: text('preliminary_verdict'),
+    preliminaryReason: text('preliminary_reason'),
+    preliminaryAt: integer('preliminary_at'),
   },
   (t) => [index('review_task_idx').on(t.taskId)],
 )

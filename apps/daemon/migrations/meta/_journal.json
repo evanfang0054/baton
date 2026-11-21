@@ -71,6 +71,13 @@
       "when": 1795079741036,
       "tag": "0009_m3_1_diff",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1795223302567,
+      "tag": "0010_m6_task_scene",
+      "breakpoints": true
     }
   ]
 }
