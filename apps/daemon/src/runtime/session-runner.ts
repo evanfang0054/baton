@@ -46,6 +46,10 @@ const VERIFIER_SAFE_RUN = /^(node\s+(--version|-v)|pnpm\s+(test|lint|typecheck|b
 const VERIFIER_DENY_FLAGS =
   /(^|\s)(--output|--ext-diff|--pre)(=|\s|$)|(^|\s)-(delete|exec|execdir|ok|okdir|fprint0?|fls)(\s|$)/
 
+function isBudgetError(message: string): boolean {
+  return /budget|maxBudget|cost limit|USD budget/i.test(message)
+}
+
 /**
  * 验收员只应读；总管全权不能让它获得任意 Bash。
  * 这里只给只读工具和安全只读命令放行，其他请求仍走正常 policy/人工闸门。
@@ -267,6 +271,17 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
                 ...(parsed.data.turns !== undefined ? { turns: parsed.data.turns } : {}),
               }),
             )
+            const budget = getTaskBudgetState(deps.db, active.taskId, {
+              claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
+            })
+            if (budget?.overBudget) {
+              const current = getTask(deps.db, active.taskId)
+              if (current?.status === 'running') {
+                deps.applyTransition(active.taskId, { type: 'budget_exceeded' })
+                await active.run.interrupt().catch(() => {})
+                break
+              }
+            }
           }
         } else if (event.type === EventType.CUSTOM && event.name === APPROVAL_REQUEST_EVENT) {
           await handleApproval(active, policy, event.value)
@@ -325,11 +340,14 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
           break
         } else if (event.type === EventType.RUN_ERROR) {
           finished = true
-          deps.applyTransition(active.taskId, {
-            type: 'error',
-            message: event.message ?? 'run failed',
-          })
-          endSession(active.sessionId, 'failed')
+          const message = event.message ?? 'run failed'
+          if (isBudgetError(message)) {
+            deps.applyTransition(active.taskId, { type: 'budget_exceeded' })
+            endSession(active.sessionId, 'ended')
+          } else {
+            deps.applyTransition(active.taskId, { type: 'error', message })
+            endSession(active.sessionId, 'failed')
+          }
           break
         }
       }
@@ -347,24 +365,30 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
             outcome.ok ? 'unreported' : null,
           )
         } else if (current?.status === 'waiting_input') {
-          deps.applyTransition(active.taskId, {
-            type: 'error',
-            message: 'adapter stream ended while waiting for input',
-          })
-          endSession(active.sessionId, 'failed')
+          // 预算耗尽是我们主动停下的，不是适配器异常退出。
+          if (current.waitingReason === 'budget') {
+            endSession(active.sessionId, 'ended')
+          } else {
+            deps.applyTransition(active.taskId, {
+              type: 'error',
+              message: 'adapter stream ended while waiting for input',
+            })
+            endSession(active.sessionId, 'failed')
+          }
         } else if (current?.status === 'cancelled') {
           endSession(active.sessionId, 'ended')
         }
       }
     } catch (error) {
       const current = getTask(deps.db, active.taskId)
+      const message = toAppError(error).message
       if (current && (current.status === 'running' || current.status === 'waiting_input')) {
-        deps.applyTransition(active.taskId, {
-          type: 'error',
-          message: toAppError(error).message,
-        })
+        deps.applyTransition(
+          active.taskId,
+          isBudgetError(message) ? { type: 'budget_exceeded' } : { type: 'error', message },
+        )
       }
-      endSession(active.sessionId, 'failed')
+      endSession(active.sessionId, isBudgetError(message) ? 'ended' : 'failed')
     } finally {
       activeRuns.delete(active.sessionId)
       await active.run.dispose().catch(() => {})
