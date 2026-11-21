@@ -20,6 +20,7 @@ export const Task = z.object({
   retryCount: z.number().int().nonnegative(),
   /** 仅该任务跳过 SDK 权限审批；默认 false，需全局开关与已信任 workspace。 */
   dangerouslySkipPermissions: z.boolean(),
+  enqueuedAt: Timestamp.nullable().default(null),
   createdAt: Timestamp,
   updatedAt: Timestamp,
 })

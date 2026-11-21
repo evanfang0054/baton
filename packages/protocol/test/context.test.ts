@@ -18,6 +18,7 @@ const snapshot = {
     },
   ],
   relationsTruncated: false,
+  injections: [],
 }
 
 describe('ContextSnapshot', () => {

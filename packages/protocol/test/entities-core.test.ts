@@ -127,6 +127,7 @@ describe('core entities', () => {
       verifyCommand: null,
       retryCount: 0,
       dangerouslySkipPermissions: false,
+      enqueuedAt: null,
       createdAt: 1,
       updatedAt: 1,
     }
@@ -142,6 +143,8 @@ describe('core entities', () => {
       engineSessionId: null,
       status: 'running',
       outcome: null,
+      costUsd: null,
+      turns: null,
       startedAt: 1,
       endedAt: null,
     }
