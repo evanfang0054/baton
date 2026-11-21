@@ -117,6 +117,11 @@
 - [M6-2 web 画布实施计划](plans/2026-11-21-m6-2-canvas-web.md)
 - [M6-2 web 任务实施计划](plans/2026-11-21-m6-2-tasks-web.md)
 - [M6-2 验收实施计划](plans/2026-11-21-m6-2-acceptance.md)
+- [M6-3 protocol + core + migration 0012 实施计划](plans/2026-11-21-m6-3-protocol-core.md)
+- [M6-3 daemon 验收实施计划](plans/2026-11-21-m6-3-daemon-acceptance.md)
+- [M6-3 daemon 护栏实施计划](plans/2026-11-21-m6-3-daemon-guardrails.md)
+- [M6-3 web 任务实施计划](plans/2026-11-21-m6-3-tasks-web.md)
+- [M6-3 画布与验收实施计划](plans/2026-11-21-m6-3-canvas-acceptance.md)
 
 ## 验收证据
 
