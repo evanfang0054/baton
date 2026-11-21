@@ -1,4 +1,4 @@
-import { evaluateApproval } from '@baton/core'
+import { autoApprovalCapReached, evaluateApproval } from '@baton/core'
 import {
   APPROVAL_REQUEST_EVENT,
   ApprovalRequestValue,
@@ -17,6 +17,7 @@ import type { BroadcastEvent, EventStore } from '../db/event-store.js'
 import { getTaskBudgetState } from '../budget/service.js'
 import { formatBudgetResume, pendingBudgetResume } from './budget-command.js'
 import {
+  countAutoApprovals,
   getApproval,
   getTask,
   getTaskDetail,
@@ -188,25 +189,50 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
           : evaluated
     if (decision !== null && (decision.decision === 'allow' || decision.decision === 'deny')) {
       const autoDecision = decision.decision
-      // 决策与审计必须同事务提交，否则崩溃窗口会出现“已放行但无审计”。
-      deps.db.transaction((tx) => {
-        updateApprovalDecision(tx, approvalId, autoDecision, 'auto', deps.now())
-        insertAudit(tx, {
-          id: deps.newId(),
-          ts: deps.now(),
-          actor: 'auto',
-          action: autoDecision === 'allow' ? 'approval.auto_allow' : 'approval.auto_deny',
-          detail: {
-            approvalId,
-            taskId: active.taskId,
-            risk: decision.risk,
-            matchedRule: decision.matchedRule,
-            policyVersion: hashPolicy(policy),
-          },
+      const autoCount = autoDecision === 'allow' ? countAutoApprovals(deps.db, active.taskId) : 0
+      if (
+        autoDecision === 'allow' &&
+        autoApprovalCapReached({
+          count: autoCount,
+          cap: policy.autopilot.maxAutoApprovalsPerTask,
         })
-      })
-      await active.run.approve(requestId, autoDecision)
-      return
+      ) {
+        // 到达上限后不再自动放行，转人工审批；deny 仍然优先且不受上限影响。
+        deps.db.transaction((tx) =>
+          insertAudit(tx, {
+            id: deps.newId(),
+            ts: deps.now(),
+            actor: 'auto',
+            action: 'approval.cap_reached',
+            detail: {
+              taskId: active.taskId,
+              approvalId,
+              count: autoCount,
+              cap: policy.autopilot.maxAutoApprovalsPerTask,
+            },
+          }),
+        )
+      } else {
+        // 决策与审计必须同事务提交，否则崩溃窗口会出现“已放行但无审计”。
+        deps.db.transaction((tx) => {
+          updateApprovalDecision(tx, approvalId, autoDecision, 'auto', deps.now())
+          insertAudit(tx, {
+            id: deps.newId(),
+            ts: deps.now(),
+            actor: 'auto',
+            action: autoDecision === 'allow' ? 'approval.auto_allow' : 'approval.auto_deny',
+            detail: {
+              approvalId,
+              taskId: active.taskId,
+              risk: decision.risk,
+              matchedRule: decision.matchedRule,
+              policyVersion: hashPolicy(policy),
+            },
+          })
+        })
+        await active.run.approve(requestId, autoDecision)
+        return
+      }
     }
 
     active.requestIdByApprovalId.set(approvalId, requestId)

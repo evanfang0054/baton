@@ -1060,6 +1060,16 @@ export function listApprovalsByTask(db: Db, taskId: string): ApprovalRecord[] {
     .map((row) => toApproval(row.approval))
 }
 
+export function countAutoApprovals(db: Db, taskId: string): number {
+  const row = db
+    .select({ count: sql<number>`count(*)` })
+    .from(approval)
+    .innerJoin(session, eq(approval.sessionId, session.id))
+    .where(and(eq(session.taskId, taskId), eq(approval.decidedBy, 'auto')))
+    .get()
+  return row?.count ?? 0
+}
+
 export function listPendingApprovals(db: Db): ApprovalRecord[] {
   return db
     .select()

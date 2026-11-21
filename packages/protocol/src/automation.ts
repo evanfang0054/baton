@@ -11,6 +11,7 @@ export const AutomationPolicyPatch = z
         enabled: z.boolean().optional(),
         retryMax: z.number().int().min(0).max(10).optional(),
         delegatedAuthority: z.boolean().optional(),
+        maxAutoApprovalsPerTask: z.number().int().min(0).max(100).optional(),
       })
       .strict()
       .optional(),
