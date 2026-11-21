@@ -1,3 +1,4 @@
+export * from './acceptance.js'
 export * from './workspace.js'
 export * from './canvas.js'
 export * from './node.js'

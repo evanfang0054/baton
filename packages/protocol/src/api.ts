@@ -13,6 +13,8 @@ import {
   Review,
   Session,
   Task,
+  TaskAcceptanceSummary,
+  TaskBudgetSummary,
   TaskDetail,
   Workspace,
 } from './entities/index.js'
@@ -117,6 +119,8 @@ export type TaskListQuery = z.infer<typeof TaskListQuery>
 export const TaskSummary = Task.extend({
   attention: Attention,
   waitingSince: Timestamp.nullable(),
+  acceptance: TaskAcceptanceSummary.nullable().default(null),
+  budget: TaskBudgetSummary.nullable().default(null),
 })
 export type TaskSummary = z.infer<typeof TaskSummary>
 
