@@ -40,6 +40,7 @@ async function mockWorkspace(page: Page, sent: Sent[], status: 'failed' | 'done'
     worktreePath: null,
     verifyCommand: null,
     dangerouslySkipPermissions: false,
+    enqueuedAt: null,
     retryCount: 0,
     createdAt: 1,
     updatedAt: 2,

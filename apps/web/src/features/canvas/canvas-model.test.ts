@@ -58,6 +58,7 @@ const task: TaskSummary = {
   worktreePath: null,
   verifyCommand: null,
   dangerouslySkipPermissions: false,
+  enqueuedAt: null,
   retryCount: 0,
   createdAt: 1,
   updatedAt: 1,

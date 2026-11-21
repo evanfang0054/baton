@@ -73,6 +73,7 @@ function stubTaskApi() {
     verifyCommand: null,
     retryCount: 0,
     dangerouslySkipPermissions: false,
+    enqueuedAt: null,
     createdAt: 1,
     updatedAt: 2,
   }

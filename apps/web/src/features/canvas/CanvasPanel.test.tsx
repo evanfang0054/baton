@@ -46,6 +46,7 @@ const sceneDetail: TaskDetailResponse = {
     verifyCommand: null,
     retryCount: 0,
     dangerouslySkipPermissions: false,
+    enqueuedAt: null,
     createdAt: 1,
     updatedAt: 1,
     context: {
@@ -55,6 +56,7 @@ const sceneDetail: TaskDetailResponse = {
       redactedPaths: [],
       relations: [],
       relationsTruncated: false,
+      injections: [],
     },
     origin: null,
   },

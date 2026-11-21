@@ -21,6 +21,7 @@ const baseTask: TaskDetailResponse['task'] = {
   worktreePath: null,
   verifyCommand: null,
   dangerouslySkipPermissions: false,
+  enqueuedAt: null,
   retryCount: 0,
   ...{ context: null, origin: null },
   createdAt: 1,
@@ -38,6 +39,8 @@ function detail(overrides: Partial<TaskDetailResponse> = {}): TaskDetailResponse
         engineSessionId: null,
         status: 'running',
         outcome: null,
+        costUsd: null,
+        turns: null,
         startedAt: 1,
         endedAt: null,
       },
@@ -400,6 +403,7 @@ describe('TaskDetailPanel', () => {
       redactedPaths: [],
       relations: [],
       relationsTruncated: false,
+      injections: [],
     }
     stubFetch(detail({ task: { ...baseTask, ['context']: snapshot } }))
     renderPanel()
