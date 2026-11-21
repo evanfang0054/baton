@@ -23,4 +23,8 @@ describe('grouping geometry', () => {
     const outside = { id: 'g3', x: 100, y: 100, w: 100, h: 100 }
     expect(findContainingGroup({ x: 90, y: 90, w: 10, h: 10 }, [outside])).toBeNull()
   })
+
+  it('rejects empty bounds', () => {
+    expect(() => groupBounds([])).toThrow('at least one node')
+  })
 })

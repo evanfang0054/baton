@@ -1,4 +1,6 @@
-export type PreliminaryVerdict = 'pass' | 'fail' | 'unknown'
+import type { PreliminaryVerdict } from '@baton/protocol'
+
+export type { PreliminaryVerdict }
 
 export interface ParsedPreliminary {
   verdict: PreliminaryVerdict

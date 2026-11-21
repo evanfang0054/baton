@@ -5,8 +5,9 @@ export interface NodeRect {
   h: number
 }
 
-/** 以节点包围盒加 padding 生成分组框；调用方保证 nodes 非空。 */
+/** 以节点包围盒加 padding 生成分组框；空输入直接拒绝，避免 Infinity 坐标。 */
 export function groupBounds(nodes: NodeRect[], padding = 24): NodeRect {
+  if (nodes.length === 0) throw new Error('groupBounds requires at least one node')
   const minX = Math.min(...nodes.map((node) => node.x)) - padding
   const minY = Math.min(...nodes.map((node) => node.y)) - padding
   const maxX = Math.max(...nodes.map((node) => node.x + node.w)) + padding

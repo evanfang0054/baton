@@ -49,4 +49,13 @@ describe('board projection', () => {
     ]
     expect(sortByWaiting(rows).map((row) => row.id)).toEqual(['a', 'b', 'c'])
   })
+
+  it('keeps stable order for equal waiting times', () => {
+    const rows = [
+      { id: 'a', waitingSince: 1 },
+      { id: 'b', waitingSince: 1 },
+      { id: 'c', waitingSince: 1 },
+    ]
+    expect(sortByWaiting(rows).map((row) => row.id)).toEqual(['a', 'b', 'c'])
+  })
 })

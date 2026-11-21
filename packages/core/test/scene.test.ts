@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Edge, Node, TaskDetail } from '@baton/protocol'
-import { buildTaskScene } from '../src/canvas/scene.js'
+import { buildTaskScene, relatedNodeIdSet, reviewCardPosition } from '../src/canvas/scene.js'
 
 const agent = {
   id: 'a1',
@@ -95,6 +95,7 @@ describe('buildTaskScene', () => {
   it('collects target, context, origin, group expansion, edges and review card', () => {
     const scene = buildTaskScene(task, [agent, text, group], [edge])
     expect(scene.relatedNodeIds.sort()).toEqual(['a1', 'n1'])
+    expect(scene.relatedGroupIds).toEqual(['g1'])
     expect(scene.relatedEdgeIds).toEqual(['e1'])
     expect(scene.expandGroupIds).toEqual(['g1'])
     expect(scene.missingNodeIds).toEqual([])
@@ -140,5 +141,18 @@ describe('buildTaskScene', () => {
     const openGroup = { ...group, data: { ...group.data, collapsed: false } } satisfies Node
     const scene = buildTaskScene(task, [agent, text, openGroup], [edge])
     expect(scene.expandGroupIds).toEqual([])
+    expect(scene.relatedGroupIds).toEqual(['g1'])
+  })
+
+  it('exposes the related-id set and review position helpers', () => {
+    expect([...relatedNodeIdSet(task)].sort()).toEqual(['a1', 'n1'])
+    expect(reviewCardPosition(task, [agent])).toEqual({ x: 460, y: 100 })
+    const nonAgent = { ...agent, type: 'text', data: { content: 'x' } } satisfies Node
+    expect(reviewCardPosition(task, [nonAgent])).toEqual({ x: 0, y: 0 })
+  })
+
+  it('does not include a group that no longer exists', () => {
+    const scene = buildTaskScene(task, [agent, text], [edge])
+    expect(scene.relatedGroupIds).toEqual([])
   })
 })
