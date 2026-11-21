@@ -3,6 +3,10 @@ import { Id, Timestamp } from './common.js'
 import { Attention, Engine, TaskStatus } from './enums.js'
 import { TaskStatusCause } from './events.js'
 import {
+  AcceptanceContract,
+  AcceptanceItems,
+  AcceptanceReport,
+  AcceptanceRun,
   Approval,
   Audit,
   Canvas,
@@ -189,6 +193,14 @@ export const TaskDetailResponse = z.object({
   attention: Attention,
 })
 export type TaskDetailResponse = z.infer<typeof TaskDetailResponse>
+
+export const TaskAcceptanceResponse = z.object({
+  contract: AcceptanceContract,
+  items: AcceptanceItems,
+  run: AcceptanceRun.nullable(),
+  report: AcceptanceReport,
+})
+export type TaskAcceptanceResponse = z.infer<typeof TaskAcceptanceResponse>
 
 export const TaskHistoryQuery = z.object({
   limit: z.coerce.number().int().min(1).max(500).default(200),

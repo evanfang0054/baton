@@ -13,6 +13,7 @@ import {
   SupervisorMessagesResponse,
   SupervisorStatusResponse,
   TaskAutomationSummary,
+  TaskAcceptanceResponse,
   TaskDetailResponse,
   TaskHistoryResponse,
   TaskListResponse,
@@ -230,5 +231,11 @@ export async function getTaskHistory(taskId: string, beforeOrdinal?: number) {
   if (beforeOrdinal !== undefined) query.set('beforeOrdinal', String(beforeOrdinal))
   return TaskHistoryResponse.parse(
     await request(`/api/tasks/${encodeURIComponent(taskId)}/history?${query}`),
+  )
+}
+
+export async function getTaskAcceptance(taskId: string) {
+  return TaskAcceptanceResponse.parse(
+    await request(`/api/tasks/${encodeURIComponent(taskId)}/acceptance`),
   )
 }

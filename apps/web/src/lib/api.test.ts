@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   ApiError,
   UnauthorizedError,
+  getTaskAcceptance,
   listEngines,
   listWorkspaces,
   updateWorkspaceTrust,
@@ -77,5 +78,56 @@ describe('api request', () => {
       url: '/api/workspaces/w1/trust',
       init: { method: 'PATCH', body: JSON.stringify({ trusted: true }) },
     })
+  })
+
+  it('GET /api/tasks/:id/acceptance maps the report', async () => {
+    stubResponse(200, {
+      contract: {
+        id: 'ac1',
+        taskId: 't1',
+        version: 1,
+        status: 'draft',
+        createdBy: 'verifier',
+        revision: 0,
+        truncated: false,
+        createdAt: 1,
+        frozenAt: null,
+      },
+      items: [],
+      run: null,
+      report: {
+        taskId: 't1',
+        contractId: 'ac1',
+        contractVersion: 1,
+        contractRevision: 0,
+        goal: '登录页',
+        result: '完成',
+        changes: { filesChanged: 1, insertions: 2, deletions: 0, files: ['src/login.tsx'] },
+        verify: { command: 'pnpm test', exitCode: 0, outputSummary: 'ok', skipped: false },
+        acceptance: {
+          items: [],
+          counts: { total: 1, pass: 1, fail: 0, pending: 0, waived: 0 },
+          verdict: 'pass',
+        },
+        usage: {
+          workerCostUsd: 1,
+          verifierCostUsd: 0.1,
+          turns: 2,
+          budgetUsd: 2,
+          spentUsd: 1,
+          remainingUsd: 1,
+          overBudget: false,
+          nearBudget: false,
+        },
+        risks: [],
+        unverified: [],
+        preliminary: { verdict: 'pass', summary: 'ok' },
+        hash: 'a'.repeat(64),
+      },
+    })
+
+    const result = await getTaskAcceptance('t1')
+    expect(result.report.acceptance.counts.pass).toBe(1)
+    expect(result.contract.status).toBe('draft')
   })
 })
