@@ -28,6 +28,7 @@ const CANVAS_MUTATING_TOOLS = new Set([
   'create_text',
   'create_agent',
   'create_edge',
+  'update_node',
 ])
 
 export function RealtimeProvider({
@@ -215,6 +216,11 @@ export function RealtimeProvider({
         }
         if (event.type === 'error') {
           toast.danger(event.payload.message)
+          return
+        }
+        if (event.type === 'review.preliminary') {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.task(event.payload.taskId) })
+          void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
           return
         }
         if (INVALIDATING_EVENTS.has(event.type)) invalidate()

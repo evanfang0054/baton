@@ -1,5 +1,7 @@
 export * from './state-machine/index.js'
 export * from './context/index.js'
+export * from './canvas/index.js'
+export * from './review/index.js'
 export * from './policy/index.js'
 export * from './verify/index.js'
 export * from './tasks/board.js'

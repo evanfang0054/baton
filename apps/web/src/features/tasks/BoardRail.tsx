@@ -2,7 +2,12 @@ import { Button } from '@heroui/react/button'
 import { LayoutList, Pin, PinOff } from 'lucide-react'
 
 interface BoardRailProps {
-  counts: { needs_approval: number; needs_reply: number; needs_review: number }
+  counts: {
+    needs_me: number
+    needs_approval: number
+    needs_reply: number
+    needs_review: number
+  }
   total: number
   expanded: boolean
   onToggle: () => void
@@ -34,6 +39,7 @@ export function BoardRail({
       >
         <LayoutList size={18} />
       </Button>
+      <RailCount label="需要我" value={counts.needs_me} tone="accent" />
       <RailCount label="待审批" value={counts.needs_approval} tone="warning" />
       <RailCount label="待回复" value={counts.needs_reply} tone="warning" />
       <RailCount label="待验收" value={counts.needs_review} tone="accent" />

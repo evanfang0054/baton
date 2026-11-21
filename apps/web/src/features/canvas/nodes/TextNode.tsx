@@ -11,6 +11,7 @@ const TEXTAREA_CLASS = [
 export function TextNode({ id, data, selected }: CanvasFlowNodeProps) {
   const content = data.node.type === 'text' ? data.node.data.content : ''
   const actions = useCanvasActions()
+  const readOnly = actions.readOnly
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(content)
   const cancelled = useRef(false)
@@ -25,6 +26,10 @@ export function TextNode({ id, data, selected }: CanvasFlowNodeProps) {
       cancelled.current = false
       return
     }
+    if (readOnly) {
+      setEditing(false)
+      return
+    }
     if (draft !== content) actions.updateContent(id, draft)
     setEditing(false)
   }
@@ -34,7 +39,7 @@ export function TextNode({ id, data, selected }: CanvasFlowNodeProps) {
       <div className="flex items-center gap-2 text-xs text-muted">
         <Type size={14} />
         <span>文本</span>
-        {!editing ? (
+        {!editing && !readOnly ? (
           <span className="ml-auto opacity-0 transition-opacity group-hover:opacity-100">
             双击编辑
           </span>
@@ -62,15 +67,21 @@ export function TextNode({ id, data, selected }: CanvasFlowNodeProps) {
         />
       ) : (
         <p
-          className="mt-2 line-clamp-4 cursor-text text-sm whitespace-pre-wrap text-foreground"
-          title="双击编辑"
-          onDoubleClick={(event) => {
-            event.stopPropagation()
-            setDraft(content)
-            setEditing(true)
-          }}
+          className={`mt-2 line-clamp-4 text-sm whitespace-pre-wrap text-foreground ${
+            readOnly ? 'cursor-default' : 'cursor-text'
+          }`}
+          title={readOnly ? undefined : '双击编辑'}
+          onDoubleClick={
+            readOnly
+              ? undefined
+              : (event) => {
+                  event.stopPropagation()
+                  setDraft(content)
+                  setEditing(true)
+                }
+          }
         >
-          {content || <span className="text-muted">双击编辑…</span>}
+          {content || <span className="text-muted">{readOnly ? '无内容' : '双击编辑…'}</span>}
         </p>
       )}
     </NodeShell>

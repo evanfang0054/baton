@@ -34,7 +34,30 @@ const fixtures = [
     },
   ],
   ['node.update', { nodeId: 'n1', patch: { x: 10, y: 20 } }],
+  ['node.update', { nodeId: 'n1', patch: { groupId: 'g1' } }],
   ['node.delete', { nodeId: 'n1' }],
+  [
+    'node.move_many',
+    {
+      canvasId: 'c1',
+      moves: [
+        { nodeId: 'g1', x: 10, y: 20 },
+        { nodeId: 'n1', x: 30, y: 40 },
+      ],
+    },
+  ],
+  [
+    'group.create',
+    {
+      canvasId: 'c1',
+      x: 0,
+      y: 0,
+      w: 400,
+      h: 300,
+      label: '需求',
+      childIds: ['n1', 'n2'],
+    },
+  ],
   [
     'node.create',
     {
@@ -225,6 +248,41 @@ describe('ClientMessage', () => {
       type: 'node.create',
       payload,
     })
+  })
+
+  it('accepts groupId in node.update patch', () => {
+    const parsed = ClientMessage.parse({
+      v: 1,
+      id: 'c1',
+      ts: 1,
+      type: 'node.update',
+      payload: { nodeId: 'n1', patch: { groupId: null } },
+    })
+    expect(parsed.type).toBe('node.update')
+  })
+
+  it('rejects empty node.move_many', () => {
+    expect(() =>
+      ClientMessage.parse({
+        v: 1,
+        id: 'c1',
+        ts: 1,
+        type: 'node.move_many',
+        payload: { canvasId: 'c1', moves: [] },
+      }),
+    ).toThrow()
+  })
+
+  it('rejects group.create without children', () => {
+    expect(() =>
+      ClientMessage.parse({
+        v: 1,
+        id: 'c1',
+        ts: 1,
+        type: 'group.create',
+        payload: { canvasId: 'c1', x: 0, y: 0, w: 100, h: 100, label: 'g', childIds: [] },
+      }),
+    ).toThrow()
   })
 
   it('rejects unknown node.update patch keys', () => {

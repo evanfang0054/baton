@@ -106,6 +106,11 @@ export function createAiSdkSupervisorEngine(config: SupervisorConfig): Superviso
           inputSchema: tools.handoff_task.parameters,
           execute: (input) => tools.handoff_task.execute(input),
         }),
+        update_node: tool({
+          description: tools.update_node.description,
+          inputSchema: tools.update_node.parameters,
+          execute: (input) => tools.update_node.execute(input),
+        }),
       }
 
       const result = streamText({

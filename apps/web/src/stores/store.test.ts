@@ -56,3 +56,20 @@ describe('mobile tab', () => {
     expect(useAppStore.getState().mobileTab).toBe('board')
   })
 })
+
+describe('task scene', () => {
+  beforeEach(() => useAppStore.setState({ activeTaskId: null, sceneTaskId: null }))
+
+  it('keeps the scene when the same task is reactivated', () => {
+    useAppStore.getState().setSceneTask('t1')
+    useAppStore.getState().setTask('t1')
+    expect(useAppStore.getState().sceneTaskId).toBe('t1')
+  })
+
+  it('clears the scene when switching to another task', () => {
+    useAppStore.getState().setSceneTask('t1')
+    useAppStore.getState().setTask('t2')
+    expect(useAppStore.getState().sceneTaskId).toBeNull()
+    expect(useAppStore.getState().activeTaskId).toBe('t2')
+  })
+})

@@ -1,9 +1,17 @@
-import type { Edge as ProtocolEdge, Node as ProtocolNode, TaskSummary } from '@baton/protocol'
+import type {
+  Edge as ProtocolEdge,
+  Node as ProtocolNode,
+  ReviewView,
+  TaskSummary,
+} from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
 import {
+  dropPatch,
+  groupMovePlan,
   isValidConnection,
   mergeFlowNodes,
   nextNodePosition,
+  resolveImageUrl,
   toFlowEdges,
   toFlowNodes,
 } from './model'
@@ -57,6 +65,45 @@ const task: TaskSummary = {
   waitingSince: null,
 }
 
+const review: ReviewView = {
+  id: 'r1',
+  taskId: 't1',
+  verdict: null,
+  verifyExitCode: 0,
+  verifyOutput: 'ok',
+  diffStat: { filesChanged: 2, insertions: 5, deletions: 1 },
+  decidedAt: null,
+  preliminaryVerdict: 'pass',
+  preliminaryReason: '检查通过',
+  preliminaryAt: 10,
+  diffAvailable: true,
+}
+
+function groupNode(id: string, collapsed = false, x = 0, y = 0): ProtocolNode {
+  return {
+    id,
+    canvasId: 'c1',
+    type: 'group',
+    x,
+    y,
+    w: 400,
+    h: 300,
+    groupId: null,
+    data: { label: '需求区', collapsed },
+    createdAt: 1,
+    updatedAt: 1,
+  }
+}
+
+function imageNode(id: string, src: string): ProtocolNode {
+  return {
+    ...textNode,
+    id,
+    type: 'image',
+    data: { src, alt: '图' },
+  }
+}
+
 describe('canvas model', () => {
   it('maps protocol nodes to flow nodes with size and task', () => {
     const flow = toFlowNodes([textNode, agentNode], [task])
@@ -77,14 +124,81 @@ describe('canvas model', () => {
     expect(flow[0]?.data.task?.id).toBe('t2')
   })
 
-  it('falls back to the default node type for non-6a nodes', () => {
-    const image: ProtocolNode = {
-      ...textNode,
-      id: 'n3',
-      type: 'image',
-      data: { src: 'https://example.com/a.png' },
+  it('maps image, group and derived review nodes', () => {
+    const image = imageNode('n3', 'https://example.com/a.png')
+    const flow = toFlowNodes([image, groupNode('g1')], [])
+    expect(flow.find((node) => node.id === 'n3')?.type).toBe('image')
+    expect(flow.find((node) => node.id === 'g1')).toMatchObject({
+      type: 'group',
+      style: { width: 400, height: 300 },
+      data: { childCount: 0 },
+    })
+  })
+
+  it('adds a derived review card for review tasks', () => {
+    const flow = toFlowNodes([agentNode], [task], {
+      reviewDetails: { t1: review },
+      workspaceId: 'w1',
+    })
+    const reviewTask = { ...task, status: 'review' as const, attention: 'needs_review' as const }
+    const withCard = toFlowNodes([agentNode], [reviewTask], {
+      reviewDetails: { t1: review },
+      workspaceId: 'w1',
+    })
+    const card = withCard.find((node) => node.id === 'review:t1')
+    expect(card).toMatchObject({
+      type: 'review',
+      draggable: false,
+      selectable: false,
+      connectable: false,
+      position: { x: 410, y: 60 },
+      data: { task: reviewTask, review },
+    })
+    expect(card?.data.node.type).toBe('review')
+    expect(flow.some((node) => node.id === 'review:t1')).toBe(false)
+  })
+
+  it('dims unrelated nodes and hides collapsed group children unless scene expands group', () => {
+    const child: ProtocolNode = { ...textNode, id: 'n1', groupId: 'g1', x: 110, y: 120 }
+    const nodes = [agentNode, child, groupNode('g1', true)]
+    const scene = {
+      taskId: 't1',
+      relatedNodeIds: ['n2', 'n1'],
+      relatedGroupIds: ['g1'],
+      relatedEdgeIds: [],
+      expandGroupIds: ['g1'],
+      missingNodeIds: [],
+      showReviewCard: false,
+      reviewCardPosition: { x: 0, y: 0 },
     }
-    expect(toFlowNodes([image], [])[0]?.type).toBe('default')
+    const flow = toFlowNodes(nodes, [], { scene })
+    expect(flow.find((node) => node.id === 'n2')?.data.dimmed).toBe(false)
+    expect(flow.find((node) => node.id === 'n1')).toMatchObject({
+      position: { x: 110, y: 120 },
+      parentId: 'g1',
+      hidden: false,
+      data: { dimmed: false },
+    })
+    expect(flow.find((node) => node.id === 'g1')?.data.dimmed).toBe(false)
+
+    const collapsed = toFlowNodes(nodes, [], {
+      scene: { ...scene, expandGroupIds: [] },
+    })
+    expect(collapsed.find((node) => node.id === 'n1')?.hidden).toBe(true)
+  })
+
+  it('resolves local image URL and keeps external URL', () => {
+    const flow = toFlowNodes(
+      [imageNode('i1', '.baton/uploads/a.png'), imageNode('i2', 'https://example.com/b.png')],
+      [],
+      { workspaceId: 'w1' },
+    )
+    expect(flow[0]?.data.imageUrl).toBe('/api/workspaces/w1/uploads/a.png')
+    expect(flow[1]?.data.imageUrl).toBe('https://example.com/b.png')
+    expect(resolveImageUrl('.baton/uploads/a.png')).toBeUndefined()
+    expect(resolveImageUrl('http://example.com/a.png')).toBeUndefined()
+    expect(resolveImageUrl('data:image/png;base64,aaa')).toBeUndefined()
+    expect(resolveImageUrl('//example.com/a.png')).toBeUndefined()
   })
 
   it('maps protocol edges to mutable flow edges', () => {
@@ -99,6 +213,18 @@ describe('canvas model', () => {
       focusable: true,
       deletable: true,
     })
+  })
+
+  it('hides edges touching collapsed group children', () => {
+    const edges = toFlowEdges(
+      [
+        { id: 'e1', canvasId: 'c1', sourceId: 'n1', targetId: 'n2', type: 'context' },
+        { id: 'e2', canvasId: 'c1', sourceId: 'n2', targetId: 'n3', type: 'context' },
+      ],
+      null,
+      new Set(['n1']),
+    )
+    expect(edges.map((edge) => edge.id)).toEqual(['e2'])
   })
 
   it('rejects self loops, duplicates and empty endpoints', () => {
@@ -130,6 +256,31 @@ describe('canvas model', () => {
     const merged = mergeFlowNodes([dragging], toFlowNodes([{ ...textNode, x: 0, y: 0 }], []))
     expect(merged[0]?.position).toEqual({ x: 99, y: 88 })
     expect(merged[0]?.selected).toBe(true)
+  })
+
+  it('plans a group move with absolute child coordinates', () => {
+    const child: ProtocolNode = { ...textNode, id: 'n1', groupId: 'g1', x: 10, y: 20 }
+    const flow = toFlowNodes([groupNode('g1'), child], [])
+    const group = flow.find((node) => node.id === 'g1')!
+    const moved = { ...group, position: { x: 100, y: 100 } }
+    const current = flow.map((node) => (node.id === 'g1' ? moved : node))
+    expect(groupMovePlan(moved, current)).toEqual([
+      { nodeId: 'g1', x: 100, y: 100 },
+      { nodeId: 'n1', x: 110, y: 120 },
+    ])
+  })
+
+  it('resolves the target group from the drop center', () => {
+    const flow = toFlowNodes([groupNode('g1'), textNode], [])
+    const node = flow.find((item) => item.id === 'n1')!
+    expect(dropPatch(node, flow, [groupNode('g1'), textNode])).toEqual({
+      x: 10,
+      y: 20,
+      groupId: 'g1',
+    })
+
+    const outside = { ...node, position: { x: 900, y: 900 } }
+    expect(dropPatch(outside, flow, [groupNode('g1'), textNode]).groupId).toBeNull()
   })
 
   it('applies the server position once the drag has stopped', () => {

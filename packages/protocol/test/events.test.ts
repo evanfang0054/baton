@@ -30,6 +30,7 @@ const fixtures = [
       durationMs: 10,
     },
   ],
+  ['review.preliminary', { taskId: 't1', reviewId: 'r1', verdict: 'pass', at: 2 }],
 ] as const
 
 describe('ServerMessage', () => {

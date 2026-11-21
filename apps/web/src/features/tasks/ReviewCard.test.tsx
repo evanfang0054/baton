@@ -13,6 +13,9 @@ const review: ReviewView = {
   diffStat: { filesChanged: 2, insertions: 10, deletions: 3 },
   decidedAt: null,
   diffAvailable: false,
+  preliminaryVerdict: null,
+  preliminaryReason: null,
+  preliminaryAt: null,
 }
 
 describe('ReviewCard', () => {
@@ -56,5 +59,25 @@ describe('ReviewCard', () => {
         payload: { reviewId: 'r1', decision: 'approve' },
       }),
     )
+  })
+
+  it('shows preliminary verdict and keeps human gate', () => {
+    render(
+      <CommandProvider send={vi.fn()}>
+        <ReviewCard
+          review={{
+            ...review,
+            preliminaryVerdict: 'pass',
+            preliminaryReason: '检查通过',
+            preliminaryAt: 3,
+          }}
+          onDone={vi.fn()}
+        />
+      </CommandProvider>,
+    )
+    expect(screen.getByText(/初步验收：\s*PASS/)).toBeInTheDocument()
+    expect(screen.getByText('检查通过')).toBeInTheDocument()
+    expect(screen.getByText(/最终通过或打回由你决定/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '通过' })).toBeInTheDocument()
   })
 })

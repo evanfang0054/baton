@@ -20,6 +20,7 @@ interface AppState {
   activeTaskId: string | null
   selectedNodeId: string | null
   selectedNodeIds: string[]
+  sceneTaskId: string | null
   contextNodeIds: string[]
   boardExpanded: boolean
   boardPinned: boolean
@@ -31,6 +32,7 @@ interface AppState {
   setTask: (id: string | null) => void
   setSelectedNode: (id: string | null) => void
   setSelection: (nodes: SelectionNode[]) => void
+  setSceneTask: (id: string | null) => void
   removeContextNode: (id: string) => void
   clearContext: () => void
   setBoardExpanded: (value: boolean) => void
@@ -46,6 +48,7 @@ export const useAppStore = create<AppState>((set) => ({
   activeTaskId: null,
   selectedNodeId: null,
   selectedNodeIds: [],
+  sceneTaskId: null,
   contextNodeIds: [],
   boardExpanded: false,
   boardPinned: false,
@@ -59,12 +62,18 @@ export const useAppStore = create<AppState>((set) => ({
       activeTaskId: null,
       selectedNodeId: null,
       selectedNodeIds: [],
+      sceneTaskId: null,
       contextNodeIds: [],
       rightPanel: 'supervisor',
       mobileTab: 'board',
     }),
-  setTask: (activeTaskId) => set({ activeTaskId }),
+  setTask: (activeTaskId) =>
+    set((state) => ({
+      activeTaskId,
+      sceneTaskId: state.sceneTaskId === activeTaskId ? state.sceneTaskId : null,
+    })),
   setSelectedNode: (selectedNodeId) => set({ selectedNodeId }),
+  setSceneTask: (sceneTaskId) => set({ sceneTaskId }),
   setSelection: (nodes) =>
     set((state) => {
       const selectedNodeIds = nodes.map((node) => node.id)

@@ -31,6 +31,9 @@ const reviewBase = {
   verifyOutput: 'ok',
   diffStat: { filesChanged: 1, insertions: 2, deletions: 0 },
   decidedAt: null,
+  preliminaryVerdict: null,
+  preliminaryReason: null,
+  preliminaryAt: null,
 }
 
 describe('event/approval/review/audit/notice entities', () => {
@@ -62,6 +65,20 @@ describe('event/approval/review/audit/notice entities', () => {
     const missingExitCode = { ...reviewBase }
     delete (missingExitCode as { verifyExitCode?: unknown }).verifyExitCode
     expect(() => Review.parse(missingExitCode)).toThrow()
+  })
+
+  it('defaults missing preliminary fields to null and rejects invalid values', () => {
+    const legacy = { ...reviewBase }
+    delete (legacy as { preliminaryVerdict?: unknown }).preliminaryVerdict
+    delete (legacy as { preliminaryReason?: unknown }).preliminaryReason
+    delete (legacy as { preliminaryAt?: unknown }).preliminaryAt
+    expect(Review.parse(legacy)).toMatchObject({
+      preliminaryVerdict: null,
+      preliminaryReason: null,
+      preliminaryAt: null,
+    })
+    expect(() => Review.parse({ ...reviewBase, preliminaryVerdict: 'bogus' })).toThrow()
+    expect(() => Review.parse({ ...reviewBase, preliminaryReason: 'x'.repeat(2001) })).toThrow()
   })
 
   it('parses Audit and rejects a missing actor', () => {

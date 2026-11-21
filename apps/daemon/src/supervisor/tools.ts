@@ -34,6 +34,8 @@ import {
   listSessionsByTask,
   listTaskStatusHistory,
   listTasks,
+  moveNodes,
+  updateNode,
   updateTaskTitle,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
@@ -94,6 +96,7 @@ export interface SupervisorToolset {
   create_text: SupervisorTool
   create_agent: SupervisorTool
   create_edge: SupervisorTool
+  update_node: SupervisorTool
 }
 
 export interface BoundTool {
@@ -118,6 +121,7 @@ export interface BoundToolset {
   create_text: BoundTool
   create_agent: BoundTool
   create_edge: BoundTool
+  update_node: BoundTool
 }
 
 export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundToolset {
@@ -142,6 +146,7 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     create_text: bind(tools.create_text),
     create_agent: bind(tools.create_agent),
     create_edge: bind(tools.create_edge),
+    update_node: bind(tools.update_node),
   }
 }
 
@@ -229,6 +234,18 @@ const createEdgeInput = z.object({
   sourceId: z.string().min(1),
   targetId: z.string().min(1),
 })
+
+const updateNodeInput = z
+  .object({
+    nodeId: z.string().min(1),
+    x: z.number().finite().optional(),
+    y: z.number().finite().optional(),
+    title: z.string().min(1).max(120).optional(),
+  })
+  .strict()
+  .refine((value) => value.x !== undefined || value.y !== undefined || value.title !== undefined, {
+    message: 'at least one field is required',
+  })
 
 export type EnqueueTaskResult = { ok: true; status: TaskStatus } | { ok: false; error: AppError }
 
@@ -712,6 +729,99 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         )
         if (!result.ok) throw result.error
         return { edgeId: result.edgeId }
+      },
+    },
+
+    update_node: {
+      description:
+        '移动画布节点或重命名 Agent；只在用户明确要求“挪一下/放到旁边/改个名字”时使用。' +
+        '不能删除节点、不能改文本内容、不能改分组。',
+      parameters: updateNodeInput,
+      async execute(input, ctx) {
+        const parsed = updateNodeInput.parse(input)
+        const canvas = canvasFor(ctx)
+        const node = getNode(deps.db, parsed.nodeId)
+        if (!node || node.canvasId !== canvas.id) {
+          throw appError('node_not_found', 'node not found on this canvas', {
+            nodeId: parsed.nodeId,
+          })
+        }
+        if (parsed.title !== undefined && node.type !== 'agent') {
+          throw appError('invalid_payload', 'only agent titles can be changed', {
+            nodeId: node.id,
+          })
+        }
+        const data =
+          parsed.title !== undefined && node.type === 'agent'
+            ? { ...(node.data as Record<string, unknown>), title: parsed.title }
+            : undefined
+        const hasPosition = parsed.x !== undefined || parsed.y !== undefined
+        const nextX = parsed.x ?? node.x
+        const nextY = parsed.y ?? node.y
+        // group 只能带着子节点整体移动，否则框和内容会错位。
+        const children =
+          node.type === 'group' && hasPosition
+            ? listNodes(deps.db, node.canvasId).filter((child) => child.groupId === node.id)
+            : []
+        const before = {
+          ...(parsed.x !== undefined ? { x: node.x } : {}),
+          ...(parsed.y !== undefined ? { y: node.y } : {}),
+          ...(parsed.title !== undefined
+            ? { title: (node.data as { title?: string }).title ?? null }
+            : {}),
+        }
+        const after = {
+          ...(parsed.x !== undefined ? { x: nextX } : {}),
+          ...(parsed.y !== undefined ? { y: nextY } : {}),
+          ...(parsed.title !== undefined ? { title: parsed.title } : {}),
+        }
+        deps.db.transaction((tx) => {
+          if (hasPosition) {
+            const dx = nextX - node.x
+            const dy = nextY - node.y
+            moveNodes(
+              tx,
+              node.canvasId,
+              [
+                { nodeId: node.id, x: nextX, y: nextY },
+                ...children.map((child) => ({
+                  nodeId: child.id,
+                  x: child.x + dx,
+                  y: child.y + dy,
+                })),
+              ],
+              deps.now(),
+            )
+          }
+          if (data !== undefined) {
+            updateNode(tx, node.id, { data, updatedAt: deps.now() })
+          }
+          insertAudit(tx, {
+            id: deps.newId(),
+            ts: deps.now(),
+            actor: 'supervisor',
+            action: 'supervisor.node.update',
+            detail: {
+              nodeId: node.id,
+              workspaceId: ctx.workspaceId,
+              fields: [
+                ...(parsed.x !== undefined ? ['x'] : []),
+                ...(parsed.y !== undefined ? ['y'] : []),
+                ...(parsed.title !== undefined ? ['title'] : []),
+              ],
+              before,
+              after,
+              ...(children.length > 0 ? { childrenMoved: children.length } : {}),
+            },
+          })
+        })
+        const updated = getNode(deps.db, node.id)
+        return {
+          nodeId: node.id,
+          x: updated?.x ?? node.x,
+          y: updated?.y ?? node.y,
+          ...(updated?.type === 'agent' ? { title: updated.data.title } : {}),
+        }
       },
     },
 

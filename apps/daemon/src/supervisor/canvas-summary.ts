@@ -33,7 +33,16 @@ export function nodeTitle(node: Node): string {
 
 /** 总管只拿画布摘要；文本节点给预览，文件节点只给名称与路径，不读文件内容。 */
 export function nodeSummary(node: Node): Record<string, unknown> {
-  const base = { id: node.id, type: node.type, title: nodeTitle(node), groupId: node.groupId }
+  const base = {
+    id: node.id,
+    type: node.type,
+    title: nodeTitle(node),
+    groupId: node.groupId,
+    x: node.x,
+    y: node.y,
+    w: node.w,
+    h: node.h,
+  }
   switch (node.type) {
     case 'text':
       return { ...base, preview: node.data.content.slice(0, TEXT_PREVIEW) }

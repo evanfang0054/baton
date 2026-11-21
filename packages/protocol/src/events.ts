@@ -3,6 +3,7 @@ import { EventSchemas } from './agui.js'
 import { DiffStat, Id, Timestamp } from './common.js'
 import { ApprovalRequest } from './entities/approval.js'
 import { Notice } from './entities/notice.js'
+import { PreliminaryVerdict } from './entities/review.js'
 import { Attention, SessionOutcome, TaskStatus, WaitingReason } from './enums.js'
 import { AppError } from './errors.js'
 import { SupervisorMessage } from './supervisor.js'
@@ -146,6 +147,17 @@ export const NoticeEvent = ReplayableBase.extend({
 })
 export type NoticeEvent = z.infer<typeof NoticeEvent>
 
+export const ReviewPreliminaryEvent = ReplayableBase.extend({
+  type: z.literal('review.preliminary'),
+  payload: z.object({
+    taskId: Id,
+    reviewId: Id,
+    verdict: PreliminaryVerdict,
+    at: Timestamp,
+  }),
+})
+export type ReviewPreliminaryEvent = z.infer<typeof ReviewPreliminaryEvent>
+
 export const ServerMessage = z.discriminatedUnion('type', [
   AckEvent,
   ErrorEvent,
@@ -157,5 +169,6 @@ export const ServerMessage = z.discriminatedUnion('type', [
   SupervisorToolEvent,
   SupervisorMessageEvent,
   NoticeEvent,
+  ReviewPreliminaryEvent,
 ])
 export type ServerMessage = z.infer<typeof ServerMessage>

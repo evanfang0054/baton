@@ -1,15 +1,22 @@
 import { WorkspaceUploadInput, WorkspaceUploadResponse } from '@baton/protocol'
 import type { FastifyInstance } from 'fastify'
-import { lstatSync, mkdirSync, writeFileSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import {
+  createReadStream,
+  lstatSync,
+  mkdirSync,
+  realpathSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
+import { basename, extname, join, sep } from 'node:path'
 import type { Config } from '../config.js'
 import { getWorkspace } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
+import { IMAGE_MIME, UPLOAD_DIR } from '../workspace/image-src.js'
 import { resolveWorkspaceDir, resolveWithin } from '../workspace/resolver.js'
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
-const UPLOAD_DIR = '.baton/uploads'
 
 function safeFileName(value: string): string {
   const name = [...basename(value.replaceAll('\\', '/'))]
@@ -87,5 +94,50 @@ export function registerUploadRoutes(app: FastifyInstance, deps: UploadRoutesDep
         },
       }),
     )
+  })
+
+  /**
+   * 只服务 .baton/uploads 下的图片；不做通用文件读取、不列目录、不代理外链。
+   * realpath + sep 前缀校验，阻断软链与 .. 逃逸。
+   */
+  app.get('/api/workspaces/:id/uploads/:name', async (req, reply) => {
+    const { id, name } = req.params as { id: string; name: string }
+    const workspace = getWorkspace(deps.db, id)
+    if (!workspace) throw appError('workspace_not_found', 'workspace not found')
+    if (name !== basename(name) || name.includes('\\') || name.includes('/')) {
+      throw appError('image_not_found', 'image not found')
+    }
+
+    const workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+    let realDir: string
+    let realFile: string
+    try {
+      realDir = realpathSync(resolveWithin(workspacePath, UPLOAD_DIR))
+      const candidate = join(realDir, name)
+      // lstat 看的是未跟随软链的原始项：软链、FIFO、目录一律拒绝，避免 open 时被跟走或阻塞。
+      const info = lstatSync(candidate)
+      if (!info.isFile() || info.isSymbolicLink()) throw new Error('not a regular file')
+      realFile = realpathSync(candidate)
+      if (!realFile.startsWith(`${realDir}${sep}`)) throw new Error('escape')
+    } catch {
+      throw appError('image_not_found', 'image not found')
+    }
+
+    const mime = IMAGE_MIME[extname(realFile).toLowerCase()]
+    if (!mime) throw appError('image_type_unsupported', 'unsupported image type')
+    const stat = statSync(realFile)
+    if (!stat.isFile()) throw appError('image_not_found', 'image not found')
+    if (stat.size > MAX_UPLOAD_BYTES) throw appError('image_too_large', 'image too large')
+
+    reply.header('X-Content-Type-Options', 'nosniff')
+    reply.header('Cache-Control', 'private, max-age=300')
+    reply.header('Content-Length', String(stat.size))
+    if (mime === 'image/svg+xml') {
+      reply.header(
+        'Content-Security-Policy',
+        "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+      )
+    }
+    return reply.type(mime).send(createReadStream(realFile))
   })
 }

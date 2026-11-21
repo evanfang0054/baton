@@ -20,6 +20,7 @@ import {
   Workspace,
   type ApprovalDecision,
   type ApprovalRequest,
+  type PreliminaryVerdict,
   type ReviewVerdict,
   type SessionOutcome,
   type SessionStatus,
@@ -29,6 +30,7 @@ import {
   type WaitingReason,
 } from '@baton/protocol'
 import { and, asc, desc, eq, gt, gte, inArray, lt, ne, notInArray, or, sql } from 'drizzle-orm'
+import { appError } from '../errors.js'
 import {
   approval,
   audit,
@@ -155,6 +157,9 @@ function toReview(row: typeof review.$inferSelect): Review | null {
     verifyOutput: row.verifyOutput,
     diffStat: JSON.parse(row.diffStatJson) as unknown,
     decidedAt: row.decidedAt,
+    preliminaryVerdict: row.preliminaryVerdict as Review['preliminaryVerdict'],
+    preliminaryReason: row.preliminaryReason,
+    preliminaryAt: row.preliminaryAt,
   })
 }
 
@@ -251,6 +256,7 @@ export function updateNode(
     y?: number
     w?: number
     h?: number
+    groupId?: string | null
     data?: unknown
     updatedAt: number
   },
@@ -260,12 +266,78 @@ export function updateNode(
   if (patch.y !== undefined) set.y = patch.y
   if (patch.w !== undefined) set.w = patch.w
   if (patch.h !== undefined) set.h = patch.h
+  if (patch.groupId !== undefined) set.groupId = patch.groupId
   if (patch.data !== undefined) set.dataJson = JSON.stringify(patch.data)
   tx.update(node).set(set).where(eq(node.id, id)).run()
 }
 
 export function deleteNode(tx: Tx, id: string): void {
   tx.delete(node).where(eq(node.id, id)).run()
+}
+
+/** 批量移动保持绝对坐标；任一节点不存在/不属于 canvas/重复/坐标非法时整笔拒绝。 */
+export function moveNodes(
+  tx: Tx,
+  canvasId: string,
+  moves: Array<{ nodeId: string; x: number; y: number }>,
+  updatedAt = Date.now(),
+): number {
+  const ids = new Set<string>()
+  for (const move of moves) {
+    if (ids.has(move.nodeId)) {
+      throw appError('node_move_invalid', 'duplicate nodeId', { nodeId: move.nodeId })
+    }
+    if (!Number.isFinite(move.x) || !Number.isFinite(move.y)) {
+      throw appError('node_move_invalid', 'invalid coordinate', { nodeId: move.nodeId })
+    }
+    ids.add(move.nodeId)
+  }
+  const rows = tx.select({ id: node.id }).from(node).where(eq(node.canvasId, canvasId)).all()
+  const known = new Set(rows.map((row) => row.id))
+  for (const id of ids) {
+    if (!known.has(id)) {
+      throw appError('node_move_invalid', 'node not in canvas', { nodeId: id })
+    }
+  }
+  for (const move of moves) {
+    tx.update(node).set({ x: move.x, y: move.y, updatedAt }).where(eq(node.id, move.nodeId)).run()
+  }
+  return moves.length
+}
+
+/** 新建 group 并批量设置子节点 groupId；子节点必须同 canvas、未分组、不是 group。 */
+export function createGroup(tx: Tx, canvasId: string, group: Node, childIds: string[]): void {
+  if (group.type !== 'group' || group.canvasId !== canvasId || group.groupId !== null) {
+    throw appError('group_invalid', 'invalid group')
+  }
+  const unique = new Set(childIds)
+  if (unique.size !== childIds.length) throw appError('group_invalid', 'duplicate childId')
+  const rows = tx.select().from(node).where(eq(node.canvasId, canvasId)).all()
+  const byId = new Map(rows.map((row) => [row.id, row]))
+  for (const id of childIds) {
+    const child = byId.get(id)
+    if (!child) throw appError('group_invalid', 'child not in canvas', { nodeId: id })
+    if (child.type === 'group') {
+      throw appError('group_invalid', 'nested group is not supported', { nodeId: id })
+    }
+    if (child.groupId !== null) {
+      throw appError('group_invalid', 'child already grouped', { nodeId: id })
+    }
+  }
+  insertNode(tx, group)
+  for (const id of childIds) {
+    tx.update(node)
+      .set({ groupId: group.id, updatedAt: group.updatedAt })
+      .where(eq(node.id, id))
+      .run()
+  }
+}
+
+/** 删除分组前把子节点解绑；返回解绑数量。 */
+export function ungroupChildren(tx: Tx, groupId: string, updatedAt = Date.now()): number {
+  const rows = tx.select({ id: node.id }).from(node).where(eq(node.groupId, groupId)).all()
+  tx.update(node).set({ groupId: null, updatedAt }).where(eq(node.groupId, groupId)).run()
+  return rows.length
 }
 
 export function getEdge(db: Db, id: string): Edge | null {
@@ -872,7 +944,9 @@ export function updateApprovalResponse(tx: Tx, id: string, response: unknown): v
     .run()
 }
 
-export function insertReview(tx: Tx, input: Review): void {
+type ReviewInsert = Omit<Review, 'preliminaryVerdict' | 'preliminaryReason' | 'preliminaryAt'>
+
+export function insertReview(tx: Tx, input: ReviewInsert): void {
   tx.insert(review)
     .values({
       id: input.id,
@@ -882,6 +956,9 @@ export function insertReview(tx: Tx, input: Review): void {
       verifyOutput: input.verifyOutput,
       diffStatJson: JSON.stringify(input.diffStat),
       decidedAt: input.decidedAt,
+      preliminaryVerdict: null,
+      preliminaryReason: null,
+      preliminaryAt: null,
     })
     .run()
 }
@@ -934,6 +1011,25 @@ export function updateReviewVerdict(
   decidedAt: number,
 ): void {
   tx.update(review).set({ verdict, decidedAt }).where(eq(review.id, id)).run()
+}
+
+/** 验收员初步结论只写当前 review；review 不存在返回 false。 */
+export function setReviewPreliminary(
+  tx: Tx,
+  reviewId: string,
+  input: { verdict: PreliminaryVerdict; reason: string; at: number },
+): boolean {
+  const existing = tx.select({ id: review.id }).from(review).where(eq(review.id, reviewId)).get()
+  if (!existing) return false
+  tx.update(review)
+    .set({
+      preliminaryVerdict: input.verdict,
+      preliminaryReason: input.reason.slice(0, 2000),
+      preliminaryAt: input.at,
+    })
+    .where(eq(review.id, reviewId))
+    .run()
+  return true
 }
 
 export function insertAudit(

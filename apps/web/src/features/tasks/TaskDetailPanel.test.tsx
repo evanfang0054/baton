@@ -104,6 +104,7 @@ describe('TaskDetailPanel', () => {
     useAppStore.setState({
       activeWorkspaceId: 'w1',
       activeTaskId: 't1',
+      sceneTaskId: null,
       boardExpanded: false,
       boardPinned: false,
       wsStatus: 'offline',
@@ -360,6 +361,9 @@ describe('TaskDetailPanel', () => {
       decidedAt: null,
       diffAvailable: false,
       response: null,
+      preliminaryVerdict: null,
+      preliminaryReason: null,
+      preliminaryAt: null,
     } as const
     stubFetch(
       detail({
@@ -401,5 +405,13 @@ describe('TaskDetailPanel', () => {
     renderPanel()
     expect(await screen.findByText('上下文快照')).toBeInTheDocument()
     expect(screen.getByText('需求 A')).toBeInTheDocument()
+  })
+
+  it('opens the task scene from the header without writing commands', async () => {
+    stubFetch(detail())
+    renderPanel()
+    const button = await screen.findByRole('button', { name: '看现场' })
+    fireEvent.click(button)
+    expect(useAppStore.getState().sceneTaskId).toBe('t1')
   })
 })

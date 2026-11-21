@@ -108,6 +108,7 @@ function tools(): BoundToolset {
     create_text: noop,
     create_agent: noop,
     create_edge: noop,
+    update_node: noop,
     create_task: {
       description: 'create a todo task',
       parameters: z.object({ title: z.string().min(1) }),
@@ -182,6 +183,7 @@ describe('createAiSdkSupervisorEngine with a mock OpenAI-compatible model', () =
       'reopen_task',
       'reply_task',
       'retry_task',
+      'update_node',
     ])
   })
 })

@@ -24,6 +24,7 @@ export const SUPERVISOR_POLICY: SupervisorPolicy = {
     'create_text',
     'create_agent',
     'create_edge',
+    'update_node',
   ],
   maxSteps: 4,
   timeoutMs: 60_000,

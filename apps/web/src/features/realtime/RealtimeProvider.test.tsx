@@ -242,6 +242,24 @@ describe('RealtimeProvider', () => {
       payload: {
         threadId: 'th1',
         messageId: 'm1',
+        toolCallId: 'tc-update',
+        name: 'update_node',
+        phase: 'end',
+        ok: true,
+      },
+    })
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.canvas('w1') }),
+    )
+
+    invalidate.mockClear()
+    socket.message({
+      v: 1,
+      ts: 35,
+      type: 'supervisor.tool',
+      payload: {
+        threadId: 'th1',
+        messageId: 'm1',
         toolCallId: 'tc3',
         name: 'create_text',
         phase: 'end',
@@ -505,5 +523,24 @@ describe('RealtimeProvider', () => {
 
     socket.message(notice(Date.now() + 1000, 'w1'))
     await waitFor(() => expect(toast.info).toHaveBeenCalledTimes(1))
+  })
+
+  it('invalidates the target task on review.preliminary', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    renderProvider(client)
+    const socket = FakeSocket.instances[0]!
+    socket.open()
+
+    socket.message({
+      v: 1,
+      ts: 30,
+      seq: 11,
+      type: 'review.preliminary',
+      payload: { taskId: 't1', reviewId: 'r1', verdict: 'pass', at: 30 },
+    })
+
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.task('t1') }))
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.tasks('w1') })
   })
 })

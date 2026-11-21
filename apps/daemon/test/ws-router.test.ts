@@ -147,6 +147,230 @@ describe('ws router', () => {
     expect(getNode(handle.database.db, nodeId)).toBeNull()
   })
 
+  it('persists groupId on node.update and rejects invalid groups', async () => {
+    const { handle, ws } = await setup()
+    handle.database.raw
+      .prepare(
+        `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
+         values ('m6-group-1', ?, 'group', 0, 0, 400, 300, null, ?, 1, 1)`,
+      )
+      .run(handle.seeded.canvasId, JSON.stringify({ label: 'g', collapsed: false }))
+    handle.database.raw
+      .prepare(
+        `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
+         values ('m6-text-1', ?, 'text', 10, 10, 100, 50, null, ?, 1, 1)`,
+      )
+      .run(handle.seeded.canvasId, JSON.stringify({ content: 'x' }))
+
+    ws.send({
+      v: 1,
+      type: 'node.update',
+      id: 'g1',
+      ts: 1,
+      payload: { nodeId: 'm6-text-1', patch: { groupId: 'm6-group-1' } },
+    })
+    await ws.next('ack')
+    expect(getNode(handle.database.db, 'm6-text-1')?.groupId).toBe('m6-group-1')
+
+    ws.send({
+      v: 1,
+      type: 'node.update',
+      id: 'g2',
+      ts: 1,
+      payload: { nodeId: 'm6-text-1', patch: { groupId: 'missing' } },
+    })
+    const error = await ws.next('error')
+    expect(error.payload).toMatchObject({ commandId: 'g2', code: 'group_invalid' })
+
+    ws.send({
+      v: 1,
+      type: 'node.create',
+      id: 'g3',
+      ts: 1,
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        node: {
+          type: 'text',
+          x: 0,
+          y: 0,
+          w: 100,
+          h: 50,
+          groupId: 'missing',
+          data: { content: 'x' },
+        },
+      },
+    })
+    expect((await ws.next('error')).payload).toMatchObject({
+      commandId: 'g3',
+      code: 'group_invalid',
+    })
+  })
+
+  it('creates image nodes and rejects unsafe src', async () => {
+    const { handle, ws } = await setup()
+    ws.send({
+      v: 1,
+      type: 'node.create',
+      id: 'i1',
+      ts: 1,
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        node: {
+          type: 'image',
+          x: 0,
+          y: 0,
+          w: 320,
+          h: 240,
+          groupId: null,
+          data: { src: '.baton/uploads/a.png', alt: 'a' },
+        },
+      },
+    })
+    const created = await ws.next('ack')
+    const imageId = (created.payload as { data: { nodeId: string } }).data.nodeId
+    expect(getNode(handle.database.db, imageId)?.type).toBe('image')
+
+    ws.send({
+      v: 1,
+      type: 'node.create',
+      id: 'i2',
+      ts: 1,
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        node: {
+          type: 'image',
+          x: 0,
+          y: 0,
+          w: 320,
+          h: 240,
+          groupId: null,
+          data: { src: 'javascript:alert(1)' },
+        },
+      },
+    })
+    expect((await ws.next('error')).payload).toMatchObject({
+      commandId: 'i2',
+      code: 'image_src_invalid',
+    })
+
+    ws.send({
+      v: 1,
+      type: 'node.create',
+      id: 'i3',
+      ts: 1,
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        node: {
+          type: 'image',
+          x: 0,
+          y: 0,
+          w: 320,
+          h: 240,
+          groupId: null,
+          data: { src: '.baton/uploads/notes.txt' },
+        },
+      },
+    })
+    expect((await ws.next('error')).payload).toMatchObject({
+      commandId: 'i3',
+      code: 'image_src_invalid',
+    })
+
+    ws.send({
+      v: 1,
+      type: 'node.update',
+      id: 'i4',
+      ts: 1,
+      payload: {
+        nodeId: imageId,
+        patch: { data: { src: 'file:///tmp/a.png' } },
+      },
+    })
+    expect((await ws.next('error')).payload).toMatchObject({
+      commandId: 'i4',
+      code: 'image_src_invalid',
+    })
+  })
+
+  it('creates a group, moves it with children, and ungroups on delete', async () => {
+    const { handle, ws } = await setup()
+    handle.database.raw
+      .prepare(
+        `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
+         values ('m6-g-text-1', ?, 'text', 10, 10, 100, 50, null, ?, 1, 1)`,
+      )
+      .run(handle.seeded.canvasId, JSON.stringify({ content: 'a' }))
+    handle.database.raw
+      .prepare(
+        `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
+         values ('m6-g-text-2', ?, 'text', 20, 20, 100, 50, null, ?, 1, 1)`,
+      )
+      .run(handle.seeded.canvasId, JSON.stringify({ content: 'b' }))
+
+    ws.send({
+      v: 1,
+      type: 'group.create',
+      id: 'g1',
+      ts: 1,
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        x: 0,
+        y: 0,
+        w: 400,
+        h: 300,
+        label: '组',
+        childIds: ['m6-g-text-1', 'm6-g-text-2'],
+      },
+    })
+    const grouped = await ws.next('ack')
+    const groupId = (grouped.payload as { data: { groupId: string } }).data.groupId
+    expect(getNode(handle.database.db, 'm6-g-text-1')?.groupId).toBe(groupId)
+
+    ws.send({
+      v: 1,
+      type: 'node.move_many',
+      id: 'm1',
+      ts: 1,
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        moves: [
+          { nodeId: groupId, x: 100, y: 100 },
+          { nodeId: 'm6-g-text-1', x: 110, y: 110 },
+        ],
+      },
+    })
+    await ws.next('ack')
+    expect(getNode(handle.database.db, groupId)).toMatchObject({ x: 100, y: 100 })
+    expect(getNode(handle.database.db, 'm6-g-text-1')).toMatchObject({ x: 110, y: 110 })
+
+    ws.send({
+      v: 1,
+      type: 'node.move_many',
+      id: 'm2',
+      ts: 1,
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        moves: [{ nodeId: 'missing', x: 0, y: 0 }],
+      },
+    })
+    expect((await ws.next('error')).payload).toMatchObject({
+      commandId: 'm2',
+      code: 'node_move_invalid',
+    })
+
+    ws.send({
+      v: 1,
+      type: 'node.delete',
+      id: 'd1',
+      ts: 1,
+      payload: { nodeId: groupId },
+    })
+    await ws.next('ack')
+    expect(getNode(handle.database.db, groupId)).toBeNull()
+    expect(getNode(handle.database.db, 'm6-g-text-1')?.groupId).toBeNull()
+    expect(getNode(handle.database.db, 'm6-g-text-2')?.groupId).toBeNull()
+  })
+
   it('renames an agent node without losing engine or taskId', async () => {
     const { handle, ws } = await setup()
     ws.send({
@@ -230,7 +454,7 @@ describe('ws router', () => {
     expect(error.payload).toMatchObject({ code: 'node_in_use' })
   })
 
-  it('rejects unsupported node types in 6a', async () => {
+  it('rejects group/review via node.create', async () => {
     const { handle, ws } = await setup()
     ws.send({
       v: 1,
@@ -240,13 +464,13 @@ describe('ws router', () => {
       payload: {
         canvasId: handle.seeded.canvasId,
         node: {
-          type: 'image',
+          type: 'group',
           x: 0,
           y: 0,
           w: 320,
           h: 200,
           groupId: null,
-          data: { src: 'https://example.com/a.png' },
+          data: { label: 'g', collapsed: false },
         },
       },
     })

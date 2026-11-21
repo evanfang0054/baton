@@ -7,7 +7,7 @@ describe('BoardRail', () => {
     const onToggle = vi.fn()
     render(
       <BoardRail
-        counts={{ needs_approval: 2, needs_reply: 1, needs_review: 3 }}
+        counts={{ needs_me: 4, needs_approval: 2, needs_reply: 1, needs_review: 3 }}
         total={6}
         expanded={false}
         onToggle={onToggle}
@@ -15,6 +15,8 @@ describe('BoardRail', () => {
         onTogglePin={vi.fn()}
       />,
     )
+    expect(screen.getByText('需要我')).toBeInTheDocument()
+    expect(screen.getByText('4')).toBeInTheDocument()
     expect(screen.getByText('2')).toBeInTheDocument()
     expect(screen.getByText('1')).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()

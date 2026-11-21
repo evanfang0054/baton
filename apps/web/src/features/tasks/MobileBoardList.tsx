@@ -1,10 +1,13 @@
+import { isStale } from '@baton/core'
 import type { Attention, TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
+import { Input } from '@heroui/react/input'
 import { toast } from '@heroui/react/toast'
 import { useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useCommand } from '../../lib/command-context'
 import { groupTasks } from './columns'
+import { filterTasks } from './TaskBoardFilters'
 import { TaskCard } from './TaskCard'
 import { WaitingTime } from './WaitingTime'
 
@@ -71,6 +74,7 @@ function Section({
               task={task}
               selected={selecting ? selected.has(task.id) : task.id === selectedTaskId}
               selectable={selecting && task.status === 'todo'}
+              stale={isStale(task.waitingSince, Date.now())}
               onSelect={onSelectTask}
               onToggle={onToggle}
             />
@@ -97,22 +101,32 @@ export function MobileBoardList({
   const send = useCommand()
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState<Filter>('all')
+  const [needsMe, setNeedsMe] = useState(false)
+  const [query, setQuery] = useState('')
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [batching, setBatching] = useState(false)
   const [doneOpen, setDoneOpen] = useState(false)
 
-  const grouped = groupTasks(tasks)
-  const activeTasks = tasks.filter((task) =>
+  const visibleTasks = useMemo(
+    () =>
+      filterTasks(tasks, {
+        filter: needsMe ? 'needs_me' : 'all',
+        query,
+      }),
+    [needsMe, query, tasks],
+  )
+  const grouped = groupTasks(visibleTasks)
+  const activeTasks = visibleTasks.filter((task) =>
     ['running', 'queued', 'verifying'].includes(task.status),
   )
-  const todoSectionTasks = tasks.filter((task) => task.status === 'todo')
-  const todoTasks = tasks.filter((task) => task.status === 'todo')
+  const todoSectionTasks = visibleTasks.filter((task) => task.status === 'todo')
+  const todoTasks = visibleTasks.filter((task) => task.status === 'todo')
   const activeSelected = new Set(
     [...selected].filter((id) => todoTasks.some((task) => task.id === id)),
   )
-  const oldest = oldestWaitingSince(tasks)
-  const attentionCount = tasks.filter((task) => task.attention !== 'none').length
+  const oldest = oldestWaitingSince(visibleTasks)
+  const attentionCount = visibleTasks.filter((task) => task.attention !== 'none').length
 
   const startSelecting = () => {
     setFilter('todo')
@@ -225,6 +239,26 @@ export function MobileBoardList({
         </div>
       </header>
 
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          variant={needsMe ? 'primary' : 'tertiary'}
+          aria-pressed={needsMe}
+          isDisabled={selecting}
+          onPress={() => setNeedsMe((value) => !value)}
+        >
+          需要我
+        </Button>
+        <Input
+          aria-label="搜索任务"
+          placeholder="搜索标题"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          fullWidth
+          className="min-w-40 flex-1"
+        />
+      </div>
+
       <div role="tablist" aria-label="任务筛选" className="mb-3 flex gap-1 overflow-x-auto">
         {FILTERS.map((item) => (
           <button
@@ -245,7 +279,7 @@ export function MobileBoardList({
 
       {showAttention
         ? ATTENTION_GROUPS.map((group) => {
-            const groupTasksList = tasks.filter((task) => task.attention === group.id)
+            const groupTasksList = visibleTasks.filter((task) => task.attention === group.id)
             return (
               <Section
                 key={group.id}
@@ -312,6 +346,7 @@ export function MobileBoardList({
                     task={task}
                     selected={selecting ? selected.has(task.id) : task.id === selectedTaskId}
                     selectable={false}
+                    stale={isStale(task.waitingSince, Date.now())}
                     onSelect={onSelectTask}
                     onToggle={toggle}
                   />

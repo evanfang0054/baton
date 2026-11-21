@@ -3,35 +3,44 @@ import type { ReactNode } from 'react'
 import type { CanvasNodeData } from '../model'
 import { useCanvasActions } from '../actions'
 
-export function NodeShell({ selected, children }: { selected?: boolean; children: ReactNode }) {
+export function NodeShell({
+  selected,
+  dimmed,
+  children,
+}: {
+  selected?: boolean
+  dimmed?: boolean
+  children: ReactNode
+}) {
   const id = useNodeId()
   const actions = useCanvasActions()
+  const readOnly = actions.readOnly
 
   return (
     <div
       className={`group flex h-full w-full flex-col rounded-lg border bg-surface p-3 text-left shadow-surface ${
         selected ? 'border-accent' : 'border-separator'
-      }`}
+      } ${dimmed ? 'pointer-events-none opacity-25' : ''}`}
     >
       <NodeResizer
-        isVisible={selected}
+        isVisible={selected && !dimmed && !readOnly}
         minWidth={160}
         minHeight={100}
         color="var(--accent)"
         onResizeEnd={(_, params) => {
-          if (id) actions.updateSize(id, params.width, params.height)
+          if (id && !readOnly) actions.updateSize(id, params.width, params.height)
         }}
       />
       <Handle
         type="target"
         position={Position.Top}
-        isConnectable
+        isConnectable={!readOnly}
         className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
       />
       <Handle
         type="source"
         position={Position.Bottom}
-        isConnectable
+        isConnectable={!readOnly}
         className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
       />
       {children}

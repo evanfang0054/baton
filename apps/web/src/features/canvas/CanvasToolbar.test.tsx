@@ -13,14 +13,31 @@ describe('CanvasToolbar', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '添加文本' }))
     await userEvent.click(screen.getByRole('button', { name: '添加文件' }))
+    await userEvent.click(screen.getByRole('button', { name: '添加图片' }))
+    await userEvent.click(screen.getByRole('button', { name: '建分组' }))
     await userEvent.click(screen.getByRole('button', { name: '添加 Agent' }))
     await userEvent.click(screen.getByRole('button', { name: '适应视图' }))
     await userEvent.click(screen.getByRole('button', { name: '放大' }))
     await userEvent.click(screen.getByRole('button', { name: '缩小' }))
 
-    expect(onAdd.mock.calls).toEqual([['text'], ['file'], ['agent']])
+    expect(onAdd.mock.calls).toEqual([['text'], ['file'], ['image'], ['group'], ['agent']])
     expect(onFit).toHaveBeenCalled()
     expect(onZoomIn).toHaveBeenCalled()
     expect(onZoomOut).toHaveBeenCalled()
+  })
+
+  it('hides write actions in read-only scene mode', () => {
+    const onAdd = vi.fn()
+    render(
+      <CanvasToolbar
+        onAdd={onAdd}
+        onFit={vi.fn()}
+        onZoomIn={vi.fn()}
+        onZoomOut={vi.fn()}
+        readOnly
+      />,
+    )
+    expect(screen.queryByRole('button', { name: '添加文本' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '适应视图' })).toBeInTheDocument()
   })
 })

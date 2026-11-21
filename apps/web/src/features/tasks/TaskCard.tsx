@@ -1,5 +1,9 @@
+import { isStale } from '@baton/core'
 import type { TaskSummary } from '@baton/protocol'
+import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
+import { Clock } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { AttentionBadge } from './AttentionBadge'
 import { StatusChip } from './StatusChip'
 import { WaitingTime } from './WaitingTime'
@@ -8,8 +12,10 @@ interface TaskCardProps {
   task: TaskSummary
   selected?: boolean
   selectable?: boolean
+  stale?: boolean
   onSelect: (taskId: string) => void
   onToggle?: (taskId: string) => void
+  onOpenScene?: (taskId: string) => void
 }
 
 const cardClass = [
@@ -21,9 +27,19 @@ export function TaskCard({
   task,
   selected = false,
   selectable = false,
+  stale = false,
   onSelect,
   onToggle,
+  onOpenScene,
 }: TaskCardProps) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    setNow(Date.now())
+    if (task.waitingSince === null) return
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [task.waitingSince])
+  const isTaskStale = stale || isStale(task.waitingSince, now)
   const border = selected ? 'border-accent' : 'border-separator'
   const body = (
     <>
@@ -43,19 +59,34 @@ export function TaskCard({
           <WaitingTime since={task.waitingSince} />
         </div>
       ) : null}
+      {isTaskStale ? (
+        <p className="mt-2 flex items-center gap-1 text-xs text-warning">
+          <Clock size={12} aria-hidden="true" />
+          已等待超过 30 分钟
+        </p>
+      ) : null}
     </>
   )
 
   if (!selectable) {
     return (
-      <button
-        type="button"
-        aria-current={selected ? 'true' : undefined}
-        onClick={() => onSelect(task.id)}
-        className={`${cardClass} ${border}`}
-      >
-        {body}
-      </button>
+      <div className={`${cardClass} ${border}`}>
+        <button
+          type="button"
+          aria-current={selected ? 'true' : undefined}
+          onClick={() => onSelect(task.id)}
+          className="block w-full rounded text-left focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          {body}
+        </button>
+        {onOpenScene ? (
+          <div className="mt-2 flex justify-end">
+            <Button size="sm" variant="tertiary" onPress={() => onOpenScene(task.id)}>
+              看现场
+            </Button>
+          </div>
+        ) : null}
+      </div>
     )
   }
 

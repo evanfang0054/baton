@@ -32,6 +32,7 @@
 - [2026-11-20 总管画布感知](specs/2026-11-20-supervisor-canvas-awareness.md)
 - [2026-11-20 M5-1 总管售后与批量设计](specs/2026-11-20-m5-supervisor-aftersales-design.md)
 - [2026-11-21 M5-3 上下文交接设计](specs/2026-11-21-m5-3-context-handoff-design.md)
+- [2026-11-21 M6-1 任务现场 v0 设计](specs/2026-11-21-m6-task-scene-design.md)
 
 ## 现行 ADR
 
@@ -61,6 +62,7 @@
 - [M3-1 交付验收增强](contracts/M3-1-delivery-acceptance.contract.md)
 - [M5-1 总管售后与批量](contracts/M5-1-supervisor-aftersales.contract.md)
 - [M5-3 上下文交接](contracts/M5-3-context-handoff.contract.md)
+- [M6-1 任务现场](contracts/M6-1-task-scene.contract.md)
 
 ## 现行 plan
 
@@ -101,6 +103,11 @@
 - [M5-3 交接 core + daemon 实施计划](plans/2026-11-21-m5-3-handoff-core-daemon.md)
 - [M5-3 交接 web 实施计划](plans/2026-11-21-m5-3-handoff-web.md)
 - [M5-3 交接验收实施计划](plans/2026-11-21-m5-3-handoff-acceptance.md)
+- [M6-1 protocol + core + migration 0010 实施计划](plans/2026-11-21-m6-1-protocol-core.md)
+- [M6-1 daemon 实施计划](plans/2026-11-21-m6-1-daemon.md)
+- [M6-1 web 画布实施计划](plans/2026-11-21-m6-1-canvas-web.md)
+- [M6-1 web 看板实施计划](plans/2026-11-21-m6-1-board-attention.md)
+- [M6-1 验收实施计划](plans/2026-11-21-m6-1-acceptance.md)
 
 ## 验收证据
 
@@ -111,6 +118,7 @@
 - [工作区目录选择器验收](evidence/2026-11-20-workspace-picker/README.md)
 - [M5-1 总管售后与批量验收](evidence/2026-11-21-m5-supervisor-aftersales/README.md)
 - [M5-3 上下文交接验收](evidence/2026-11-21-m5-3-context-handoff/README.md)
+- [M6-1 任务现场验收](evidence/2026-11-21-m6-task-scene/README.md)
 
 ## 约定
 

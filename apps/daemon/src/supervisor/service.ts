@@ -30,13 +30,16 @@ import {
   insertNode,
   listNodes,
   listSessionsByTask,
+  setReviewPreliminary,
   updateTaskWorktreePath,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
+import type { EventStore } from '../db/event-store.js'
 import { appError, isAppError } from '../errors.js'
 import type { Logger } from '../log.js'
 import type { TaskService } from '../runtime/task-service.js'
 import type { TransitionOutcome } from '../runtime/types.js'
+import { buildWsFrame } from '../ws/hub.js'
 import { canvasOverviewXml, nodeTitle } from './canvas-summary.js'
 import { loadSupervisorConfig, type SupervisorConfig } from './config.js'
 import { createAiSdkSupervisorEngine, type SupervisorEngine } from './engine.js'
@@ -58,6 +61,7 @@ export type SupervisorSendResult =
 
 export interface SupervisorServiceDeps {
   db: Db
+  eventStore: EventStore
   dataDir: string
   taskService: TaskService
   defaultEngine: EngineValue
@@ -517,10 +521,16 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       return
     }
 
-    deps.db.transaction((tx) =>
+    const preliminaryAt = deps.now()
+    const preliminaryEvent = deps.db.transaction((tx) => {
+      setReviewPreliminary(tx, reviewId, {
+        verdict: parsed.verdict,
+        reason: parsed.reason,
+        at: preliminaryAt,
+      })
       insertAudit(tx, {
         id: deps.newId(),
-        ts: deps.now(),
+        ts: preliminaryAt,
         actor: 'supervisor',
         action: 'supervisor.review.recommend',
         detail: {
@@ -531,8 +541,19 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           verifyExitCode: currentReview.verifyExitCode,
           policyVersion,
         },
-      }),
-    )
+      })
+      return deps.eventStore.appendWs(tx, {
+        type: 'review.preliminary',
+        ts: preliminaryAt,
+        payload: {
+          taskId: target.id,
+          reviewId,
+          verdict: parsed.verdict,
+          at: preliminaryAt,
+        },
+      })
+    })
+    deps.broadcastRaw?.(buildWsFrame(preliminaryEvent))
 
     if (parsed.verdict !== 'pass') {
       notify(
@@ -812,6 +833,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         create_edge: wrapTool(
           'create_edge',
           bound.create_edge,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        update_node: wrapTool(
+          'update_node',
+          bound.update_node,
           input.assistantMessageId,
           input.threadId,
         ),

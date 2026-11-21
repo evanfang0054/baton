@@ -1,11 +1,13 @@
+import { isStale } from '@baton/core'
 import type { Node, TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
 import { useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useCommand } from '../../lib/command-context'
 import { BOARD_COLUMNS, groupTasks, type BoardColumnId } from './columns'
+import { TaskBoardFilters, filterTasks, type TaskFilter } from './TaskBoardFilters'
 import { TaskCard } from './TaskCard'
 
 const BATCH_LIMIT = 20
@@ -18,6 +20,7 @@ interface TaskBoardProps {
   pinned: boolean
   compact?: boolean
   onSelectTask: (taskId: string) => void
+  onOpenScene?: (taskId: string) => void
   onClose: () => void
 }
 
@@ -29,6 +32,7 @@ export function TaskBoard({
   pinned,
   compact = false,
   onSelectTask,
+  onOpenScene,
   onClose,
 }: TaskBoardProps) {
   const send = useCommand()
@@ -36,15 +40,19 @@ export function TaskBoard({
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [batching, setBatching] = useState(false)
+  const [filter, setFilter] = useState<TaskFilter>('all')
+  const [query, setQuery] = useState('')
+  const visibleTasks = useMemo(() => filterTasks(tasks, { filter, query }), [filter, query, tasks])
 
-  const todoTasks = tasks.filter((task) => task.status === 'todo')
+  const todoTasks = visibleTasks.filter((task) => task.status === 'todo')
   // 任务列表或 workspace 变化后，选择集里可能留下已不在当前看板的 id；提交前必须收敛。
   const activeSelected = new Set(
     [...selected].filter((id) => todoTasks.some((task) => task.id === id)),
   )
 
   if (!expanded && !pinned) return null
-  const grouped = groupTasks(tasks)
+  const grouped = groupTasks(visibleTasks)
+  // “待安排”只跟 agent 是否已有任务有关，不受筛选影响。
   const taskNodeIds = new Set(tasks.map((task) => task.nodeId).filter(Boolean))
   const unplanned = agentNodes.filter((node) => node.type === 'agent' && !taskNodeIds.has(node.id))
 
@@ -139,6 +147,7 @@ export function TaskBoard({
           </Button>
         </div>
       </header>
+      <TaskBoardFilters filter={filter} query={query} onFilter={setFilter} onQuery={setQuery} />
       {selecting ? (
         <p className="shrink-0 border-b border-separator px-3 py-1 text-xs text-muted">
           仅待办任务可开工，已选 {activeSelected.size} / 上限 {BATCH_LIMIT}。
@@ -157,6 +166,7 @@ export function TaskBoard({
             selected={selected}
             onToggle={toggle}
             onSelectTask={onSelectTask}
+            onOpenScene={onOpenScene}
           />
         ))}
       </div>
@@ -201,6 +211,7 @@ function BoardColumn({
   selected,
   onToggle,
   onSelectTask,
+  onOpenScene,
 }: {
   column: BoardColumnId
   label: string
@@ -211,6 +222,7 @@ function BoardColumn({
   selected: Set<string>
   onToggle: (taskId: string) => void
   onSelectTask: (taskId: string) => void
+  onOpenScene?: (taskId: string) => void
 }) {
   return (
     <div className="flex w-70 shrink-0 flex-col gap-2" data-column={column}>
@@ -224,8 +236,10 @@ function BoardColumn({
           task={task}
           selected={selecting ? selected.has(task.id) : task.id === selectedTaskId}
           selectable={selecting}
+          stale={isStale(task.waitingSince, Date.now())}
           onSelect={onSelectTask}
           onToggle={onToggle}
+          {...(onOpenScene ? { onOpenScene } : {})}
         />
       ))}
       {unplanned.map((node) => (

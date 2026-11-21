@@ -1,3 +1,4 @@
+import { needsPerson } from '@baton/core'
 import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -59,6 +60,7 @@ export function App() {
   const activeTaskId = useAppStore((state) => state.activeTaskId)
   const selectedNodeId = useAppStore((state) => state.selectedNodeId)
   const selectedNodeIds = useAppStore((state) => state.selectedNodeIds)
+  const sceneTaskId = useAppStore((state) => state.sceneTaskId)
   const contextNodeIds = useAppStore((state) => state.contextNodeIds)
   const boardExpanded = useAppStore((state) => state.boardExpanded)
   const boardPinned = useAppStore((state) => state.boardPinned)
@@ -69,6 +71,7 @@ export function App() {
   const setTask = useAppStore((state) => state.setTask)
   const setSelectedNode = useAppStore((state) => state.setSelectedNode)
   const setSelection = useAppStore((state) => state.setSelection)
+  const setSceneTask = useAppStore((state) => state.setSceneTask)
   const setBoardExpanded = useAppStore((state) => state.setBoardExpanded)
   const setBoardPinned = useAppStore((state) => state.setBoardPinned)
   const setRightPanel = useAppStore((state) => state.setRightPanel)
@@ -121,6 +124,9 @@ export function App() {
   const counts = useMemo(() => {
     const list = tasks.data ?? []
     return {
+      needs_me: list.filter((task) =>
+        needsPerson({ status: task.status, attention: task.attention }),
+      ).length,
       needs_approval: list.filter((task) => task.attention === 'needs_approval').length,
       needs_reply: list.filter((task) => task.attention === 'needs_reply').length,
       needs_review: list.filter((task) => task.attention === 'needs_review').length,
@@ -470,6 +476,14 @@ export function App() {
                 setBoardExpanded(false)
                 writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
               }}
+              onOpenScene={(id) => {
+                setSceneTask(id)
+                setTask(id)
+                setSelectedNode(null)
+                setRightPanel('task')
+                setBoardExpanded(false)
+                writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
+              }}
               onClose={() => {
                 setBoardExpanded(false)
                 setBoardPinned(false)
@@ -494,7 +508,7 @@ export function App() {
               mode={rightPanel}
               onModeChange={setRightPanel}
               hasTask={Boolean(activeTaskId)}
-              hasNode={Boolean(selectedNode)}
+              hasNode={Boolean(selectedNode) && sceneTaskId === null}
               hasUnreadNotice={notices.data?.notices[0]?.readAt === null}
               supervisor={
                 <SupervisorPanel
@@ -513,6 +527,10 @@ export function App() {
                     workspaceId={activeWorkspaceId}
                     workspaceTrusted={activeWorkspace?.trusted ?? false}
                     contextNodes={contextNodes}
+                    groupChildCount={
+                      canvas.data?.nodes.filter((node) => node.groupId === selectedNode.id)
+                        .length ?? 0
+                    }
                     onOpenTask={(id) => {
                       setSelectedNode(null)
                       setTask(id)
