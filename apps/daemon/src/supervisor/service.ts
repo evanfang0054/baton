@@ -140,6 +140,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
   const store = createSupervisorStore({ db: deps.db, now: deps.now, newId: deps.newId })
   const tools = createSupervisorTools({
     db: deps.db,
+    workspacesRoot: deps.workspacesRoot,
     taskService: deps.taskService,
     now: deps.now,
     newId: deps.newId,
@@ -148,6 +149,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     applyTransition: deps.applyTransition,
     replyToTask: deps.replyToTask,
     cancelTask: deps.cancelTask,
+    ...(deps.logger ? { logger: deps.logger } : {}),
   })
   const policyVersion = supervisorPolicyVersion(SUPERVISOR_POLICY, PROMPT_VERSION)
   const active = new Set<string>()
@@ -789,6 +791,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           input.assistantMessageId,
           input.threadId,
         ),
+        handoff_task: wrapTool(
+          'handoff_task',
+          bound.handoff_task,
+          input.assistantMessageId,
+          input.threadId,
+        ),
         create_text: wrapTool(
           'create_text',
           bound.create_text,
@@ -832,7 +840,11 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       let text = result.text.trim() || '（总管没有返回内容）'
       let reason = 'explicit request'
       const hasCreate = result.toolCalls.some(
-        (call) => (call.name === 'create_task' || call.name === 'create_tasks') && call.ok,
+        (call) =>
+          (call.name === 'create_task' ||
+            call.name === 'create_tasks' ||
+            call.name === 'handoff_task') &&
+          call.ok,
       )
       if (
         /已(批量)?(建|创建)|已经(批量)?(建|创建)|建好了|任务(已|已经)(建|创建)/.test(text) &&
@@ -853,10 +865,21 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         text += '\n\n（我没有对应的工具结果；请以任务详情/看板状态为准。）'
         reason = 'claim_without_tool'
       }
-      const card = result.toolCalls
-        .filter((call) => call.name === 'create_task' && call.ok)
-        .map((call) => SupervisorTaskCard.safeParse(call.result))
+      const hasHandoff = result.toolCalls.some((call) => call.name === 'handoff_task' && call.ok)
+      if (/已(经)?(为你|帮你)?(交接|生成交接节点)|已经把结果交给/.test(text) && !hasHandoff) {
+        text += '\n\n（我没有对应的交接工具结果；请以画布节点/任务详情为准。）'
+        reason = 'claim_without_tool'
+      }
+      const handoffCard = result.toolCalls
+        .filter((call) => call.name === 'handoff_task' && call.ok)
+        .map((call) => (call.result as { task?: unknown } | undefined)?.task)
+        .map((item) => SupervisorTaskCard.safeParse(item))
         .find((parsed) => parsed.success)
+      const card =
+        result.toolCalls
+          .filter((call) => call.name === 'create_task' && call.ok)
+          .map((call) => SupervisorTaskCard.safeParse(call.result))
+          .find((parsed) => parsed.success) ?? handoffCard
       const kind = hasCreate
         ? 'create_task'
         : result.toolCalls.some(

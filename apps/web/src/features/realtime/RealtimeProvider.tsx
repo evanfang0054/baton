@@ -14,7 +14,7 @@ import { useSupervisorStreamStore } from '../supervisor/stream-store'
 import { appendSessionEvents } from './session-cache'
 
 const INVALIDATING_EVENTS = new Set(['task.status', 'approval.request', 'verify.result'])
-const TASK_CREATE_TOOLS = ['create_task', 'create_tasks'] as const
+const TASK_CREATE_TOOLS = ['create_task', 'create_tasks', 'handoff_task'] as const
 const TASK_MUTATING_TOOLS = new Set([
   ...TASK_CREATE_TOOLS,
   'retry_task',

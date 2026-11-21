@@ -53,6 +53,7 @@ function setup() {
   const replies: Array<{ taskId: string; text: string }> = []
   const tools = createSupervisorTools({
     db: database.db,
+    workspacesRoot: root,
     taskService,
     now: () => 10,
     newId: () => `node-${++nodeSeq}`,

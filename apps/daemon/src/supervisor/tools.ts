@@ -8,6 +8,7 @@ import {
 import {
   Engine,
   Node,
+  SupervisorHandoffResult,
   SupervisorTaskCard,
   TaskStatus,
   type Actor,
@@ -37,6 +38,8 @@ import {
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
+import { createHandoffNode } from '../handoff/service.js'
+import type { Logger } from '../log.js'
 import { createEdge as createCanvasEdge } from '../runtime/edge-service.js'
 import { ASK_USER_QUESTION_TOOL, readQuestions } from '../runtime/questions.js'
 import type { TaskService } from '../runtime/task-service.js'
@@ -87,6 +90,7 @@ export interface SupervisorToolset {
   cancel_task: SupervisorTool
   reply_task: SupervisorTool
   create_tasks: SupervisorTool
+  handoff_task: SupervisorTool
   create_text: SupervisorTool
   create_agent: SupervisorTool
   create_edge: SupervisorTool
@@ -110,6 +114,7 @@ export interface BoundToolset {
   cancel_task: BoundTool
   reply_task: BoundTool
   create_tasks: BoundTool
+  handoff_task: BoundTool
   create_text: BoundTool
   create_agent: BoundTool
   create_edge: BoundTool
@@ -133,6 +138,7 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     cancel_task: bind(tools.cancel_task),
     reply_task: bind(tools.reply_task),
     create_tasks: bind(tools.create_tasks),
+    handoff_task: bind(tools.handoff_task),
     create_text: bind(tools.create_text),
     create_agent: bind(tools.create_agent),
     create_edge: bind(tools.create_edge),
@@ -201,6 +207,14 @@ const createTasksInput = z.object({
   start: z.boolean().default(false),
 })
 
+const handoffTaskInput = z.object({
+  fromTaskId: z.string().min(1),
+  toNodeId: z.string().min(1).optional(),
+  title: z.string().min(1).max(80).optional(),
+  note: z.string().min(1).max(4_000).optional(),
+  start: z.boolean().default(false),
+})
+
 const createTextInput = z.object({
   content: z.string().min(1).max(16_384),
   title: z.string().min(1).max(80).optional(),
@@ -222,6 +236,7 @@ type BatchFailure = { nodeId: string; stage: 'create' | 'enqueue'; error: AppErr
 
 export interface SupervisorToolsDeps {
   db: Db
+  workspacesRoot: string
   taskService: TaskService
   now: () => number
   newId: () => string
@@ -230,6 +245,7 @@ export interface SupervisorToolsDeps {
   applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
   replyToTask: (taskId: string, text: string) => { ok: boolean; error?: AppError }
   cancelTask: (taskId: string, reason?: string) => TransitionOutcome
+  logger?: Logger
 }
 
 const CONTENT_TYPES = new Set(['text', 'file', 'image'])
@@ -396,6 +412,78 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       throw appError('task_not_found', 'task not found', { taskId })
     }
     return task
+  }
+
+  function createTaskForTool(
+    ctx: ToolContext,
+    input: {
+      title: string
+      prompt: string
+      target: { id: string; title: string; engine: EngineValue; created: boolean }
+      contextNodeIds: string[]
+      engine: EngineValue
+      workspaceMode: 'main' | 'worktree'
+      start: boolean
+      auditDetail?: Record<string, unknown>
+    },
+  ): { taskId: string; status: 'todo' | 'queued'; startError?: string } {
+    const origin = buildTaskOrigin({
+      source: 'supervisor-chat',
+      triggerId: ctx.triggerId,
+      threadId: ctx.threadId,
+      workspaceId: ctx.workspaceId,
+      targetNodeId: input.target.id,
+      contextNodeIds: input.contextNodeIds,
+      policyVersion: ctx.policyVersion,
+      promptVersion: ctx.promptVersion,
+      createdAt: deps.now(),
+    })
+    const result = deps.taskService.createTask(
+      {
+        workspaceId: ctx.workspaceId,
+        nodeId: input.target.id,
+        title: input.title,
+        prompt: input.prompt,
+        contextNodeIds: input.contextNodeIds,
+        engine: input.engine,
+        workspaceMode: input.workspaceMode,
+        dangerouslySkipPermissions: false,
+      },
+      {
+        origin,
+        audit: {
+          actor: 'supervisor',
+          action: 'supervisor.task.create',
+          detail: {
+            triggerId: ctx.triggerId,
+            threadId: ctx.threadId,
+            policyVersion: ctx.policyVersion,
+            contextNodeIds: input.contextNodeIds,
+            engine: input.engine,
+            createdAgent: input.target.created,
+            ...input.auditDetail,
+          },
+        },
+      },
+    )
+    if (!result.ok) {
+      throw appError('supervisor_task_create_failed', result.error.message, {
+        code: result.error.code,
+        details: result.error.details,
+      })
+    }
+    let status: 'todo' | 'queued' = 'todo'
+    let startError: string | undefined
+    if (input.start) {
+      const outcome = deps.enqueueTask(result.taskId)
+      if (outcome.ok) status = 'queued'
+      else startError = outcome.error.message
+    }
+    return {
+      taskId: result.taskId,
+      status,
+      ...(startError ? { startError } : {}),
+    }
   }
 
   function audit(
@@ -668,63 +756,20 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         const requestedContext = parsed.contextNodeIds ?? ctx.selection.contextNodeIds
         const contextNodeIds = resolveContext(ctx, requestedContext, target.id)
 
-        const origin = buildTaskOrigin({
-          source: 'supervisor-chat',
-          triggerId: ctx.triggerId,
-          threadId: ctx.threadId,
-          workspaceId: ctx.workspaceId,
-          targetNodeId: target.id,
+        const created = createTaskForTool(ctx, {
+          title: parsed.title,
+          prompt: ctx.text,
+          target,
           contextNodeIds,
-          policyVersion: ctx.policyVersion,
-          promptVersion: ctx.promptVersion,
-          createdAt: deps.now(),
+          engine,
+          workspaceMode: parsed.workspaceMode,
+          start: parsed.start,
         })
-        const result = deps.taskService.createTask(
-          {
-            workspaceId: ctx.workspaceId,
-            nodeId: target.id,
-            title: parsed.title,
-            prompt: ctx.text,
-            contextNodeIds,
-            engine,
-            workspaceMode: parsed.workspaceMode,
-            dangerouslySkipPermissions: false,
-          },
-          {
-            origin,
-            audit: {
-              actor: 'supervisor',
-              action: 'supervisor.task.create',
-              detail: {
-                triggerId: ctx.triggerId,
-                threadId: ctx.threadId,
-                policyVersion: ctx.policyVersion,
-                contextNodeIds,
-                engine,
-                createdAgent: target.created,
-              },
-            },
-          },
-        )
-        if (!result.ok) {
-          throw appError('supervisor_task_create_failed', result.error.message, {
-            code: result.error.code,
-            details: result.error.details,
-          })
-        }
-        ctx.memo.taskId = result.taskId
-
-        let status: 'todo' | 'queued' = 'todo'
-        let startError: string | undefined
-        if (parsed.start) {
-          const outcome = deps.enqueueTask(result.taskId)
-          if (outcome.ok) status = 'queued'
-          else startError = outcome.error.message
-        }
+        ctx.memo.taskId = created.taskId
         return {
-          ...card(result.taskId, parsed.title, target, contextNodeIds.length, status),
-          started: status === 'queued',
-          ...(startError ? { startError } : {}),
+          ...card(created.taskId, parsed.title, target, contextNodeIds.length, created.status),
+          started: created.status === 'queued',
+          ...(created.startError ? { startError: created.startError } : {}),
         }
       },
     },
@@ -864,6 +909,71 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         const batchResult = { created, failed }
         ctx.memo.batch = { key: batchKey, result: batchResult }
         return batchResult
+      },
+    },
+
+    handoff_task: {
+      description:
+        '把一个已停下任务（review/done/failed/cancelled）的结果做成交接节点，并创建新任务继续；' +
+        '默认待办，不自动开工；source 任务在 worktree 时会提示变更不可读。',
+      parameters: handoffTaskInput,
+      async execute(input, ctx) {
+        const parsed = handoffTaskInput.parse(input)
+        const fromTask = requireTask(ctx, parsed.fromTaskId)
+        const title = (parsed.title ?? `跟进：${fromTask.title}`).slice(0, 80)
+        const target = resolveAgentTarget(ctx, {
+          title,
+          ...(parsed.toNodeId ? { targetNodeId: parsed.toNodeId } : {}),
+        })
+        // 先校验目标与额外上下文，再落交接节点；避免失败时画布留下孤儿节点。
+        const extraContext = resolveContext(ctx, ctx.selection.contextNodeIds, target.id)
+        const handoff = createHandoffNode(
+          {
+            db: deps.db,
+            workspacesRoot: deps.workspacesRoot,
+            now: deps.now,
+            newId: deps.newId,
+            ...(deps.logger ? { logger: deps.logger } : {}),
+          },
+          { taskId: fromTask.id, workspaceId: ctx.workspaceId, actor: 'supervisor' },
+        )
+        if (!handoff.ok) throw handoff.error
+
+        const engine = resolveEngine(undefined, target)
+        const contextNodeIds = [...new Set([handoff.node.id, ...extraContext])]
+        const created = createTaskForTool(ctx, {
+          title,
+          prompt: parsed.note ?? '基于交接结果继续完成后续工作。',
+          target,
+          contextNodeIds,
+          engine,
+          workspaceMode: 'main',
+          start: parsed.start,
+          auditDetail: {
+            handoffNodeId: handoff.node.id,
+            sourceTaskId: fromTask.id,
+          },
+        })
+        audit('supervisor.task.handoff', created.taskId, ctx, {
+          fromTaskId: fromTask.id,
+          toTaskId: created.taskId,
+          nodeId: handoff.node.id,
+          handoffNodeId: handoff.node.id,
+          hasNote: Boolean(parsed.note),
+          started: created.status === 'queued',
+        })
+        return SupervisorHandoffResult.parse({
+          task: card(created.taskId, title, target, contextNodeIds.length, created.status),
+          handoff: {
+            nodeId: handoff.node.id,
+            fromTaskId: fromTask.id,
+            fromTitle: fromTask.title,
+            fromStatus: fromTask.status,
+            worktree: fromTask.workspaceMode === 'worktree',
+            warnings: handoff.summary.warnings,
+          },
+          ...(created.startError ? { startError: created.startError } : {}),
+        })
       },
     },
 

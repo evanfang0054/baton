@@ -278,6 +278,33 @@ describe('RealtimeProvider', () => {
     })
   })
 
+  it('invalidates tasks and canvas after a successful handoff', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    renderProvider(client)
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const socket = FakeSocket.instances[0]!
+    socket.open()
+    invalidate.mockClear()
+
+    socket.message({
+      v: 1,
+      ts: 36,
+      type: 'supervisor.tool',
+      payload: {
+        threadId: 'th1',
+        messageId: 'm1',
+        toolCallId: 'tc-handoff',
+        name: 'handoff_task',
+        phase: 'end',
+        ok: true,
+      },
+    })
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.tasks('w1') })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.canvas('w1') })
+    })
+  })
+
   it('refreshes the canvas when a finished turn created nodes', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const initial: SupervisorMessagesResponse = { threadId: 'th1', messages: [] }

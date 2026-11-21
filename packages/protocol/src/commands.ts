@@ -50,6 +50,13 @@ export const TaskReopenInput = z.object({
 })
 export type TaskReopenInput = z.infer<typeof TaskReopenInput>
 
+export const TaskHandoffInput = z.object({
+  taskId: Id,
+  /** 当前 workspace；用于任务归属校验，防止跨 workspace 交接。 */
+  workspaceId: Id,
+})
+export type TaskHandoffInput = z.infer<typeof TaskHandoffInput>
+
 export const SessionReplyInput = z.object({
   taskId: Id,
   text: z.string().min(1).max(16_384),
@@ -159,6 +166,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   CommandBase.extend({ type: z.literal('task.cancel'), payload: TaskCancelInput }),
   CommandBase.extend({ type: z.literal('task.retry'), payload: TaskRetryInput }),
   CommandBase.extend({ type: z.literal('task.reopen'), payload: TaskReopenInput }),
+  CommandBase.extend({ type: z.literal('task.handoff'), payload: TaskHandoffInput }),
   CommandBase.extend({ type: z.literal('session.reply'), payload: SessionReplyInput }),
   CommandBase.extend({ type: z.literal('approval.decide'), payload: ApprovalDecideInput }),
   CommandBase.extend({ type: z.literal('review.decide'), payload: ReviewDecideInput }),

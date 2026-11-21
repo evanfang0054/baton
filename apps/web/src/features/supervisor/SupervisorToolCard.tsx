@@ -1,4 +1,5 @@
 import {
+  ArrowRightLeft,
   Ban,
   CheckCircle2,
   ChevronDown,
@@ -35,6 +36,7 @@ const icons: Record<string, ComponentType<{ size?: number; className?: string }>
   get_task_history: History,
   create_task: PlusCircle,
   create_tasks: ListPlus,
+  handoff_task: ArrowRightLeft,
   retry_task: RefreshCw,
   reopen_task: RotateCcw,
   cancel_task: Ban,

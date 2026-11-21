@@ -12,6 +12,7 @@ import { QuestionCard } from './QuestionCard'
 import { ReplyComposer } from './ReplyComposer'
 import { ReviewCard } from './ReviewCard'
 import { DiffViewer } from './DiffViewer'
+import { HandoffButton } from './HandoffButton'
 import { TaskActions } from './TaskActions'
 import { TaskAutomationCard } from './TaskAutomationCard'
 import { TaskHeader } from './TaskHeader'
@@ -254,6 +255,8 @@ function DetailContent({
           <p className="shrink-0 text-sm text-muted">等待验收记录同步…</p>
         )
       ) : null}
+
+      <HandoffButton taskId={task.id} workspaceId={workspaceId} status={task.status} />
 
       {showActions ? (
         <TaskActions

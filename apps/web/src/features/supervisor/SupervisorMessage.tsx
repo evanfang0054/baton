@@ -1,5 +1,8 @@
 import type { SupervisorMessage as SupervisorMessageRecord, ToolCallRecord } from '@baton/protocol'
-import { SupervisorTaskCard as SupervisorTaskCardSchema } from '@baton/protocol'
+import {
+  SupervisorHandoffResult,
+  SupervisorTaskCard as SupervisorTaskCardSchema,
+} from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { AlertTriangle } from 'lucide-react'
 import { SupervisorTaskCard } from './SupervisorTaskCard'
@@ -57,6 +60,11 @@ export function SupervisorMessage({
   // 同一轮可能先建待办、再补一次开工/改标题；保留最后一次，避免卡片显示旧状态。
   const uniqueCards = [...new Map(cards.map((card) => [card.taskId, card])).values()]
 
+  const handoffEntries = message.toolCalls
+    .filter((call) => call.name === 'handoff_task' && call.ok)
+    .map((call) => SupervisorHandoffResult.safeParse(call.result))
+    .flatMap((parsed) => (parsed.success ? [parsed.data] : []))
+
   return (
     <article className="flex gap-3">
       <span className="w-9 shrink-0 pt-0.5 text-xs text-muted">{roleLabels[message.role]}</span>
@@ -95,6 +103,25 @@ export function SupervisorMessage({
         ) : null}
         {uniqueCards.map((card) => (
           <SupervisorTaskCard key={card.taskId} card={card} />
+        ))}
+        {handoffEntries.map(({ task: card, handoff, startError }) => (
+          <div key={`handoff-${card.taskId}`} className="flex flex-col gap-1">
+            <p className="text-xs text-muted">
+              交接自《{handoff.fromTitle}》
+              {handoff.worktree ? ' · 源任务在隔离 worktree，变更文件不可读' : ''}
+            </p>
+            <SupervisorTaskCard card={card} />
+            {handoff.warnings.length > 0 ? (
+              <ul className="space-y-1 text-xs text-warning">
+                {handoff.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            ) : null}
+            {startError ? (
+              <p className="text-xs text-danger">已创建，但开工失败：{startError}</p>
+            ) : null}
+          </div>
         ))}
       </div>
     </article>

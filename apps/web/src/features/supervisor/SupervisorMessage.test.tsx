@@ -89,4 +89,44 @@ describe('SupervisorMessage', () => {
     expect(screen.getByText(/在等你选方案/)).toBeVisible()
     expect(screen.getByText('get_task')).toBeVisible()
   })
+
+  it('renders a handoff task card with its source and worktree warning', () => {
+    render(
+      <SupervisorMessage
+        message={{
+          ...message,
+          id: 'm-handoff',
+          content: '已把结果交给新任务。',
+          toolCalls: [
+            {
+              id: 'tc-handoff',
+              name: 'handoff_task',
+              args: { fromTaskId: 'task-1' },
+              ok: true,
+              result: {
+                task: {
+                  taskId: 'task-2',
+                  title: '跟进：登录页改造',
+                  target: { id: 'a1', title: 'Agent 1', engine: 'claude-sdk' },
+                  contextCount: 1,
+                  status: 'todo',
+                },
+                handoff: {
+                  nodeId: 'handoff-1',
+                  fromTaskId: 'task-1',
+                  fromTitle: '登录页改造',
+                  fromStatus: 'review',
+                  worktree: true,
+                  warnings: ['源任务在隔离 worktree，变更文件在主工作区不可读。'],
+                },
+              },
+            },
+          ],
+        }}
+      />,
+    )
+    expect(screen.getByText('跟进：登录页改造')).toBeVisible()
+    expect(screen.getByText(/交接自《登录页改造》/)).toBeVisible()
+    expect(screen.getByText(/变更文件在主工作区不可读/)).toBeVisible()
+  })
 })
