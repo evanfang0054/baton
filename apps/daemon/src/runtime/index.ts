@@ -642,6 +642,7 @@ export function createRuntime(deps: RuntimeDeps) {
           taskId: message.payload.taskId,
           nodeIds: message.payload.nodeIds,
           ...(message.payload.note ? { note: message.payload.note } : {}),
+          ...(message.payload.requestId ? { requestId: message.payload.requestId } : {}),
           source: 'user',
           actor: 'human',
         })
@@ -653,6 +654,7 @@ export function createRuntime(deps: RuntimeDeps) {
                 seq: result.seq,
                 truncated: result.truncated,
                 dropped: result.dropped,
+                ...(result.duplicate ? { duplicate: true } : {}),
               },
             }
           : { ok: false, error: result.error }

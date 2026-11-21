@@ -43,12 +43,20 @@ export interface InjectContextInput {
   taskId: string
   nodeIds: string[]
   note?: string
+  requestId?: string
   source: 'user' | 'supervisor'
   actor: string
 }
 
 export type InjectContextResult =
-  | { ok: true; taskId: string; seq: number; truncated: boolean; dropped: number }
+  | {
+      ok: true
+      taskId: string
+      seq: number
+      truncated: boolean
+      dropped: number
+      duplicate?: boolean
+    }
   | { ok: false; error: AppError }
 
 export interface PreparedContextInjection {
@@ -183,6 +191,7 @@ export function createContextService(deps: ContextServiceDeps) {
       at: deps.now(),
       source: input.source,
       note,
+      requestId: input.requestId ?? null,
       nodeIds: input.nodeIds,
       included: assembled.included,
       dropped: assembled.dropped,
@@ -202,9 +211,29 @@ export function createContextService(deps: ContextServiceDeps) {
   }
 
   function injectContext(input: InjectContextInput): InjectContextResult {
+    if (input.requestId) {
+      const existing = getTaskDetail(deps.db, input.taskId)?.task.context?.injections.find(
+        (item) => item.requestId === input.requestId,
+      )
+      if (existing) {
+        // 断线重试复用同一个 requestId：直接返回已写入的结果，不重复写 prompt/审计/事件。
+        return {
+          ok: true,
+          taskId: input.taskId,
+          seq: existing.seq,
+          truncated: existing.truncated,
+          dropped: existing.dropped.length,
+          duplicate: true,
+        }
+      }
+    }
     const prepared = prepare(input)
     if (!prepared.ok) return prepared
-    const { task, injection, block } = prepared
+    const { task, block } = prepared
+    const injection: ContextInjection = {
+      ...prepared.injection,
+      requestId: input.requestId ?? null,
+    }
 
     if (task.status === 'waiting_input') {
       if (!deps.hasSession(task.id)) {
