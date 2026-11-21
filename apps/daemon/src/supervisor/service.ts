@@ -815,6 +815,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           input.assistantMessageId,
           input.threadId,
         ),
+        update_node: wrapTool(
+          'update_node',
+          bound.update_node,
+          input.assistantMessageId,
+          input.threadId,
+        ),
       }
       const history = trimHistory(store.listMessages(input.threadId, 21).messages.slice(-20))
       const engine = deps.engine ?? createAiSdkSupervisorEngine(input.config)

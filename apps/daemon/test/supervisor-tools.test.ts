@@ -492,6 +492,9 @@ describe('supervisor tools', () => {
     )
     expect(result.nodes.find((entry) => entry.id === seeded.nodeId)).toMatchObject({
       type: 'agent',
+      x: expect.any(Number),
+      y: expect.any(Number),
+      groupId: null,
     })
     expect(result.edges).toEqual([
       { id: expect.any(String), sourceId: 'text-1', targetId: seeded.nodeId, type: 'context' },
@@ -503,6 +506,29 @@ describe('supervisor tools', () => {
     }
     expect(limited.nodes).toHaveLength(1)
     expect(limited.truncated).toBe(true)
+  })
+
+  it('moves and renames an agent with audit, but cannot rename text', async () => {
+    const { database, seeded, tools } = setup()
+    const result = (await tools.update_node.execute(
+      { nodeId: seeded.nodeId, x: 10, y: 20, title: '新 Agent' },
+      ctx(seeded),
+    )) as { nodeId: string; x: number; y: number; title: string }
+    expect(result).toMatchObject({ nodeId: seeded.nodeId, x: 10, y: 20, title: '新 Agent' })
+    expect(getNode(database.db, seeded.nodeId)).toMatchObject({
+      x: 10,
+      y: 20,
+      data: { title: '新 Agent' },
+    })
+    expect(
+      database.raw
+        .prepare("select count(*) as n from audit where action = 'supervisor.node.update'")
+        .get(),
+    ).toEqual({ n: 1 })
+
+    await expect(
+      tools.update_node.execute({ nodeId: 'text-1', title: '不允许' }, ctx(seeded)),
+    ).rejects.toMatchObject({ code: 'invalid_payload' })
   })
 
   it('auto-creates an agent and can start the task', async () => {
