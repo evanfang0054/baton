@@ -231,6 +231,7 @@ function FlowCanvas({
 
   const updateNode = useCallback(
     async (nodeId: string, patch: Record<string, unknown>, refresh = true) => {
+      if (sceneActive) return
       try {
         await send({ type: 'node.update', payload: { nodeId, patch } })
       } catch (cause) {
@@ -239,12 +240,12 @@ function FlowCanvas({
         if (refresh) await refreshCanvas()
       }
     },
-    [refreshCanvas, send],
+    [refreshCanvas, sceneActive, send],
   )
 
   const connect = useCallback(
     async (connection: Connection) => {
-      if (!canvas || !isValidConnection(connection, canvas.edges)) return
+      if (sceneActive || !canvas || !isValidConnection(connection, canvas.edges)) return
       try {
         await send({
           type: 'edge.create',
@@ -260,11 +261,12 @@ function FlowCanvas({
         await refreshCanvas()
       }
     },
-    [canvas, refreshCanvas, send],
+    [canvas, refreshCanvas, sceneActive, send],
   )
 
   const removeEdges = useCallback(
     async (deleted: Array<{ id: string }>) => {
+      if (sceneActive) return
       for (const edge of deleted) {
         try {
           await send({ type: 'edge.delete', payload: { edgeId: edge.id } })
@@ -277,7 +279,7 @@ function FlowCanvas({
       setSelectedEdgeId(null)
       await refreshCanvas()
     },
-    [refreshCanvas, send],
+    [refreshCanvas, sceneActive, send],
   )
 
   const deleteSelectedEdge = useCallback(() => {
@@ -305,7 +307,7 @@ function FlowCanvas({
 
   const createNode = useCallback(
     async (node: NodeCreateValue) => {
-      if (!canvas) return
+      if (!canvas || sceneActive) return
       try {
         const result = (await send({
           type: 'node.create',
@@ -317,11 +319,11 @@ function FlowCanvas({
         toast.danger(cause instanceof Error ? cause.message : '节点创建失败')
       }
     },
-    [canvas, onSelectNode, refreshCanvas, send],
+    [canvas, onSelectNode, refreshCanvas, sceneActive, send],
   )
 
   const createGroupFromSelection = useCallback(async () => {
-    if (!canvas) return
+    if (!canvas || sceneActive) return
     const selected = canvas.nodes.filter((node) => selectedNodeIds.includes(node.id))
     if (selected.length === 0) {
       toast.danger('先选择要分组的节点')
@@ -348,7 +350,7 @@ function FlowCanvas({
       toast.danger(cause instanceof Error ? cause.message : '建组失败')
       await refreshCanvas()
     }
-  }, [canvas, refreshCanvas, selectedNodeIds, send])
+  }, [canvas, refreshCanvas, sceneActive, selectedNodeIds, send])
 
   const addNode = useCallback(
     (type: CanvasAddType) => {
@@ -560,8 +562,24 @@ function FlowCanvas({
         onZoomOut={() => void zoomOut()}
         readOnly={sceneActive}
       />
-      {scene && sceneDetail.data ? (
-        <TaskSceneBar scene={scene} detail={sceneDetail.data} onExit={exitScene} />
+      {sceneTaskId !== null ? (
+        scene && sceneDetail.data ? (
+          <TaskSceneBar scene={scene} detail={sceneDetail.data} onExit={exitScene} />
+        ) : (
+          <div
+            data-testid="task-scene-loading"
+            role="region"
+            aria-label="任务现场"
+            className="absolute top-3 left-1/2 z-20 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-3 rounded-lg border border-accent bg-surface px-4 py-2 text-xs shadow-overlay"
+          >
+            <span className="text-muted">
+              {sceneDetail.isError ? '现场加载失败' : '正在加载现场…'}
+            </span>
+            <Button size="sm" variant="tertiary" onPress={exitScene}>
+              回到全局
+            </Button>
+          </div>
+        )
       ) : null}
       {!sceneActive && selectedEdgeId ? (
         <div className="absolute top-3 right-3 z-10">

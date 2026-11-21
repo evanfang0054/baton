@@ -189,4 +189,21 @@ describe('CanvasPanel', () => {
     expect(useAppStore.getState().sceneTaskId).toBeNull()
     expect(send).not.toHaveBeenCalled()
   })
+
+  it('stays read-only and offers an exit while scene detail loads', async () => {
+    useAppStore.setState({ sceneTaskId: 't1' })
+    const { send } = renderPanel()
+
+    expect(await screen.findByText('画布里的文本')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '添加文本' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('task-scene-loading')).toBeInTheDocument()
+
+    fireEvent.doubleClick(screen.getByText('画布里的文本'))
+    expect(screen.queryByRole('textbox', { name: '文本节点内容' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '回到全局' }))
+    await waitFor(() => expect(screen.queryByTestId('task-scene-loading')).not.toBeInTheDocument())
+    expect(useAppStore.getState().sceneTaskId).toBeNull()
+    expect(send).not.toHaveBeenCalled()
+  })
 })

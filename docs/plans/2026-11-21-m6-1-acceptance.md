@@ -328,5 +328,5 @@ git commit -m "docs: M6-1 收口"
 - 真实环境限制：临时环境 Corepack 缓存的 pnpm 不可用，`verifyExitCode = 1`；Claude 会话内改用 Homebrew pnpm 跑通。临时 daemon 未配置总管模型，`preliminaryVerdict = null`，review 卡显示“进行中/未完成”。这两点已写入证据 README，不伪装成通过。
 - 收口：docs 索引加入 evidence；spec `status: implemented`；contract 17 条 DoD 全部勾选并补证据说明；`pnpm verify:full`、`pnpm pack:check`、`pnpm check:boundaries`、`pnpm check:protocol`、`pnpm format:check` 均退出码 0。
 - 偏差：计划中的 `03-review-card.png` 因截图包含 transcript/本机路径而删除，review 卡证据由 `02-scene.png` 承担；没有提交未脱敏截图。
-- 2026-11-21 代码评审修复后复验：`pnpm verify` 退出码 0；web 236 tests、54 files 全绿；M6 e2e 3 条（task-scene / canvas-group / board-attention）通过。board-attention 改为先打开任务详情再断言初步验收，因为全局画布不再为每张 review 卡拉详情；task-scene 在全局选中一条边后进入现场，确认“删除连线”入口消失且不发 `edge.delete`。
+- 2026-11-21 代码评审修复后复验：`pnpm verify` 退出码 0；web 237 tests、54 files 全绿；M6 e2e 3 条（task-scene / canvas-group / board-attention）通过。board-attention 改为先打开任务详情再断言初步验收，因为全局画布不再为每张 review 卡拉详情；task-scene 在全局选中一条边后进入现场，确认“删除连线”入口消失且不发 `edge.delete`。
 - 文档口径：全局 review 卡只显示 `TaskSummary` 摘要、现场卡显示完整验收，已在 spec §5.2 与 contract DoD #8 对齐。

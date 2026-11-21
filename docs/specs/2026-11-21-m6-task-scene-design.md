@@ -459,7 +459,7 @@ export const GroupCreateInput = z.object({
 
 1. 图片节点支持 png/jpeg/webp/gif/svg + https 外链；本地读取走受保护路由；10MB 上限；失败占位；daemon 不抓外链。
 2. 分组支持选中建组、拖入/拖出、整组拖动、折叠；整组拖动一次事务落库；删组只解绑不删子节点；折叠不影响上下文。
-3. Review 卡在 `review` 时出现、离开后消失；显示状态/verify/diff/等待/初步结论；只读；点击打开任务。
+3. Review 卡在 `review` 时出现、离开后消失；现场卡显示状态/verify/diff/等待/初步结论，全局卡按 §5.2 只显示 `TaskSummary` 摘要；只读；点击打开任务。
 4. 现场从详情和看板都能进；相关节点/边收敛正确；相关组临时展开；缺失节点有提示；退出恢复；不自动抢视口。
 5. 总管 `update_node` 只能移动 + 重命名 Agent；有审计；`list_canvas` 返回坐标/groupId；不能删节点/建组/建图片。
 6. 看板「需要我」过滤、搜索、等待排序、30 分钟 stale 标记可用；rail 计数与列表长度一致；手机保留这些能力。
