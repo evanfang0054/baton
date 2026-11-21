@@ -787,6 +787,7 @@ export function appendTaskContextInjection(
   tx: Tx,
   taskId: string,
   injection: ContextInjection,
+  limits?: { maxCumulativeChars: number },
 ): void {
   const row = tx
     .select({ contextJson: task.contextJson })
@@ -816,6 +817,25 @@ export function appendTaskContextInjection(
     } catch (error) {
       if (error && typeof error === 'object' && 'code' in error) throw error
       throw appError('context_invalid', 'existing context snapshot is not valid JSON', { taskId })
+    }
+  }
+  // prepare 与写入之间可能隔着一个事务边界；在写入时再核对一次，避免重复 seq 或超预算。
+  const expectedSeq = snapshot.injections.length + 1
+  if (injection.seq !== expectedSeq) {
+    throw appError('context_conflict', 'context injection sequence is stale', {
+      taskId,
+      expectedSeq,
+      seq: injection.seq,
+    })
+  }
+  if (limits) {
+    const used = snapshot.injections.reduce((sum, item) => sum + item.chars, 0)
+    if (used + injection.chars > limits.maxCumulativeChars) {
+      throw appError('context_budget_exceeded', 'cumulative injection budget exceeded', {
+        limit: limits.maxCumulativeChars,
+        used,
+        requested: injection.chars,
+      })
     }
   }
   tx.update(task)

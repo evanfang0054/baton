@@ -18,7 +18,7 @@
 ## 2. DoD
 
 - [ ] **1. 注入状态矩阵**：`context.inject` 对 `todo` 与 `queued` 保持原状态、不启动 session；对 `waiting_input`（question/stalled/dropped）走 `user_input` 变 `running`；对 `waiting_input`（approval/null）、`review`、`running`、`verifying`、`done`、`failed`、`cancelled` 返回 `task_not_injectable`，且 reason 分别为 `approval_pending`、`use_review_reject`、`running`、`terminal`；拒绝时不写 prompt、不写 context、不写 audit。
-- [ ] **2. Review 打回携带上下文**：`review.decide(reject)` 可只带 `contextNodeIds`、不带文字 feedback；任务回 `queued`，review verdict 为 `rejected`，prompt 的 `<feedback>` 内恰好出现一份本次 `<context_update>`，`context.injections` 增加一条；只有 feedback 或只有 context 都合法，两者都空返回 `invalid_payload`。
+- [ ] **2. Review 打回携带上下文**：`review.decide(reject)` 可只带 `contextNodeIds`、不带文字 feedback；任务回 `queued`，review verdict 为 `rejected`，prompt 中 `<feedback>` 与本次独立 `<context_update>` 各恰好一份，`context.injections` 增加一条；只有 feedback 或只有 context 都合法，两者都空返回 `invalid_payload`。
 - [ ] **3. append-only 快照**：注入后初始 `ContextSnapshot` 的 `included/dropped/truncated/redactedPaths/relations/relationsTruncated` 不变；`context.injections[]` 按 `seq` 递增追加；旧 `context_json` 没有 `injections` 字段时按 `[]` 解析，旧任务详情不报错；不新建表。
 - [ ] **4. prompt 单份与标签**：每次注入在 `task.prompt` 中只出现一份；`todo/queued` 落在 `<context_update>`，`waiting_input` 落在 `<user_reply>`，`review reject` 落在独立 `<context_update>`（feedback 单独）；`<context_update>` 含 `seq/at/source` 属性、可选 `<note>`、节点与关系 XML；不重写历史 prompt，不重复旧上下文。
 - [ ] **5. 预算与原子性**：单次 40 节点 / 48k 字符 / 单节点 16k 按现有规则截断/丢弃；累计注入 96k（只累计 `injections[].chars`）超限返回 `context_budget_exceeded`；超限时 prompt、`context_json`、audit 与注入前逐字节一致；敏感路径按现有规则丢弃并标记 `sensitive`，正文不进入 prompt、事件、审计或日志；装配后 `included` 为空返回 `context_empty`。

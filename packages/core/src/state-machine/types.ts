@@ -35,6 +35,12 @@ export type TaskEffect =
       diffStat: DiffStat
     }
   | { type: 'persistReviewVerdict'; reviewId: string; verdict: ReviewVerdict }
+  | {
+      type: 'auditReviewOverride'
+      reviewId: string
+      verifyExitCode: number
+      reasonProvided: boolean
+    }
   | { type: 'appendFeedback'; feedback: string }
   | { type: 'appendReopenNote'; note: string }
   | { type: 'appendContextInjection'; injection: ContextInjection; block?: string }

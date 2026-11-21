@@ -31,7 +31,6 @@ import {
   getSetting,
   getTask,
   hasTaskForNode,
-  insertAudit,
   insertNode,
   listQueuedTasksByEnqueuedAt,
   listWorkspaces,
@@ -443,28 +442,16 @@ export function createRuntime(deps: RuntimeDeps) {
       }
     }
     if (input.decision === 'approve') {
-      const outcome = applyTransition(review.taskId, {
+      const reasonProvided = Boolean(input.reason?.trim())
+      const override =
+        reasonProvided || review.verifyExitCode !== 0
+          ? { verifyExitCode: review.verifyExitCode, reasonProvided }
+          : undefined
+      return applyTransition(review.taskId, {
         type: 'approve',
         reviewId: input.reviewId,
+        ...(override ? { override } : {}),
       })
-      const reasonProvided = Boolean(input.reason?.trim())
-      if (outcome.ok && (reasonProvided || review.verifyExitCode !== 0)) {
-        deps.db.transaction((tx) => {
-          insertAudit(tx, {
-            id: newId(),
-            ts: now(),
-            actor: 'human',
-            action: 'review.approve_override',
-            detail: {
-              taskId: review.taskId,
-              reviewId: review.id,
-              verifyExitCode: review.verifyExitCode,
-              reasonProvided,
-            },
-          })
-        })
-      }
-      return outcome
     }
     let contextInjection: ContextInjection | undefined
     let contextBlock: string | undefined
@@ -559,7 +546,7 @@ export function createRuntime(deps: RuntimeDeps) {
           nodeIds: message.payload.nodeIds,
           ...(message.payload.note ? { note: message.payload.note } : {}),
           source: 'user',
-          actor: 'user',
+          actor: 'human',
         })
         return result.ok
           ? {

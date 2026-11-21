@@ -129,4 +129,104 @@ describe('context service', () => {
       expect(transitions[0].contextInjection).toMatchObject({ seq: 1, nodeIds: ['text-1'] })
     }
   })
+
+  it('rejects when the cumulative injection budget is exhausted without writing', () => {
+    const { database, seeded, service } = setup()
+    const promptBefore = database.raw
+      .prepare('select prompt from task where id = ?')
+      .get(seeded.taskId)
+    const injection = (seq: number) => ({
+      seq,
+      at: seq,
+      source: 'user',
+      note: null,
+      nodeIds: ['text-1'],
+      included: [],
+      dropped: [],
+      truncated: false,
+      relations: [],
+      relationsTruncated: false,
+      chars: 48_000,
+    })
+    const contextJson = JSON.stringify({
+      included: [],
+      dropped: [],
+      truncated: false,
+      redactedPaths: [],
+      relations: [],
+      relationsTruncated: false,
+      injections: [injection(1), injection(2)],
+    })
+    database.raw
+      .prepare('update task set context_json = ? where id = ?')
+      .run(contextJson, seeded.taskId)
+
+    const result = service.injectContext({
+      taskId: seeded.taskId,
+      nodeIds: ['text-1'],
+      source: 'user',
+      actor: 'human',
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('context_budget_exceeded')
+    expect(database.raw.prepare('select prompt from task where id = ?').get(seeded.taskId)).toEqual(
+      promptBefore,
+    )
+    expect(
+      database.raw.prepare('select context_json from task where id = ?').get(seeded.taskId),
+    ).toEqual({ context_json: contextJson })
+    expect(
+      database.raw
+        .prepare("select count(*) as count from audit where action = 'task.context.inject'")
+        .get(),
+    ).toEqual({ count: 0 })
+  })
+
+  it('rejects malformed context_json instead of wiping the snapshot', () => {
+    const { database, seeded, service } = setup()
+    database.raw
+      .prepare('update task set context_json = ? where id = ?')
+      .run('{not json', seeded.taskId)
+
+    const result = service.injectContext({
+      taskId: seeded.taskId,
+      nodeIds: ['text-1'],
+      source: 'user',
+      actor: 'human',
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('context_invalid')
+    expect(
+      database.raw.prepare('select context_json from task where id = ?').get(seeded.taskId),
+    ).toEqual({ context_json: '{not json' })
+  })
+
+  it('rejects agent and review nodes as injection sources', () => {
+    const { seeded, service } = setup()
+    const result = service.injectContext({
+      taskId: seeded.taskId,
+      nodeIds: [seeded.nodeId],
+      source: 'user',
+      actor: 'human',
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('node_type_not_injectable')
+  })
+
+  it('writes a supervisor audit when the source is supervisor', () => {
+    const { database, seeded, service } = setup()
+    const result = service.injectContext({
+      taskId: seeded.taskId,
+      nodeIds: ['text-1'],
+      source: 'supervisor',
+      actor: 'supervisor',
+    })
+    expect(result.ok).toBe(true)
+    const audit = database.raw
+      .prepare("select actor from audit where action = 'supervisor.context.inject'")
+      .get() as { actor: string } | undefined
+    expect(audit).toEqual({ actor: 'supervisor' })
+  })
 })

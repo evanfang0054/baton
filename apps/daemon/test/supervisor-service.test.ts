@@ -181,6 +181,26 @@ describe('supervisor service', () => {
     expect(message).toContain('没有对应的工具结果')
   })
 
+  it('corrects inject claims without inject_context results', async () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        return { text: '已经补给它了。', toolCalls: [], finishReason: 'stop' }
+      },
+    }
+    const { seeded, service, frames } = setup(engine)
+    const ack = service.send({
+      workspaceId: seeded.workspaceId,
+      requestId: 'r-inject-claim',
+      text: '把这几个节点补给它',
+      contextNodeIds: [],
+      targetNodeId: seeded.nodeId,
+    })
+    expect(ack.ok).toBe(true)
+    await service.waitForIdle()
+    const message = frames.find((frame) => frame.includes('supervisor.message'))
+    expect(message).toContain('没有对应的工具结果')
+  })
+
   it('does not treat a task title containing 创建 as a create claim', async () => {
     const engine: SupervisorEngine = {
       async run() {

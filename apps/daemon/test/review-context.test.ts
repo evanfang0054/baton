@@ -47,8 +47,11 @@ describe('review context', () => {
     expect(outcome.ok).toBe(true)
     const detail = getTaskDetail(handle.database.db, handle.seeded.taskId)
     expect(detail?.task.status).toBe('queued')
-    expect(detail?.task.prompt).toContain('<feedback>')
-    expect(detail?.task.prompt).toContain('<context_update seq="1"')
+    expect(detail?.task.enqueuedAt).toBeTypeOf('number')
+    expect(detail?.task.prompt.match(/<feedback>/g)).toHaveLength(1)
+    expect(detail?.task.prompt.match(/<context_update/g)).toHaveLength(1)
+    const feedback = detail?.task.prompt.match(/<feedback>[\s\S]*?<\/feedback>/)?.[0] ?? ''
+    expect(feedback).not.toContain('<context_update')
     expect(detail?.task.context?.injections).toHaveLength(1)
   })
 
@@ -72,6 +75,27 @@ describe('review context', () => {
       reviewId: 'review-2',
       verifyExitCode: 1,
       reasonProvided: true,
+    })
+  })
+
+  it('writes an override audit when verify was skipped', () => {
+    const handle = setup()
+    seedReview(handle, { reviewId: 'review-skip', verifyExitCode: -1 })
+    const outcome = handle.runtime.handleCommand({
+      v: 1,
+      id: 'c-skip',
+      ts: 1,
+      type: 'review.decide',
+      payload: { reviewId: 'review-skip', decision: 'approve' },
+    })
+    expect(outcome.ok).toBe(true)
+    const audit = handle.database.raw
+      .prepare("select detail_json from audit where action = 'review.approve_override'")
+      .get() as { detail_json: string } | undefined
+    expect(JSON.parse(audit!.detail_json)).toMatchObject({
+      reviewId: 'review-skip',
+      verifyExitCode: -1,
+      reasonProvided: false,
     })
   })
 

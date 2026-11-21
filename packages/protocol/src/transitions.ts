@@ -44,7 +44,17 @@ export const TaskTransitionEvent = z
       /** false 表示重试也不会成功（如未配置 verify 命令），禁止自动重试。 */
       retryable: z.boolean().optional(),
     }),
-    z.object({ type: z.literal('approve'), reviewId: Id }),
+    z.object({
+      type: z.literal('approve'),
+      reviewId: Id,
+      /** verify 失败/跳过或显式填理由时的覆盖审计；由 daemon 在同一事务内落库。 */
+      override: z
+        .object({
+          verifyExitCode: z.number().int(),
+          reasonProvided: z.boolean(),
+        })
+        .optional(),
+    }),
     z.object({
       type: z.literal('reject'),
       reviewId: Id,

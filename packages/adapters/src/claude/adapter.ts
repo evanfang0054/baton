@@ -66,8 +66,17 @@ export class ClaudeAdapter implements AgentAdapter {
     async function* events(): AsyncGenerator<AgentEvent> {
       let started = false
       let finished = false
+      let runFinished = false
+      let readyTimer: ReturnType<typeof setTimeout> | null = null
       let threadId = 'claude-session'
       let outcome: 'ready' | 'blocked' | 'dropped' | null = null
+
+      const clearReadyTimer = (): void => {
+        if (readyTimer) {
+          clearTimeout(readyTimer)
+          readyTimer = null
+        }
+      }
 
       try {
         for await (const event of transport.events) {
@@ -99,14 +108,22 @@ export class ClaudeAdapter implements AgentAdapter {
           } else if (event.type === 'outcome') {
             outcome = event.outcome
             yield mapSessionOutcome(event.outcome, event.reason)
-            // ready 是会话级终态；不等待 SDK result，避免 resumed turn 不返回 result 时挂死。
             if (event.outcome === 'ready') {
+              // ready 是会话级终态，但 SDK 的 result（含 usage）可能紧随其后；
+              // 留住事件流一个短窗口，拿不到 result 时主动关闭，避免 resumed turn 挂死。
               finished = true
-              yield mapRunFinished(threadId, runId)
-              return
+              readyTimer = setTimeout(() => {
+                void transport.dispose().catch(() => {})
+              }, 1_000)
             }
           } else if (event.type === 'turn_result') {
             if (!event.ok) {
+              clearReadyTimer()
+              if (finished) {
+                runFinished = true
+                yield mapRunFinished(threadId, runId)
+                return
+              }
               finished = true
               yield mapRunError(event.error ?? 'claude turn failed')
               return
@@ -115,28 +132,40 @@ export class ClaudeAdapter implements AgentAdapter {
               yield mapSessionUsage(event.costUsd, event.turns)
             }
             if (outcome === 'ready') {
+              clearReadyTimer()
               finished = true
+              runFinished = true
               yield mapRunFinished(threadId, runId)
               return
             }
             // 未上报 outcome 时，turn 结束即 session 结束；daemon 合成 unreported。
             if (outcome === null) {
+              clearReadyTimer()
               finished = true
+              runFinished = true
               yield mapRunFinished(threadId, runId)
               return
             }
             // blocked/dropped：保持事件流打开，等待 send。
           } else if (event.type === 'error') {
+            clearReadyTimer()
+            if (finished) {
+              runFinished = true
+              yield mapRunFinished(threadId, runId)
+              return
+            }
             finished = true
             yield mapRunError(event.message)
             return
           }
         }
 
-        if (!finished && (outcome === 'ready' || outcome === null)) {
+        if (!runFinished && (finished || outcome === 'ready' || outcome === null)) {
+          runFinished = true
           yield mapRunFinished(threadId, runId)
         }
       } finally {
+        clearReadyTimer()
         closed = true
         await transport.dispose().catch(() => {})
       }

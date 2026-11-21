@@ -21,6 +21,7 @@ import {
   updateSessionStatus,
 } from '../db/repositories.js'
 import { hashPolicy } from '../automation/version.js'
+import { MAX_CUMULATIVE_INJECTION_CHARS } from './context-service.js'
 import type { BroadcastEvent, EventStore } from '../db/event-store.js'
 import type { Tx } from '../db/types.js'
 import type { RuntimeHooks } from './types.js'
@@ -139,6 +140,21 @@ export function planAndApplyEffects(tx: Tx, ctx: EffectContext, effects: TaskEff
         updateReviewVerdict(tx, effect.reviewId, effect.verdict, ctx.now)
         break
       }
+      case 'auditReviewOverride': {
+        insertAudit(tx, {
+          id: ctx.newId(),
+          ts: ctx.now,
+          actor: 'human',
+          action: 'review.approve_override',
+          detail: {
+            taskId: ctx.task.id,
+            reviewId: effect.reviewId,
+            verifyExitCode: effect.verifyExitCode,
+            reasonProvided: effect.reasonProvided,
+          },
+        })
+        break
+      }
       case 'appendFeedback': {
         appendTaskFeedback(tx, ctx.task.id, effect.feedback, MAX_FEEDBACK_CHARS, ctx.now)
         break
@@ -169,7 +185,9 @@ export function planAndApplyEffects(tx: Tx, ctx: EffectContext, effects: TaskEff
         if (effect.block) {
           appendTaskPromptRaw(tx, ctx.task.id, effect.block, MAX_FEEDBACK_CHARS, ctx.now)
         }
-        appendTaskContextInjection(tx, ctx.task.id, effect.injection)
+        appendTaskContextInjection(tx, ctx.task.id, effect.injection, {
+          maxCumulativeChars: MAX_CUMULATIVE_INJECTION_CHARS,
+        })
         insertAudit(tx, {
           id: ctx.newId(),
           ts: ctx.now,

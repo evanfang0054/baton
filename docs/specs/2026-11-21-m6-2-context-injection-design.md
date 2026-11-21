@@ -333,7 +333,8 @@ ALTER TABLE session ADD COLUMN turns integer;
 
 - `appendTaskContextInjection(tx, taskId, injection)`：
   - 读 `context_json`，parse，追加 `injections`，写回；保留 `included/dropped/...` 原值；
-  - 若 context_json 为空（旧任务/异常），创建一个 `injections` 数组并保留其余空数组字段；
+  - 若 `context_json` 为空（旧任务），创建一个 `injections` 数组并保留其余空数组字段；
+  - 若 `context_json` 存在但无法解析/不符合 schema，返回 `context_invalid`，不清空旧快照；
   - 不修改 `task.prompt`（prompt 由调用方追加）。
 - `setTaskEnqueuedAt(tx, taskId, at)` / `clearTaskEnqueuedAt(tx, taskId)`。
 - `listQueuedTasksByEnqueuedAt(db)`：`status = 'queued'`，`orderBy(asc(enqueuedAt), asc(id))`。

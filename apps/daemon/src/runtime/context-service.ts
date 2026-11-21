@@ -24,7 +24,7 @@ import { buildContextContent } from '../workspace/context.js'
 import { resolveWorkspaceDir } from '../workspace/resolver.js'
 import type { TransitionOutcome } from './types.js'
 
-const MAX_CUMULATIVE_INJECTION_CHARS = 96_000
+export const MAX_CUMULATIVE_INJECTION_CHARS = 96_000
 const MAX_PROMPT_BLOCK_CHARS = 96_000
 const DEFAULT_NOTE = '补充以下上下文'
 
@@ -97,6 +97,15 @@ export function createContextService(deps: ContextServiceDeps) {
         error: appError('task_not_injectable', 'use review reject', {
           taskId: task.id,
           reason: 'use_review_reject',
+        }),
+      }
+    }
+    if (options.allowReview === true && task.status !== 'review') {
+      return {
+        ok: false,
+        error: appError('task_not_injectable', 'allowReview is only valid for review tasks', {
+          taskId: task.id,
+          status: task.status,
         }),
       }
     }
@@ -221,11 +230,13 @@ export function createContextService(deps: ContextServiceDeps) {
 
     const event = deps.db.transaction((tx) => {
       appendTaskPromptRaw(tx, task.id, block, MAX_PROMPT_BLOCK_CHARS, deps.now())
-      appendTaskContextInjection(tx, task.id, injection)
+      appendTaskContextInjection(tx, task.id, injection, {
+        maxCumulativeChars: MAX_CUMULATIVE_INJECTION_CHARS,
+      })
       insertAudit(tx, {
         id: deps.newId(),
         ts: deps.now(),
-        actor: input.source === 'supervisor' ? 'supervisor' : 'human',
+        actor: input.actor,
         action: 'task.context.inject',
         detail: {
           taskId: task.id,

@@ -225,7 +225,18 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
         return ok(
           'done',
           ctx.retryCount,
-          [effects.persistReviewVerdict(event.reviewId, 'approved')],
+          [
+            effects.persistReviewVerdict(event.reviewId, 'approved'),
+            ...(event.override
+              ? [
+                  effects.auditReviewOverride(
+                    event.reviewId,
+                    event.override.verifyExitCode,
+                    event.override.reasonProvided,
+                  ),
+                ]
+              : []),
+          ],
           null,
           { reviewId: event.reviewId },
         )

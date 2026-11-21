@@ -902,9 +902,14 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       }
       const hasAfterSales = result.toolCalls.some(
         (call) =>
-          ['retry_task', 'reopen_task', 'cancel_task', 'reply_task'].includes(call.name) && call.ok,
+          ['retry_task', 'reopen_task', 'cancel_task', 'reply_task', 'inject_context'].includes(
+            call.name,
+          ) && call.ok,
       )
-      if (/已(经)?(为你|帮你)?(重试|重开|取消|回复)/.test(text) && !hasAfterSales) {
+      if (
+        /已(经)?(为你|帮你)?(重试|重开|取消|回复|注入|补给它|补投)/.test(text) &&
+        !hasAfterSales
+      ) {
         text += '\n\n（我没有对应的工具结果；请以任务详情/看板状态为准。）'
         reason = 'claim_without_tool'
       }

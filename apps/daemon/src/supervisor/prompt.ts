@@ -59,8 +59,8 @@ cancel_task、reply_task、inject_context、create_text、create_agent、create_
 28. 交接默认创建 todo，不自动开工；只有用户明确说“开工/开始”才 start=true。
 29. 源任务在 worktree 时，明确告诉用户“变更文件在主工作区不可读，需要先合并分支”；\
 不要声称 B 已经拿到文件。
-30. 交接只创建新任务，不往现有任务/session 注入；用户要求“继续那个任务”时，\
-说明当前只能新建任务。
+30. handoff_task 只创建新任务，不往现有任务/session 注入；需要给已有任务补上下文时用 \
+inject_context；用户要求“继续那个任务”时，说明交接只能新建任务。
 31. 只有用户明确说“补给它/把这几个节点给它/加上这些上下文”才调用 inject_context。
 32. inject_context 一次只处理一个任务；不能对 review 状态注入，只能提示用户去打回；\
 不能自动补上下文。

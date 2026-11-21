@@ -134,6 +134,7 @@ describe('transition runner', () => {
     expect(outcome.retryCount).toBe(1)
     expect(outcome.events.map((event) => event.type)).toEqual(['verify.result', 'task.status'])
     expect(handle.runtime.getTask(taskId)?.retryCount).toBe(1)
+    expect(handle.runtime.getTask(taskId)?.enqueuedAt).toBeTypeOf('number')
     expect(handle.runtime.getTask(taskId)?.prompt).toContain('<feedback>')
     expect(handle.runtime.getReviewByTask(taskId)?.verifyExitCode).toBe(1)
 
@@ -439,6 +440,7 @@ describe('transition runner', () => {
     if (!outcome.ok) return
     expect(outcome.status).toBe('queued')
     expect(handle.runtime.getTask(taskId)?.retryCount).toBe(0)
+    expect(handle.runtime.getTask(taskId)?.enqueuedAt).toBeTypeOf('number')
     expect(handle.runtime.getTask(taskId)?.prompt).toContain('<feedback>\n再试一次\n</feedback>')
     const audit = handle.database.raw
       .prepare("select detail_json from audit where action = 'task.retry' and actor = 'human'")
