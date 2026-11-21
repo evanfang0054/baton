@@ -10,7 +10,7 @@ depends_on: none
 
 # M6-1 Plan 1：Protocol + Core + Migration 0010
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use agent-harness:subagent-driven-development (recommended) or agent-harness:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use agent-harness:subagent-driven-development (recommended) or agent-harness:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 先把协议增量、纯函数和数据库字段做对，让后续 daemon/web 只依赖稳定契约。
 
@@ -51,7 +51,7 @@ Seam: `ClientMessage.parse` 与 `ServerMessage.parse`
 **Interfaces:**
 - Produces: `NodeMoveManyInput`、`GroupCreateInput`、`NodeUpdateInput.patch.groupId`、`PreliminaryVerdict`、`Review.preliminaryVerdict/reason/at`、`ReviewPreliminaryEvent`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 // packages/protocol/test/commands.test.ts 追加
@@ -114,12 +114,12 @@ it('parses review.preliminary', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/protocol test -- commands events`
 Expected: FAIL，`NodeMoveManyInput`/`GroupCreateInput`/`ReviewPreliminaryEvent` 未导出。
 
-- [ ] **Step 3: 实现 schema**
+- [x] **Step 3: 实现 schema**
 
 ```ts
 // packages/protocol/src/commands.ts
@@ -188,12 +188,12 @@ export const ReviewPreliminaryEvent = EventBase.extend({
 // ServerMessage 追加 ReviewPreliminaryEvent
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pnpm --filter @baton/protocol test -- commands events`
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add packages/protocol
@@ -218,7 +218,7 @@ Seam: `buildTaskScene(task, nodes, edges)`
 - Consumes: `TaskDetail`、`Node`、`Edge` from `@baton/protocol`。
 - Produces: `TaskScene`、`buildTaskScene(task: TaskDetail, nodes: Node[], edges: Edge[]): TaskScene`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -282,12 +282,12 @@ describe('buildTaskScene', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/core test -- scene`
 Expected: FAIL，模块不存在。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 ```ts
 import type { Edge, Node, TaskDetail } from '@baton/protocol'
@@ -337,12 +337,12 @@ export function buildTaskScene(task: TaskDetail, nodes: Node[], edges: Edge[]): 
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pnpm --filter @baton/core test -- scene`
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add packages/core
@@ -364,7 +364,7 @@ Seam: `findContainingGroup`
 **Interfaces:**
 - Produces: `NodeRect`、`groupBounds(nodes)`、`findContainingGroup(rect, groups)`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -385,12 +385,12 @@ it('computes padded bounds', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/core test -- grouping`
 Expected: FAIL，模块不存在。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 ```ts
 export interface NodeRect {
@@ -423,12 +423,12 @@ export function findContainingGroup<T extends NodeRect & { id: string }>(
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pnpm --filter @baton/core test -- grouping`
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add packages/core
@@ -450,7 +450,7 @@ Seam: `isStale` / `sortByWaiting`
 **Interfaces:**
 - Produces: `isStale(waitingSince: number | null, now: number, thresholdMs?: number): boolean`、`sortByWaiting<T extends { waitingSince: number | null }>(tasks: T[]): T[]`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -473,12 +473,12 @@ it('sorts oldest waiting first and keeps nulls last', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/core test -- board`
 Expected: FAIL，`isStale`/`sortByWaiting` 未导出。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 ```ts
 export const STALE_THRESHOLD_MS = 30 * 60 * 1000
@@ -501,12 +501,12 @@ export function sortByWaiting<T extends { waitingSince: number | null }>(tasks: 
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pnpm --filter @baton/core test -- board`
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add packages/core
@@ -532,7 +532,7 @@ Seam: `parsePreliminaryVerdict`
 - Produces: `PreliminaryVerdict`、`parsePreliminaryVerdict(text, outcomeReason?)`。
 - 保持 daemon `observe.ts` 的 `parseVerdict` 导出兼容。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -551,12 +551,12 @@ it('falls back to outcome reason only for clear words', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/core test -- preliminary`
 Expected: FAIL，模块不存在。
 
-- [ ] **Step 3: 实现并下沉**
+- [x] **Step 3: 实现并下沉**
 
 把 `apps/daemon/src/supervisor/observe.ts` 现有的 `parseVerdict` 主体原样移动到 `packages/core/src/review/preliminary.ts`，导出：
 
@@ -586,13 +586,13 @@ export {
 } from '@baton/core'
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pnpm --filter @baton/core test -- preliminary`
 Run: `pnpm --filter @evanfang0054/baton test -- observe`
 Expected: 两组 PASS；daemon 既有 `parseVerdict` 调用不回归。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add packages/core apps/daemon/src/supervisor/observe.ts
@@ -616,7 +616,7 @@ Seam: fixture DB 升级
 **Interfaces:**
 - Produces: `review.preliminary_verdict/preliminary_reason/preliminary_at`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -641,12 +641,12 @@ it('adds preliminary columns to old review rows', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton test -- migrations-m6`
 Expected: FAIL，列不存在。
 
-- [ ] **Step 3: 修改 schema 并生成 migration**
+- [x] **Step 3: 修改 schema 并生成 migration**
 
 `schema.ts`：
 
@@ -662,12 +662,12 @@ export const review = sqliteTable('review', {
 Run: `pnpm --filter @evanfang0054/baton exec drizzle-kit generate --name m6_task_scene`
 Expected: 生成 `0010_m6_task_scene.sql` 与 journal 条目；确认 SQL 只有三条 `ALTER TABLE review ADD`。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pnpm --filter @evanfang0054/baton test -- migrations-m6`
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/daemon/src/db/schema.ts apps/daemon/migrations
@@ -687,3 +687,13 @@ pnpm format:check
 ```
 
 Expected: 全部通过。Plan 2 依赖本 plan 的协议、纯函数与 migration。
+
+---
+
+## 执行记录
+
+- 2026-11-21：Task 1-6 全部完成。
+- 提交：`24dd6cb` protocol 契约、`cf7df49` 任务现场、`9548656` 分组成员几何、`c70a062` stale 与排序、`e2f91f6` 预验收解析下沉、`81ac4d0` review 字段与 migration 0010、`99873ed` web ReviewView fixture 兼容。
+- 验证：`pnpm verify` 退出码 0；protocol 126 tests、core 157 tests、daemon 295 tests；migration 0010 在 fixture DB 上升级通过；`pnpm check:boundaries`、`check:protocol`、`format:check` 全绿。
+- 备注：`insertReview` 接受可选 preliminary 字段并写库；`migration-0009` 测试同步排除 0010，避免复制未来 migration。
+
