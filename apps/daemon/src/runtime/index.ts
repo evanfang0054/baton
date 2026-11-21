@@ -43,6 +43,7 @@ import { appError, isAppError, toAppError } from '../errors.js'
 import type { Logger } from '../log.js'
 import { createVerifyRunner, type VerifyRunner } from '../verify/runner.js'
 import type { AdapterFactory } from './adapter-factory.js'
+import { createContextService } from './context-service.js'
 import { createEdge, deleteEdge } from './edge-service.js'
 import { createHandoffNode } from '../handoff/service.js'
 import type { EngineRegistry } from './engines.js'
@@ -178,6 +179,19 @@ export function createRuntime(deps: RuntimeDeps) {
   }
 
   const taskService = createTaskService({ db: deps.db, config: deps.config, now, newId })
+  const contextService = createContextService({
+    db: deps.db,
+    config: deps.config,
+    eventStore,
+    applyTransition: (taskId, event) =>
+      transitionRunnerHolder.value
+        ? transitionRunnerHolder.value.applyTransition(taskId, event)
+        : { ok: false, error: appError('runtime_not_ready', 'transition runner is not ready') },
+    hasSession: (taskId) => sessionHolder.value?.has(taskId) ?? false,
+    broadcast: deps.broadcast,
+    now,
+    newId,
+  })
   let persistedKillSwitch: boolean
   try {
     const setting = getSetting(deps.db, 'kill_switch') as { enabled?: boolean } | null
@@ -505,12 +519,26 @@ export function createRuntime(deps: RuntimeDeps) {
         return ackFromOutcome(decideApproval(message.payload))
       case 'review.decide':
         return ackFromOutcome(decideReview(message.payload))
-      case 'context.inject':
-        // Plan 2 接入 context service；在此之前保持协议穷尽，并给出明确错误。
-        return {
-          ok: false,
-          error: appError('context_inject_not_ready', 'context injection is not wired yet'),
-        }
+      case 'context.inject': {
+        const result = contextService.injectContext({
+          taskId: message.payload.taskId,
+          nodeIds: message.payload.nodeIds,
+          ...(message.payload.note ? { note: message.payload.note } : {}),
+          source: 'user',
+          actor: 'user',
+        })
+        return result.ok
+          ? {
+              ok: true,
+              ack: {
+                taskId: result.taskId,
+                seq: result.seq,
+                truncated: result.truncated,
+                dropped: result.dropped,
+              },
+            }
+          : { ok: false, error: result.error }
+      }
       case 'node.create': {
         const canvas = getCanvas(deps.db, message.payload.canvasId)
         if (!canvas) {
