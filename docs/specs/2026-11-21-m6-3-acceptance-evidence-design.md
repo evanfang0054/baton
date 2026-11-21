@@ -3,8 +3,8 @@ spec_topic: m6-3-acceptance-evidence
 decision_summary: "M6-3 验收证据 v0：AC 合同/条目/运行三表、派生验收报告、任务预算与提额、自动批准上限；画布 review 卡承载证据摘要，人仍做最终验收"
 design_approved: true
 user_approved_at: "2026-11-21T15:43:53+08:00"
-gates: [design-approved]
-status: proposed
+gates: [design-approved, user-review-passed]
+status: approved
 spec_ref: 2026-11-21-m6-2-context-injection-design.md
 domain_terms:
   [
