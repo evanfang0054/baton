@@ -10,6 +10,11 @@ export const HANDOFF_LIMITS = {
 
 const TRUNCATED_MARK = '…（已截断）'
 
+interface Redaction {
+  path: string
+  placeholder: string
+}
+
 function escapeAttr(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -22,17 +27,37 @@ function oneLine(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
 
-function redact(value: string, paths: string[]): string {
-  // 长路径优先，避免 workspace 前缀先替换掉 worktree 的一部分。
-  const ordered = [...paths].filter(Boolean).sort((a, b) => b.length - a.length)
-  return ordered.reduce((text, path) => text.replaceAll(path, '<workspace>'), value)
+function buildRedactions(input: HandoffInput): Redaction[] {
+  return [
+    ...input.redactPaths.map((path) => ({ path, placeholder: '<workspace>' })),
+    ...(input.worktreePaths ?? []).map((path) => ({ path, placeholder: '<worktree>' })),
+  ]
+    .filter((item) => item.path.length > 0)
+    .sort((a, b) => b.path.length - a.path.length)
 }
 
-function sanitizeFile(file: HandoffFile, paths: string[]): HandoffFile {
-  const path = redact(file.path, paths)
+function redact(value: string, redactions: Redaction[]): string {
+  return redactions.reduce((text, item) => text.replaceAll(item.path, item.placeholder), value)
+}
+
+/**
+ * 交接内容最终会嵌进 <node>/<context>；只转义结构性关闭标签，
+ * 保留代码里的普通尖括号，避免 agent 输出提前闭合包装。
+ */
+function sanitizeText(value: string): string {
+  return value.replace(/<\/(handoff|context|node|task)>/gi, '<\\/$1>')
+}
+
+function sanitizeFile(file: HandoffFile, redactions: Redaction[]): HandoffFile {
+  const path = redact(file.path, redactions)
   // 正常 diff 是 workspace 相对路径；绝对路径不进入交接节点。
   const safePath = path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path) ? '<path>' : path
-  return { ...file, path: safePath }
+  return {
+    path: safePath,
+    status: file.status,
+    insertions: file.insertions,
+    deletions: file.deletions,
+  }
 }
 
 function truncate(value: string, max: number): { text: string; cut: boolean } {
@@ -55,21 +80,23 @@ function diffText(input: HandoffInput): string {
 
 function fileLines(
   files: HandoffFile[],
-  dropped: Set<HandoffDropped>,
   hadFiles: boolean,
-): string[] {
+  filesTruncated: boolean,
+): { lines: string[]; truncated: boolean } {
   if (files.length === 0) {
-    return [hadFiles && dropped.has('files') ? '- （已截断）' : '- （无变更文件）']
+    return {
+      lines: [hadFiles && filesTruncated ? '- （已截断）' : '- （无变更文件）'],
+      truncated: hadFiles && filesTruncated,
+    }
   }
   const visible = files.slice(0, HANDOFF_LIMITS.files)
   const lines = visible.map(
     (file) => `- ${file.path}（${file.status}，+${file.insertions} / -${file.deletions}）`,
   )
   if (files.length > HANDOFF_LIMITS.files) {
-    dropped.add('files')
     lines.push(`- …（共 ${files.length} 个，已截断）`)
   }
-  return lines
+  return { lines, truncated: filesTruncated || files.length > HANDOFF_LIMITS.files }
 }
 
 function artifactLines(input: HandoffInput): string[] {
@@ -88,12 +115,21 @@ function render(
     reply: string | null
     dropped: Set<HandoffDropped>
     hadReply: boolean
+    redactions: Redaction[]
+    filesTruncated: boolean
   },
 ): string {
-  const title = oneLine(redact(input.task.title, input.redactPaths)).slice(0, 80)
-  const goal = options.goal.trim() ? redact(options.goal.trim(), input.redactPaths) : '（未记录）'
+  const title = sanitizeText(oneLine(redact(input.task.title, options.redactions))).slice(0, 80)
+  const goal = options.goal.trim()
+    ? sanitizeText(redact(options.goal.trim(), options.redactions))
+    : '（未记录）'
   const outcome = input.session.outcome ?? '无记录'
-  const truncatedAttr = options.dropped.size > 0 ? ' truncated="true"' : ''
+  const fileBlock = fileLines(
+    options.files,
+    (input.review?.files.length ?? 0) > 0,
+    options.filesTruncated,
+  )
+  const truncatedAttr = options.dropped.size > 0 || fileBlock.truncated ? ' truncated="true"' : ''
   const lines = [
     `【交接】${title}`,
     `<handoff from_task="${escapeAttr(input.task.id)}" from_status="${input.task.status}" outcome="${outcome}" verify="${escapeAttr(verifyText(input.review?.verifyExitCode ?? null))}" diff="${escapeAttr(diffText(input))}" worktree="${input.artifact.worktree ? 'unreadable' : 'none'}"${truncatedAttr}>`,
@@ -108,19 +144,15 @@ function render(
   ]
 
   const reason = input.session.failureReason?.trim()
-    ? redact(input.session.failureReason.trim(), input.redactPaths)
+    ? sanitizeText(redact(input.session.failureReason.trim(), options.redactions))
     : null
   if (reason) lines.push(`- 失败原因：${reason}`)
 
-  lines.push(
-    '',
-    '变更文件（相对工作区）：',
-    ...fileLines(options.files, options.dropped, (input.review?.files.length ?? 0) > 0),
-  )
+  lines.push('', '变更文件（相对工作区）：', ...fileBlock.lines)
   lines.push('', ...artifactLines(input))
 
   if (options.reply) {
-    lines.push('', '最后回复（节选）：', redact(options.reply, input.redactPaths))
+    lines.push('', '最后回复（节选）：', sanitizeText(redact(options.reply, options.redactions)))
   } else if (options.hadReply && options.dropped.has('reply')) {
     lines.push('', '最后回复：（已截断）')
   }
@@ -131,6 +163,7 @@ function render(
 
 /**
  * 交接摘要必须确定性：不读文件、不访问时间/随机数。
+ * 先脱敏再截断，避免路径跨截断边界时残留绝对路径前缀；
  * 超总限时先裁变更文件，再裁最后回复，最后裁任务目标。
  */
 export function buildHandoffSummary(input: HandoffInput): HandoffSummary {
@@ -140,14 +173,17 @@ export function buildHandoffSummary(input: HandoffInput): HandoffSummary {
     warnings.push('源任务在隔离 worktree，变更文件在主工作区不可读。')
   }
 
-  const goal = truncate(input.goal, HANDOFF_LIMITS.goal)
+  const redactions = buildRedactions(input)
+  const goal = truncate(sanitizeText(redact(input.goal, redactions)), HANDOFF_LIMITS.goal)
   if (goal.cut) dropped.add('goal')
   const reply = input.lastReply?.trim()
-    ? truncate(input.lastReply.trim(), HANDOFF_LIMITS.reply)
+    ? truncate(sanitizeText(redact(input.lastReply.trim(), redactions)), HANDOFF_LIMITS.reply)
     : null
   if (reply?.cut) dropped.add('reply')
 
-  const files = input.review?.files.map((file) => sanitizeFile(file, input.redactPaths)) ?? []
+  const files = (input.review?.files ?? []).map((file) => sanitizeFile(file, redactions))
+  const filesTruncated = files.length > HANDOFF_LIMITS.files
+  if (filesTruncated) dropped.add('files')
   const hadReply = Boolean(input.lastReply?.trim())
 
   let content = render(input, {
@@ -156,6 +192,8 @@ export function buildHandoffSummary(input: HandoffInput): HandoffSummary {
     reply: reply?.text ?? null,
     dropped,
     hadReply,
+    redactions,
+    filesTruncated,
   })
 
   if (content.length > HANDOFF_LIMITS.total) {
@@ -166,11 +204,21 @@ export function buildHandoffSummary(input: HandoffInput): HandoffSummary {
       reply: reply?.text ?? null,
       dropped,
       hadReply,
+      redactions,
+      filesTruncated: true,
     })
   }
   if (content.length > HANDOFF_LIMITS.total) {
     dropped.add('reply')
-    content = render(input, { goal: goal.text, files: [], reply: null, dropped, hadReply })
+    content = render(input, {
+      goal: goal.text,
+      files: [],
+      reply: null,
+      dropped,
+      hadReply,
+      redactions,
+      filesTruncated: true,
+    })
   }
   if (content.length > HANDOFF_LIMITS.total) {
     dropped.add('goal')
@@ -182,6 +230,8 @@ export function buildHandoffSummary(input: HandoffInput): HandoffSummary {
       reply: null,
       dropped,
       hadReply,
+      redactions,
+      filesTruncated: true,
     })
   }
   if (content.length > HANDOFF_LIMITS.total) {
