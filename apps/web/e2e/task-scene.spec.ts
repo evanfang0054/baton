@@ -37,7 +37,17 @@ test('image node and task scene', async ({ page }) => {
   const edge = page.locator('.react-flow__edge-interaction').first()
   await expect(edge).toBeAttached()
   await edge.dispatchEvent('click')
-  await expect(page.getByRole('button', { name: '删除连线' })).toBeVisible()
+  const deleteButton = page.getByRole('button', { name: '删除连线' })
+  await expect(deleteButton).toBeVisible()
+  await deleteButton.click()
+  await expect(deleteButton).toHaveCount(0)
+  await expect
+    .poll(() => commands.filter((command) => command.type === 'edge.delete').length)
+    .toBe(1)
+
+  // 再选中一次边，进入现场后入口必须消失；命令数保持在 1 才能证明现场没有发删除。
+  await page.locator('.react-flow__edge-interaction').first().dispatchEvent('click')
+  await expect(deleteButton).toBeVisible()
 
   await page.getByRole('button', { name: '展开看板' }).click()
   await page.getByRole('button', { name: '看现场' }).click()
@@ -45,10 +55,10 @@ test('image node and task scene', async ({ page }) => {
   await expect(page.getByTestId('task-scene-bar')).toContainText('任务')
   await expect(page.getByTestId('task-scene-bar')).toContainText('上下文 2 个')
   await expect(page.getByTestId('task-scene-bar')).toContainText('verify 0')
-  await expect(page.getByRole('button', { name: '删除连线' })).toHaveCount(0)
+  await expect(deleteButton).toHaveCount(0)
 
   await page.getByRole('button', { name: '回到全局' }).click()
   await expect(page.getByTestId('task-scene-bar')).toHaveCount(0)
   expect(commands.every((command) => command.type !== 'node.update')).toBe(true)
-  expect(commands.every((command) => command.type !== 'edge.delete')).toBe(true)
+  expect(commands.filter((command) => command.type === 'edge.delete')).toHaveLength(1)
 })

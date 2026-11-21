@@ -33,6 +33,13 @@ describe('TaskCard', () => {
     expect(screen.getByText('已等 3 分钟')).toBeInTheDocument()
   })
 
+  it('derives stale from waiting time without the stale prop', () => {
+    render(
+      <TaskCard task={{ ...task, waitingSince: Date.now() - 31 * 60_000 }} onSelect={vi.fn()} />,
+    )
+    expect(screen.getByText('已等待超过 30 分钟')).toBeInTheDocument()
+  })
+
   it('shows stale text and opens the scene without selecting the task', async () => {
     const onSelect = vi.fn()
     const onOpenScene = vi.fn()
