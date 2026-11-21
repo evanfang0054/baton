@@ -92,6 +92,7 @@ export interface SupervisorServiceDeps {
   cancelTask: (taskId: string, reason?: string) => TransitionOutcome
   workspacesRoot: string
   claudeMaxBudgetUsd: number
+  verifierBudgetUsd: number
   killSwitch: () => boolean
   engine?: SupervisorEngine
   now: () => number
@@ -441,6 +442,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         engine: deps.defaultEngine,
         workspaceMode: task.workspaceMode,
         dangerouslySkipPermissions: false,
+        budgetUsd: deps.verifierBudgetUsd,
       },
       {
         origin: buildTaskOrigin({

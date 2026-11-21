@@ -37,6 +37,8 @@ export function loadConfig(argv: string[], env: NodeJS.ProcessEnv): Config {
     maxLiveSessions: Number(env.BATON_MAX_LIVE_SESSIONS ?? 5),
     claudeMaxTurns: Number(env.BATON_CLAUDE_MAX_TURNS ?? 30),
     claudeMaxBudgetUsd: Number(env.BATON_CLAUDE_MAX_BUDGET_USD ?? 2),
+    verifierBudgetUsd: Number(env.BATON_VERIFIER_BUDGET_USD ?? 0.5),
+    maxTaskBudgetUsd: Number(env.BATON_MAX_TASK_BUDGET_USD ?? 50),
     claudeProjectHooks: env.BATON_CLAUDE_PROJECT_HOOKS === 'off' ? 'off' : 'on',
     allowBypassPermissions: envFlag(env.BATON_ALLOW_BYPASS_PERMISSIONS),
     killSwitch: envFlag(env.BATON_KILL_SWITCH),

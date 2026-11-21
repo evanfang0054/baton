@@ -11,6 +11,8 @@ export const ConfigSchema = z.object({
   maxLiveSessions: z.number().int().positive().default(5),
   claudeMaxTurns: z.number().int().positive().default(30),
   claudeMaxBudgetUsd: z.number().positive().default(2),
+  verifierBudgetUsd: z.number().positive().default(0.5),
+  maxTaskBudgetUsd: z.number().positive().default(50),
   claudeProjectHooks: z.enum(['on', 'off']).default('on'),
   allowBypassPermissions: z.boolean().default(false),
   killSwitch: z.boolean().default(false),

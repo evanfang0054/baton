@@ -72,6 +72,21 @@ describe('loadConfig', () => {
     expect(() => loadConfig([], { BATON_CLAUDE_MAX_TURNS: '0' })).toThrow()
   })
 
+  it('defaults verifier and task budget caps, and reads overrides', () => {
+    const base = loadConfig([], {})
+    expect(base.verifierBudgetUsd).toBe(0.5)
+    expect(base.maxTaskBudgetUsd).toBe(50)
+
+    const overridden = loadConfig([], {
+      BATON_VERIFIER_BUDGET_USD: '0.2',
+      BATON_MAX_TASK_BUDGET_USD: '10',
+    })
+    expect(overridden.verifierBudgetUsd).toBe(0.2)
+    expect(overridden.maxTaskBudgetUsd).toBe(10)
+    expect(() => loadConfig([], { BATON_VERIFIER_BUDGET_USD: '0' })).toThrow()
+    expect(() => loadConfig([], { BATON_MAX_TASK_BUDGET_USD: '0' })).toThrow()
+  })
+
   it('reads the global kill switch from BATON_KILL_SWITCH', () => {
     expect(loadConfig([], {}).killSwitch).toBe(false)
     expect(loadConfig([], { BATON_KILL_SWITCH: '1' }).killSwitch).toBe(true)

@@ -302,6 +302,7 @@ export function createRuntime(deps: RuntimeDeps) {
     cancelTask: cancel,
     workspacesRoot: deps.config.workspacesRoot,
     claudeMaxBudgetUsd: deps.config.claudeMaxBudgetUsd,
+    verifierBudgetUsd: deps.config.verifierBudgetUsd,
     killSwitch: () => automationState.isKillSwitchOn(),
     ...(deps.supervisorEngine ? { engine: deps.supervisorEngine } : {}),
     now,
@@ -1022,6 +1023,7 @@ export function createRuntime(deps: RuntimeDeps) {
     sessionHolder.value = createSessionRunner({
       db: deps.db,
       dataDir: deps.config.dataDir,
+      claudeMaxBudgetUsd: deps.config.claudeMaxBudgetUsd,
       adapters: deps.adapters,
       eventStore,
       broadcast: deps.broadcast,

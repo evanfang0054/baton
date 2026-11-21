@@ -87,6 +87,8 @@ function config(root: string) {
     maxLiveSessions: 5,
     claudeMaxTurns: 30,
     claudeMaxBudgetUsd: 2,
+    verifierBudgetUsd: 0.5,
+    maxTaskBudgetUsd: 50,
     claudeProjectHooks: 'on' as const,
     allowBypassPermissions: false,
     killSwitch: false,

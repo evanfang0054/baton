@@ -1,14 +1,16 @@
 import { budgetState } from '@baton/core'
 import type { Task, TaskBudgetSummary } from '@baton/protocol'
 import { getAcceptanceBundle } from '../db/acceptance-repository.js'
-import { listSessionsByTask } from '../db/repositories.js'
+import { getTask, listSessionsByTask } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import type { Config } from '../config.js'
+
+export type BudgetConfig = Pick<Config, 'claudeMaxBudgetUsd'>
 
 export function getTaskBudgetSummary(
   db: Db,
   task: Pick<Task, 'id' | 'budgetUsd'>,
-  config: Pick<Config, 'claudeMaxBudgetUsd'>,
+  config: BudgetConfig,
 ): TaskBudgetSummary {
   const workerSessions = listSessionsByTask(db, task.id)
   const workerCostUsd = sumCost(workerSessions)
@@ -25,4 +27,17 @@ export function getTaskBudgetSummary(
 
 function sumCost(sessions: ReadonlyArray<{ costUsd: number | null }>): number {
   return sessions.reduce((total, session) => total + (session.costUsd ?? 0), 0)
+}
+
+export function getTaskBudgetState(
+  db: Db,
+  taskId: string,
+  config: BudgetConfig,
+): TaskBudgetSummary | null {
+  const task = getTask(db, taskId)
+  return task ? getTaskBudgetSummary(db, task, config) : null
+}
+
+export function getRemainingBudget(db: Db, taskId: string, config: BudgetConfig): number | null {
+  return getTaskBudgetState(db, taskId, config)?.remainingUsd ?? null
 }

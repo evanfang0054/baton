@@ -14,6 +14,7 @@ import {
   type TaskTransitionEvent,
 } from '@baton/protocol'
 import type { BroadcastEvent, EventStore } from '../db/event-store.js'
+import { getTaskBudgetState } from '../budget/service.js'
 import {
   getApproval,
   getTask,
@@ -76,6 +77,7 @@ export function isReadOnlyVerifierRequest(request: { toolName: string; input: un
 export interface SessionRunnerDeps {
   db: Db
   dataDir: string
+  claudeMaxBudgetUsd: number
   adapters: AdapterFactory
   eventStore: EventStore
   broadcast: (event: BroadcastEvent) => void
@@ -375,6 +377,15 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       return
     }
 
+    const budget = getTaskBudgetState(deps.db, task.id, {
+      claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
+    })
+    if (budget?.overBudget) {
+      const outcome = deps.applyTransition(task.id, { type: 'budget_exceeded' })
+      endSession(input.sessionId, outcome.ok ? 'ended' : 'failed')
+      return
+    }
+
     let workspacePath = input.workspacePath
     if (task.workspaceMode === 'worktree') {
       let preparedPath: string | null = null
@@ -425,6 +436,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
         policy: input.policy,
         workspaceTrust: input.workspaceTrust,
         bypassPermissions: input.bypassPermissions,
+        ...(budget ? { maxBudgetUsd: budget.remainingUsd } : {}),
       })
     } catch (error) {
       failTask(task.id, input.sessionId, error)
