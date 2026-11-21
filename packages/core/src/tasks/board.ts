@@ -33,3 +33,24 @@ export function needsPerson(input: { status: TaskStatus; attention: Attention })
 export function waitingSinceFor(task: { status: TaskStatus; updatedAt: number }): number | null {
   return task.status === 'waiting_input' || task.status === 'review' ? task.updatedAt : null
 }
+
+export const STALE_THRESHOLD_MS = 30 * 60 * 1000
+
+/** 等待超过阈值（含边界）才算 stale；null 永远不 stale。 */
+export function isStale(
+  waitingSince: number | null,
+  now: number,
+  thresholdMs = STALE_THRESHOLD_MS,
+): boolean {
+  return waitingSince !== null && waitingSince <= now - thresholdMs
+}
+
+/** 等最久优先；没有等待的任务排后面，保持稳定顺序。 */
+export function sortByWaiting<T extends { waitingSince: number | null }>(tasks: T[]): T[] {
+  return [...tasks].sort((a, b) => {
+    if (a.waitingSince === null && b.waitingSince === null) return 0
+    if (a.waitingSince === null) return 1
+    if (b.waitingSince === null) return -1
+    return a.waitingSince - b.waitingSince
+  })
+}
