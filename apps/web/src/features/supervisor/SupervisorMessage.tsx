@@ -1,5 +1,8 @@
 import type { SupervisorMessage as SupervisorMessageRecord, ToolCallRecord } from '@baton/protocol'
-import { SupervisorTaskCard as SupervisorTaskCardSchema } from '@baton/protocol'
+import {
+  SupervisorHandoffResult,
+  SupervisorTaskCard as SupervisorTaskCardSchema,
+} from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { AlertTriangle } from 'lucide-react'
 import { SupervisorTaskCard } from './SupervisorTaskCard'
@@ -32,18 +35,6 @@ type BatchResult = {
   }>
 }
 
-type HandoffResult = {
-  task?: unknown
-  handoff?: {
-    nodeId: string
-    fromTaskId: string
-    fromTitle: string
-    fromStatus: string
-    worktree: boolean
-    warnings: string[]
-  }
-}
-
 export function SupervisorMessage({
   message,
   onRetry,
@@ -71,11 +62,8 @@ export function SupervisorMessage({
 
   const handoffEntries = message.toolCalls
     .filter((call) => call.name === 'handoff_task' && call.ok)
-    .map((call) => (call.result ?? {}) as HandoffResult)
-    .flatMap((result) => {
-      const parsed = SupervisorTaskCardSchema.safeParse(result.task)
-      return parsed.success ? [{ card: parsed.data, meta: result.handoff }] : []
-    })
+    .map((call) => SupervisorHandoffResult.safeParse(call.result))
+    .flatMap((parsed) => (parsed.success ? [parsed.data] : []))
 
   return (
     <article className="flex gap-3">
@@ -116,19 +104,22 @@ export function SupervisorMessage({
         {uniqueCards.map((card) => (
           <SupervisorTaskCard key={card.taskId} card={card} />
         ))}
-        {handoffEntries.map(({ card, meta }) => (
+        {handoffEntries.map(({ task: card, handoff, startError }) => (
           <div key={`handoff-${card.taskId}`} className="flex flex-col gap-1">
             <p className="text-xs text-muted">
-              交接自《{meta?.fromTitle ?? '未知任务'}》
-              {meta?.worktree ? ' · 源任务在隔离 worktree，变更文件不可读' : ''}
+              交接自《{handoff.fromTitle}》
+              {handoff.worktree ? ' · 源任务在隔离 worktree，变更文件不可读' : ''}
             </p>
             <SupervisorTaskCard card={card} />
-            {meta && meta.warnings.length > 0 ? (
+            {handoff.warnings.length > 0 ? (
               <ul className="space-y-1 text-xs text-warning">
-                {meta.warnings.map((warning) => (
+                {handoff.warnings.map((warning) => (
                   <li key={warning}>{warning}</li>
                 ))}
               </ul>
+            ) : null}
+            {startError ? (
+              <p className="text-xs text-danger">已创建，但开工失败：{startError}</p>
             ) : null}
           </div>
         ))}

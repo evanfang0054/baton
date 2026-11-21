@@ -1,12 +1,10 @@
-import type { TaskStatus } from '@baton/protocol'
+import { isHandoffable, type TaskStatus } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useCommand } from '../../lib/command-context'
 import { queryKeys } from '../../lib/query'
-
-const ELIGIBLE: ReadonlySet<TaskStatus> = new Set(['review', 'done', 'failed', 'cancelled'])
 
 export function HandoffButton({
   taskId,
@@ -20,7 +18,7 @@ export function HandoffButton({
   const send = useCommand()
   const queryClient = useQueryClient()
   const [pending, setPending] = useState(false)
-  if (!ELIGIBLE.has(status)) return null
+  if (!isHandoffable(status)) return null
 
   const run = async () => {
     setPending(true)

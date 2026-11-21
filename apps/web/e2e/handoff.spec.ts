@@ -40,6 +40,20 @@ const handoffNode = {
   updatedAt: 2,
 }
 
+const handoffNode2 = {
+  id: 'handoff-2',
+  canvasId: 'c1',
+  type: 'text',
+  x: 760,
+  y: 440,
+  w: 360,
+  h: 260,
+  groupId: null,
+  data: { content: '【交接】登录页改造（第二次快照）\n<handoff>第二次快照。</handoff>' },
+  createdAt: 3,
+  updatedAt: 3,
+}
+
 const task = {
   id: 'task-1',
   workspaceId: 'w1',
@@ -74,16 +88,23 @@ const review = {
 
 async function mockRest(
   page: Page,
-  options: { withHandoff?: () => boolean; getMessages?: () => unknown[] } = {},
+  options: { handoffCount?: () => number; getMessages?: () => unknown[] } = {},
 ) {
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname
     if (path === '/api/workspaces') return route.fulfill({ json: { workspaces: [workspace] } })
     if (path === '/api/canvas') {
+      const count = options.handoffCount?.() ?? 0
+      const nodes =
+        count >= 2
+          ? [...baseNodes, handoffNode, handoffNode2]
+          : count === 1
+            ? [...baseNodes, handoffNode]
+            : baseNodes
       return route.fulfill({
         json: {
           canvas: { id: 'c1', workspaceId: 'w1', viewport: { x: 0, y: 0, zoom: 1 } },
-          nodes: options.withHandoff?.() ? [...baseNodes, handoffNode] : baseNodes,
+          nodes,
           edges: [],
         },
       })
@@ -162,17 +183,49 @@ async function mockHandoffCommand(page: Page) {
 }
 
 test('creates a handoff node from the task detail and refreshes the canvas', async ({ page }) => {
-  let withHandoff = false
-  await mockRest(page, { withHandoff: () => withHandoff })
+  let handoffCount = 0
+  await mockRest(page, { handoffCount: () => handoffCount })
   await mockHandoffCommand(page)
   await page.goto('/?workspace=w1&task=task-1')
 
   await expect(page.getByRole('button', { name: '生成交接节点' })).toBeVisible()
-  withHandoff = true
+  handoffCount = 1
   await page.getByRole('button', { name: '生成交接节点' }).click()
 
   await expect(page.getByText('已生成交接节点，可在画布中选中它创建下一个任务')).toBeVisible()
   await expect(page.getByText('【交接】登录页改造')).toBeVisible()
+})
+
+test('keeps both snapshots when handoff is repeated', async ({ page }) => {
+  let handoffCount = 0
+  await mockRest(page, { handoffCount: () => handoffCount })
+  await page.routeWebSocket('**/ws', (ws) => {
+    ws.onMessage((raw) => {
+      const incoming = JSON.parse(String(raw)) as { id?: string; type?: string }
+      if (!incoming.id || incoming.type !== 'task.handoff') return
+      handoffCount += 1
+      ws.send(
+        JSON.stringify({
+          v: 1,
+          id: `ack-${incoming.id}`,
+          type: 'ack',
+          ts: Date.now(),
+          payload: {
+            commandId: incoming.id,
+            ok: true,
+            data: { taskId: 'task-1', nodeId: `handoff-${handoffCount}`, warnings: [] },
+          },
+        }),
+      )
+    })
+  })
+  await page.goto('/?workspace=w1&task=task-1')
+
+  await page.getByRole('button', { name: '生成交接节点' }).click()
+  await expect(page.getByText('【交接】登录页改造')).toBeVisible()
+  await page.getByRole('button', { name: '生成交接节点' }).click()
+  await expect(page.getByText('【交接】登录页改造（第二次快照）')).toBeVisible()
+  await expect(page.getByText('已完成登录页改造。')).toBeVisible()
 })
 
 test('shows a handoff card with its source and worktree warning in the supervisor', async ({
