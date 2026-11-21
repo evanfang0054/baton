@@ -176,7 +176,7 @@ describe('CanvasPanel', () => {
     const { send } = renderPanel(undefined, sceneDetail)
 
     expect(await screen.findByTestId('task-scene-bar')).toHaveTextContent('任务 A')
-    expect(screen.getByText('上下文 1 个')).toBeInTheDocument()
+    expect(screen.getByText(/上下文 1 个/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '添加文本' })).not.toBeInTheDocument()
     expect(send).not.toHaveBeenCalled()
 

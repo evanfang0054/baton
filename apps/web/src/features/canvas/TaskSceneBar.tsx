@@ -25,7 +25,8 @@ export function TaskSceneBar({
       <StatusChip status={task.status} />
       {detail.waitingSince ? <WaitingTime since={detail.waitingSince} /> : null}
       <span className="text-muted">
-        上下文 {detail.task.context?.included.length ?? 0} 个
+        上下文 {detail.task.context?.included.length ?? 0} 个{' · '}排除{' '}
+        {detail.task.context?.dropped.length ?? 0} 个
         {scene.missingNodeIds.length > 0 ? ` · ${scene.missingNodeIds.length} 个已失效` : ''}
       </span>
       {detail.review ? (
