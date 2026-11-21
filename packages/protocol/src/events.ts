@@ -147,7 +147,7 @@ export const NoticeEvent = ReplayableBase.extend({
 })
 export type NoticeEvent = z.infer<typeof NoticeEvent>
 
-export const ReviewPreliminaryEvent = EventBase.extend({
+export const ReviewPreliminaryEvent = ReplayableBase.extend({
   type: z.literal('review.preliminary'),
   payload: z.object({
     taskId: Id,

@@ -76,9 +76,7 @@ describe('ServerMessage', () => {
       }).type,
     ).toBe('error')
 
-    const replayable = fixtures.filter(
-      ([type]) => type !== 'ack' && type !== 'error' && type !== 'review.preliminary',
-    )
+    const replayable = fixtures.filter(([type]) => type !== 'ack' && type !== 'error')
     for (const [type, payload] of replayable) {
       expect(() => ServerMessage.parse({ v: 1, ts: 1, type, payload })).toThrow()
     }
