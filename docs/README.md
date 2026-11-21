@@ -34,6 +34,7 @@
 - [2026-11-21 M5-3 上下文交接设计](specs/2026-11-21-m5-3-context-handoff-design.md)
 - [2026-11-21 M6-1 任务现场 v0 设计](specs/2026-11-21-m6-task-scene-design.md)
 - [2026-11-21 M6-2 上下文再注入与轻验收证据设计](specs/2026-11-21-m6-2-context-injection-design.md)
+- [2026-11-21 M6-3 验收证据与放权护栏设计](specs/2026-11-21-m6-3-acceptance-evidence-design.md)
 
 ## 现行 ADR
 
