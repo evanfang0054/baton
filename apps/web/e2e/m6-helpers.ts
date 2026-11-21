@@ -1,4 +1,5 @@
 import type {
+  Edge as ProtocolEdge,
   Node as ProtocolNode,
   ReviewView,
   TaskDetailResponse,
@@ -8,6 +9,7 @@ import type { Page } from '@playwright/test'
 
 export interface MockState {
   nodes: ProtocolNode[]
+  edges: ProtocolEdge[]
   tasks: TaskSummary[]
   taskDetail: TaskDetailResponse
 }
@@ -176,6 +178,7 @@ export async function mockWorkspace(
   page: Page,
   input: {
     nodes?: ProtocolNode[]
+    edges?: ProtocolEdge[]
     tasks?: TaskSummary[]
     taskDetail?: TaskDetailResponse
     reviewDetail?: Partial<ReviewView>
@@ -183,6 +186,7 @@ export async function mockWorkspace(
 ): Promise<MockState> {
   const state: MockState = {
     nodes: input.nodes ?? [],
+    edges: input.edges ?? [],
     tasks: input.tasks ?? [],
     taskDetail: input.taskDetail ?? sceneDetail(),
   }
@@ -218,7 +222,7 @@ export async function mockWorkspace(
           json: {
             canvas: { id: 'c1', workspaceId: 'w1', viewport: { x: 0, y: 0, zoom: 1 } },
             nodes: state.nodes,
-            edges: [],
+            edges: state.edges,
           },
         })
       case '/api/tasks':

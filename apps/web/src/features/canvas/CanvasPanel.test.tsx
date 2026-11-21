@@ -180,6 +180,10 @@ describe('CanvasPanel', () => {
     expect(screen.queryByRole('button', { name: '添加文本' })).not.toBeInTheDocument()
     expect(send).not.toHaveBeenCalled()
 
+    fireEvent.doubleClick(screen.getByText('画布里的文本'))
+    expect(screen.queryByRole('textbox', { name: '文本节点内容' })).not.toBeInTheDocument()
+    expect(send).not.toHaveBeenCalled()
+
     fireEvent.click(screen.getByRole('button', { name: '回到全局' }))
     await waitFor(() => expect(screen.queryByTestId('task-scene-bar')).not.toBeInTheDocument())
     expect(useAppStore.getState().sceneTaskId).toBeNull()

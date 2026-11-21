@@ -23,7 +23,7 @@ export function ImageNode({ data, selected }: CanvasFlowNodeProps) {
         <div className="mt-2 flex min-h-0 flex-1 flex-col items-center justify-center gap-1 rounded border border-dashed border-separator p-2 text-center text-xs text-muted">
           <ImageOff size={20} aria-hidden="true" />
           <span>图片无法加载</span>
-          <span className="w-full truncate font-mono text-[10px]">{fileName}</span>
+          <span className="w-full truncate font-mono text-xs">{fileName}</span>
         </div>
       ) : (
         <img

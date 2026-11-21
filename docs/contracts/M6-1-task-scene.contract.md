@@ -24,7 +24,7 @@
 - [x] **5. Group 创建与成员**：只允许从当前选中、非 group、`groupId === null` 的节点建组；`group.create` 在单事务内创建 group 并批量设置子节点 `groupId`；拖入/拖出按节点中心点判定，重叠取面积最小的 group；`node.update { groupId }` 校验同 canvas、非自身、非 group 节点。
 - [x] **6. Group 拖动与删除**：拖 group 结束发送一次 `node.move_many`，包含 group 与全部子节点的绝对坐标；刷新后位置保持；任一节点非法时整笔回滚，前端 refetch 并 toast；删 group 在单事务内先把子节点 `groupId = null` 再删组，不删子节点。
 - [x] **7. Group 折叠语义**：折叠只隐藏画布子节点和相关边；`assembleContext` 仍展开 group 的内容节点；折叠状态写入 group data，刷新后保持；现场临时展开不持久化。
-- [x] **8. Review 卡**：仅在 `task.status === 'review'` 时派生 `review:${taskId}`；不写入 `node` 表、不参与 `relatedNodeIds`/边；显示标题、status、等待时长、verify 退出码、diff stat、初步结论；`preliminaryVerdict` 为 null 时显示“初步验收进行中/未完成”；只读，无通过/打回；点击打开任务；任务离开 review 后卡片消失。
+- [x] **8. Review 卡**：仅在 `task.status === 'review'` 时派生 `review:${taskId}`；不写入 `node` 表、不参与 `relatedNodeIds`/边；现场卡显示标题、status、等待时长、verify 退出码、diff stat、初步结论（`preliminaryVerdict` 为 null 时显示“初步验收进行中/未完成”）；全局卡按 §5.2 只显示 `TaskSummary` 摘要，完整验收信息在任务详情与现场卡；只读，无通过/打回；点击打开任务；任务离开 review 后卡片消失。
 - [x] **9. 初步验收字段**：`review` 新增 `preliminary_verdict/reason/at` 三个 nullable 列 + migration 0010；验收员结论确定后，只有在目标仍处于同一轮 `review` 时才写入；写入成功 emit `review.preliminary`；目标已离开 review 时不写；旧 review 行升级后三列为 null。
 - [x] **10. 总管画布操作**：新增 `update_node`（`nodeId`、`x?`、`y?`、`title?`）；只允许移动任意节点、重命名 agent；不删除、不改文本/图片/分组 data、不改 `groupId`；节点必须属于当前 workspace canvas；写审计 `supervisor.node.update`；跨 workspace 返回 `node_not_found`。
 - [x] **11. 总管画布感知**：`list_canvas` 的节点摘要包含 `x/y/w/h/groupId`；`SUPERVISOR_POLICY.allowedTools` 15 → 16；真实引擎请求体包含 16 个工具；prompt 明确“只有用户明确要求才移动/重命名、不自动重排、不删除”。

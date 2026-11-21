@@ -196,6 +196,9 @@ describe('canvas model', () => {
     expect(flow[0]?.data.imageUrl).toBe('/api/workspaces/w1/uploads/a.png')
     expect(flow[1]?.data.imageUrl).toBe('https://example.com/b.png')
     expect(resolveImageUrl('.baton/uploads/a.png')).toBeUndefined()
+    expect(resolveImageUrl('http://example.com/a.png')).toBeUndefined()
+    expect(resolveImageUrl('data:image/png;base64,aaa')).toBeUndefined()
+    expect(resolveImageUrl('//example.com/a.png')).toBeUndefined()
   })
 
   it('maps protocol edges to mutable flow edges', () => {

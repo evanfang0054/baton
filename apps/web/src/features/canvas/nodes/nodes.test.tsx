@@ -7,6 +7,7 @@ import { CanvasActionsProvider, type CanvasActions } from '../actions'
 import { GroupNode } from './GroupNode'
 import { ImageNode } from './ImageNode'
 import { ReviewCardNode } from './ReviewCardNode'
+import { TextNode } from './TextNode'
 import type { CanvasFlowNodeProps } from './NodeShell'
 
 const review: ReviewView = {
@@ -136,6 +137,19 @@ describe('canvas nodes', () => {
     renderNode(<GroupNode {...props(node, { childCount: 2 })} />, { readOnly: true })
     expect(screen.getByText('已展开')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '折叠分组' })).not.toBeInTheDocument()
+  })
+
+  it('does not enter inline editing in a read-only scene', () => {
+    const node: ProtocolNode = {
+      ...taskNode(),
+      type: 'text',
+      data: { content: '现场只读文本' },
+    }
+    const updateContent = vi.fn()
+    renderNode(<TextNode {...props(node)} />, { readOnly: true, updateContent })
+    fireEvent.doubleClick(screen.getByText('现场只读文本'))
+    expect(screen.queryByRole('textbox', { name: '文本节点内容' })).not.toBeInTheDocument()
+    expect(updateContent).not.toHaveBeenCalled()
   })
 
   it('renders a read-only review card and opens the task', () => {

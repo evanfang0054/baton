@@ -251,6 +251,7 @@ export const GroupCreateInput = z.object({
 - `node.update` 的 `groupId` 校验失败返回 `group_invalid`。
 - `node.delete` 删除 group 时返回 `{ ok: true, ungrouped: number }`（可选；保持现有 ack 形状兼容）。
 - 不新增任务列表 REST；review 卡全局用 `TaskSummary`，现场用 `TaskDetail`。
+- 实现口径（2026-11-21）：全局画布的 review 卡只显示标题/status/等待等摘要；verify、diff、初步结论在任务详情与现场卡显示，避免全局画布为每张卡拉 task detail。
 
 ### 5.3 总管工具
 

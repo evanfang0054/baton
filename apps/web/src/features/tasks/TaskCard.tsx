@@ -34,6 +34,7 @@ export function TaskCard({
 }: TaskCardProps) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
+    setNow(Date.now())
     if (task.waitingSince === null) return
     const timer = window.setInterval(() => setNow(Date.now()), 30_000)
     return () => window.clearInterval(timer)

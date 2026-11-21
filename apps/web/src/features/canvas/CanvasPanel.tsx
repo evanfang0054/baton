@@ -177,18 +177,24 @@ function FlowCanvas({
     : null
   const savedViewport = useRef<Viewport | null>(null)
   const sceneWasActive = useRef(false)
+  const sceneActive = sceneTaskId !== null
   useEffect(() => {
-    if (scene && !sceneWasActive.current) {
+    if (sceneActive && !sceneWasActive.current) {
       savedViewport.current = getViewport()
       sceneWasActive.current = true
     }
-    if (!scene && sceneWasActive.current) {
+    if (!sceneActive && sceneWasActive.current) {
       sceneWasActive.current = false
       const saved = savedViewport.current
       savedViewport.current = null
       if (saved) void setViewport(saved)
     }
-  }, [getViewport, scene, setViewport])
+  }, [getViewport, sceneActive, setViewport])
+
+  // 切现场时清掉全局画布遗留的边选中，避免只读现场还显示删除入口。
+  useEffect(() => {
+    if (sceneTaskId !== null) setSelectedEdgeId(null)
+  }, [sceneTaskId])
 
   useEffect(() => {
     if (!scene || !sceneFitKey) return
@@ -275,9 +281,10 @@ function FlowCanvas({
   )
 
   const deleteSelectedEdge = useCallback(() => {
+    if (sceneActive) return
     const edge = canvas?.edges.find((item) => item.id === selectedEdgeId)
     if (edge) void removeEdges([{ id: edge.id }])
-  }, [canvas?.edges, removeEdges, selectedEdgeId])
+  }, [canvas?.edges, removeEdges, sceneActive, selectedEdgeId])
 
   const centerPosition = useCallback(() => {
     const rect = containerRef.current?.getBoundingClientRect()
@@ -346,7 +353,7 @@ function FlowCanvas({
   const addNode = useCallback(
     (type: CanvasAddType) => {
       if (!canvas) return
-      if (scene) return
+      if (sceneActive) return
       if (type === 'file') {
         setFileDialogOpen(true)
         return
@@ -381,7 +388,7 @@ function FlowCanvas({
         data: { title: `Agent ${agentCount + 1}`, engine: 'fake', taskId: null },
       })
     },
-    [canvas, centerPosition, createGroupFromSelection, createNode, scene],
+    [canvas, centerPosition, createGroupFromSelection, createNode, sceneActive],
   )
 
   const exitScene = useCallback(() => {
@@ -396,7 +403,7 @@ function FlowCanvas({
       event.preventDefault()
       event.stopPropagation()
       setDropActive(false)
-      if (!canvas || scene) return
+      if (!canvas || sceneActive) return
       const files = Array.from(event.dataTransfer.files)
       if (files.length === 0) return
 
@@ -491,12 +498,12 @@ function FlowCanvas({
       if (added > 0) toast.success(`已添加 ${added} 个文件节点`)
       if (failed > 0) toast.danger(`${failed} 个文件上传失败`)
     },
-    [canvas, fitView, onSelectNode, refreshCanvas, scene, screenToFlowPosition, send],
+    [canvas, fitView, onSelectNode, refreshCanvas, sceneActive, screenToFlowPosition, send],
   )
 
   const actions = useMemo(
     () => ({
-      readOnly: Boolean(scene),
+      readOnly: sceneActive,
       updatePosition: (id: string, x: number, y: number) => {
         void updateNode(id, { x, y })
       },
@@ -515,7 +522,7 @@ function FlowCanvas({
         setRightPanel('task')
       },
     }),
-    [onSelectNode, scene, setRightPanel, setTask, updateNode],
+    [onSelectNode, sceneActive, setRightPanel, setTask, updateNode],
   )
 
   if (!canvas) {
@@ -535,7 +542,7 @@ function FlowCanvas({
       data-testid="canvas"
       className="relative h-full bg-background"
       onDragOver={(event) => {
-        if (scene || !event.dataTransfer.types.includes('Files')) return
+        if (sceneActive || !event.dataTransfer.types.includes('Files')) return
         event.preventDefault()
         event.dataTransfer.dropEffect = 'copy'
         setDropActive(true)
@@ -551,12 +558,12 @@ function FlowCanvas({
         onFit={() => void fitView({ padding: 0.2 })}
         onZoomIn={() => void zoomIn()}
         onZoomOut={() => void zoomOut()}
-        readOnly={Boolean(scene)}
+        readOnly={sceneActive}
       />
       {scene && sceneDetail.data ? (
         <TaskSceneBar scene={scene} detail={sceneDetail.data} onExit={exitScene} />
       ) : null}
-      {selectedEdgeId ? (
+      {!sceneActive && selectedEdgeId ? (
         <div className="absolute top-3 right-3 z-10">
           <Button variant="danger" onPress={deleteSelectedEdge}>
             删除连线
@@ -585,7 +592,8 @@ function FlowCanvas({
           nodeTypes={nodeTypes}
           onNodesChange={onNodesChange}
           onNodeDragStop={(_, node) => {
-            if (!canvas || scene) return
+            if (!canvas || sceneActive) return
+            // 连续拖动只让最后一笔刷新；daemon 串行处理命令，后一笔会覆盖前一笔。
             const seq = ++dragSeq.current
             if (node.data.node.type === 'group') {
               const moves = groupMovePlan(node, nodes)
@@ -610,7 +618,7 @@ function FlowCanvas({
           // 用 onNodeClick 而不是 onSelectionChange：后者会在外部清空选中后
           // 把 React Flow 的旧选中反复推回 store，触发更新死循环。
           onNodeClick={(event, node) => {
-            if (scene) return
+            if (sceneActive) return
             // 派生 review 卡自己负责打开任务，不能让按钮点击冒泡成“选中一个不存在的节点”。
             if (node.data.node.type === 'review') return
             // Cmd/Ctrl/Shift 点击是多选/反选，不要覆盖单选面板状态。
@@ -618,34 +626,35 @@ function FlowCanvas({
             onSelectNode(node.id)
           }}
           onSelectionChange={({ nodes: selected }) => {
-            if (scene) return
+            if (sceneActive) return
             onSelectNodes(selected.map((node) => ({ id: node.id, type: node.data.node.type })))
           }}
           onPaneClick={() => {
             setSelectedEdgeId(null)
+            if (sceneActive) return
             onSelectNode(null)
           }}
           onEdgeClick={(_, edge) => {
-            if (!scene) setSelectedEdgeId(edge.id)
+            if (!sceneActive) setSelectedEdgeId(edge.id)
           }}
           selectionKeyCode="Shift"
           multiSelectionKeyCode={['Meta', 'Control']}
-          nodesDraggable={!scene}
-          nodesConnectable={!scene}
-          elementsSelectable={!scene}
-          edgesFocusable={!scene}
-          deleteKeyCode={scene ? null : ['Backspace', 'Delete']}
+          nodesDraggable={!sceneActive}
+          nodesConnectable={!sceneActive}
+          elementsSelectable={!sceneActive}
+          edgesFocusable={!sceneActive}
+          deleteKeyCode={sceneActive ? null : ['Backspace', 'Delete']}
           isValidConnection={(connection) => isValidConnection(connection, canvas.edges)}
           onConnect={(connection) => {
-            if (!scene) void connect(connection)
+            if (!sceneActive) void connect(connection)
           }}
           onEdgesDelete={(deleted) => {
-            if (!scene) void removeEdges(deleted)
+            if (!sceneActive) void removeEdges(deleted)
           }}
           // 节点删除必须走 NodePanel 的确认入口；键盘删除只允许删边，
           // 并连带过滤掉挂在被保护节点上的边，避免“边删了、节点没删”。
           onBeforeDelete={async ({ nodes: deletingNodes, edges: deletingEdges }) => {
-            if (scene) return { nodes: [], edges: [] }
+            if (sceneActive) return { nodes: [], edges: [] }
             if (deletingNodes.length === 0) {
               return { nodes: [], edges: deletingEdges }
             }

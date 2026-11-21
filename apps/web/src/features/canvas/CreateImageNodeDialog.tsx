@@ -49,14 +49,18 @@ export function CreateImageNodeDialog({
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  // 关闭/重开对话框后，旧上传的结果不能落到新会话里。
+  const uploadGeneration = useRef(0)
 
   useEffect(() => {
     if (!open) return
+    uploadGeneration.current += 1
     setMode('local')
     setUrl('')
     setAlt('')
     setLocalSrc(null)
     setError(null)
+    setUploading(false)
   }, [open])
 
   const upload = async (file: File) => {
@@ -67,21 +71,25 @@ export function CreateImageNodeDialog({
       setError('只支持 png/jpeg/webp/gif/svg 图片')
       return
     }
+    const generation = ++uploadGeneration.current
     setUploading(true)
     setError(null)
     try {
       const dataBase64 = await fileToBase64(file)
+      if (generation !== uploadGeneration.current) return
       const uploaded = await uploadWorkspaceFile(workspaceId, {
         name: file.name,
         ...(file.type ? { mime: file.type } : {}),
         dataBase64,
       })
+      if (generation !== uploadGeneration.current) return
       setLocalSrc(uploaded.path)
       if (!alt.trim()) setAlt(uploaded.name)
     } catch (cause) {
+      if (generation !== uploadGeneration.current) return
       setError(cause instanceof Error ? cause.message : '上传失败')
     } finally {
-      setUploading(false)
+      if (generation === uploadGeneration.current) setUploading(false)
     }
   }
 

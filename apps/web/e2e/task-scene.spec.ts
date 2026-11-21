@@ -25,6 +25,7 @@ test('image node and task scene', async ({ page }) => {
       agentNode('a1', 420, 80),
       textNode('n1', 80, 320),
     ],
+    edges: [{ id: 'e1', canvasId: 'c1', sourceId: 'n1', targetId: 'i1', type: 'context' }],
     tasks: [task({ id: 't1', nodeId: 'a1', title: '任务' })],
     taskDetail: sceneDetail(),
   })
@@ -33,14 +34,21 @@ test('image node and task scene', async ({ page }) => {
   await expect(page.locator('.react-flow__node[data-id="i1"]')).toBeVisible()
   await expect(page.getByRole('img', { name: '图片' })).toBeVisible()
 
+  const edge = page.locator('.react-flow__edge-interaction').first()
+  await expect(edge).toBeAttached()
+  await edge.dispatchEvent('click')
+  await expect(page.getByRole('button', { name: '删除连线' })).toBeVisible()
+
   await page.getByRole('button', { name: '展开看板' }).click()
   await page.getByRole('button', { name: '看现场' }).click()
   await expect(page.getByTestId('task-scene-bar')).toBeVisible()
   await expect(page.getByTestId('task-scene-bar')).toContainText('任务')
   await expect(page.getByTestId('task-scene-bar')).toContainText('上下文 2 个')
   await expect(page.getByTestId('task-scene-bar')).toContainText('verify 0')
+  await expect(page.getByRole('button', { name: '删除连线' })).toHaveCount(0)
 
   await page.getByRole('button', { name: '回到全局' }).click()
   await expect(page.getByTestId('task-scene-bar')).toHaveCount(0)
   expect(commands.every((command) => command.type !== 'node.update')).toBe(true)
+  expect(commands.every((command) => command.type !== 'edge.delete')).toBe(true)
 })
