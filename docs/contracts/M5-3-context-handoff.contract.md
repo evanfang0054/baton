@@ -32,7 +32,7 @@
 - [x] **5. worktree 语义**：源任务 `workspaceMode=worktree` 允许交接；`worktree="unreadable"`、只写 `task.branch`、明确“主工作区不可读”；不复制/merge/checkout。
 - [x] **6. 状态门槛**：只允许 `review/done/failed/cancelled` 且至少有一个 session 或 review；`todo/queued/running/waiting_input/verifying` 返回 `handoff_invalid`；无结果返回 `handoff_no_result`。
 - [x] **7. 节点创建**：`task.handoff` 创建 text 节点，内容以 `【交接】` 开头，放在源 Agent 右侧 `(x+w+40, y)`；无 Agent 时 `(0,0)`；事务失败返回 `handoff_node_failed`，不写成功审计。
-- [x] **8. WS 命令**：`packages/protocol/src/commands.ts` 新增 `task.handoff`；ack `{ nodeId, taskId, warnings }`；跨 workspace 返回 `task_not_found`；现有命令不回归。
+- [x] **8. WS 命令**：`packages/protocol/src/commands.ts` 新增 `task.handoff`（请求 `{ taskId, workspaceId }`）；ack `{ nodeId, taskId, warnings }`；跨 workspace 返回 `task_not_found`；现有命令不回归。
 - [x] **9. 审计**：UI/WS 写 `task.handoff.create` `{ taskId, nodeId, worktree, truncated, warnings }`；总管写 `supervisor.task.handoff` `{ fromTaskId, toTaskId, nodeId, hasNote, started }`；不记录节点正文/note 全文。
 - [x] **10. 总管工具**：新增 `handoff_task`（`fromTaskId`、`toNodeId?`、`title?`、`note?`、`start?`）；工具面 14→15；真实引擎请求体包含 15 个工具；`allowedTools` 与注册工具一致。
 - [x] **11. 目标与任务**：`toNodeId` → 当前选择唯一 Agent → 自动建共享 Agent；新任务 `workspaceMode=main`、默认 `todo`；`start=true` 才入队；入队失败不回滚已创建任务。
@@ -80,5 +80,6 @@ Plan 2 依赖 Plan 1 的命令与结果形状；Plan 3 依赖 Plan 1+2。每个 
 ## 7. 评审记录
 
 - 2026-11-21：contract 与 spec 同步落库；待实现。
-- 2026-11-21：实现与自动验收完成。提交 `325c1ab`（core 摘要）、`c9217b9`（protocol）、`d587624`（core 策略）、`0dd714e`（daemon）、`95a276d`/`14c0c30`（web）、`7a7820a`（e2e）。`pnpm verify:full` 全绿：protocol 119、core 140、adapters 27、web 204、daemon 294 tests，Playwright 37 条；`pnpm pack:check` 通过。
+- 2026-11-21：实现与自动验收完成。提交 `325c1ab`（core 摘要）、`c9217b9`（protocol）、`d587624`（core 策略）、`0dd714e`（daemon）、`95a276d`/`14c0c30`（web）、`7a7820a`（e2e）。`pnpm verify:full` 全绿：protocol 119、core 143、adapters 27、web 204、daemon 294 tests，Playwright 38 条；`pnpm pack:check` 通过。
 - 2026-11-21：真实 Claude + ego-lite 链路完成：A 写 `hello` → review → 生成交接节点 → 总管 `handoff_task` 建 B（上下文 1 节点 / 490 字符）→ B 写 `hello baton` → review → 人工通过 → done；审计 `task.handoff.create` / `supervisor.task.handoff` 均存在；证据见 `docs/evidence/2026-11-21-m5-3-context-handoff/`。
+- 2026-11-21：PR #28 深度 review 修复：先脱敏再截断、文件超限补 `truncated="true"`、worktree 使用 `<worktree>` 占位符、转义 `</handoff>`/`</node>` 等结构性关闭标签、`task.handoff` 的 `workspaceId` 改为必填、`handoff_task` 先校验目标/上下文再落节点、审计补齐 `toTaskId`/`nodeId`、补重复交接 Playwright。

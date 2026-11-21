@@ -7,10 +7,11 @@
 
 ## 自动验证
 
-- `pnpm verify:full`：protocol 119、core 140、adapters 27、web 204、daemon 294 tests；Playwright 37 条全绿。
+- `pnpm verify:full`：protocol 119、core 143、adapters 27、web 204、daemon 294 tests；Playwright 38 条全绿。
 - `pnpm pack:check`：ok。
 - `apps/web/e2e/handoff.spec.ts`：
   - 任务详情点击「生成交接节点」→ WS `task.handoff` → 画布出现 `【交接】` 节点并刷新。
+  - 重复交接 → 两个独立快照节点都保留。
   - 总管 `handoff_task` → 任务卡 + `交接自《…》` + worktree 警告。
 - `apps/daemon/test/handoff.test.ts`：状态门槛、无结果、跨 workspace、worktree 标注、节点位置/审计、总管建任务/无 context 边、工具面 15。
 

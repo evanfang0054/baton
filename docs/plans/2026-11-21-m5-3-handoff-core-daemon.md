@@ -580,10 +580,10 @@ git commit -m "test(daemon): 交接节点与总管交接"
 
 ## 执行记录
 
-- 2026-11-21：Task 1/2 完成，提交 `325c1ab`；`buildHandoffSummary` 12 条测试（含快照、限长、路径、worktree、确定性）。
+- 2026-11-21：Task 1/2 完成，提交 `325c1ab`；`buildHandoffSummary` 15 条测试（含快照、限长、路径、worktree、确定性、结构性标签转义）。
 - 2026-11-21：Task 3/4/5/6 完成，提交 `c9217b9`（`task.handoff`）、`d587624`（`allowedTools` 15）、`0dd714e`（service、runtime、总管 `handoff_task`、prompt/claim）。
-- 2026-11-21：Task 7 完成，`apps/daemon/test/handoff.test.ts` 7 条；daemon 294 tests、core 140 tests 全绿；`pnpm verify` 通过。
-- 关键实现：`HandoffDeps` 用 `workspacesRoot` 而不是整份 Config；`task.handoff` payload 增加可选 `workspaceId` 用于归属校验；`handoff_task` 不写 `ctx.memo.taskId`，避免同轮 `create_task` 复用；抽 `createTaskForTool` 复用建任务逻辑。
+- 2026-11-21：Task 7 完成，`apps/daemon/test/handoff.test.ts` 7 条；daemon 294 tests、core 143 tests 全绿；`pnpm verify` 通过。
+- 关键实现：`HandoffDeps` 用 `workspacesRoot` 而不是整份 Config；`task.handoff` payload 必填 `workspaceId` 做归属校验；`handoff_task` 先校验目标/上下文再落节点，不写 `ctx.memo.taskId`，避免同轮 `create_task` 复用；抽 `createTaskForTool` 复用建任务逻辑；审计补 `toTaskId`/`nodeId`。
 
 ## 计划自检
 

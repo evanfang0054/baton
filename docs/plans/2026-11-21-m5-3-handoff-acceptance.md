@@ -275,8 +275,8 @@ git commit -m "chore: M5-3 全量验证收口"
 
 ## 执行记录
 
-- 2026-11-21：Task 1/2 完成，提交 `7a7820a`；`handoff.spec.ts` 2 条（任务详情生成节点并刷新画布；总管交接卡 + worktree 警告）全绿。
-- 2026-11-21：Task 5 全量命令通过：`pnpm verify:full`（protocol 119、core 140、adapters 27、web 204、daemon 294 tests；Playwright 37 条全绿）、`pnpm pack:check` 通过。
+- 2026-11-21：Task 1/2 完成，提交 `7a7820a`；`handoff.spec.ts` 3 条（任务详情生成节点并刷新画布；重复交接保留两个快照；总管交接卡 + worktree 警告）全绿。
+- 2026-11-21：Task 5 全量命令通过：`pnpm verify:full`（protocol 119、core 143、adapters 27、web 204、daemon 294 tests；Playwright 38 条全绿）、`pnpm pack:check` 通过。
 - 2026-11-21：Task 3/4 完成：真实 Claude A→B 链路通过（A 写 `hello` → review → 交接节点 → 总管 `handoff_task` 建 B，上下文 1 节点 / 490 字符 → B 写 `hello baton` → review → 人工通过 → done）；审计 `task.handoff.create` / `supervisor.task.handoff` 存在；脱敏截图落 `docs/evidence/2026-11-21-m5-3-context-handoff/`。
 
 ## 计划自检

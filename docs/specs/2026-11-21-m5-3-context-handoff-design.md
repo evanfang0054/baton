@@ -165,7 +165,7 @@ M1-M5-1 已把“单任务闭环 + 总管任务管理”做实：画布上下文
 ### 5.1 任务详情按钮
 
 - 位置：任务详情动作区，与 retry/reopen/cancel 并列；只在 `review/done/failed/cancelled` 显示。
-- 点击 → WS `task.handoff` `{ taskId }`。
+- 点击 → WS `task.handoff` `{ taskId, workspaceId }`。
 - ack `{ nodeId, taskId, warnings }`；web 失效画布查询，Toast：
   - 成功：“已生成交接节点，可在画布中选中它创建下一个任务。”
   - worktree：追加“源任务在隔离 worktree，变更文件在主工作区不可读。”
