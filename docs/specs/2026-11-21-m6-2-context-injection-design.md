@@ -58,7 +58,7 @@ M6-1 已把“任务现场”做成派生视图：可以从看板/任务详情�
 
 1. `todo/queued/waiting_input` 任务可以从画布再注入上下文；`review` 只能通过“打回”携带上下文；`running/verifying/done/failed/cancelled` 明确拒绝。
 2. 注入是 append-only：初始 `ContextSnapshot` 不变，`context.injections[]` 只追加；旧数据按空数组解析。
-3. 每次注入在 prompt 中只出现一份：`todo/queued` 落 `<context_update>`，`waiting_input` 落 `<user_reply>`，`review` 打回落 `<feedback>`。
+3. 每次注入在 prompt 中只出现一份：`todo/queued` 落独立 `<context_update>`，`waiting_input` 落 `<user_reply>`，`review` 打落独立 `<context_update>`（feedback 仍单独）。
 4. 单次 40 节点 / 48k 字符 / 单节点 16k，累计注入 96k；超限整次拒绝，不写半份。
 5. 注入不改变队列顺序：新增 `task.enqueuedAt`，调度器按它排序；migration 回填旧 queued 任务。
 6. 画布现场能显示注入次数、被注入节点和缺失节点；任务详情能看上下文时间线。
@@ -143,7 +143,7 @@ export const ContextInjection = z.object({
 | `queued`                                      | `context.inject`                 | 追加 `<context_update>`                      | 不启动 session          | 仍为 `queued`，`enqueuedAt` 不变       |
 | `waiting_input`（question/stalled/dropped）    | `context.inject`                 | `<user_reply>` 内包含 `<context_update>`     | 发送给存活 session      | 走现有 `user_input`，变 `running`      |
 | `waiting_input`（approval/null）               | —                                | —                                            | —                       | `task_not_injectable`（先处理审批）    |
-| `review`                                      | `review.decide(reject)` 携带上下文 | `<feedback>` 内包含 `<context_update>`       | 打回后重新入队          | 走现有 `reject`，变 `queued`           |
+| `review`                                      | `review.decide(reject)` 携带上下文 | 独立 `<context_update>` + 可选 `<feedback>`  | 打回后重新入队          | 走现有 `reject`，变 `queued`           |
 | `review`                                      | 单独 `context.inject`            | —                                            | —                       | `task_not_injectable`（请用打回）      |
 | `running/verifying`                           | —                                | —                                            | —                       | `task_not_injectable`                  |
 | `done/failed/cancelled`                       | —                                | —                                            | —                       | `task_not_injectable`（先 reopen/handoff） |
@@ -152,7 +152,7 @@ export const ContextInjection = z.object({
 
 - `todo/queued`：daemon 的 `injectContext` 在一个事务里完成 prompt 追加、`context.injections[]` 追加、审计、`context.injected` 事件；不经过状态机。
 - `waiting_input`：`context.inject` 组装块后调用 `applyTransition(taskId, { type: 'user_input', text: blockWithNote, contextInjection })`。`user_input` 的 effects 增加 `appendContextInjection`；prompt 的 `<user_reply>` 由现有 `appendUserReply` 追加。发送仍在 afterCommit，和现有 `session.reply` 一致。
-- `review reject`：`review.decide` 组装块后调用 `applyTransition(taskId, { type: 'reject', feedback, contextInjection })`。`reject` 的 effects 增加 `appendContextInjection`；prompt 的 `<feedback>` 由现有 `appendFeedback` 追加。
+- `review reject`：`review.decide` 组装块后调用 `applyTransition(taskId, { type: 'reject', feedback, contextInjection, contextBlock })`。`reject` 的 effects 增加 `appendContextInjection`；`feedback` 与 `contextBlock` 分开追加，避免 feedback 的 16k 截断吃掉 48k 上下文。
 - 允许的转移和状态语义不变；只是给已有转移增加一个可选 effect 和可选事件字段。
 
 ### 4.3 预算
@@ -174,7 +174,7 @@ export const ContextInjection = z.object({
 - `Task.enqueuedAt: Timestamp | null`。
 - 进入 `queued` 时设为 `now`：`enqueue`、`reject`、`verify_fail` 自动重试、`retry`。
 - 离开 `queued` 或进入 `todo` 时保持原值或置 null（`reopen` → `todo` 置 null）。
-- 调度器只对 `queued` 使用新查询 `listQueuedTasksByEnqueuedAt`：`enqueued_at ASC, id ASC`；`boot` 的 `running/waiting_input/verifying` 仍用 `updatedAt` 排序。
+- 调度器只对 `queued` 使用新查询 `listQueuedTasksByEnqueuedAt`：`coalesce(enqueued_at, updated_at) ASC, id ASC`；`boot` 的 `running/waiting_input/verifying` 仍用 `updatedAt` 排序。
 - 注入 `queued` 任务不修改 `enqueuedAt`，因此不会改变排队位置。
 
 ### 4.5 成本/turn（SessionUsage）
@@ -250,8 +250,9 @@ z.object({
 ```
 
 - `packages/protocol/src/transitions.ts`：
+  - `user_input` 的 `text` 上限从 16_384 放宽到 64_000（上下文块 + note）；
   - `user_input` 增加可选 `contextInjection?: ContextInjection`；
-  - `reject` 增加可选 `contextInjection?: ContextInjection`。
+  - `reject` 增加可选 `contextInjection?: ContextInjection` 与 `contextBlock?: string`（≤64_000）。
   - 不新增转移类型；不改变允许的 from/to。
 - 不新增 `NodeType`；不修改 `Node` 联合类型；不新增 REST 接口。
 
@@ -302,6 +303,7 @@ z.object({
   - 输入：`selectedNodeIds`、`nodes`、`edges`、`contentByNodeId`；
   - 复用 `assembleContext` 的 `isContentNode`、group 展开、直接边、上游深度 2、排序 `(depth, y, x, id)`、敏感路径、空内容丢弃、单节点/总预算；
   - 返回 `{ included, dropped, truncated, redactedPaths, relations, relationsTruncated, chars }`；
+  - `chars` 只算节点正文；daemon 在写 `ContextInjection.chars` 时再加 note 长度；
   - 不返回最终 prompt，只返回本次内容和元数据。
 - `buildContextUpdateBlock({ seq, at, source, note, assembled })`：
   - 输出 `<context_update seq="..." at="..." source="...">`；
@@ -336,7 +338,7 @@ ALTER TABLE session ADD COLUMN turns integer;
 - `setTaskEnqueuedAt(tx, taskId, at)` / `clearTaskEnqueuedAt(tx, taskId)`。
 - `listQueuedTasksByEnqueuedAt(db)`：`status = 'queued'`，`orderBy(asc(enqueuedAt), asc(id))`。
 - `updateSessionUsage(tx, sessionId, { costUsd, turns })`。
-- `appendTaskPromptBlock` 的 tag 扩展为 `'feedback' | 'user_reply' | 'reopen_note' | 'context_update'`。
+- 新增 `appendTaskPromptRaw(tx, taskId, text, maxChars, updatedAt)`：把已经带外层标签的 `<context_update>` 原样追加到 prompt；`appendTaskPromptBlock` 仍只处理 `feedback/user_reply/reopen_note`，避免双重包裹。
 
 ### 7.3 注入服务
 
@@ -361,7 +363,7 @@ injectContext(input: {
 5. `assembleContextInjection`；`included` 为空 → `context_empty`。
 6. 累计预算：`cumulativeInjectedChars(task.context) + assembled.chars > 96_000` → `context_budget_exceeded`。
 7. 分派：
-   - `todo/queued`：事务内 `appendTaskPromptBlock(..., 'context_update', block)` + `appendTaskContextInjection` + audit + `context.injected` ws event；不 kick 调度器（不自动开工）。
+   - `todo/queued`：事务内 `appendTaskPromptRaw(..., block)` + `appendTaskContextInjection` + audit + `context.injected` ws event；不 kick 调度器（不自动开工）。
    - `waiting_input`：先检查当前 session 仍存活；不可用返回现有 `session_not_active`。可用时调用 `applyTransition(taskId, { type: 'user_input', text: blockWithNote, contextInjection })`；转移 effects 内完成 `<user_reply>` + `appendContextInjection`；发送 afterCommit。
    - `review`：返回 `task_not_injectable`（reason `use_review_reject`）。
 8. 返回 seq/truncated/dropped 数量。
@@ -370,14 +372,15 @@ injectContext(input: {
 
 ### 7.4 状态机 effect
 
-- `packages/core/src/state-machine/types.ts`：`TaskEffect` 增加 `appendContextInjection: (injection: ContextInjection) => TaskEffect`。
+- `packages/core/src/state-machine/types.ts`：`TaskEffect` 增加 `appendContextInjection: (injection: ContextInjection, block?: string) => TaskEffect`。
 - `packages/core/src/state-machine/transition.ts`：
   - `user_input`：effects 追加 `appendContextInjection(event.contextInjection)`（存在时）；
-  - `reject`：effects 追加 `appendContextInjection(event.contextInjection)`（存在时）；
+  - `reject`：effects 追加 `appendContextInjection(event.contextInjection, event.contextBlock)`（存在时）；
   - 不改变 from/to、guards、状态语义。
 - `apps/daemon/src/runtime/effects.ts`：
-  - 处理 `appendContextInjection`：调用 repository；在同一事务里追加 `context.injected` ws event（taskId 由 effect 传入）；
+  - 处理 `appendContextInjection`：调用 repository；若 `block` 存在，用 `appendTaskPromptRaw` 原样追加；在同一事务里追加 `context.injected` ws event（taskId 由 effect 传入）；
   - 不写 note/正文到事件。
+  - `MAX_FEEDBACK_CHARS` 从 16_384 放宽到 64_000，保证 waiting_input 的 `<user_reply>` 能容纳上下文块；普通 UI reply 仍由 `SessionReplyInput` 的 16k 限制。
 - `transition-runner.ts`：
   - 在 `updateTaskState` 后，如果 `result.status === 'queued'` 且 previousStatus !== 'queued'，设置 `enqueuedAt = now`；
   - 如果 `result.status === 'todo'`（reopen），清空 `enqueuedAt`；
@@ -387,8 +390,8 @@ injectContext(input: {
 
 - `decideReview` 的 reject 分支：
   - 若 `contextNodeIds` 存在：校验 review 属于任务、任务仍在 review、节点合法、预算通过；
-  - 组装 `contextInjection`；feedback = `feedback ?? '请结合补充的上下文修改'`；
-  - 调用 `applyTransition(taskId, { type: 'reject', feedback, contextInjection })`；
+  - 组装 `contextInjection`；feedback = `feedback ?? '请结合补充的上下文修改'`；`contextBlock = prepared.block`；
+  - 调用 `applyTransition(taskId, { type: 'reject', feedback, contextInjection, contextBlock })`；
   - 不额外的 `context.inject` 事件（`appendContextInjection` effect 已发）。
 - approve 分支：
   - 若 `review.verifyExitCode !== 0` / `VERIFY_SKIPPED`，或显式提供了 `reason`，写 `review.approve_override` 审计；
