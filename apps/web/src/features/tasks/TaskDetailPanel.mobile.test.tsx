@@ -30,7 +30,29 @@ function stubDetail() {
             retryCount: 0,
             createdAt: 1,
             updatedAt: 2,
-            context: null,
+            context: {
+              included: [{ id: 'n1', type: 'text', title: '初始需求', depth: 0, chars: 4 }],
+              dropped: [],
+              truncated: false,
+              redactedPaths: [],
+              relations: [],
+              relationsTruncated: false,
+              injections: [
+                {
+                  seq: 1,
+                  at: 1_700_000_000_000,
+                  source: 'supervisor',
+                  note: null,
+                  nodeIds: ['n1'],
+                  included: [{ id: 'n1', type: 'text', title: '初始需求', depth: 0, chars: 4 }],
+                  dropped: [],
+                  truncated: false,
+                  relations: [],
+                  relationsTruncated: false,
+                  chars: 4,
+                },
+              ],
+            },
             origin: null,
           },
           sessions: [],
@@ -77,6 +99,8 @@ describe('TaskDetailPanel mobile', () => {
     )
 
     expect(await screen.findByText('移动任务')).toBeInTheDocument()
+    expect(screen.getByText('注入 #1')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '投喂' })).not.toBeInTheDocument()
     expect(screen.getByTestId('mobile-task-scroll').className).toContain('overflow-y-auto')
     expect(screen.getByTestId('transcript-section').className).toContain('h-[45vh]')
     expect(screen.getByTestId('mobile-task-footer')).toHaveTextContent('任务已创建，尚未开工。')

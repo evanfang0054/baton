@@ -3,9 +3,18 @@ import type { Node, TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Modal } from '@heroui/react/modal'
 import { TextArea } from '@heroui/react/textarea'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCommand } from '../../lib/command-context'
 import { nodeTitle } from './node-title'
+
+const NODE_TYPE_LABELS: Record<Node['type'], string> = {
+  text: '文本',
+  file: '文件',
+  image: '图片',
+  agent: 'Agent',
+  review: '验收',
+  group: '分组',
+}
 
 export function InjectContextDialog({
   open,
@@ -34,14 +43,23 @@ export function InjectContextDialog({
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+  const wasOpen = useRef(false)
 
   useEffect(() => {
-    if (!open) return
-    setTaskId(
-      defaultTaskId && injectable.some((task) => task.id === defaultTaskId)
-        ? defaultTaskId
-        : (injectable[0]?.id ?? ''),
-    )
+    if (!open) {
+      wasOpen.current = false
+      return
+    }
+    // 只在打开时初始化；任务列表刷新不能清掉用户已输入的说明或重开提交。
+    if (wasOpen.current) return
+    wasOpen.current = true
+    const fallback =
+      defaultTaskId === null
+        ? (injectable[0]?.id ?? '')
+        : injectable.some((task) => task.id === defaultTaskId)
+          ? defaultTaskId
+          : ''
+    setTaskId(fallback)
     setNote('')
     setError(null)
     setPending(false)
@@ -75,9 +93,6 @@ export function InjectContextDialog({
 
   return (
     <Modal isOpen={open} onOpenChange={onOpenChange}>
-      <Modal.Trigger className="sr-only" aria-hidden="true" tabIndex={-1}>
-        投喂给任务
-      </Modal.Trigger>
       <Modal.Backdrop>
         <Modal.Container>
           <Modal.Dialog>
@@ -94,6 +109,7 @@ export function InjectContextDialog({
                     value={taskId}
                     onChange={(event) => setTaskId(event.target.value)}
                   >
+                    {taskId === '' ? <option value="">请选择任务</option> : null}
                     {injectable.map((task) => (
                       <option key={task.id} value={task.id}>
                         {task.title}（{task.status}）
@@ -108,7 +124,7 @@ export function InjectContextDialog({
                   {nodes.map((node) => (
                     <li key={node.id} className="flex justify-between gap-2">
                       <span>{nodeTitle(node)}</span>
-                      <span className="text-muted">{node.type}</span>
+                      <span className="text-muted">{NODE_TYPE_LABELS[node.type]}</span>
                     </li>
                   ))}
                 </ul>

@@ -187,10 +187,14 @@ function FlowCanvas({
         toast.danger('没有可投喂的任务')
         return
       }
+      if (taskId && !injectableTasks.some((task) => task.id === taskId)) {
+        toast.danger('该任务当前不可投喂')
+        return
+      }
       setInjectTaskId(taskId ?? sceneTaskId ?? null)
       setInjectOpen(true)
     },
-    [injectableSelectedNodes.length, injectableTasks.length, sceneTaskId],
+    [injectableSelectedNodes.length, injectableTasks, sceneTaskId],
   )
   const flowEdges = useMemo(
     () => (canvas ? toFlowEdges(canvas.edges, scene, hiddenNodeIds) : []),
@@ -693,7 +697,7 @@ function FlowCanvas({
             onSelectNode(node.id)
           }}
           onSelectionChange={({ nodes: selected }) => {
-            if (sceneActive) return
+            // 现场允许选中节点用于投喂；布局写操作仍由 sceneActive 关闭。
             onSelectNodes(selected.map((node) => ({ id: node.id, type: node.data.node.type })))
           }}
           onPaneClick={() => {
@@ -708,7 +712,7 @@ function FlowCanvas({
           multiSelectionKeyCode={['Meta', 'Control']}
           nodesDraggable={!sceneActive}
           nodesConnectable={!sceneActive}
-          elementsSelectable={!sceneActive}
+          elementsSelectable
           edgesFocusable={!sceneActive}
           deleteKeyCode={sceneActive ? null : ['Backspace', 'Delete']}
           isValidConnection={(connection) => isValidConnection(connection, canvas.edges)}

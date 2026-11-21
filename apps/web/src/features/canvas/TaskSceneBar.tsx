@@ -1,3 +1,4 @@
+import { canInjectContext } from '@baton/core'
 import type { TaskScene } from '@baton/core'
 import type { TaskDetailResponse } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
@@ -17,6 +18,7 @@ export function TaskSceneBar({
 }) {
   const task = detail.task
   const injectionCount = detail.task.context?.injections.length ?? 0
+  const injectable = canInjectContext(task).ok
   return (
     <div
       data-testid="task-scene-bar"
@@ -34,9 +36,11 @@ export function TaskSceneBar({
       {detail.review ? (
         <span className="text-muted">verify {detail.review.verifyExitCode}</span>
       ) : null}
-      <Button size="sm" variant="tertiary" onPress={onInject}>
-        投喂
-      </Button>
+      <span title={injectable ? undefined : '当前状态不能投喂；review 请用打回'}>
+        <Button size="sm" variant="tertiary" isDisabled={!injectable} onPress={onInject}>
+          投喂
+        </Button>
+      </span>
       <Button size="sm" variant="tertiary" onPress={onExit}>
         回到全局
       </Button>

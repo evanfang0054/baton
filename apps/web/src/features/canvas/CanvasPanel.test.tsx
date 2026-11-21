@@ -217,7 +217,7 @@ describe('CanvasPanel', () => {
     expect(await screen.findByTestId('task-scene-bar')).toHaveTextContent('任务 A')
     expect(screen.getByText(/上下文 1 个/)).toBeInTheDocument()
     expect(screen.getByText(/已注入 0 次/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '投喂' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '投喂' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: '添加文本' })).not.toBeInTheDocument()
     expect(send).not.toHaveBeenCalled()
 

@@ -1,4 +1,9 @@
-import type { SessionEventRecord, SessionEventsResponse, TaskDetailResponse } from '@baton/protocol'
+import type {
+  CanvasResponse,
+  SessionEventRecord,
+  SessionEventsResponse,
+  TaskDetailResponse,
+} from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState, type ReactNode } from 'react'
@@ -7,7 +12,7 @@ import { queryKeys } from '../../lib/query'
 import { useAppStore } from '../../stores/app'
 import { mergeSessionPage } from '../realtime/session-cache'
 import { ApprovalCard } from './ApprovalCard'
-import { ContextSnapshotCard } from './ContextSnapshotCard'
+import { ContextTimeline } from './ContextTimeline'
 import { QuestionCard } from './QuestionCard'
 import { ReplyComposer } from './ReplyComposer'
 import { ReviewCard } from './ReviewCard'
@@ -28,6 +33,7 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
   const setSceneTask = useAppStore((state) => state.setSceneTask)
   const setSelectedNode = useAppStore((state) => state.setSelectedNode)
   const setRightPanel = useAppStore((state) => state.setRightPanel)
+  const selectedContextNodeIds = useAppStore((state) => state.contextNodeIds)
   const queryClient = useQueryClient()
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
 
@@ -40,6 +46,12 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
   const sessions = detail.data?.sessions ?? []
   const activeSession =
     sessions.find((session) => session.id === selectedSessionId) ?? sessions.at(-1) ?? null
+  // 时间线只读；节点是否存在直接从画布缓存判断，不为详情额外发请求。
+  const canvas = queryClient.getQueryData<CanvasResponse>(queryKeys.canvas(activeWorkspaceId ?? ''))
+  const knownNodeIds = canvas ? new Set(canvas.nodes.map((node) => node.id)) : undefined
+  const selectedContextNodes = canvas
+    ? canvas.nodes.filter((node) => selectedContextNodeIds.includes(node.id))
+    : []
 
   const events = useQuery({
     queryKey: queryKeys.sessionEvents(activeSession?.id ?? ''),
@@ -110,6 +122,9 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
                 onLoadMore={loadMore}
                 onDone={onDone}
                 onOpenScene={undefined}
+                knownNodeIds={knownNodeIds}
+                onSelectNode={setSelectedNode}
+                contextNodes={selectedContextNodes}
                 mobile
                 showActions={false}
               />
@@ -146,6 +161,9 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
             onLoadMore={loadMore}
             onDone={onDone}
             onOpenScene={openScene}
+            knownNodeIds={knownNodeIds}
+            onSelectNode={setSelectedNode}
+            contextNodes={selectedContextNodes}
             mobile={false}
             showActions
           />
@@ -176,6 +194,9 @@ function DetailContent({
   onLoadMore,
   onDone,
   onOpenScene,
+  knownNodeIds,
+  onSelectNode,
+  contextNodes,
   mobile,
   showActions,
 }: {
@@ -190,6 +211,9 @@ function DetailContent({
   onLoadMore: () => void
   onDone: () => Promise<void>
   onOpenScene?: (() => void) | undefined
+  knownNodeIds: ReadonlySet<string> | undefined
+  onSelectNode: (nodeId: string) => void
+  contextNodes: CanvasResponse['nodes']
   mobile: boolean
   showActions: boolean
 }) {
@@ -197,6 +221,11 @@ function DetailContent({
   const pendingApprovals = [...detail.approvals].reverse().filter((item) => item.decision === null)
   const needsApproval = detail.attention === 'needs_approval'
   const [historyDiffReviewId, setHistoryDiffReviewId] = useState<string | null>(null)
+  const hasCost = detail.sessions.some((session) => session.costUsd !== null)
+  const hasTurns = detail.sessions.some((session) => session.turns !== null)
+  const totalCost = detail.sessions.reduce((sum, session) => sum + (session.costUsd ?? 0), 0)
+  const totalTurns = detail.sessions.reduce((sum, session) => sum + (session.turns ?? 0), 0)
+  const lastSession = detail.sessions.at(-1)
 
   return (
     <>
@@ -206,23 +235,33 @@ function DetailContent({
         waitingSince={detail.waitingSince}
         {...(onOpenScene ? { onOpenScene } : {})}
       />
+      {detail.sessions.length > 0 ? (
+        <p className="text-xs text-muted">
+          累计 {hasCost ? `$${totalCost.toFixed(2)}` : '—'} ·{' '}
+          {hasTurns ? `${totalTurns} turns` : '—'}
+        </p>
+      ) : null}
       {mobile ? (
         <MobileCollapsible title="上下文与来源">
           <div className="flex flex-col gap-2">
-            <ContextSnapshotCard
+            <ContextTimeline
               snapshot={task.context}
               invalid={detail.contextInvalid}
               targetNodeId={task.nodeId}
+              knownNodeIds={knownNodeIds}
+              onSelectNode={onSelectNode}
             />
             <TaskOriginCard origin={task.origin} invalid={detail.originInvalid} />
           </div>
         </MobileCollapsible>
       ) : (
         <>
-          <ContextSnapshotCard
+          <ContextTimeline
             snapshot={task.context}
             invalid={detail.contextInvalid}
             targetNodeId={task.nodeId}
+            knownNodeIds={knownNodeIds}
+            onSelectNode={onSelectNode}
           />
           <TaskOriginCard origin={task.origin} invalid={detail.originInvalid} />
         </>
@@ -269,7 +308,12 @@ function DetailContent({
 
       {task.status === 'review' ? (
         detail.review ? (
-          <ReviewCard review={detail.review} onDone={onDone} />
+          <ReviewCard
+            review={detail.review}
+            usage={lastSession ? { costUsd: lastSession.costUsd, turns: lastSession.turns } : null}
+            contextNodes={contextNodes}
+            onDone={onDone}
+          />
         ) : (
           <p className="shrink-0 text-sm text-muted">等待验收记录同步…</p>
         )

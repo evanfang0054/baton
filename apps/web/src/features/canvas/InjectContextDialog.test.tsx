@@ -74,6 +74,50 @@ describe('InjectContextDialog', () => {
     expect(onDone).toHaveBeenCalled()
   })
 
+  it('keeps note and target when the task list refreshes', async () => {
+    const send = vi.fn().mockResolvedValue({})
+    const tasks = [task({ id: 't1', title: '待办任务' })]
+    const view = (nextTasks: TaskSummary[]) => (
+      <CommandProvider send={send}>
+        <InjectContextDialog
+          open
+          nodes={[node]}
+          tasks={nextTasks}
+          defaultTaskId="t1"
+          onOpenChange={() => {}}
+          onDone={() => {}}
+        />
+      </CommandProvider>
+    )
+    const { rerender } = render(view(tasks))
+    await userEvent.type(screen.getByLabelText('投喂说明'), '补充报错')
+
+    rerender(view([...tasks, task({ id: 't3', title: '新任务' })]))
+
+    expect(screen.getByLabelText('投喂说明')).toHaveValue('补充报错')
+    expect(screen.getByLabelText('目标任务')).toHaveValue('t1')
+  })
+
+  it('does not retarget when an explicit task is no longer injectable', () => {
+    render(
+      <CommandProvider send={vi.fn()}>
+        <InjectContextDialog
+          open
+          nodes={[node]}
+          tasks={[
+            task({ id: 't1', title: '待办任务' }),
+            task({ id: 't2', title: '运行中任务', status: 'running' }),
+          ]}
+          defaultTaskId="t2"
+          onOpenChange={() => {}}
+          onDone={() => {}}
+        />
+      </CommandProvider>,
+    )
+    expect(screen.getByLabelText('目标任务')).toHaveValue('')
+    expect(screen.getByRole('button', { name: '投喂' })).toBeDisabled()
+  })
+
   it('disables submit without a task or node', () => {
     render(
       <CommandProvider send={vi.fn()}>
