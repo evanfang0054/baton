@@ -4,6 +4,7 @@ import type {
   AppError,
   ApprovalDecideInput,
   ClientMessage,
+  ContextInjection,
   Engine,
   ReviewDecideInput,
   TaskTransitionEvent,
@@ -30,6 +31,7 @@ import {
   getSetting,
   getTask,
   hasTaskForNode,
+  insertAudit,
   insertNode,
   listQueuedTasksByEnqueuedAt,
   listWorkspaces,
@@ -440,20 +442,51 @@ export function createRuntime(deps: RuntimeDeps) {
       }
     }
     if (input.decision === 'approve') {
-      return applyTransition(review.taskId, { type: 'approve', reviewId: input.reviewId })
-    }
-    if (input.contextNodeIds?.length) {
-      return {
-        ok: false,
-        error: appError('context_inject_not_ready', 'review context injection is not wired yet', {
-          reviewId: input.reviewId,
-        }),
+      const outcome = applyTransition(review.taskId, {
+        type: 'approve',
+        reviewId: input.reviewId,
+      })
+      const reasonProvided = Boolean(input.reason?.trim())
+      if (outcome.ok && (reasonProvided || review.verifyExitCode !== 0)) {
+        deps.db.transaction((tx) => {
+          insertAudit(tx, {
+            id: newId(),
+            ts: now(),
+            actor: 'human',
+            action: 'review.approve_override',
+            detail: {
+              taskId: review.taskId,
+              reviewId: review.id,
+              verifyExitCode: review.verifyExitCode,
+              reasonProvided,
+            },
+          })
+        })
       }
+      return outcome
+    }
+    let contextInjection: ContextInjection | undefined
+    let contextBlock: string | undefined
+    if (input.contextNodeIds?.length) {
+      const prepared = contextService.prepareContextInjection(
+        {
+          taskId: review.taskId,
+          nodeIds: input.contextNodeIds,
+          ...(input.contextNote ? { note: input.contextNote } : {}),
+          source: 'user',
+          actor: 'user',
+        },
+        { allowReview: true },
+      )
+      if (!prepared.ok) return prepared
+      contextInjection = prepared.injection
+      contextBlock = prepared.block
     }
     return applyTransition(review.taskId, {
       type: 'reject',
       reviewId: input.reviewId,
       feedback: input.feedback?.trim() || '请结合补充的上下文修改',
+      ...(contextInjection && contextBlock ? { contextInjection, contextBlock } : {}),
     })
   }
 
