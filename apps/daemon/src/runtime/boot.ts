@@ -62,6 +62,8 @@ export function reconcileOnBoot(deps: BootReconcilerDeps): void {
     !existsSync(task.worktreePath)
 
   for (const task of listTasksByStatus(deps.db, ['running', 'waiting_input'])) {
+    // 预算停止不是会话丢失：重启后仍要等用户提额或取消，不能降级成 stalled。
+    if (task.status === 'waiting_input' && task.waitingReason === 'budget') continue
     if (missingWorktree(task)) {
       apply(task.id, { type: 'error', message: 'worktree missing after restart' })
     } else {

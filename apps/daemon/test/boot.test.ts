@@ -71,6 +71,25 @@ describe('reconcileOnBoot', () => {
     expect(audit?.action).toBe('approval.expired')
   })
 
+  it('keeps a budget stop across restart', () => {
+    const handle = setup()
+    const taskId = handle.createTask({ title: 'budget' })
+    handle.database.raw
+      .prepare("update task set status = 'waiting_input', waiting_reason = 'budget' where id = ?")
+      .run(taskId)
+
+    reconcileOnBoot({
+      db: handle.database.db,
+      config: handle.config,
+      applyTransition: handle.runtime.applyTransition,
+      now: () => 99,
+      newId: () => 'audit-boot',
+    })
+
+    expect(handle.runtime.getTask(taskId)?.status).toBe('waiting_input')
+    expect(handle.runtime.getTask(taskId)?.waitingReason).toBe('budget')
+  })
+
   it('fails an active worktree task when its directory is missing', () => {
     const handle = setup()
     const taskId = handle.createTask({ title: 'worktree' })
