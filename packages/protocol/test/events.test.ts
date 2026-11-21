@@ -30,6 +30,7 @@ const fixtures = [
       durationMs: 10,
     },
   ],
+  ['review.preliminary', { taskId: 't1', reviewId: 'r1', verdict: 'pass', at: 2 }],
 ] as const
 
 describe('ServerMessage', () => {
@@ -75,7 +76,9 @@ describe('ServerMessage', () => {
       }).type,
     ).toBe('error')
 
-    const replayable = fixtures.filter(([type]) => type !== 'ack' && type !== 'error')
+    const replayable = fixtures.filter(
+      ([type]) => type !== 'ack' && type !== 'error' && type !== 'review.preliminary',
+    )
     for (const [type, payload] of replayable) {
       expect(() => ServerMessage.parse({ v: 1, ts: 1, type, payload })).toThrow()
     }

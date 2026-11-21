@@ -134,11 +134,32 @@ export const NodeUpdateInput = z.object({
       y: z.number().optional(),
       w: z.number().positive().optional(),
       h: z.number().positive().optional(),
+      groupId: Id.nullable().optional(),
       data: z.unknown().optional(),
     })
     .strict(),
 })
 export type NodeUpdateInput = z.infer<typeof NodeUpdateInput>
+
+export const NodeMoveManyInput = z.object({
+  canvasId: Id,
+  moves: z
+    .array(z.object({ nodeId: Id, x: z.number(), y: z.number() }).strict())
+    .min(1)
+    .max(200),
+})
+export type NodeMoveManyInput = z.infer<typeof NodeMoveManyInput>
+
+export const GroupCreateInput = z.object({
+  canvasId: Id,
+  x: z.number(),
+  y: z.number(),
+  w: z.number().positive(),
+  h: z.number().positive(),
+  label: z.string().min(1).max(120),
+  childIds: z.array(Id).min(1).max(50),
+})
+export type GroupCreateInput = z.infer<typeof GroupCreateInput>
 
 export const NodeDeleteInput = z.object({ nodeId: Id })
 export type NodeDeleteInput = z.infer<typeof NodeDeleteInput>
@@ -172,6 +193,8 @@ export const ClientMessage = z.discriminatedUnion('type', [
   CommandBase.extend({ type: z.literal('review.decide'), payload: ReviewDecideInput }),
   CommandBase.extend({ type: z.literal('node.create'), payload: NodeCreateInput }),
   CommandBase.extend({ type: z.literal('node.update'), payload: NodeUpdateInput }),
+  CommandBase.extend({ type: z.literal('node.move_many'), payload: NodeMoveManyInput }),
+  CommandBase.extend({ type: z.literal('group.create'), payload: GroupCreateInput }),
   CommandBase.extend({ type: z.literal('node.delete'), payload: NodeDeleteInput }),
   CommandBase.extend({ type: z.literal('edge.create'), payload: EdgeCreateInput }),
   CommandBase.extend({ type: z.literal('edge.delete'), payload: EdgeDeleteInput }),

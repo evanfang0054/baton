@@ -31,6 +31,9 @@ const reviewBase = {
   verifyOutput: 'ok',
   diffStat: { filesChanged: 1, insertions: 2, deletions: 0 },
   decidedAt: null,
+  preliminaryVerdict: null,
+  preliminaryReason: null,
+  preliminaryAt: null,
 }
 
 describe('event/approval/review/audit/notice entities', () => {
