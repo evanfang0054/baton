@@ -18,6 +18,7 @@ import { createEventStore, type BroadcastEvent, type WsEventRow } from '../db/ev
 import {
   countActiveTasks,
   countLiveSessions,
+  createGroup,
   deleteEdgesForNode,
   deleteNode,
   getApproval,
@@ -32,6 +33,8 @@ import {
   insertNode,
   listTasksByStatus,
   listWorkspaces,
+  moveNodes,
+  ungroupChildren,
   updateApprovalResponse,
   updateNode,
 } from '../db/repositories.js'
@@ -49,6 +52,7 @@ import { validateQuestionAnswers } from './questions.js'
 import { createTaskService } from './task-service.js'
 import { createTransitionRunner } from './transition-runner.js'
 import { loadPolicy } from '../workspace/policy.js'
+import { isValidImageSrc } from '../workspace/image-src.js'
 import { resolveWorkspaceDir } from '../workspace/resolver.js'
 import { createSupervisorService } from '../supervisor/service.js'
 import type { SupervisorEngine } from '../supervisor/engine.js'
@@ -503,13 +507,20 @@ export function createRuntime(deps: RuntimeDeps) {
           }
         }
         const input = message.payload.node
-        if (input.type !== 'text' && input.type !== 'file' && input.type !== 'agent') {
+        if (input.type === 'group' || input.type === 'review') {
           return {
             ok: false,
-            error: appError('unsupported_node_type', 'node type is not supported in M1-6a', {
-              type: input.type,
-            }),
+            error: appError(
+              'unsupported_node_type',
+              'node type must be created via its own command',
+              {
+                type: input.type,
+              },
+            ),
           }
+        }
+        if (input.type === 'image' && !isValidImageSrc(input.data.src)) {
+          return { ok: false, error: appError('image_src_invalid', 'invalid image src') }
         }
         const id = newId()
         const ts = now()
@@ -553,10 +564,16 @@ export function createRuntime(deps: RuntimeDeps) {
             }
           }
         }
-        if (existing.type !== 'text' && existing.type !== 'file' && existing.type !== 'agent') {
+        if (
+          existing.type !== 'text' &&
+          existing.type !== 'file' &&
+          existing.type !== 'agent' &&
+          existing.type !== 'image' &&
+          existing.type !== 'group'
+        ) {
           return {
             ok: false,
-            error: appError('unsupported_node_type', 'node type is not supported in M1-6a', {
+            error: appError('unsupported_node_type', 'node type is not supported', {
               type: existing.type,
             }),
           }
@@ -586,10 +603,42 @@ export function createRuntime(deps: RuntimeDeps) {
               }
             }
           }
+          if (existing.type === 'image') {
+            const data = patch.data as { alt?: unknown }
+            if (Object.keys(data).some((key) => key !== 'alt')) {
+              return {
+                ok: false,
+                error: appError('invalid_payload', 'image node data only allows alt'),
+              }
+            }
+            if (data.alt !== undefined && typeof data.alt !== 'string') {
+              return { ok: false, error: appError('invalid_payload', 'image alt must be a string') }
+            }
+          }
+          if (existing.type === 'group') {
+            const data = patch.data as { label?: unknown; collapsed?: unknown }
+            if (Object.keys(data).some((key) => key !== 'label' && key !== 'collapsed')) {
+              return {
+                ok: false,
+                error: appError('invalid_payload', 'group node data only allows label/collapsed'),
+              }
+            }
+            if (
+              data.label !== undefined &&
+              (typeof data.label !== 'string' || data.label.trim().length === 0)
+            ) {
+              return { ok: false, error: appError('invalid_payload', 'group label is invalid') }
+            }
+            if (data.collapsed !== undefined && typeof data.collapsed !== 'boolean') {
+              return { ok: false, error: appError('invalid_payload', 'group collapsed is invalid') }
+            }
+          }
         }
         let next: Node
+        const mergeable =
+          existing.type === 'agent' || existing.type === 'image' || existing.type === 'group'
         const mergedData =
-          existing.type === 'agent' && patch.data !== undefined
+          mergeable && patch.data !== undefined
             ? {
                 ...(existing.data as Record<string, unknown>),
                 ...(patch.data as Record<string, unknown>),
@@ -641,11 +690,13 @@ export function createRuntime(deps: RuntimeDeps) {
             }),
           }
         }
+        let ungrouped = 0
         deps.db.transaction((tx) => {
+          if (existing.type === 'group') ungrouped = ungroupChildren(tx, existing.id)
           deleteEdgesForNode(tx, existing.id)
           deleteNode(tx, existing.id)
         })
-        return { ok: true, ack: { nodeId: existing.id } }
+        return { ok: true, ack: { nodeId: existing.id, ungrouped } }
       }
       case 'edge.create': {
         const result = createEdge({ db: deps.db, newId }, message.payload)
@@ -668,14 +719,59 @@ export function createRuntime(deps: RuntimeDeps) {
           replay: result.rows,
         }
       }
-      case 'node.move_many':
-      case 'group.create':
-        return {
-          ok: false,
-          error: appError('unsupported_command', 'command is not supported yet', {
-            type: message.type,
-          }),
+      case 'node.move_many': {
+        try {
+          const moved = deps.db.transaction((tx) =>
+            moveNodes(tx, message.payload.canvasId, message.payload.moves),
+          )
+          return { ok: true, ack: { moved } }
+        } catch {
+          return {
+            ok: false,
+            error: appError('node_move_invalid', 'invalid node move', {
+              canvasId: message.payload.canvasId,
+            }),
+          }
         }
+      }
+      case 'group.create': {
+        const canvas = getCanvas(deps.db, message.payload.canvasId)
+        if (!canvas) {
+          return {
+            ok: false,
+            error: appError('canvas_not_found', 'canvas not found', {
+              canvasId: message.payload.canvasId,
+            }),
+          }
+        }
+        let group: Node
+        try {
+          group = Node.parse({
+            id: newId(),
+            canvasId: canvas.id,
+            type: 'group',
+            x: message.payload.x,
+            y: message.payload.y,
+            w: message.payload.w,
+            h: message.payload.h,
+            groupId: null,
+            data: { label: message.payload.label, collapsed: false },
+            createdAt: now(),
+            updatedAt: now(),
+          })
+        } catch {
+          return { ok: false, error: appError('group_invalid', 'invalid group payload') }
+        }
+        try {
+          deps.db.transaction((tx) => createGroup(tx, canvas.id, group, message.payload.childIds))
+        } catch {
+          return { ok: false, error: appError('group_invalid', 'invalid group') }
+        }
+        return {
+          ok: true,
+          ack: { groupId: group.id, children: message.payload.childIds.length },
+        }
+      }
     }
   }
 

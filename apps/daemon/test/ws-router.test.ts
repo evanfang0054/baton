@@ -183,19 +183,68 @@ describe('ws router', () => {
     expect(error.payload).toMatchObject({ commandId: 'g2', code: 'group_invalid' })
   })
 
-  it('rejects not-yet-implemented move_many and group.create loudly', async () => {
+  it('creates image nodes and rejects unsafe src', async () => {
     const { handle, ws } = await setup()
     ws.send({
       v: 1,
-      type: 'node.move_many',
-      id: 'm1',
+      type: 'node.create',
+      id: 'i1',
       ts: 1,
-      payload: { canvasId: handle.seeded.canvasId, moves: [{ nodeId: 'x', x: 0, y: 0 }] },
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        node: {
+          type: 'image',
+          x: 0,
+          y: 0,
+          w: 320,
+          h: 240,
+          groupId: null,
+          data: { src: '.baton/uploads/a.png', alt: 'a' },
+        },
+      },
+    })
+    const created = await ws.next('ack')
+    const imageId = (created.payload as { data: { nodeId: string } }).data.nodeId
+    expect(getNode(handle.database.db, imageId)?.type).toBe('image')
+
+    ws.send({
+      v: 1,
+      type: 'node.create',
+      id: 'i2',
+      ts: 1,
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        node: {
+          type: 'image',
+          x: 0,
+          y: 0,
+          w: 320,
+          h: 240,
+          groupId: null,
+          data: { src: 'javascript:alert(1)' },
+        },
+      },
     })
     expect((await ws.next('error')).payload).toMatchObject({
-      commandId: 'm1',
-      code: 'unsupported_command',
+      commandId: 'i2',
+      code: 'image_src_invalid',
     })
+  })
+
+  it('creates a group, moves it with children, and ungroups on delete', async () => {
+    const { handle, ws } = await setup()
+    handle.database.raw
+      .prepare(
+        `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
+         values ('m6-g-text-1', ?, 'text', 10, 10, 100, 50, null, ?, 1, 1)`,
+      )
+      .run(handle.seeded.canvasId, JSON.stringify({ content: 'a' }))
+    handle.database.raw
+      .prepare(
+        `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
+         values ('m6-g-text-2', ?, 'text', 20, 20, 100, 50, null, ?, 1, 1)`,
+      )
+      .run(handle.seeded.canvasId, JSON.stringify({ content: 'b' }))
 
     ws.send({
       v: 1,
@@ -206,16 +255,44 @@ describe('ws router', () => {
         canvasId: handle.seeded.canvasId,
         x: 0,
         y: 0,
-        w: 100,
-        h: 100,
-        label: 'g',
-        childIds: ['x'],
+        w: 400,
+        h: 300,
+        label: '组',
+        childIds: ['m6-g-text-1', 'm6-g-text-2'],
       },
     })
-    expect((await ws.next('error')).payload).toMatchObject({
-      commandId: 'g1',
-      code: 'unsupported_command',
+    const grouped = await ws.next('ack')
+    const groupId = (grouped.payload as { data: { groupId: string } }).data.groupId
+    expect(getNode(handle.database.db, 'm6-g-text-1')?.groupId).toBe(groupId)
+
+    ws.send({
+      v: 1,
+      type: 'node.move_many',
+      id: 'm1',
+      ts: 1,
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        moves: [
+          { nodeId: groupId, x: 100, y: 100 },
+          { nodeId: 'm6-g-text-1', x: 110, y: 110 },
+        ],
+      },
     })
+    await ws.next('ack')
+    expect(getNode(handle.database.db, groupId)).toMatchObject({ x: 100, y: 100 })
+    expect(getNode(handle.database.db, 'm6-g-text-1')).toMatchObject({ x: 110, y: 110 })
+
+    ws.send({
+      v: 1,
+      type: 'node.delete',
+      id: 'd1',
+      ts: 1,
+      payload: { nodeId: groupId },
+    })
+    await ws.next('ack')
+    expect(getNode(handle.database.db, groupId)).toBeNull()
+    expect(getNode(handle.database.db, 'm6-g-text-1')?.groupId).toBeNull()
+    expect(getNode(handle.database.db, 'm6-g-text-2')?.groupId).toBeNull()
   })
 
   it('renames an agent node without losing engine or taskId', async () => {
@@ -301,7 +378,7 @@ describe('ws router', () => {
     expect(error.payload).toMatchObject({ code: 'node_in_use' })
   })
 
-  it('rejects unsupported node types in 6a', async () => {
+  it('rejects group/review via node.create', async () => {
     const { handle, ws } = await setup()
     ws.send({
       v: 1,
@@ -311,13 +388,13 @@ describe('ws router', () => {
       payload: {
         canvasId: handle.seeded.canvasId,
         node: {
-          type: 'image',
+          type: 'group',
           x: 0,
           y: 0,
           w: 320,
           h: 200,
           groupId: null,
-          data: { src: 'https://example.com/a.png' },
+          data: { label: 'g', collapsed: false },
         },
       },
     })
