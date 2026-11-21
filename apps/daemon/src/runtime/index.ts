@@ -264,6 +264,7 @@ export function createRuntime(deps: RuntimeDeps) {
 
   const supervisor = createSupervisorService({
     db: deps.db,
+    eventStore,
     dataDir: deps.config.dataDir,
     taskService,
     defaultEngine,

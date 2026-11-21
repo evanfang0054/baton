@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { TaskTransitionEvent } from '@baton/protocol'
 import { getTask } from '../src/db/repositories.js'
+import { createEventStore } from '../src/db/event-store.js'
 import { createTaskService } from '../src/runtime/task-service.js'
 import type { SupervisorEngine } from '../src/supervisor/engine.js'
 import { createSupervisorService } from '../src/supervisor/service.js'
@@ -61,8 +62,13 @@ function setup(
   const transitions: Array<{ taskId: string; event: TaskTransitionEvent }> = []
   const pending: Array<Promise<void>> = []
   let sequence = 0
+  const eventStore = createEventStore(database.db, {
+    now: () => 10,
+    newId: () => `evt-${++sequence}`,
+  })
   const service = createSupervisorService({
     db: database.db,
+    eventStore,
     dataDir: root,
     taskService,
     defaultEngine: 'claude-sdk',
@@ -541,7 +547,7 @@ describe('supervisor service', () => {
         throw new Error('unused')
       },
     }
-    const { database, seeded, service, transitions } = setup(engine, {
+    const { database, seeded, service, transitions, frames } = setup(engine, {
       trusted: true,
     })
     const targetOrigin = seedSupervisorReview(database, seeded)
@@ -563,6 +569,27 @@ describe('supervisor service', () => {
     const messages = service.history(seeded.workspaceId, 50).messages
     expect(messages.at(-1)?.content).toContain('建议通过')
     expect(messages.at(-1)?.content).toContain('等你最终确认')
+
+    const review = database.raw
+      .prepare(
+        'select preliminary_verdict, preliminary_reason, preliminary_at from review where id = ?',
+      )
+      .get('rv1') as {
+      preliminary_verdict: string | null
+      preliminary_reason: string | null
+      preliminary_at: number | null
+    }
+    expect(review).toMatchObject({
+      preliminary_verdict: 'pass',
+      preliminary_reason: expect.stringContaining('检查'),
+      preliminary_at: expect.any(Number),
+    })
+    expect(frames.some((frame) => frame.includes('review.preliminary'))).toBe(true)
+    expect(
+      database.raw
+        .prepare("select count(*) as n from ws_event where type = 'review.preliminary'")
+        .get(),
+    ).toEqual({ n: 1 })
   })
 
   it('leaves the target in review when the verifier returns FAIL', () => {
