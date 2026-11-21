@@ -124,6 +124,17 @@ describe('api request', () => {
         preliminary: { verdict: 'pass', summary: 'ok' },
         hash: 'a'.repeat(64),
       },
+      budget: {
+        budgetUsd: 2,
+        spentUsd: 1,
+        remainingUsd: 1,
+        ratio: 0.5,
+        overBudget: false,
+        nearBudget: false,
+        workerCostUsd: 1,
+        verifierCostUsd: 0.1,
+        turns: 2,
+      },
     })
 
     const result = await getTaskAcceptance('t1')

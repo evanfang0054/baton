@@ -199,6 +199,7 @@ export const TaskAcceptanceResponse = z.object({
   items: AcceptanceItems,
   run: AcceptanceRun.nullable(),
   report: AcceptanceReport,
+  budget: TaskBudgetSummary,
 })
 export type TaskAcceptanceResponse = z.infer<typeof TaskAcceptanceResponse>
 

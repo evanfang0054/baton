@@ -70,4 +70,45 @@ describe('TaskBoard filters', () => {
     await userEvent.type(screen.getByLabelText('搜索任务'), '不存在')
     expect(screen.queryByText('待验收任务')).not.toBeInTheDocument()
   })
+
+  it('includes AC failures and over-budget tasks in needs-me', async () => {
+    renderBoard([
+      task({
+        id: 'ac-fail',
+        title: 'AC 未过任务',
+        status: 'running',
+        acceptance: {
+          contractId: 'ac1',
+          version: 1,
+          revision: 0,
+          status: 'draft',
+          counts: { total: 2, pass: 1, fail: 1, pending: 0, waived: 0 },
+          verdict: 'fail',
+          topFailures: [{ text: '错误提示', evidence: null }],
+        },
+      }),
+      task({
+        id: 'over-budget',
+        title: '超预算任务',
+        status: 'running',
+        budget: {
+          budgetUsd: 2,
+          spentUsd: 2.5,
+          remainingUsd: 0,
+          ratio: 1.25,
+          overBudget: true,
+          nearBudget: false,
+          workerCostUsd: 2.5,
+          verifierCostUsd: 0,
+          turns: 3,
+        },
+      }),
+      task({ id: 'plain', title: '普通任务', status: 'running' }),
+    ])
+
+    await userEvent.click(screen.getByRole('button', { name: '需要我' }))
+    expect(screen.getByText('AC 未过任务')).toBeInTheDocument()
+    expect(screen.getByText('超预算任务')).toBeInTheDocument()
+    expect(screen.queryByText('普通任务')).not.toBeInTheDocument()
+  })
 })

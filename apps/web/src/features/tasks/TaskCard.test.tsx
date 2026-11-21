@@ -60,4 +60,37 @@ describe('TaskCard', () => {
     expect(onOpenScene).toHaveBeenCalledWith('t1')
     expect(onSelect).not.toHaveBeenCalled()
   })
+
+  it('shows acceptance and budget badges with text and icons', () => {
+    render(
+      <TaskCard
+        task={{
+          ...task,
+          acceptance: {
+            contractId: 'ac1',
+            version: 1,
+            revision: 0,
+            status: 'draft',
+            counts: { total: 3, pass: 2, fail: 1, pending: 0, waived: 0 },
+            verdict: 'fail',
+            topFailures: [{ text: '深链参数未校验', evidence: null }],
+          },
+          budget: {
+            budgetUsd: 2,
+            spentUsd: 1.8,
+            remainingUsd: 0.2,
+            ratio: 0.9,
+            overBudget: false,
+            nearBudget: true,
+            workerCostUsd: 1.8,
+            verifierCostUsd: 0,
+            turns: 3,
+          },
+        }}
+        onSelect={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('AC 2/3')).toBeInTheDocument()
+    expect(screen.getByText('接近预算')).toBeInTheDocument()
+  })
 })

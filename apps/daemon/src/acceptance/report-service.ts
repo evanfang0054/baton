@@ -6,6 +6,7 @@ import type {
   AcceptanceReport,
   AcceptanceRun,
   Task,
+  TaskBudgetSummary,
 } from '@baton/protocol'
 import type { Config } from '../config.js'
 import { getTaskBudgetSummary } from '../budget/service.js'
@@ -24,6 +25,7 @@ export interface AcceptanceResponse {
   items: AcceptanceItem[]
   run: AcceptanceRun | null
   report: AcceptanceReport
+  budget: TaskBudgetSummary
 }
 
 export function getAcceptanceResponse(
@@ -77,6 +79,7 @@ export function getAcceptanceResponse(
     items: bundle.items,
     run: bundle.run,
     report: { ...report, hash },
+    budget,
   }
 }
 

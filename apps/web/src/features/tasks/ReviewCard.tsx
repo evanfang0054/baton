@@ -1,4 +1,10 @@
-import { VERIFY_SKIPPED, type Node, type ReviewView } from '@baton/protocol'
+import {
+  VERIFY_SKIPPED,
+  type Node,
+  type ReviewView,
+  type TaskAcceptanceSummary,
+  type TaskBudgetSummary,
+} from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
 import { TextArea } from '@heroui/react/textarea'
@@ -14,11 +20,15 @@ const CONTEXT_TYPES = new Set<Node['type']>(['text', 'file', 'image', 'group'])
 export function ReviewCard({
   review,
   usage,
+  acceptance = null,
+  budget = null,
   contextNodes,
   onDone,
 }: {
   review: ReviewView
   usage?: { costUsd: number | null; turns: number | null } | null
+  acceptance?: TaskAcceptanceSummary | null
+  budget?: TaskBudgetSummary | null
   contextNodes?: Node[]
   onDone: () => Promise<void> | void
 }) {
@@ -39,7 +49,12 @@ export function ReviewCard({
   const action = useCommandAction(onDone)
   const decided = review.verdict !== null
   const verifySkipped = review.verifyExitCode === VERIFY_SKIPPED
-  const needsOverride = review.verifyExitCode !== 0
+  const acceptanceIssue =
+    !acceptance ||
+    acceptance.counts.total === 0 ||
+    acceptance.counts.fail > 0 ||
+    acceptance.counts.pending > 0
+  const needsOverride = review.verifyExitCode !== 0 || acceptanceIssue
   const withContext = attachContext && attachable.length > 0
 
   // 选择被清空后不能留下一个不可见的“附带上下文”开关。
@@ -53,7 +68,7 @@ export function ReviewCard({
       payload: {
         reviewId: review.id,
         decision: 'approve',
-        ...(overrideReason.trim() ? { reason: overrideReason.trim() } : {}),
+        ...(overrideReason.trim() ? { overrideReason: overrideReason.trim() } : {}),
       },
     })
   }
@@ -92,6 +107,26 @@ export function ReviewCard({
       </div>
       {review.verifyOutput ? <pre className={verifyOutputClass}>{review.verifyOutput}</pre> : null}
 
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+        {acceptance ? (
+          <span className={acceptance.counts.fail > 0 ? 'text-danger' : 'text-muted'}>
+            AC {acceptance.counts.pass}/{acceptance.counts.total} · 未过 {acceptance.counts.fail} ·
+            待验 {acceptance.counts.pending}
+          </span>
+        ) : (
+          <span className="text-warning">初步验收未完成</span>
+        )}
+        {acceptance?.topFailures[0] ? (
+          <span className="text-danger">未过项：{acceptance.topFailures[0].text}</span>
+        ) : null}
+        {budget ? (
+          <span className={budget.overBudget ? 'text-danger' : 'text-muted'}>
+            ${budget.spentUsd.toFixed(2)} / ${budget.budgetUsd.toFixed(2)}
+            {budget.overBudget ? ' · 超预算' : budget.nearBudget ? ' · 接近预算' : ''}
+          </span>
+        ) : null}
+      </div>
+
       <section className="mt-3 rounded border border-separator bg-background p-2">
         <p className="text-xs font-medium text-foreground">
           初步验收：
@@ -113,7 +148,9 @@ export function ReviewCard({
         </p>
       ) : confirmingApprove ? (
         <div className="mt-3 flex flex-col gap-2 rounded border border-warning bg-warning/10 p-2">
-          <p className="text-xs text-warning">校验未通过，仍要通过吗？</p>
+          <p className="text-xs text-warning">
+            {acceptanceIssue ? '仍有验收项未通过，仍要通过吗？' : '校验未通过，仍要通过吗？'}
+          </p>
           <TextArea
             aria-label="通过理由"
             placeholder="可选：为什么仍然通过"
