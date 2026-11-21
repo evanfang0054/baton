@@ -113,14 +113,17 @@ function truncate(value: string, max: number): string {
 }
 
 function sanitizeText(value: string, workspaceRoot?: string): string {
-  if (!workspaceRoot) return value
-  return value.split(workspaceRoot).join('<workspace>')
+  const masked = workspaceRoot ? value.split(workspaceRoot).join('<workspace>') : value
+  // 报告里不允许出现本机绝对路径；根未知或越界的一律遮蔽。
+  // 只匹配行首或空白/引号/等号后的路径，避免破坏 URL（`https://`）。
+  return masked.replace(/(^|[\s("'=])(\/[^\s"'`]+)/g, '$1<external>')
 }
 
 function relativizePath(value: string, workspaceRoot?: string): string {
   if (!value) return value
   if (!value.startsWith('/')) return value
-  if (!workspaceRoot) return value
+  // 根未知时也不能把本机绝对路径写进报告。
+  if (!workspaceRoot) return '<external>'
   const root = workspaceRoot.endsWith('/') ? workspaceRoot.slice(0, -1) : workspaceRoot
   if (value === root) return '<workspace>'
   if (value.startsWith(`${root}/`)) return value.slice(root.length + 1)

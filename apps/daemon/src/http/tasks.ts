@@ -8,7 +8,10 @@ import {
   TaskListResponse,
 } from '@baton/protocol'
 import type { FastifyInstance } from 'fastify'
+import { getAcceptanceResponse } from '../acceptance/report-service.js'
+import { getTaskBudgetSummary } from '../budget/service.js'
 import type { Config } from '../config.js'
+import { listAcceptanceSummaries } from '../db/acceptance-repository.js'
 import {
   getReviewByTask,
   getTask,
@@ -46,12 +49,35 @@ export function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesDeps): 
     if (!parsed.success) {
       throw appError('invalid_payload', 'invalid task query', parsed.error.issues)
     }
-    const tasks = listTasks(deps.db, parsed.data).map((task) => ({
+    const rows = listTasks(deps.db, parsed.data)
+    const acceptance = listAcceptanceSummaries(
+      deps.db,
+      rows.map((task) => task.id),
+    )
+    const tasks = rows.map((task) => ({
       ...task,
       attention: attentionFor(task.status, task.waitingReason),
       waitingSince: waitingSinceFor(task),
+      acceptance: acceptance.get(task.id) ?? null,
+      budget: getTaskBudgetSummary(deps.db, task, deps.config),
     }))
     return TaskListResponse.parse({ tasks })
+  })
+
+  app.get('/api/tasks/:id/acceptance', async (req) => {
+    const params = req.params as { id?: string }
+    if (!params.id) {
+      throw appError('invalid_payload', 'task id is required')
+    }
+    const task = getTask(deps.db, params.id)
+    if (!task) {
+      throw appError('task_not_found', 'task not found', { taskId: params.id })
+    }
+    const response = getAcceptanceResponse(deps.db, task, deps.config)
+    if (!response) {
+      throw appError('acceptance_not_found', 'acceptance not found', { taskId: params.id })
+    }
+    return response
   })
 
   app.get('/api/tasks/:id', async (req) => {

@@ -83,6 +83,16 @@ describe('buildAcceptanceReport', () => {
     expect(canonical).toBe(stableStringify(report))
   })
 
+  it('never emits absolute paths when the workspace root is unknown', () => {
+    const { report } = buildAcceptanceReport({
+      ...input,
+      workspaceRoot: undefined,
+      changedFiles: ['/workspace/demo/src/login.tsx', 'src/app.tsx'],
+    })
+    expect(report.changes.files).toEqual(['<external>', 'src/app.tsx'])
+    expect(JSON.stringify(report)).not.toContain('/workspace/')
+  })
+
   it('marks skipped verify and failure without AC', () => {
     const { report } = buildAcceptanceReport({
       ...input,

@@ -103,7 +103,10 @@ export function insertAcceptanceRun(tx: Tx, input: AcceptanceRun): void {
     .run()
 }
 
-export function getLatestAcceptanceContract(db: Db, taskId: string): AcceptanceContract | null {
+export function getLatestAcceptanceContract(
+  db: Pick<Db, 'select'>,
+  taskId: string,
+): AcceptanceContract | null {
   const row = db
     .select()
     .from(acceptanceContract)
@@ -115,7 +118,7 @@ export function getLatestAcceptanceContract(db: Db, taskId: string): AcceptanceC
 }
 
 export function getLatestFrozenAcceptanceContract(
-  db: Db,
+  db: Pick<Db, 'select'>,
   taskId: string,
 ): AcceptanceContract | null {
   const row = db
@@ -128,7 +131,7 @@ export function getLatestFrozenAcceptanceContract(
   return row ? toContract(row) : null
 }
 
-export function getAcceptanceItems(db: Db, contractId: string): AcceptanceItem[] {
+export function getAcceptanceItems(db: Pick<Db, 'select'>, contractId: string): AcceptanceItem[] {
   return db
     .select()
     .from(acceptanceItem)
@@ -138,7 +141,10 @@ export function getAcceptanceItems(db: Db, contractId: string): AcceptanceItem[]
     .map(toItem)
 }
 
-export function getAcceptanceRunByContract(db: Db, contractId: string): AcceptanceRun | null {
+export function getAcceptanceRunByContract(
+  db: Pick<Db, 'select'>,
+  contractId: string,
+): AcceptanceRun | null {
   const row = db
     .select()
     .from(acceptanceRun)
@@ -155,7 +161,10 @@ export interface AcceptanceBundle {
   run: AcceptanceRun | null
 }
 
-export function getAcceptanceBundle(db: Db, taskId: string): AcceptanceBundle | null {
+export function getAcceptanceBundle(
+  db: Pick<Db, 'select'>,
+  taskId: string,
+): AcceptanceBundle | null {
   const contract = getLatestAcceptanceContract(db, taskId)
   if (!contract) return null
   return {
@@ -166,7 +175,7 @@ export function getAcceptanceBundle(db: Db, taskId: string): AcceptanceBundle | 
 }
 
 export function listAcceptanceSummaries(
-  db: Db,
+  db: Pick<Db, 'select'>,
   taskIds: string[],
 ): Map<string, TaskAcceptanceSummary> {
   const result = new Map<string, TaskAcceptanceSummary>()
@@ -272,7 +281,11 @@ export function replaceAcceptanceItems(
   tx.delete(acceptanceItem).where(eq(acceptanceItem.contractId, input.contractId)).run()
   insertAcceptanceItems(
     tx,
-    input.items.map((item, index) => ({ ...item, contractId: input.contractId, ordinal: index + 1 })),
+    input.items.map((item, index) => ({
+      ...item,
+      contractId: input.contractId,
+      ordinal: index + 1,
+    })),
   )
   const revision = contract.revision + 1
   tx.update(acceptanceContract)
