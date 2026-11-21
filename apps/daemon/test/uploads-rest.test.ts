@@ -65,3 +65,71 @@ describe('POST /api/workspaces/:id/uploads', () => {
     expect(res.statusCode).toBe(404)
   })
 })
+
+describe('GET /api/workspaces/:id/uploads/:name', () => {
+  it('serves an uploaded image with security headers', async () => {
+    const { app, handle } = await setup()
+    const upload = await app.inject({
+      method: 'POST',
+      url: `/api/workspaces/${handle.seeded.workspaceId}/uploads`,
+      payload: {
+        name: 'a.png',
+        mime: 'image/png',
+        dataBase64: Buffer.from('png-bytes').toString('base64'),
+      },
+    })
+    const file = WorkspaceUploadResponse.parse(upload.json()).file
+    const name = file.path.split('/').at(-1)
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workspaces/${handle.seeded.workspaceId}/uploads/${name}`,
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['content-type']).toBe('image/png')
+    expect(res.headers['x-content-type-options']).toBe('nosniff')
+    expect(res.headers['cache-control']).toBe('private, max-age=300')
+  })
+
+  it('adds CSP sandbox for SVG and rejects non-image extensions', async () => {
+    const { app, handle } = await setup()
+    const svg = await app.inject({
+      method: 'POST',
+      url: `/api/workspaces/${handle.seeded.workspaceId}/uploads`,
+      payload: {
+        name: 'a.svg',
+        mime: 'image/svg+xml',
+        dataBase64: Buffer.from('<svg/>').toString('base64'),
+      },
+    })
+    const svgName = WorkspaceUploadResponse.parse(svg.json()).file.path.split('/').at(-1)
+    const svgRes = await app.inject({
+      method: 'GET',
+      url: `/api/workspaces/${handle.seeded.workspaceId}/uploads/${svgName}`,
+    })
+    expect(svgRes.statusCode).toBe(200)
+    expect(svgRes.headers['content-security-policy']).toContain('sandbox')
+
+    const txt = await app.inject({
+      method: 'POST',
+      url: `/api/workspaces/${handle.seeded.workspaceId}/uploads`,
+      payload: { name: 'a.txt', dataBase64: Buffer.from('a').toString('base64') },
+    })
+    const txtName = WorkspaceUploadResponse.parse(txt.json()).file.path.split('/').at(-1)
+    const txtRes = await app.inject({
+      method: 'GET',
+      url: `/api/workspaces/${handle.seeded.workspaceId}/uploads/${txtName}`,
+    })
+    expect(txtRes.statusCode).toBe(415)
+  })
+
+  it('rejects traversal and missing files', async () => {
+    const { app, handle } = await setup()
+    for (const name of ['..%2Fsecret.png', 'missing.png']) {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/workspaces/${handle.seeded.workspaceId}/uploads/${name}`,
+      })
+      expect(res.statusCode).toBe(404)
+    }
+  })
+})
