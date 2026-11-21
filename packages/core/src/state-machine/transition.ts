@@ -157,6 +157,9 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
         return ok('running', ctx.retryCount, [
           effects.sendToSession(event.text),
           effects.appendUserReply(event.text),
+          ...(event.contextInjection
+            ? [effects.appendContextInjection(event.contextInjection)]
+            : []),
         ])
       }
       if (event.type === 'error') {
@@ -234,6 +237,9 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
           [
             effects.persistReviewVerdict(event.reviewId, 'rejected'),
             effects.appendFeedback(event.feedback),
+            ...(event.contextInjection
+              ? [effects.appendContextInjection(event.contextInjection, event.contextBlock)]
+              : []),
             effects.enqueueTask(),
           ],
           null,

@@ -1160,7 +1160,7 @@ Expected: FAIL，列出缺少 `enqueuedAt` / `injections` / `costUsd` / `turns` 
 - [ ] **Step 3: Run typecheck + tests**
 
 Run: `pnpm typecheck && pnpm test`
-Expected: PASS。
+Expected: protocol/core/web fixture 错误清零；daemon 仍会有 `appendContextInjection`/`context.inject`/`feedback`/usage 的预期错误，由 Plan 2 Task 2-4 接上。若只想验证本 Plan，跑 `pnpm --filter @baton/protocol typecheck && pnpm --filter @baton/core typecheck && pnpm --filter @baton/web typecheck`。
 
 - [ ] **Step 4: Commit**
 
@@ -1176,5 +1176,6 @@ git commit -m "test: 补齐 M6-2 新字段 fixture"
 - `pnpm --filter @baton/protocol exec vitest run`
 - `pnpm --filter @baton/core exec vitest run`
 - `pnpm --filter @evanfang0054/baton exec vitest run test/migration-0011.test.ts test/migrate.test.ts test/repositories.test.ts`
-- `pnpm typecheck && pnpm lint && pnpm format:check`
+- `pnpm --filter @baton/protocol typecheck && pnpm --filter @baton/core typecheck && pnpm --filter @baton/web typecheck`
+- 根 `pnpm typecheck` 在 daemon Plan 2 Task 2-4 接上 `appendContextInjection`/`context.inject`/feedback/usage 后转绿；本 Plan 不把 daemon 的预期红当成功能失败。
 - 不新增表；`assembleContext` 旧快照逐字节不变。

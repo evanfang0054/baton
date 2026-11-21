@@ -85,7 +85,7 @@ M6-1 已把“任务现场”做成派生视图：可以从看板/任务详情�
 | D1  | 迭代范围         | 上下文再注入 + cost/turn + 通过确认；AC 清单、现场任务动作后置                                       | 先补齐闭环两端；一次跨 protocol/daemon/web 的范围已经不小             |
 | D2  | 注入时机         | `todo/queued/waiting_input`；`review` 只能由 reject 携带；不做 `running`                             | 三个安全点都能在“下一轮 prompt”生效，不需要中途改运行中的 prompt       |
 | D3  | 上下文模型       | 扩展 `task.context.injections[]`；初始快照不变；不建新表                                             | 只有一个读取路径；比新表少一套 repository/迁移，符合 KISS             |
-| D4  | 注入语义         | 选中节点 + 直接 `context` 边 + 上游 2 层；沿用排序/预算/敏感路径规则                                 | 与建任务时的 `assembleContext` 一致；显式连线继续是强制依赖           |
+| D4  | 注入语义         | 选中节点 + 其直接上游边 + 上游 2 层；不自动展开目标 Agent 的既有 context 边；沿用排序/预算/敏感路径规则 | 与建任务时的 `assembleContext` 一致，但避免每次注入重复初始上下文；显式连线继续是强制依赖 |
 | D5  | prompt 表示      | 追加 `<context_update>` 块；按状态分别包在 `<context_update>` / `<user_reply>` / `<feedback>` 中     | 每次注入可追溯；不重写历史；不重复旧上下文                           |
 | D6  | 现场权限         | M6-2 只加“投喂上下文”和“打开详情”；画布布局仍只读                                                   | 最小安全改动；任务动作会修改 M6-1 的 D4，需要单独 spec               |
 | D7  | 验收证据         | cost/turn 落库展示；verify 失败/跳过时通过需二次确认；不做 AC 清单                                   | 数据 adapter 已拿到，只差持久化/UI；AC 的“谁写、怎么核”需要单独设计   |
@@ -129,7 +129,7 @@ export const ContextInjection = z.object({
 
 - `seq` 在单个 task 内从 1 单调递增，由 daemon 在事务内计算（`injections.length + 1`）。
 - `nodeIds` 是用户/总管显式选择的节点；`included` 是装配后实际进入 prompt 的节点（含边闭包），`dropped` 记录预算/敏感路径/空内容/缺失。
-- `chars` 是本次 `<context_update>` 内容块的字符数，用于累计预算；不含包装标签。
+- `chars` 是本次注入的预算字符数；`assembleContextInjection().chars` 只算节点正文，daemon 用 `contextUpdateChars(assembled, note)` 加上转义后的 note 长度后写入 `ContextInjection.chars`，累计预算以 `ContextInjection.chars` 为准；不含包装标签。
 - `note` 只存在 `task.context.injections[]` 和 `task.prompt`；事件/审计不写。未传 note 时由服务端填默认句“补充以下上下文”。
 - 不存节点正文：正文只在 `task.prompt` 中；时间线显示 `included[].title/type/chars`，节点 chip 点击回画布。
 - `included[].depth` 是本次注入内部的深度，不是相对初始上下文的深度。
@@ -300,10 +300,10 @@ z.object({
   - `running/verifying` → false，reason `running`
   - `done/failed/cancelled` → false，reason `terminal`
 - `assembleContextInjection(input)`：
-  - 输入：`selectedNodeIds`、`nodes`、`edges`、`contentByNodeId`；
-  - 复用 `assembleContext` 的 `isContentNode`、group 展开、直接边、上游深度 2、排序 `(depth, y, x, id)`、敏感路径、空内容丢弃、单节点/总预算；
+  - 输入：`selectedNodeIds`、`nodes`、`edges`、`contentByNodeId`；不接收目标 Agent；
+  - 复用 `assembleContext` 的 `isContentNode`、group 展开、直接上游边、上游深度 2、排序 `(depth, y, x, id)`、敏感路径、空内容丢弃、单节点/总预算；不自动展开目标 Agent 的既有 context 边；
   - 返回 `{ included, dropped, truncated, redactedPaths, relations, relationsTruncated, chars }`；
-  - `chars` 只算节点正文；daemon 在写 `ContextInjection.chars` 时再加 note 长度；
+  - `chars` 只算节点正文；daemon 用 `contextUpdateChars(assembled, note)` 加转义后的 note 长度；
   - 不返回最终 prompt，只返回本次内容和元数据。
 - `buildContextUpdateBlock({ seq, at, source, note, assembled })`：
   - 输出 `<context_update seq="..." at="..." source="...">`；
@@ -543,3 +543,4 @@ injectContext(input: {
 
 - 2026-11-21：三轮 frontier + assumption audit；确认范围、注入状态、上下文模型、注入语义、prompt 表示、现场权限、验收深度、总管工具、note、review、预算、override、UI 入口、总管定位、队列顺序、空反馈、移动端；设计通过。
 - 2026-11-21：用户确认 Section 1（架构与数据模型）与 Section 2（状态矩阵、UI、错误处理、验收）；进入 spec 落库。
+- 2026-11-21：Plan 1 实现评审修正：D4 改为“选中节点 + 直接上游边 + 上游 2 层，不自动展开目标 Agent 的既有 context 边”，避免每次注入重复初始上下文（回链 Plan 1 Task 2）；review 上下文改为独立 `<context_update>` 块，避免 feedback 16k 截断；`user_input` 上限放宽到 64k；新增 `contextUpdateChars` 统计转义后的 note。
