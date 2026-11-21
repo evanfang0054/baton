@@ -482,6 +482,37 @@ describe('supervisor service', () => {
     expect(messages.at(-1)?.content).toContain('最终通过仍由你决定')
   })
 
+  it('dispatches a verifier for a manual task in review', () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        throw new Error('unused')
+      },
+    }
+    const { database, seeded, service } = setup(engine)
+    database.raw
+      .prepare("update task set status = 'review', origin_json = null, updated_at = 2 where id = ?")
+      .run(seeded.taskId)
+    database.raw
+      .prepare(
+        `insert into review (id, task_id, verdict, verify_exit_code, verify_output, diff_stat_json, decided_at)
+         values ('rv-manual', ?, null, 0, 'ok', ?, null)`,
+      )
+      .run(seeded.taskId, JSON.stringify({ filesChanged: 0, insertions: 0, deletions: 0 }))
+
+    service.observeTask({ taskId: seeded.taskId, status: 'review', waitingReason: null })
+
+    const rows = database.raw
+      .prepare('select id, origin_json from task order by created_at')
+      .all() as Array<{ id: string; origin_json: string | null }>
+    expect(rows).toHaveLength(2)
+    expect(JSON.parse(rows[1]!.origin_json!)).toMatchObject({
+      source: 'supervisor-review',
+      reviewOfTaskId: seeded.taskId,
+      reviewOfReviewId: 'rv-manual',
+      actor: { kind: 'system' },
+    })
+  })
+
   it('does not dispatch a verifier when the kill switch is on', () => {
     const engine: SupervisorEngine = {
       async run() {

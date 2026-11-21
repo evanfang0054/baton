@@ -386,24 +386,62 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
    * 总管不亲自验收：为这一轮 review 派一个新的验收 Agent 任务。
    * 验收员只拿任务元数据、verify/diff 摘要和工人最后回复，不拿完整 transcript。
    */
-  function dispatchVerifier(task: TaskDetail, origin: TaskOrigin, review: Review): void {
+  function failAcceptanceRun(taskId: string, reviewId: string, summary: string): void {
+    const bundle = getAcceptanceBundle(deps.db, taskId)
+    if (!bundle?.run || bundle.run.reviewId !== reviewId || bundle.run.status !== 'running') return
+    const runId = bundle.run.id
+    const at = deps.now()
+    const event = deps.db.transaction((tx) => {
+      updateAcceptanceRun(tx, runId, {
+        status: 'failed',
+        verdict: 'incomplete',
+        summary: summary.slice(0, 1000),
+        completedAt: at,
+      })
+      const after = getAcceptanceBundle(tx, taskId)
+      if (!after) return null
+      const { counts, verdict } = acceptanceSummary(after.items)
+      return deps.eventStore.appendWs(tx, {
+        type: 'acceptance.updated',
+        ts: at,
+        payload: {
+          taskId,
+          contractId: after.contract.id,
+          version: after.contract.version,
+          revision: after.contract.revision,
+          status: after.contract.status,
+          counts,
+          verdict,
+        },
+      })
+    })
+    if (event) deps.broadcastRaw?.(buildWsFrame(event))
+  }
+
+  /**
+   * 总管不亲自验收：为这一轮 review 派一个新的验收 Agent 任务。
+   * 验收员只拿任务元数据、verify/diff 摘要和工人最后回复，不拿完整 transcript。
+   * 人工创建的任务没有总管会话，只写审计和验收结果，不推站内消息。
+   */
+  function dispatchVerifier(task: TaskDetail, origin: TaskOrigin | null, review: Review): void {
+    const threadId = origin?.threadId ?? null
     const dedupeKey = `observe:dispatch:${task.id}:${review.id}`
-    if (store.hasNotification(origin.threadId, dedupeKey)) return
+    if (threadId && store.hasNotification(threadId, dedupeKey)) return
+    const notifyOrigin = (key: string, content: string) => {
+      if (threadId) notify(threadId, key, content)
+    }
     if (deps.killSwitch()) {
-      notify(
-        origin.threadId,
-        dedupeKey,
-        `自动化已暂停。任务「${task.title}」仍在待验收，等你决定。`,
-      )
+      notifyOrigin(dedupeKey, `自动化已暂停。任务「${task.title}」仍在待验收，等你决定。`)
+      failAcceptanceRun(task.id, review.id, '自动化已暂停，未派验收员')
       return
     }
     const isolated = task.workspaceMode === 'worktree'
     if (isolated && !task.worktreePath) {
-      notify(
-        origin.threadId,
+      notifyOrigin(
         `observe:review:${task.id}:${review.id}`,
         `任务「${task.title}」进入待验收，但 worktree 路径缺失，无法派验收员；需要你确认。`,
       )
+      failAcceptanceRun(task.id, review.id, 'worktree 路径缺失，无法派验收员')
       return
     }
 
@@ -411,13 +449,13 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     try {
       agent = createVerifierAgent(task)
     } catch (error) {
-      notify(
-        origin.threadId,
+      notifyOrigin(
         `observe:review:${task.id}:${review.id}`,
         `任务「${task.title}」进入待验收，但验收员 Agent 创建失败：${
           error instanceof Error ? error.message : '未知错误'
-        }。`,
+        }。需要你确认。`,
       )
+      failAcceptanceRun(task.id, review.id, '验收员 Agent 创建失败')
       return
     }
 
@@ -447,8 +485,8 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       {
         origin: buildTaskOrigin({
           source: 'supervisor-review',
-          triggerId: origin.triggerId,
-          threadId: origin.threadId,
+          triggerId: origin?.triggerId ?? `manual-review:${review.id}`,
+          threadId: origin?.threadId ?? `manual-review:${review.id}`,
           workspaceId: task.workspaceId,
           targetNodeId: agent.id,
           contextNodeIds: [],
@@ -472,11 +510,11 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       },
     )
     if (!created.ok) {
-      notify(
-        origin.threadId,
+      notifyOrigin(
         `observe:review:${task.id}:${review.id}`,
         `任务「${task.title}」进入待验收，但验收任务创建失败：${created.error.message}。`,
       )
+      failAcceptanceRun(task.id, review.id, `验收任务创建失败：${created.error.message}`)
       return
     }
 
@@ -493,8 +531,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
 
     const enqueued = deps.enqueueTask(created.taskId)
     const startNote = enqueued.ok ? '验收员已开工。' : `验收员开工失败：${enqueued.error.message}。`
-    notify(
-      origin.threadId,
+    notifyOrigin(
       dedupeKey,
       `任务「${task.title}」进入待验收。\n` +
         `verify 退出码：${review.verifyExitCode ?? '未执行'}；diff：${diffText(review)}。\n` +
@@ -544,6 +581,13 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     const acceptance = parseAcceptanceReport(output)
     const parsed = withAcceptanceVerdict(parseVerdict(output, outcomeReason), acceptance)
     if (parsed.verdict === 'unknown') {
+      if (origin.reviewOfTaskId && origin.reviewOfReviewId) {
+        failAcceptanceRun(
+          origin.reviewOfTaskId,
+          origin.reviewOfReviewId,
+          `验收员未给出结论：${fallbackReason}`,
+        )
+      }
       notify(
         origin.threadId,
         `observe:verifier:${task.id}:waiting:${task.updatedAt}`,
@@ -797,14 +841,17 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     const detail = getTaskDetail(deps.db, input.taskId)
     const task = detail?.task
     const origin = task?.origin
-    if (!task || !origin) return
+    if (!task) return
 
-    if (origin.source === 'supervisor-review') {
+    if (origin?.source === 'supervisor-review') {
       if (input.status === 'review') {
         finishVerifier(task)
         return
       }
       if (input.status === 'failed') {
+        if (origin.reviewOfTaskId && origin.reviewOfReviewId) {
+          failAcceptanceRun(origin.reviewOfTaskId, origin.reviewOfReviewId, '验收员任务执行失败')
+        }
         notify(
           origin.threadId,
           `observe:verifier:${task.id}:failed:${task.updatedAt}`,
@@ -818,15 +865,15 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       return
     }
 
-    if (origin.source !== 'supervisor-chat') return
-
+    // 人工任务没有总管会话，也必须有验收证据；验收结果直接落任务详情。
     if (input.status === 'review') {
       const review = getReviewByTask(deps.db, task.id)
       if (!review) return
-      // 验收员只做初步检查；最终通过仍由人决定。
-      dispatchVerifier(task, origin, review)
+      dispatchVerifier(task, origin ?? null, review)
       return
     }
+
+    if (!origin || origin.source !== 'supervisor-chat') return
 
     if (input.status === 'failed') {
       notify(

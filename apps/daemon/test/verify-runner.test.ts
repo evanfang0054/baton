@@ -179,6 +179,8 @@ describe('verify runner', () => {
       useSessionRunner: true,
       useVerifyRunner: true,
       maxConcurrency: 2,
+      // 本用例只验证 worktree 隔离；关闭自动验收员，避免额外任务干扰清理与计时。
+      config: { killSwitch: true },
     })
     handles.push(handle)
     const main = join(handle.root, handle.seeded.relPath)

@@ -156,11 +156,11 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     const task = getTask(deps.db, active.taskId)
     const workspace = task ? getWorkspace(deps.db, task.workspaceId) : null
     const taskDetail = task ? getTaskDetail(deps.db, task.id) : null
-    // 总管派发的任务（含它派出的验收员）才可能获得 workspace 的委派授权；人工任务永远走人工闸门。
+    // 验收员是系统任务，只读请求不依赖 workspace 委派授权；deny 与逃逸检查仍然优先。
     const originSource = taskDetail?.task.origin?.source
-    const delegatedAuthority =
-      originSource === 'supervisor-chat' ||
-      (originSource === 'supervisor-review' && isReadOnlyVerifierRequest(request))
+    const verifierReadOnly =
+      originSource === 'supervisor-review' && isReadOnlyVerifierRequest(request)
+    const delegatedAuthority = originSource === 'supervisor-chat' || verifierReadOnly
     // 结构化提问不能被策略自动放行：没有答案的 allow 会让 SDK 停在 pending。
     // 先跑策略，保证 deny 永远优先；symlink 逃逸只能把 allow/ask 降级为人工确认。
     const evaluated =
@@ -186,7 +186,14 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
               autoApproved: false,
               reason: 'write escapes workspace via symlink',
             }
-          : evaluated
+          : verifierReadOnly && evaluated.decision !== 'deny'
+            ? {
+                ...evaluated,
+                decision: 'allow' as const,
+                autoApproved: true,
+                reason: 'verifier read-only verification',
+              }
+            : evaluated
     if (decision !== null && (decision.decision === 'allow' || decision.decision === 'deny')) {
       const autoDecision = decision.decision
       const autoCount = autoDecision === 'allow' ? countAutoApprovals(deps.db, active.taskId) : 0
@@ -407,15 +414,19 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
         }
       }
     } catch (error) {
-      const current = getTask(deps.db, active.taskId)
-      const message = toAppError(error).message
-      if (current && (current.status === 'running' || current.status === 'waiting_input')) {
-        deps.applyTransition(
-          active.taskId,
-          isBudgetError(message) ? { type: 'budget_exceeded' } : { type: 'error', message },
-        )
+      try {
+        const current = getTask(deps.db, active.taskId)
+        const message = toAppError(error).message
+        if (current && (current.status === 'running' || current.status === 'waiting_input')) {
+          deps.applyTransition(
+            active.taskId,
+            isBudgetError(message) ? { type: 'budget_exceeded' } : { type: 'error', message },
+          )
+        }
+        endSession(active.sessionId, isBudgetError(message) ? 'ended' : 'failed')
+      } catch {
+        // daemon 关闭时 DB 可能已关闭；此时不再写状态，避免卸载阶段产生未处理拒绝。
       }
-      endSession(active.sessionId, isBudgetError(message) ? 'ended' : 'failed')
     } finally {
       activeRuns.delete(active.sessionId)
       await active.run.dispose().catch(() => {})
