@@ -21,6 +21,7 @@ import {
   updateSessionStatus,
 } from '../db/repositories.js'
 import { hashPolicy } from '../automation/version.js'
+import { ensureAcceptanceForReview } from './acceptance-service.js'
 import { MAX_CUMULATIVE_INJECTION_CHARS } from './context-service.js'
 import type { BroadcastEvent, EventStore } from '../db/event-store.js'
 import type { Tx } from '../db/types.js'
@@ -120,6 +121,12 @@ export function planAndApplyEffects(tx: Tx, ctx: EffectContext, effects: TaskEff
           verifyOutput: effect.output,
           diffStat: effect.diffStat,
           decidedAt: null,
+        })
+        ensureAcceptanceForReview(tx, {
+          task: ctx.task,
+          reviewId: effect.reviewId,
+          now: ctx.now,
+          newId: ctx.newId,
         })
         const durationMs = ctx.verifyMeta.get(effect.reviewId) ?? 0
         ctx.verifyMeta.delete(effect.reviewId)
