@@ -115,6 +115,7 @@ function toTask(row: typeof task.$inferSelect): Task {
     verifyCommand: row.verifyCommand,
     retryCount: row.retryCount,
     dangerouslySkipPermissions: row.dangerouslySkipPermissions,
+    budgetUsd: row.budgetUsd ?? null,
     enqueuedAt: row.enqueuedAt ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -638,7 +639,10 @@ export function listQueuedTasksByEnqueuedAt(db: Db): Task[] {
 
 export function insertTask(
   tx: Tx,
-  input: Omit<Task, 'enqueuedAt'> & { enqueuedAt?: number | null },
+  input: Omit<Task, 'enqueuedAt' | 'budgetUsd'> & {
+    enqueuedAt?: number | null
+    budgetUsd?: number | null
+  },
   contextJson: string | null = null,
   originJson: string | null = null,
 ): void {
@@ -658,6 +662,7 @@ export function insertTask(
       verifyCommand: input.verifyCommand,
       retryCount: input.retryCount,
       dangerouslySkipPermissions: input.dangerouslySkipPermissions,
+      budgetUsd: input.budgetUsd ?? null,
       contextJson,
       originJson,
       enqueuedAt: input.enqueuedAt ?? null,

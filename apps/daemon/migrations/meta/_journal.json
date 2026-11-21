@@ -85,6 +85,13 @@
       "when": 1795238863976,
       "tag": "0011_m6_2_context_injection",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1795248958254,
+      "tag": "0012_m6_3_acceptance_evidence",
+      "breakpoints": true
     }
   ]
 }

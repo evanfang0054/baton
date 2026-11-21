@@ -856,6 +856,14 @@ export function createRuntime(deps: RuntimeDeps) {
           ack: { groupId: group.id, children: message.payload.childIds.length },
         }
       }
+      default:
+        return {
+          ok: false,
+          error: appError(
+            'unsupported_command',
+            `unsupported command: ${(message as { type: string }).type}`,
+          ),
+        }
     }
   }
 

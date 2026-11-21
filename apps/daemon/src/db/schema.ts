@@ -77,6 +77,7 @@ export const task = sqliteTable(
     dangerouslySkipPermissions: integer('dangerously_skip_permissions', { mode: 'boolean' })
       .notNull()
       .default(false),
+    budgetUsd: real('budget_usd'),
     contextJson: text('context_json'),
     originJson: text('origin_json'),
     policyJson: text('policy_json'),
@@ -237,6 +238,74 @@ export const review = sqliteTable(
     preliminaryAt: integer('preliminary_at'),
   },
   (t) => [index('review_task_idx').on(t.taskId)],
+)
+
+export const acceptanceContract = sqliteTable(
+  'acceptance_contract',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => task.id),
+    version: integer('version').notNull(),
+    status: text('status').notNull(),
+    createdBy: text('created_by').notNull(),
+    revision: integer('revision').notNull().default(0),
+    truncated: integer('truncated', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at').notNull(),
+    frozenAt: integer('frozen_at'),
+  },
+  (t) => [
+    uniqueIndex('acceptance_contract_task_version_idx').on(t.taskId, t.version),
+    index('acceptance_contract_task_status_idx').on(t.taskId, t.status),
+  ],
+)
+
+export const acceptanceItem = sqliteTable(
+  'acceptance_item',
+  {
+    id: text('id').primaryKey(),
+    contractId: text('contract_id')
+      .notNull()
+      .references(() => acceptanceContract.id),
+    ordinal: integer('ordinal').notNull(),
+    text: text('text').notNull(),
+    status: text('status').notNull(),
+    evidence: text('evidence'),
+    source: text('source').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('acceptance_item_contract_ordinal_idx').on(t.contractId, t.ordinal),
+    index('acceptance_item_contract_idx').on(t.contractId),
+  ],
+)
+
+export const acceptanceRun = sqliteTable(
+  'acceptance_run',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => task.id),
+    contractId: text('contract_id')
+      .notNull()
+      .references(() => acceptanceContract.id),
+    reviewId: text('review_id')
+      .notNull()
+      .references(() => review.id),
+    verifierTaskId: text('verifier_task_id'),
+    status: text('status').notNull(),
+    verdict: text('verdict'),
+    summary: text('summary'),
+    createdAt: integer('created_at').notNull(),
+    completedAt: integer('completed_at'),
+  },
+  (t) => [
+    uniqueIndex('acceptance_run_review_idx').on(t.reviewId),
+    index('acceptance_run_task_created_idx').on(t.taskId, t.createdAt),
+    index('acceptance_run_contract_idx').on(t.contractId),
+  ],
 )
 
 export const audit = sqliteTable(
