@@ -48,6 +48,7 @@ import { createVerifyRunner, type VerifyRunner } from '../verify/runner.js'
 import type { AdapterFactory } from './adapter-factory.js'
 import { createContextService } from './context-service.js'
 import { handleAcceptanceUpdate } from './acceptance-command.js'
+import { handleTaskSetBudget } from './budget-command.js'
 import { createEdge, deleteEdge } from './edge-service.js'
 import { createHandoffNode } from '../handoff/service.js'
 import type { EngineRegistry } from './engines.js'
@@ -584,6 +585,19 @@ export function createRuntime(deps: RuntimeDeps) {
             ...(message.payload.note ? { note: message.payload.note } : {}),
           }),
         )
+      case 'task.set_budget': {
+        const result = handleTaskSetBudget(
+          {
+            db: deps.db,
+            config: deps.config,
+            applyTransition,
+            now,
+            newId,
+          },
+          message.payload,
+        )
+        return result.ok ? { ok: true, ack: result.ack } : { ok: false, error: result.error }
+      }
       case 'task.reopen':
         return ackFromOutcome(
           applyTransition(message.payload.taskId, {

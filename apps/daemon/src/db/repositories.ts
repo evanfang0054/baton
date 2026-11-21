@@ -724,6 +724,10 @@ export function updateTaskTitle(
   db.update(task).set({ title, updatedAt }).where(eq(task.id, id)).run()
 }
 
+export function updateTaskBudget(tx: Tx, id: string, budgetUsd: number, updatedAt: number): void {
+  tx.update(task).set({ budgetUsd, updatedAt }).where(eq(task.id, id)).run()
+}
+
 export function getTaskPolicy(db: Db, id: string): Policy | null {
   const row = db.select({ policyJson: task.policyJson }).from(task).where(eq(task.id, id)).get()
   if (!row?.policyJson) return null

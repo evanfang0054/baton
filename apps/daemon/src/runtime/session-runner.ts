@@ -15,6 +15,7 @@ import {
 } from '@baton/protocol'
 import type { BroadcastEvent, EventStore } from '../db/event-store.js'
 import { getTaskBudgetState } from '../budget/service.js'
+import { formatBudgetResume, pendingBudgetResume } from './budget-command.js'
 import {
   getApproval,
   getTask,
@@ -409,6 +410,8 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       endSession(input.sessionId, outcome.ok ? 'ended' : 'failed')
       return
     }
+    const resumeNote = pendingBudgetResume(deps.db, task.id)
+    const prompt = resumeNote ? `${task.prompt}\n\n${formatBudgetResume(resumeNote)}` : task.prompt
 
     let workspacePath = input.workspacePath
     if (task.workspaceMode === 'worktree') {
@@ -454,7 +457,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     try {
       const adapter = await deps.adapters(task.engine)
       run = await adapter.start({
-        prompt: task.prompt,
+        prompt,
         cwd: workspacePath,
         permissionMode: 'manual',
         policy: input.policy,
@@ -465,6 +468,17 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     } catch (error) {
       failTask(task.id, input.sessionId, error)
       return
+    }
+    if (resumeNote) {
+      deps.db.transaction((tx) =>
+        insertAudit(tx, {
+          id: deps.newId(),
+          ts: deps.now(),
+          actor: 'system',
+          action: 'task.budget.resume',
+          detail: { taskId: task.id, ...resumeNote },
+        }),
+      )
     }
 
     const active: ActiveRun = {
