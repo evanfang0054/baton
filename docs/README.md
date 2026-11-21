@@ -32,6 +32,7 @@
 - [2026-11-20 总管画布感知](specs/2026-11-20-supervisor-canvas-awareness.md)
 - [2026-11-20 M5-1 总管售后与批量设计](specs/2026-11-20-m5-supervisor-aftersales-design.md)
 - [2026-11-21 M5-3 上下文交接设计](specs/2026-11-21-m5-3-context-handoff-design.md)
+- [2026-11-21 M6-1 任务现场 v0 设计](specs/2026-11-21-m6-task-scene-design.md)
 
 ## 现行 ADR
 
