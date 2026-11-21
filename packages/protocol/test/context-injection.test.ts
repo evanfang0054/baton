@@ -17,6 +17,7 @@ const injection = {
   at: 1_700_000_000_000,
   source: 'user' as const,
   note: '补充报错',
+  requestId: null,
   nodeIds: ['n1'],
   included: [{ id: 'n1', type: 'text' as const, title: '报错', depth: 0, chars: 12 }],
   dropped: [],

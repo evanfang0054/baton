@@ -8,6 +8,7 @@ const injection: ContextInjection = {
   at: 1,
   source: 'user',
   note: '补充',
+  requestId: null,
   nodeIds: ['n1'],
   included: [],
   dropped: [],

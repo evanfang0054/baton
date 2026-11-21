@@ -170,6 +170,7 @@ describe('buildTaskScene', () => {
             at: 1,
             source: 'user' as const,
             note: null,
+            requestId: null,
             nodeIds: ['n2', 'gone'],
             included: [],
             dropped: [],

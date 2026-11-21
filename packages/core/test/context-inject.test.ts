@@ -169,6 +169,7 @@ describe('context injection', () => {
           at: 1,
           source: 'user',
           note: null,
+          requestId: null,
           nodeIds: ['a'],
           included: [],
           dropped: [],

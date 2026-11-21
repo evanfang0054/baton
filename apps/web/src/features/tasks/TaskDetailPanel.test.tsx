@@ -167,6 +167,7 @@ describe('TaskDetailPanel', () => {
                 at: 1_700_000_000_000,
                 source: 'user',
                 note: '补充报错',
+                requestId: null,
                 nodeIds: ['n2'],
                 included: [{ id: 'n2', type: 'text', title: '报错日志', depth: 0, chars: 10 }],
                 dropped: [],
