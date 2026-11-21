@@ -4,13 +4,13 @@ spec_topic: m6-2-context-injection
 task_count: 6
 estimated_phases: [tests, implementation, verification]
 dod: 'M6-2 DoD 1-6, 12：protocol/core 注入模型、状态矩阵、预算、prompt 块、enqueuedAt、migration 0011'
-status: pending
+status: completed
 depends_on: []
 ---
 
 # M6-2 Plan 1：protocol + core + migration 0011
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use agent-harness:subagent-driven-development (recommended) or agent-harness:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use agent-harness:subagent-driven-development (recommended) or agent-harness:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 先把注入的协议、纯函数、状态机 effect 和数据库列做对，让后续 daemon/web 只接线，不再改语义。
 
@@ -54,7 +54,7 @@ Seam: `packages/protocol/test/context-injection.test.ts`
 **Interfaces:**
 - Produces: `ContextInjection`、`ContextInjectInput`、`ContextSnapshot.injections`、`Task.enqueuedAt`、`Session.costUsd/turns`、`ContextInjectedEvent`、`SESSION_USAGE_EVENT`。
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -184,12 +184,12 @@ describe('M6-2 protocol', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @baton/protocol exec vitest run test/context-injection.test.ts`
 Expected: FAIL — exports missing.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `packages/protocol/src/context.ts`：顶部 import 补 `Timestamp`；在 `ContextSnapshot` 前加：
 
@@ -313,12 +313,12 @@ export type ContextInjectedEvent = z.infer<typeof ContextInjectedEvent>
 
 并把 `ContextInjectedEvent` 加进 `ServerMessage`。
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @baton/protocol exec vitest run test/context-injection.test.ts`
 Expected: PASS。再跑 `pnpm --filter @baton/protocol exec vitest run` 确认旧测试不回归。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/protocol
@@ -343,7 +343,7 @@ Seam: `packages/core/test/context-inject.test.ts`
 - Consumes: `ContextInjection`、`Node`、`Edge`、`AssembleContextInput`。
 - Produces: `canInjectContext`、`assembleContextInjection`、`buildContextUpdateBlock`、`cumulativeInjectedChars`。
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -462,12 +462,12 @@ describe('context injection', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @baton/core exec vitest run test/context-inject.test.ts`
 Expected: FAIL — exports missing。
 
-- [ ] **Step 3: Refactor `assemble.ts`**
+- [x] **Step 3: Refactor `assemble.ts`**
 
 把 `packages/core/src/context/assemble.ts:116-398` 的函数体原样移到新的内部函数：
 
@@ -531,7 +531,7 @@ export function assembleContext(input: AssembleContextInput): AssembleContextRes
 }
 ```
 
-- [ ] **Step 4: Add `inject.ts`**
+- [x] **Step 4: Add `inject.ts`**
 
 ```ts
 import type { ContextSnapshot, WaitingReason } from '@baton/protocol'
@@ -616,12 +616,12 @@ export function cumulativeInjectedChars(snapshot: ContextSnapshot | null): numbe
 
 `packages/core/src/context/index.ts` 加 `export * from './inject.js'`。
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `pnpm --filter @baton/core exec vitest run test/context-inject.test.ts test/context.test.ts`
 Expected: PASS；`context.test.ts` 的快照逐字节不变。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/core
@@ -646,7 +646,7 @@ Seam: `packages/core/test/transition-injection.test.ts`
 - Consumes: `ContextInjection`。
 - Produces: `TaskEffect.appendContextInjection`。
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -718,12 +718,12 @@ describe('transition context injection', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @baton/core exec vitest run test/transition-injection.test.ts`
 Expected: FAIL — effect/field missing。
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `types.ts`：import `ContextInjection`，在 `TaskEffect` 加：
 
@@ -770,12 +770,12 @@ return ok(
 )
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `pnpm --filter @baton/core exec vitest run test/transition-injection.test.ts test/transition-happy.test.ts test/transition-matrix.test.ts`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/core
@@ -800,7 +800,7 @@ Seam: `apps/daemon/test/migration-0011.test.ts`
 **Interfaces:**
 - Produces: `appendTaskContextInjection`、`listQueuedTasksByEnqueuedAt`、`updateSessionUsage`、`setTaskEnqueuedAt`、`clearTaskEnqueuedAt`。
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -910,12 +910,12 @@ describe('migration 0011', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/migration-0011.test.ts`
 Expected: FAIL — columns/functions missing。
 
-- [ ] **Step 3: Schema + migration**
+- [x] **Step 3: Schema + migration**
 
 `apps/daemon/src/db/schema.ts`：
 
@@ -941,7 +941,7 @@ UPDATE `task` SET `enqueued_at` = `updated_at` WHERE `status` = 'queued';
 
 确认 `migrations/meta/_journal.json` 追加了 idx 11、`migrations/meta/0011_snapshot.json` 存在。
 
-- [ ] **Step 4: Repository functions**
+- [x] **Step 4: Repository functions**
 
 `repositories.ts` 加（顶部 `drizzle-orm` import 补 `sql`）：
 
@@ -1037,12 +1037,12 @@ export function appendTaskPromptRaw(
 }
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/migration-0011.test.ts test/migrate.test.ts test/repositories.test.ts`
 Expected: PASS；如果 `migrate.test.ts` 断言表数量/索引，确保只加列、不加表。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/daemon/src/db apps/daemon/migrations apps/daemon/test
@@ -1065,7 +1065,7 @@ Seam: `packages/core/test/scene.test.ts`
 - Consumes: `TaskDetail.context.injections`。
 - Produces: `relatedNodeIdSet` / `buildTaskScene` 包含注入节点与缺失节点。
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 在 `packages/core/test/scene.test.ts` 加：
 
@@ -1100,12 +1100,12 @@ it('includes injection node ids and reports missing ones', () => {
 
 复用现有 `task` / `text` fixture；先给 `task` fixture 补 `enqueuedAt: null`（`TaskDetail` 新字段），不要新建第二套 fixture。
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @baton/core exec vitest run test/scene.test.ts`
 Expected: FAIL — injection IDs 不在 related。
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `packages/core/src/canvas/scene.ts` 的 `relatedNodeIdSet`：
 
@@ -1122,12 +1122,12 @@ export function relatedNodeIdSet(task: TaskDetail): Set<string> {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @baton/core exec vitest run test/scene.test.ts`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/core
@@ -1153,12 +1153,12 @@ Seam: `pnpm typecheck`
 - Modify: `packages/protocol/test/api.test.ts`
 - Modify: `packages/core/test/scene.test.ts`
 
-- [ ] **Step 1: Run typecheck**
+- [x] **Step 1: Run typecheck**
 
 Run: `pnpm typecheck`
 Expected: FAIL，列出缺少 `enqueuedAt` / `injections` / `costUsd` / `turns` 的 fixture。
 
-- [ ] **Step 2: 机械补齐**
+- [x] **Step 2: 机械补齐**
 
 - `TaskSummary` / `TaskDetail.task` fixture 加 `enqueuedAt: null`。
 - `ContextSnapshot` fixture 加 `injections: []`（或在需要注入的测试里给数组）。
@@ -1166,12 +1166,12 @@ Expected: FAIL，列出缺少 `enqueuedAt` / `injections` / `costUsd` / `turns` 
 - 如果 `TaskDetailResponse` fixture 的 `task.context` 是 `null`，不需要改。
 - 不改变任何断言；只补字段。
 
-- [ ] **Step 3: Run typecheck + tests**
+- [x] **Step 3: Run typecheck + tests**
 
 Run: `pnpm typecheck && pnpm test`
 Expected: protocol/core/web fixture 错误清零；daemon 仍会有 `appendContextInjection`/`context.inject`/`feedback`/usage 的预期错误，由 Plan 2 Task 2-4 接上。若只想验证本 Plan，跑 `pnpm --filter @baton/protocol typecheck && pnpm --filter @baton/core typecheck && pnpm --filter @baton/web typecheck`。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps packages
@@ -1188,3 +1188,10 @@ git commit -m "test: 补齐 M6-2 新字段 fixture"
 - `pnpm --filter @baton/protocol typecheck && pnpm --filter @baton/core typecheck && pnpm --filter @baton/web typecheck`
 - 根 `pnpm typecheck` 在 daemon Plan 2 Task 2-4 接上 `appendContextInjection`/`context.inject`/feedback/usage 后转绿；本 Plan 不把 daemon 的预期红当成功能失败。
 - 不新增表；`assembleContext` 旧快照逐字节不变。
+
+## 执行记录
+
+- 2026-11-21：Task 1-6 完成。
+- 提交：`99451de` protocol、`e5c4c0e` core 注入、`c8f4f80` transition effect、`2e3074c` migration 0011 + 仓储、`7ad5b42` 现场注入节点、`c977e55` fixture sweep。
+- 验证：`pnpm verify` 退出码 0（typecheck + lint + format + boundaries + protocol + tests + build）。
+- 偏差：daemon `context.inject` 在 Plan 1 先返回 `context_inject_not_ready`，Plan 2 替换为真实服务；review 上下文在 Plan 1 返回同一错误，Plan 2 接上。
