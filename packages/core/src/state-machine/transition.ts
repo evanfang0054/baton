@@ -98,9 +98,15 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
 
     case 'running':
       if (event.type === 'budget_exceeded') {
-        return ok('waiting_input', ctx.retryCount, [effects.interruptSession('budget_exceeded')], 'budget', {
-          waitingReason: 'budget',
-        })
+        return ok(
+          'waiting_input',
+          ctx.retryCount,
+          [effects.interruptSession('budget_exceeded')],
+          'budget',
+          {
+            waitingReason: 'budget',
+          },
+        )
       }
       if (event.type === 'approval_requested') {
         return ok(

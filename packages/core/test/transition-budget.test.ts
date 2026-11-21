@@ -4,10 +4,7 @@ import { ctx } from './helpers.js'
 
 describe('budget transitions', () => {
   it('stops a running task at budget', () => {
-    const result = transition(
-      ctx('running', { runningCount: 1 }),
-      { type: 'budget_exceeded' },
-    )
+    const result = transition(ctx('running', { runningCount: 1 }), { type: 'budget_exceeded' })
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.status).toBe('waiting_input')
@@ -25,10 +22,10 @@ describe('budget transitions', () => {
   })
 
   it('raises budget back to queued', () => {
-    const result = transition(
-      ctx('waiting_input', { waitingReason: 'budget' }),
-      { type: 'budget_raise', budgetUsd: 3 },
-    )
+    const result = transition(ctx('waiting_input', { waitingReason: 'budget' }), {
+      type: 'budget_raise',
+      budgetUsd: 3,
+    })
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.status).toBe('queued')
@@ -36,10 +33,10 @@ describe('budget transitions', () => {
   })
 
   it('rejects budget_raise when not waiting for budget', () => {
-    const result = transition(
-      ctx('waiting_input', { waitingReason: 'approval' }),
-      { type: 'budget_raise', budgetUsd: 3 },
-    )
+    const result = transition(ctx('waiting_input', { waitingReason: 'approval' }), {
+      type: 'budget_raise',
+      budgetUsd: 3,
+    })
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid_transition' } })
   })
 

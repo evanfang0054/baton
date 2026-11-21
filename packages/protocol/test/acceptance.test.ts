@@ -65,9 +65,7 @@ describe('acceptance entities', () => {
 
   it('accepts 0 items and rejects 9', () => {
     expect(AcceptanceItems.parse([])).toEqual([])
-    expect(() =>
-      AcceptanceItems.parse(Array.from({ length: 9 }, (_, i) => item(i + 1))),
-    ).toThrow()
+    expect(() => AcceptanceItems.parse(Array.from({ length: 9 }, (_, i) => item(i + 1)))).toThrow()
   })
 
   it('parses a run with nullable verifier and verdict', () => {

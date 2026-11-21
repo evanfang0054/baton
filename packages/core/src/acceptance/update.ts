@@ -24,8 +24,7 @@ export type AcceptanceUpdateErrorCode =
   | 'invalid_status'
 
 export type AcceptanceUpdateValidation =
-  | { ok: true }
-  | { ok: false; code: AcceptanceUpdateErrorCode; message: string; index?: number }
+  { ok: true } | { ok: false; code: AcceptanceUpdateErrorCode; message: string; index?: number }
 
 export function validateAcceptanceUpdate(input: {
   items: AcceptanceUpdateItemInput[]

@@ -71,7 +71,12 @@ describe('buildAcceptanceReport', () => {
     expect(report.verify.outputSummary).toContain('<workspace>')
     expect(report.verify.outputSummary).not.toContain('/workspace/demo')
     expect(report.risks).toEqual(
-      expect.arrayContaining(['1 条验收未通过', '1 条验收未完成', '预算接近上限', '在 worktree 中执行']),
+      expect.arrayContaining([
+        '1 条验收未通过',
+        '1 条验收未完成',
+        '预算接近上限',
+        '在 worktree 中执行',
+      ]),
     )
     expect(report.unverified).toEqual(expect.arrayContaining(['深链参数校验', '记住我']))
     expect(JSON.stringify(report)).not.toContain('diff --git')
@@ -92,9 +97,7 @@ describe('buildAcceptanceReport', () => {
     })
     expect(report.acceptance.verdict).toBe('incomplete')
     expect(report.verify.skipped).toBe(true)
-    expect(report.risks).toEqual(
-      expect.arrayContaining(['未执行自动校验', '初步验收未完成']),
-    )
+    expect(report.risks).toEqual(expect.arrayContaining(['未执行自动校验', '初步验收未完成']))
     expect(report.unverified).toContain('自动校验未执行')
   })
 })

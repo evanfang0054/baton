@@ -16,10 +16,7 @@ export interface BuildAcceptanceReportInput {
   contract: Pick<AcceptanceContract, 'id' | 'version' | 'revision'>
   items: AcceptanceItem[]
   run: Pick<AcceptanceRun, 'status' | 'verdict' | 'summary'> | null
-  review: Pick<
-    Review,
-    'verifyExitCode' | 'verifyOutput' | 'diffStat' | 'preliminaryReason'
-  > | null
+  review: Pick<Review, 'verifyExitCode' | 'verifyOutput' | 'diffStat' | 'preliminaryReason'> | null
   changedFiles?: string[]
   worker: { costUsd: number | null; turns: number | null }
   verifier: { costUsd: number | null; turns: number | null }
