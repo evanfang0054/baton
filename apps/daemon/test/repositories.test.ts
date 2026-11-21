@@ -231,6 +231,9 @@ describe('repositories', () => {
       verifyOutput: 'ok',
       diffStat: { filesChanged: 1, insertions: 2, deletions: 3 },
       decidedAt: null,
+      preliminaryVerdict: null,
+      preliminaryReason: null,
+      preliminaryAt: null,
     }
     database.db.transaction((tx) => repo.insertReview(tx, review))
     const loaded = repo.getReviewByTask(database.db, seeded.taskId)

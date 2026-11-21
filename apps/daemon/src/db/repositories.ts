@@ -872,7 +872,10 @@ export function updateApprovalResponse(tx: Tx, id: string, response: unknown): v
     .run()
 }
 
-export function insertReview(tx: Tx, input: Review): void {
+type ReviewInsert = Omit<Review, 'preliminaryVerdict' | 'preliminaryReason' | 'preliminaryAt'> &
+  Partial<Pick<Review, 'preliminaryVerdict' | 'preliminaryReason' | 'preliminaryAt'>>
+
+export function insertReview(tx: Tx, input: ReviewInsert): void {
   tx.insert(review)
     .values({
       id: input.id,

@@ -652,6 +652,13 @@ export function createRuntime(deps: RuntimeDeps) {
           replay: result.rows,
         }
       }
+      default:
+        return {
+          ok: false,
+          error: appError('unsupported_command', 'command is not supported yet', {
+            type: message.type,
+          }),
+        }
     }
   }
 

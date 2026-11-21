@@ -405,6 +405,9 @@ describe('REST API', () => {
       verifyOutput: 'ok',
       diffStat: { filesChanged: 1, insertions: 1, deletions: 0 },
       decidedAt: null,
+      preliminaryVerdict: null,
+      preliminaryReason: null,
+      preliminaryAt: null,
     }
     const snapshot: DiffSnapshot = {
       v: 1,
@@ -471,6 +474,9 @@ describe('REST API', () => {
       verifyOutput: 'ok',
       diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
       decidedAt: null,
+      preliminaryVerdict: null,
+      preliminaryReason: null,
+      preliminaryAt: null,
     }
     const snapshot: DiffSnapshot = {
       v: 1,
