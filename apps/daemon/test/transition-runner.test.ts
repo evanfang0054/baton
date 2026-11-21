@@ -375,6 +375,25 @@ describe('transition runner', () => {
     expect(handle.interrupts).toEqual([taskId])
   })
 
+  it('stamps enqueuedAt on enqueue and clears it when returning to todo', () => {
+    const handle = setup({ maxConcurrency: 0 })
+    const taskId = handle.createTask()
+    const queued = handle.runtime.applyTransition(taskId, { type: 'enqueue' })
+    expect(queued.ok).toBe(true)
+    if (queued.ok) {
+      expect(queued.status).toBe('queued')
+    }
+    expect(handle.runtime.getTask(taskId)?.enqueuedAt).toBeTypeOf('number')
+
+    handle.database.raw.prepare("update task set status = 'done' where id = ?").run(taskId)
+    const reopened = handle.runtime.applyTransition(taskId, { type: 'reopen' })
+    expect(reopened.ok).toBe(true)
+    if (reopened.ok) {
+      expect(reopened.status).toBe('todo')
+    }
+    expect(handle.runtime.getTask(taskId)?.enqueuedAt).toBeNull()
+  })
+
   it('rejects a review and re-enqueues with feedback', async () => {
     const handle = setup()
     const taskId = handle.createTask()

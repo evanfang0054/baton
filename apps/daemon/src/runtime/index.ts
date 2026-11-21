@@ -31,7 +31,7 @@ import {
   getTask,
   hasTaskForNode,
   insertNode,
-  listTasksByStatus,
+  listQueuedTasksByEnqueuedAt,
   listWorkspaces,
   moveNodes,
   ungroupChildren,
@@ -811,7 +811,7 @@ export function createRuntime(deps: RuntimeDeps) {
   }
 
   function findNextQueued(exclude?: ReadonlySet<string>): { id: string } | null {
-    const next = listTasksByStatus(deps.db, ['queued']).find((task) => !exclude?.has(task.id))
+    const next = listQueuedTasksByEnqueuedAt(deps.db).find((task) => !exclude?.has(task.id))
     return next ? { id: next.id } : null
   }
 

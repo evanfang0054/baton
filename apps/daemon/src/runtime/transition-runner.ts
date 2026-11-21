@@ -10,6 +10,8 @@ import {
   getTaskPolicy,
   getWorkspace,
   insertAudit,
+  clearTaskEnqueuedAt,
+  setTaskEnqueuedAt,
   updateTaskPolicy,
   updateTaskState,
 } from '../db/repositories.js'
@@ -128,6 +130,12 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
     try {
       plan = deps.db.transaction((tx) => {
         updateTaskState(tx, task.id, result.status, result.retryCount, result.waitingReason, now)
+        if (result.status === 'queued' && task.status !== 'queued') {
+          setTaskEnqueuedAt(tx, task.id, now)
+        }
+        if (result.status === 'todo') {
+          clearTaskEnqueuedAt(tx, task.id)
+        }
         if (event.type === 'start' || event.type === 'retry' || event.type === 'reopen') {
           updateTaskPolicy(tx, task.id, policy)
         }
