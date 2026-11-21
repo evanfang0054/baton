@@ -47,6 +47,21 @@ export function ReviewCard({
       </div>
       {review.verifyOutput ? <pre className={verifyOutputClass}>{review.verifyOutput}</pre> : null}
 
+      <section className="mt-3 rounded border border-separator bg-background p-2">
+        <p className="text-xs font-medium text-foreground">
+          初步验收：
+          {review.preliminaryVerdict === 'pass'
+            ? 'PASS'
+            : review.preliminaryVerdict === 'fail'
+              ? 'FAIL'
+              : '进行中/未完成'}
+        </p>
+        {review.preliminaryReason ? (
+          <p className="mt-1 whitespace-pre-wrap text-xs text-muted">{review.preliminaryReason}</p>
+        ) : null}
+        <p className="mt-1 text-xs text-muted">这是验收员的初步建议，最终通过或打回由你决定。</p>
+      </section>
+
       {decided ? (
         <p className="mt-3 text-sm text-muted">
           {review.verdict === 'approved' ? '已通过验收' : '已打回'}

@@ -156,4 +156,25 @@ describe('MobileBoardList', () => {
     expect(screen.getByText('没有待审批的任务')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '让总管建任务' })).toBeInTheDocument()
   })
+
+  it('filters needs_me and marks stale without a scene action', async () => {
+    renderList({
+      tasks: [
+        task({
+          id: 'a',
+          title: '待验收任务',
+          status: 'review',
+          attention: 'needs_review',
+          waitingSince: Date.now() - 31 * 60_000,
+        }),
+        task({ id: 'b', title: '运行中任务', status: 'running' }),
+      ],
+    })
+    expect(screen.getByText('已等待超过 30 分钟')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '看现场' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '需要我' }))
+    expect(screen.getByText('待验收任务')).toBeInTheDocument()
+    expect(screen.queryByText('运行中任务')).not.toBeInTheDocument()
+  })
 })

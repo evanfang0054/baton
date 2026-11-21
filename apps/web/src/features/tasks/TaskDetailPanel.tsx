@@ -25,6 +25,8 @@ import { sessionStatusLabel } from './labels'
 export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId)
   const activeTaskId = useAppStore((state) => state.activeTaskId)
+  const setSceneTask = useAppStore((state) => state.setSceneTask)
+  const setRightPanel = useAppStore((state) => state.setRightPanel)
   const queryClient = useQueryClient()
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
 
@@ -70,6 +72,12 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
     }
   }, [activeWorkspaceId, detail.data?.task.id, queryClient])
 
+  const openScene = useCallback(() => {
+    if (!activeTaskId) return
+    setSceneTask(activeTaskId)
+    setRightPanel('task')
+  }, [activeTaskId, setRightPanel, setSceneTask])
+
   return (
     <div
       data-testid="task-detail"
@@ -99,6 +107,7 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
                 loadMorePending={loadMorePending}
                 onLoadMore={loadMore}
                 onDone={onDone}
+                onOpenScene={undefined}
                 mobile
                 showActions={false}
               />
@@ -134,6 +143,7 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
             loadMorePending={loadMorePending}
             onLoadMore={loadMore}
             onDone={onDone}
+            onOpenScene={openScene}
             mobile={false}
             showActions
           />
@@ -163,6 +173,7 @@ function DetailContent({
   loadMorePending,
   onLoadMore,
   onDone,
+  onOpenScene,
   mobile,
   showActions,
 }: {
@@ -176,6 +187,7 @@ function DetailContent({
   loadMorePending: boolean
   onLoadMore: () => void
   onDone: () => Promise<void>
+  onOpenScene?: (() => void) | undefined
   mobile: boolean
   showActions: boolean
 }) {
@@ -186,7 +198,12 @@ function DetailContent({
 
   return (
     <>
-      <TaskHeader task={task} attention={detail.attention} waitingSince={detail.waitingSince} />
+      <TaskHeader
+        task={task}
+        attention={detail.attention}
+        waitingSince={detail.waitingSince}
+        {...(onOpenScene ? { onOpenScene } : {})}
+      />
       {mobile ? (
         <MobileCollapsible title="上下文与来源">
           <div className="flex flex-col gap-2">

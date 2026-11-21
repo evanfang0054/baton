@@ -1,4 +1,5 @@
 import type { Attention, Task } from '@baton/protocol'
+import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
 import { AttentionBadge } from './AttentionBadge'
 import { StatusChip } from './StatusChip'
@@ -8,16 +9,25 @@ export function TaskHeader({
   task,
   attention,
   waitingSince,
+  onOpenScene,
 }: {
   task: Task
   attention: Attention
   waitingSince: number | null
+  onOpenScene?: () => void
 }) {
   return (
     <header className="shrink-0 border-b border-separator pb-3">
       <div className="flex items-start justify-between gap-2">
         <h2 className="text-base font-medium text-foreground">{task.title}</h2>
-        <AttentionBadge attention={attention} />
+        <div className="flex shrink-0 items-center gap-2">
+          {onOpenScene ? (
+            <Button size="sm" variant="tertiary" onPress={onOpenScene}>
+              看现场
+            </Button>
+          ) : null}
+          <AttentionBadge attention={attention} />
+        </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
         <StatusChip status={task.status} />

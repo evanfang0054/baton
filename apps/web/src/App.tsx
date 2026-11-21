@@ -1,3 +1,4 @@
+import { needsPerson } from '@baton/core'
 import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -69,6 +70,7 @@ export function App() {
   const setTask = useAppStore((state) => state.setTask)
   const setSelectedNode = useAppStore((state) => state.setSelectedNode)
   const setSelection = useAppStore((state) => state.setSelection)
+  const setSceneTask = useAppStore((state) => state.setSceneTask)
   const setBoardExpanded = useAppStore((state) => state.setBoardExpanded)
   const setBoardPinned = useAppStore((state) => state.setBoardPinned)
   const setRightPanel = useAppStore((state) => state.setRightPanel)
@@ -121,6 +123,9 @@ export function App() {
   const counts = useMemo(() => {
     const list = tasks.data ?? []
     return {
+      needs_me: list.filter((task) =>
+        needsPerson({ status: task.status, attention: task.attention }),
+      ).length,
       needs_approval: list.filter((task) => task.attention === 'needs_approval').length,
       needs_reply: list.filter((task) => task.attention === 'needs_reply').length,
       needs_review: list.filter((task) => task.attention === 'needs_review').length,
@@ -465,6 +470,13 @@ export function App() {
               compact={viewport === 'compact'}
               onSelectTask={(id) => {
                 setSelectedNode(null)
+                setTask(id)
+                setRightPanel('task')
+                setBoardExpanded(false)
+                writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
+              }}
+              onOpenScene={(id) => {
+                setSceneTask(id)
                 setTask(id)
                 setRightPanel('task')
                 setBoardExpanded(false)

@@ -217,6 +217,11 @@ export function RealtimeProvider({
           toast.danger(event.payload.message)
           return
         }
+        if (event.type === 'review.preliminary') {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.task(event.payload.taskId) })
+          void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+          return
+        }
         if (INVALIDATING_EVENTS.has(event.type)) invalidate()
       },
     })
