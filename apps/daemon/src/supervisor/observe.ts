@@ -1,16 +1,11 @@
-import { parsePreliminaryVerdict } from '@baton/core'
 import { VERIFY_SKIPPED, type DiffStat } from '@baton/protocol'
 import { xmlEscape } from './xml.js'
 
-export type Verdict = 'pass' | 'fail' | 'unknown'
-
-export interface ParsedVerdict {
-  verdict: Verdict
-  reason: string
-}
-
-/** 兼容旧调用点；纯解析逻辑已下沉到 core/review。 */
-export const parseVerdict = parsePreliminaryVerdict
+export {
+  parsePreliminaryVerdict as parseVerdict,
+  type PreliminaryVerdict as Verdict,
+  type ParsedPreliminary as ParsedVerdict,
+} from '@baton/core'
 
 export interface VerifierPromptInput {
   title: string

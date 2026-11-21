@@ -1,16 +1,9 @@
-import {
-  copyFileSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
+import { Review } from '@baton/protocol'
 import { migrateDb, openDb } from '../src/db/index.js'
 
 const dirs: string[] = []
@@ -25,21 +18,17 @@ function copyMigrationsThrough0009(): string {
   const dir = mkdtempSync(join(tmpdir(), 'baton-m10-migrations-'))
   dirs.push(dir)
   mkdirSync(join(dir, 'meta'), { recursive: true })
-  for (const file of readdirSync(migrationsDir)) {
-    if (file.endsWith('.sql') && !file.startsWith('0010_')) {
-      copyFileSync(join(migrationsDir, file), join(dir, file))
-    }
-  }
   const journal = JSON.parse(
     readFileSync(join(migrationsDir, 'meta', '_journal.json'), 'utf8'),
-  ) as { entries: Array<{ tag: string }> }
-  journal.entries = journal.entries.filter((entry) => !entry.tag.startsWith('0010_'))
-  writeFileSync(join(dir, 'meta', '_journal.json'), JSON.stringify(journal))
-  for (const file of readdirSync(join(migrationsDir, 'meta'))) {
-    if (file.endsWith('.json') && file !== '_journal.json' && !file.startsWith('0010_')) {
-      copyFileSync(join(migrationsDir, 'meta', file), join(dir, 'meta', file))
-    }
+  ) as { entries: Array<{ idx: number; tag: string }> }
+  const oldEntries = journal.entries.filter((entry) => entry.idx <= 9)
+  for (const entry of oldEntries) {
+    copyFileSync(join(migrationsDir, `${entry.tag}.sql`), join(dir, `${entry.tag}.sql`))
   }
+  writeFileSync(
+    join(dir, 'meta', '_journal.json'),
+    JSON.stringify({ ...journal, entries: oldEntries }),
+  )
   return dir
 }
 
@@ -62,17 +51,44 @@ describe('migration 0010', () => {
 
       const row = db
         .prepare(
-          'select preliminary_verdict, preliminary_reason, preliminary_at from review where id = ?',
+          `select id, task_id, verdict, verify_exit_code, verify_output, diff_stat_json,
+                  decided_at, preliminary_verdict, preliminary_reason, preliminary_at
+           from review where id = ?`,
         )
         .get('r1') as {
+        id: string
+        task_id: string
+        verdict: string | null
+        verify_exit_code: number
+        verify_output: string
+        diff_stat_json: string
+        decided_at: number | null
         preliminary_verdict: string | null
         preliminary_reason: string | null
         preliminary_at: number | null
       }
-      expect(row).toEqual({
+      expect(row).toMatchObject({
         preliminary_verdict: null,
         preliminary_reason: null,
         preliminary_at: null,
+      })
+      expect(
+        Review.parse({
+          id: row.id,
+          taskId: row.task_id,
+          verdict: row.verdict,
+          verifyExitCode: row.verify_exit_code,
+          verifyOutput: row.verify_output,
+          diffStat: JSON.parse(row.diff_stat_json) as unknown,
+          decidedAt: row.decided_at,
+          preliminaryVerdict: row.preliminary_verdict,
+          preliminaryReason: row.preliminary_reason,
+          preliminaryAt: row.preliminary_at,
+        }),
+      ).toMatchObject({
+        preliminaryVerdict: null,
+        preliminaryReason: null,
+        preliminaryAt: null,
       })
     } finally {
       db.close()

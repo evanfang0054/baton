@@ -254,6 +254,7 @@ export function updateNode(
     y?: number
     w?: number
     h?: number
+    groupId?: string | null
     data?: unknown
     updatedAt: number
   },
@@ -263,6 +264,7 @@ export function updateNode(
   if (patch.y !== undefined) set.y = patch.y
   if (patch.w !== undefined) set.w = patch.w
   if (patch.h !== undefined) set.h = patch.h
+  if (patch.groupId !== undefined) set.groupId = patch.groupId
   if (patch.data !== undefined) set.dataJson = JSON.stringify(patch.data)
   tx.update(node).set(set).where(eq(node.id, id)).run()
 }
@@ -875,8 +877,7 @@ export function updateApprovalResponse(tx: Tx, id: string, response: unknown): v
     .run()
 }
 
-type ReviewInsert = Omit<Review, 'preliminaryVerdict' | 'preliminaryReason' | 'preliminaryAt'> &
-  Partial<Pick<Review, 'preliminaryVerdict' | 'preliminaryReason' | 'preliminaryAt'>>
+type ReviewInsert = Omit<Review, 'preliminaryVerdict' | 'preliminaryReason' | 'preliminaryAt'>
 
 export function insertReview(tx: Tx, input: ReviewInsert): void {
   tx.insert(review)
@@ -888,9 +889,9 @@ export function insertReview(tx: Tx, input: ReviewInsert): void {
       verifyOutput: input.verifyOutput,
       diffStatJson: JSON.stringify(input.diffStat),
       decidedAt: input.decidedAt,
-      preliminaryVerdict: input.preliminaryVerdict ?? null,
-      preliminaryReason: input.preliminaryReason ?? null,
-      preliminaryAt: input.preliminaryAt ?? null,
+      preliminaryVerdict: null,
+      preliminaryReason: null,
+      preliminaryAt: null,
     })
     .run()
 }

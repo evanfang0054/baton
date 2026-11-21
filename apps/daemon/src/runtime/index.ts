@@ -539,6 +539,20 @@ export function createRuntime(deps: RuntimeDeps) {
           }
         }
         const patch = message.payload.patch
+        if (patch.groupId !== undefined) {
+          if (existing.type === 'group') {
+            return {
+              ok: false,
+              error: appError('group_invalid', 'group node cannot be nested'),
+            }
+          }
+          if (patch.groupId !== null) {
+            const group = getNode(deps.db, patch.groupId)
+            if (!group || group.type !== 'group' || group.canvasId !== existing.canvasId) {
+              return { ok: false, error: appError('group_invalid', 'group not found in canvas') }
+            }
+          }
+        }
         if (existing.type !== 'text' && existing.type !== 'file' && existing.type !== 'agent') {
           return {
             ok: false,
@@ -588,6 +602,7 @@ export function createRuntime(deps: RuntimeDeps) {
             y: patch.y ?? existing.y,
             w: patch.w ?? existing.w,
             h: patch.h ?? existing.h,
+            groupId: patch.groupId !== undefined ? patch.groupId : existing.groupId,
             data: mergedData,
             updatedAt: now(),
           })
@@ -600,6 +615,7 @@ export function createRuntime(deps: RuntimeDeps) {
             y: next.y,
             w: next.w,
             h: next.h,
+            groupId: next.groupId,
             data: next.data,
             updatedAt: next.updatedAt,
           }),
@@ -652,7 +668,8 @@ export function createRuntime(deps: RuntimeDeps) {
           replay: result.rows,
         }
       }
-      default:
+      case 'node.move_many':
+      case 'group.create':
         return {
           ok: false,
           error: appError('unsupported_command', 'command is not supported yet', {
