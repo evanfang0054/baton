@@ -462,10 +462,16 @@ export function createRuntime(deps: RuntimeDeps) {
         )
       case 'task.handoff': {
         const result = createHandoffNode(
-          { db: deps.db, workspacesRoot: deps.config.workspacesRoot, now, newId },
+          {
+            db: deps.db,
+            workspacesRoot: deps.config.workspacesRoot,
+            now,
+            newId,
+            ...(deps.logger ? { logger: deps.logger } : {}),
+          },
           {
             taskId: message.payload.taskId,
-            ...(message.payload.workspaceId ? { workspaceId: message.payload.workspaceId } : {}),
+            workspaceId: message.payload.workspaceId,
             actor: 'user',
           },
         )

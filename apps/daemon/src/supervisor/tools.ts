@@ -8,6 +8,7 @@ import {
 import {
   Engine,
   Node,
+  SupervisorHandoffResult,
   SupervisorTaskCard,
   TaskStatus,
   type Actor,
@@ -38,6 +39,7 @@ import {
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
 import { createHandoffNode } from '../handoff/service.js'
+import type { Logger } from '../log.js'
 import { createEdge as createCanvasEdge } from '../runtime/edge-service.js'
 import { ASK_USER_QUESTION_TOOL, readQuestions } from '../runtime/questions.js'
 import type { TaskService } from '../runtime/task-service.js'
@@ -243,6 +245,7 @@ export interface SupervisorToolsDeps {
   applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
   replyToTask: (taskId: string, text: string) => { ok: boolean; error?: AppError }
   cancelTask: (taskId: string, reason?: string) => TransitionOutcome
+  logger?: Logger
 }
 
 const CONTENT_TYPES = new Set(['text', 'file', 'image'])
@@ -917,23 +920,27 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       async execute(input, ctx) {
         const parsed = handoffTaskInput.parse(input)
         const fromTask = requireTask(ctx, parsed.fromTaskId)
-        const handoff = createHandoffNode(
-          { db: deps.db, workspacesRoot: deps.workspacesRoot, now: deps.now, newId: deps.newId },
-          { taskId: fromTask.id, workspaceId: ctx.workspaceId, actor: 'supervisor' },
-        )
-        if (!handoff.ok) throw handoff.error
-
         const title = (parsed.title ?? `跟进：${fromTask.title}`).slice(0, 80)
         const target = resolveAgentTarget(ctx, {
           title,
           ...(parsed.toNodeId ? { targetNodeId: parsed.toNodeId } : {}),
         })
-        const engine = resolveEngine(undefined, target)
-        const contextNodeIds = resolveContext(
-          ctx,
-          [handoff.node.id, ...ctx.selection.contextNodeIds],
-          target.id,
+        // 先校验目标与额外上下文，再落交接节点；避免失败时画布留下孤儿节点。
+        const extraContext = resolveContext(ctx, ctx.selection.contextNodeIds, target.id)
+        const handoff = createHandoffNode(
+          {
+            db: deps.db,
+            workspacesRoot: deps.workspacesRoot,
+            now: deps.now,
+            newId: deps.newId,
+            ...(deps.logger ? { logger: deps.logger } : {}),
+          },
+          { taskId: fromTask.id, workspaceId: ctx.workspaceId, actor: 'supervisor' },
         )
+        if (!handoff.ok) throw handoff.error
+
+        const engine = resolveEngine(undefined, target)
+        const contextNodeIds = [...new Set([handoff.node.id, ...extraContext])]
         const created = createTaskForTool(ctx, {
           title,
           prompt: parsed.note ?? '基于交接结果继续完成后续工作。',
@@ -949,11 +956,13 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         })
         audit('supervisor.task.handoff', created.taskId, ctx, {
           fromTaskId: fromTask.id,
+          toTaskId: created.taskId,
+          nodeId: handoff.node.id,
           handoffNodeId: handoff.node.id,
           hasNote: Boolean(parsed.note),
           started: created.status === 'queued',
         })
-        return {
+        return SupervisorHandoffResult.parse({
           task: card(created.taskId, title, target, contextNodeIds.length, created.status),
           handoff: {
             nodeId: handoff.node.id,
@@ -964,7 +973,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             warnings: handoff.summary.warnings,
           },
           ...(created.startError ? { startError: created.startError } : {}),
-        }
+        })
       },
     },
 

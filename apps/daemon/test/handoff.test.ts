@@ -146,7 +146,7 @@ describe('createHandoffNode', () => {
 
     const result = createHandoffNode(
       { db: database.db, workspacesRoot: root, now: () => 10, newId: () => 'handoff-1' },
-      { taskId: seeded.taskId, actor: 'user' },
+      { taskId: seeded.taskId, workspaceId: seeded.workspaceId, actor: 'user' },
     )
 
     expect(result.ok).toBe(false)
@@ -164,7 +164,7 @@ describe('createHandoffNode', () => {
 
     const result = createHandoffNode(
       { db: database.db, workspacesRoot: root, now: () => 10, newId: () => 'handoff-1' },
-      { taskId: seeded.taskId, actor: 'user' },
+      { taskId: seeded.taskId, workspaceId: seeded.workspaceId, actor: 'user' },
     )
 
     expect(result.ok).toBe(false)
@@ -195,7 +195,7 @@ describe('createHandoffNode', () => {
 
     const result = createHandoffNode(
       { db: database.db, workspacesRoot: root, now: () => 10, newId: () => 'handoff-1' },
-      { taskId: seeded.taskId, actor: 'user' },
+      { taskId: seeded.taskId, workspaceId: seeded.workspaceId, actor: 'user' },
     )
 
     expect(result.ok).toBe(true)
@@ -287,7 +287,16 @@ describe('supervisor handoff_task', () => {
     const audit = database.raw
       .prepare("select detail_json from audit where action = 'supervisor.task.handoff'")
       .get() as { detail_json: string } | undefined
-    expect(audit?.detail_json).toContain(seeded.taskId)
+    expect(audit).toBeDefined()
+    if (!audit) return
+    const detail = JSON.parse(audit.detail_json) as Record<string, unknown>
+    expect(detail).toMatchObject({
+      fromTaskId: seeded.taskId,
+      toTaskId: 'task-handoff',
+      nodeId: 'handoff-node',
+      hasNote: true,
+      started: false,
+    })
   })
 })
 

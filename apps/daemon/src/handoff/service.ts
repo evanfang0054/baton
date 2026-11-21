@@ -1,6 +1,6 @@
-import { buildHandoffSummary, type HandoffFile, type HandoffSummary } from '@baton/core'
-import { Node as NodeSchema } from '@baton/protocol'
-import type { AppError, Node, TaskStatus } from '@baton/protocol'
+import { buildHandoffSummary, type HandoffSummary } from '@baton/core'
+import { isHandoffable, Node as NodeSchema } from '@baton/protocol'
+import type { AppError, Node } from '@baton/protocol'
 import {
   getCanvasByWorkspace,
   getLastAssistantText,
@@ -16,6 +16,7 @@ import {
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
+import type { Logger } from '../log.js'
 import { resolveWorkspaceDir } from '../workspace/resolver.js'
 
 export interface HandoffDeps {
@@ -23,19 +24,18 @@ export interface HandoffDeps {
   workspacesRoot: string
   now: () => number
   newId: () => string
+  logger?: Logger
 }
 
 export interface CreateHandoffInput {
   taskId: string
-  /** 传了就校验归属；WS 命令与总管工具都带上当前 workspace。 */
-  workspaceId?: string
+  /** 当前 workspace；用于任务归属校验。 */
+  workspaceId: string
   actor: string
 }
 
 export type HandoffResult =
   { ok: true; node: Node; summary: HandoffSummary } | { ok: false; error: AppError }
-
-const HANDOFF_STATUSES: ReadonlySet<TaskStatus> = new Set(['review', 'done', 'failed', 'cancelled'])
 
 const TASK_BLOCK = /^<task>([\s\S]*?)<\/task>/
 
@@ -43,16 +43,6 @@ function extractGoal(prompt: string, title: string): string {
   const match = TASK_BLOCK.exec(prompt)
   const goal = match?.[1]?.trim()
   return goal && goal.length > 0 ? goal : title
-}
-
-function toHandoffFiles(diff: ReturnType<typeof getReviewDiff>): HandoffFile[] {
-  if (!diff) return []
-  return diff.files.map((file) => ({
-    path: file.path,
-    status: file.status,
-    insertions: file.insertions,
-    deletions: file.deletions,
-  }))
 }
 
 export function createHandoffNode(deps: HandoffDeps, input: CreateHandoffInput): HandoffResult {
@@ -66,10 +56,10 @@ export function createHandoffNode(deps: HandoffDeps, input: CreateHandoffInput):
     return { ok: false, error: appError('workspace_not_found', 'workspace not found') }
   }
   // 跨 workspace 不泄露任务存在性。
-  if (input.workspaceId && input.workspaceId !== workspace.id) {
+  if (input.workspaceId !== workspace.id) {
     return { ok: false, error: appError('task_not_found', 'task not found') }
   }
-  if (!HANDOFF_STATUSES.has(task.status)) {
+  if (!isHandoffable(task.status)) {
     return {
       ok: false,
       error: appError('handoff_invalid', 'task is not in a handoffable state', {
@@ -103,7 +93,6 @@ export function createHandoffNode(deps: HandoffDeps, input: CreateHandoffInput):
   }
 
   const redactPaths = [workspacePath, deps.workspacesRoot]
-  if (task.worktreePath) redactPaths.push(task.worktreePath)
 
   const summary = buildHandoffSummary({
     task: { id: task.id, title: task.title, status: task.status },
@@ -113,7 +102,7 @@ export function createHandoffNode(deps: HandoffDeps, input: CreateHandoffInput):
       ? {
           verifyExitCode: review.verifyExitCode,
           diffStat: review.diffStat,
-          files: toHandoffFiles(diff),
+          files: diff?.files ?? [],
         }
       : null,
     artifact: {
@@ -122,6 +111,7 @@ export function createHandoffNode(deps: HandoffDeps, input: CreateHandoffInput):
     },
     lastReply: lastReply.trim() ? lastReply : null,
     redactPaths,
+    ...(task.worktreePath ? { worktreePaths: [task.worktreePath] } : {}),
   })
 
   const anchor = task.nodeId ? getNode(deps.db, task.nodeId) : null
@@ -162,7 +152,15 @@ export function createHandoffNode(deps: HandoffDeps, input: CreateHandoffInput):
         },
       })
     })
-  } catch {
+  } catch (error) {
+    deps.logger?.error(
+      {
+        event: 'handoff_node_failed',
+        taskId: task.id,
+        name: error instanceof Error ? error.name : 'unknown',
+      },
+      'handoff node creation failed',
+    )
     return {
       ok: false,
       error: appError('handoff_node_failed', 'failed to create handoff node', {
