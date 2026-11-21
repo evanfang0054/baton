@@ -141,14 +141,23 @@ function FlowCanvas({
     return { [sceneTaskId]: sceneDetail.data.review } satisfies Record<string, ReviewView>
   }, [sceneDetail.data, sceneTaskId])
 
+  const injectedNodeIds = useMemo(
+    () =>
+      new Set(
+        sceneDetail.data?.task.context?.injections.flatMap((injection) => injection.nodeIds) ?? [],
+      ),
+    [sceneDetail.data],
+  )
+
   const flowNodes = useMemo(() => {
     if (!canvas) return []
     return toFlowNodes(canvas.nodes, tasks, {
       scene,
       reviewDetails,
       workspaceId: canvas.canvas.workspaceId,
+      injectedNodeIds,
     })
-  }, [canvas, reviewDetails, scene, tasks])
+  }, [canvas, injectedNodeIds, reviewDetails, scene, tasks])
   const hiddenNodeIds = useMemo(
     () => new Set(flowNodes.filter((node) => node.hidden).map((node) => node.id)),
     [flowNodes],

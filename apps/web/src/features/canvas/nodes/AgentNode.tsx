@@ -6,7 +6,7 @@ import { NodeShell, type CanvasFlowNodeProps } from './NodeShell'
 export function AgentNode({ data, selected }: CanvasFlowNodeProps) {
   const agent = data.node.type === 'agent' ? data.node.data : null
   return (
-    <NodeShell selected={selected}>
+    <NodeShell selected={selected} injected={data.injected}>
       <div className="flex items-center gap-2 text-xs text-muted">
         <Bot size={14} />
         Agent

@@ -14,12 +14,14 @@ export interface CanvasNodeData extends Record<string, unknown> {
   imageUrl?: string
   review?: ReviewView | null
   childCount?: number
+  injected?: boolean
 }
 
 export interface CanvasRenderOptions {
   scene?: TaskScene | null
   reviewDetails?: Record<string, ReviewView>
   workspaceId?: string
+  injectedNodeIds?: ReadonlySet<string>
 }
 
 export type CanvasAddType = 'text' | 'file' | 'image' | 'agent' | 'group'
@@ -80,6 +82,7 @@ export function toFlowNodes(
         task: null,
         dimmed: scene ? !relatedGroups.has(node.id) : false,
         childCount: nodes.filter((child) => child.groupId === node.id).length,
+        injected: options.injectedNodeIds?.has(node.id) ?? false,
       },
     }))
 
@@ -102,6 +105,7 @@ export function toFlowNodes(
           node,
           task: taskByNode.get(node.id) ?? null,
           dimmed: scene ? !related.has(node.id) : false,
+          injected: options.injectedNodeIds?.has(node.id) ?? false,
           ...(node.type === 'image'
             ? { imageUrl: resolveImageUrl(node.data.src, options.workspaceId) }
             : {}),

@@ -118,6 +118,15 @@ describe('canvas model', () => {
     expect(flow[1]?.data.task).toEqual(task)
   })
 
+  it('marks injected nodes from the injected id set', () => {
+    const flow = toFlowNodes([textNode, groupNode('g1')], [], {
+      injectedNodeIds: new Set([textNode.id, 'g1']),
+    })
+    expect(flow.find((node) => node.id === textNode.id)?.data.injected).toBe(true)
+    expect(flow.find((node) => node.id === 'g1')?.data.injected).toBe(true)
+    expect(toFlowNodes([textNode], [])[0]?.data.injected).toBe(false)
+  })
+
   it('shows the newest task when an agent has task history', () => {
     const older: TaskSummary = { ...task, id: 't0', status: 'done', createdAt: 1 }
     const newer: TaskSummary = { ...task, id: 't2', createdAt: 2 }

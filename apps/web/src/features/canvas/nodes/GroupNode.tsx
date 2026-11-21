@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, FolderOpen } from 'lucide-react'
+import { ChevronDown, ChevronRight, CircleCheck, FolderOpen } from 'lucide-react'
 import { useCanvasActions } from '../actions'
 import type { CanvasFlowNodeProps } from './NodeShell'
 
@@ -16,6 +16,12 @@ export function GroupNode({ data, selected }: CanvasFlowNodeProps) {
       <div className="flex items-center gap-2 text-xs">
         <FolderOpen size={14} aria-hidden="true" className="shrink-0 text-muted" />
         <span className="min-w-0 flex-1 truncate font-medium text-foreground">{group.label}</span>
+        {data.injected ? (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">
+            <CircleCheck size={12} aria-hidden="true" />
+            已投喂
+          </span>
+        ) : null}
         <span className="shrink-0 text-muted">{data.childCount ?? 0} 个节点</span>
         {actions.readOnly ? (
           <span className="shrink-0 text-muted">{group.collapsed ? '已折叠' : '已展开'}</span>
