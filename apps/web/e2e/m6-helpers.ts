@@ -1,7 +1,10 @@
 import type {
+  AcceptanceReport,
   Edge as ProtocolEdge,
   Node as ProtocolNode,
   ReviewView,
+  TaskAcceptanceSummary,
+  TaskBudgetSummary,
   TaskDetailResponse,
   TaskSummary,
 } from '@baton/protocol'
@@ -12,6 +15,7 @@ export interface MockState {
   edges: ProtocolEdge[]
   tasks: TaskSummary[]
   taskDetail: TaskDetailResponse
+  acceptance: ReturnType<typeof acceptanceBundle> | null
 }
 
 const PNG_1X1 = Buffer.from(
@@ -148,6 +152,152 @@ export function reviewView(overrides: Partial<ReviewView> = {}): ReviewView {
   }
 }
 
+export function acceptanceSummary(
+  overrides: Partial<TaskAcceptanceSummary> = {},
+): TaskAcceptanceSummary {
+  return {
+    contractId: 'ac1',
+    version: 1,
+    revision: 0,
+    status: 'draft',
+    counts: { total: 3, pass: 2, fail: 1, pending: 0, waived: 0 },
+    verdict: 'fail',
+    topFailures: [{ text: '深链参数未校验', evidence: 'test/login.test.ts' }],
+    ...overrides,
+  }
+}
+
+export function budgetSummary(overrides: Partial<TaskBudgetSummary> = {}): TaskBudgetSummary {
+  return {
+    budgetUsd: 2,
+    spentUsd: 1.2,
+    remainingUsd: 0.8,
+    ratio: 0.6,
+    overBudget: false,
+    nearBudget: false,
+    workerCostUsd: 1.2,
+    verifierCostUsd: 0.1,
+    turns: 3,
+    ...overrides,
+  }
+}
+
+export function acceptanceReport(
+  acceptance: TaskAcceptanceSummary,
+  budget: TaskBudgetSummary,
+): AcceptanceReport {
+  return {
+    taskId: 't1',
+    contractId: acceptance.contractId,
+    contractVersion: acceptance.version,
+    contractRevision: acceptance.revision,
+    goal: '登录页修复',
+    result: '完成登录与错误提示',
+    changes: {
+      filesChanged: 2,
+      insertions: 8,
+      deletions: 1,
+      files: ['src/login.tsx', 'test/login.test.ts'],
+    },
+    verify: { command: 'pnpm test', exitCode: 0, outputSummary: 'ok', skipped: false },
+    acceptance: {
+      items: [
+        {
+          id: 'i1',
+          contractId: acceptance.contractId,
+          ordinal: 1,
+          text: '登录成功',
+          status: 'pass',
+          evidence: 'src/login.tsx:1',
+          source: 'verifier',
+          updatedAt: 1,
+        },
+        {
+          id: 'i2',
+          contractId: acceptance.contractId,
+          ordinal: 2,
+          text: '错误提示',
+          status: 'fail',
+          evidence: 'test/login.test.ts',
+          source: 'verifier',
+          updatedAt: 1,
+        },
+        {
+          id: 'i3',
+          contractId: acceptance.contractId,
+          ordinal: 3,
+          text: '记住我',
+          status: 'pass',
+          evidence: 'src/login.tsx:8',
+          source: 'verifier',
+          updatedAt: 1,
+        },
+      ],
+      counts: acceptance.counts,
+      verdict: acceptance.verdict,
+    },
+    usage: {
+      workerCostUsd: budget.workerCostUsd,
+      verifierCostUsd: budget.verifierCostUsd,
+      turns: budget.turns,
+      budgetUsd: budget.budgetUsd,
+      spentUsd: budget.spentUsd,
+      remainingUsd: budget.remainingUsd,
+      overBudget: budget.overBudget,
+      nearBudget: budget.nearBudget,
+    },
+    risks: ['1 条验收未通过'],
+    unverified: ['错误提示'],
+    preliminary: { verdict: 'fail', summary: '1 条未过' },
+    hash: 'a'.repeat(64),
+  }
+}
+
+export function acceptanceBundle(
+  options: { acceptance?: TaskAcceptanceSummary; budget?: TaskBudgetSummary } = {},
+) {
+  const acceptance = options.acceptance ?? acceptanceSummary()
+  const budget = options.budget ?? budgetSummary()
+  return {
+    contract: {
+      id: 'ac1',
+      taskId: 't1',
+      version: 1,
+      status: 'draft' as const,
+      createdBy: 'verifier' as const,
+      revision: 0,
+      truncated: false,
+      createdAt: 1,
+      frozenAt: null,
+    },
+    items: [
+      {
+        id: 'i1',
+        contractId: 'ac1',
+        ordinal: 1,
+        text: '登录成功',
+        status: 'pass' as const,
+        evidence: 'src/login.tsx:1',
+        source: 'verifier' as const,
+        updatedAt: 1,
+      },
+      {
+        id: 'i2',
+        contractId: 'ac1',
+        ordinal: 2,
+        text: '错误提示',
+        status: 'fail' as const,
+        evidence: 'test/login.test.ts',
+        source: 'verifier' as const,
+        updatedAt: 1,
+      },
+    ],
+    run: null,
+    report: acceptanceReport(acceptance, budget),
+    budget,
+  }
+}
+
 export function sceneDetail(): TaskDetailResponse {
   return {
     task: {
@@ -187,6 +337,7 @@ export async function mockWorkspace(
     tasks?: TaskSummary[]
     taskDetail?: TaskDetailResponse
     reviewDetail?: Partial<ReviewView>
+    acceptance?: ReturnType<typeof acceptanceBundle> | null
   } = {},
 ): Promise<MockState> {
   const state: MockState = {
@@ -194,6 +345,7 @@ export async function mockWorkspace(
     edges: input.edges ?? [],
     tasks: input.tasks ?? [],
     taskDetail: input.taskDetail ?? sceneDetail(),
+    acceptance: input.acceptance ?? null,
   }
   if (input.reviewDetail && state.taskDetail.review) {
     state.taskDetail = {
@@ -244,6 +396,13 @@ export async function mockWorkspace(
             autoDecisions: [],
           },
         })
+      case '/api/tasks/t1/acceptance':
+        return state.acceptance
+          ? route.fulfill({ json: state.acceptance })
+          : route.fulfill({
+              status: 404,
+              json: { code: 'acceptance_not_found', message: 'acceptance not found' },
+            })
       case '/api/engines':
         return route.fulfill({ json: { engines: [{ engine: 'fake', status: 'available' }] } })
       case '/api/supervisor/status':

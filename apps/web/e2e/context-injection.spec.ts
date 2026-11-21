@@ -1,5 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
-import { agentNode, mockWorkspace, sceneDetail, task, textNode } from './m6-helpers'
+import {
+  acceptanceBundle,
+  acceptanceSummary,
+  agentNode,
+  mockWorkspace,
+  sceneDetail,
+  task,
+  textNode,
+} from './m6-helpers'
 
 type WsRoute = Parameters<Parameters<Page['routeWebSocket']>[1]>[0]
 
@@ -95,11 +103,17 @@ test('requires confirmation when passing a failed verify', async ({ page }) => {
 
   const detail = sceneDetail()
   detail.review = detail.review ? { ...detail.review, verifyExitCode: 1 } : null
+  const passSummary = acceptanceSummary({
+    counts: { total: 1, pass: 1, fail: 0, pending: 0, waived: 0 },
+    verdict: 'pass',
+    topFailures: [],
+  })
 
   await mockWorkspace(page, {
     nodes: [agentNode('a1', 420, 80)],
-    tasks: [task({ id: 't1', nodeId: 'a1', title: '待验收任务' })],
+    tasks: [task({ id: 't1', nodeId: 'a1', title: '待验收任务', acceptance: passSummary })],
     taskDetail: detail,
+    acceptance: acceptanceBundle({ acceptance: passSummary }),
   })
 
   await page.goto('/?workspace=w1')
@@ -112,5 +126,5 @@ test('requires confirmation when passing a failed verify', async ({ page }) => {
   await page.getByRole('button', { name: '确认通过' }).click()
   await expect
     .poll(() => commands.find((command) => command.type === 'review.decide')?.payload)
-    .toEqual({ reviewId: 'r1', decision: 'approve', reason: '已知问题，先合' })
+    .toEqual({ reviewId: 'r1', decision: 'approve', overrideReason: '已知问题，先合' })
 })

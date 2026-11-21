@@ -178,6 +178,8 @@ describe('canvas nodes', () => {
     expect(screen.queryByRole('button', { name: '通过' })).not.toBeInTheDocument()
     screen.getByRole('button', { name: '打开任务 登录页重构' }).click()
     expect(openTask).toHaveBeenCalledWith('t1')
+    screen.getByRole('button', { name: '查看证据' }).click()
+    expect(openTask).toHaveBeenCalledTimes(2)
   })
 })
 

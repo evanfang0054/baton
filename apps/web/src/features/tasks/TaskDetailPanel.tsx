@@ -327,17 +327,19 @@ function DetailContent({
         onDone={onDone}
       />
 
-      {acceptanceError ? <p className="shrink-0 text-sm text-muted">验收证据暂不可用</p> : null}
-      {acceptance ? <AcceptanceReport report={acceptance.report} /> : null}
-      {task.status === 'review' && acceptance ? (
-        <AcceptanceEditor
-          taskId={task.id}
-          contract={acceptance.contract}
-          items={acceptance.items}
-          disabled={acceptance.contract.status !== 'draft'}
-          onSaved={onDone}
-        />
-      ) : null}
+      <div data-section="acceptance" className="flex shrink-0 flex-col gap-2">
+        {acceptanceError ? <p className="text-sm text-muted">验收证据暂不可用</p> : null}
+        {acceptance ? <AcceptanceReport report={acceptance.report} /> : null}
+        {task.status === 'review' && acceptance ? (
+          <AcceptanceEditor
+            taskId={task.id}
+            contract={acceptance.contract}
+            items={acceptance.items}
+            disabled={acceptance.contract.status !== 'draft'}
+            onSaved={onDone}
+          />
+        ) : null}
+      </div>
       {acceptance && ['todo', 'queued', 'failed'].includes(task.status) ? (
         <BudgetEditor taskId={task.id} budget={acceptance.budget} onDone={onDone} />
       ) : null}

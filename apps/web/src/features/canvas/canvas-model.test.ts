@@ -148,6 +148,41 @@ describe('canvas model', () => {
     })
   })
 
+  it('carries acceptance and budget onto the review card', () => {
+    const reviewTask: TaskSummary = {
+      ...task,
+      status: 'review',
+      attention: 'needs_review',
+      acceptance: {
+        contractId: 'ac1',
+        version: 1,
+        revision: 0,
+        status: 'draft',
+        counts: { total: 3, pass: 2, fail: 1, pending: 0, waived: 0 },
+        verdict: 'fail',
+        topFailures: [{ text: '深链参数未校验', evidence: null }],
+      },
+      budget: {
+        budgetUsd: 2,
+        spentUsd: 1.2,
+        remainingUsd: 0.8,
+        ratio: 0.6,
+        overBudget: false,
+        nearBudget: false,
+        workerCostUsd: 1.2,
+        verifierCostUsd: 0,
+        turns: 2,
+      },
+    }
+    const card = toFlowNodes([agentNode], [reviewTask], {
+      reviewDetails: { t1: review },
+    }).find((node) => node.id === 'review:t1')
+    expect(card?.data).toMatchObject({
+      acceptance: { counts: { pass: 2, total: 3, fail: 1 } },
+      budget: { spentUsd: 1.2, budgetUsd: 2 },
+    })
+  })
+
   it('adds a derived review card for review tasks', () => {
     const flow = toFlowNodes([agentNode], [task], {
       reviewDetails: { t1: review },
