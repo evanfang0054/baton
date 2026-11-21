@@ -89,6 +89,8 @@ describe('parseAcceptanceReport', () => {
   it('returns null on missing or malformed JSON', () => {
     expect(parseAcceptanceReport('没有结构化结果')).toBeNull()
     expect(parseAcceptanceReport('<acceptance_report>{bad}</acceptance_report>')).toBeNull()
-    expect(parseAcceptanceReport('<acceptance_report>{"verdict":"maybe"}</acceptance_report>')).toBeNull()
+    expect(
+      parseAcceptanceReport('<acceptance_report>{"verdict":"maybe"}</acceptance_report>'),
+    ).toBeNull()
   })
 })

@@ -39,7 +39,10 @@ export function handleAcceptanceUpdate(
 ): AcceptanceUpdateResult {
   const task = getTask(deps.db, input.taskId)
   if (!task) {
-    return { ok: false, error: appError('task_not_found', 'task not found', { taskId: input.taskId }) }
+    return {
+      ok: false,
+      error: appError('task_not_found', 'task not found', { taskId: input.taskId }),
+    }
   }
   if (task.status !== 'review') {
     return {

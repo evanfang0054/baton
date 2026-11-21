@@ -4,7 +4,7 @@ spec_topic: m6-3-acceptance-evidence
 task_count: 8
 estimated_phases: [tests, implementation, verification]
 dod: "验收合同/条目/运行落库；验收员结构化输出可解析；报告/HTTP/总管只读字段可用；review 决策冻结合同"
-status: active
+status: completed
 depends_on: 2026-11-21-m6-3-protocol-core.md
 ---
 
@@ -44,7 +44,7 @@ Seam: DB 读写 + 批量摘要
   - `freezeAcceptanceContract(tx, contractId, at)`
   - `updateAcceptanceRun(tx, id, patch)`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 it('round-trips contract/items/run and freezes', () => {
@@ -67,24 +67,24 @@ it('rejects stale revision', () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/acceptance-repository.test.ts`
 Expected: FAIL。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - 使用 `db/schema.ts` 新表；所有写操作接收 `Tx`。
 - `replaceAcceptanceItems` 先用 `select revision` 校验，再在同一事务里删除旧 items、插入新 items、`revision += 1`。
 - `listAcceptanceSummaries` 用一次查询 join 最新 contract + run（按 `task_id` 分组取 `max(version)`；SQLite 可用子查询），返回 `TaskAcceptanceSummary`；topFailures 取最多 3 条 fail/pending。
 - 旧任务无 contract 返回 null。
 
-- [ ] **Step 4: 跑测试**
+- [x] **Step 4: 跑测试**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/acceptance-repository.test.ts`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/daemon/src/db/acceptance-repository.ts apps/daemon/test/acceptance-repository.test.ts
@@ -107,7 +107,7 @@ Seam: `persistVerifyResult` 同事务
 **Interfaces:**
 - Produces: `ensureAcceptanceForReview(tx, { task, reviewId, now, newId })` → `{ contractId, runId }`；克隆最近 frozen 合同，状态重置，version+1；无则 v1。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 it('creates v1 draft and running run on first review', () => {
@@ -124,23 +124,23 @@ it('clones the last frozen contract on re-review', () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/review-acceptance.test.ts`
 Expected: FAIL，没有合同。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - `ensureAcceptanceForReview`：读 `getLatestFrozenContract`；构造新 contract（`version = prev.version + 1`，`createdBy='verifier'`，`revision=0`，`truncated=false`）；克隆 items；插入 run（`status='running'`，`reviewId`）。
 - 在 `effects.ts` 的 `persistVerifyResult` 中，`insertReview` 后调用 `ensureAcceptanceForReview(tx, ...)`。
 - 不在同一事务里派验收员；`observeTask` 仍走 afterCommit。
 
-- [ ] **Step 4: 跑测试**
+- [x] **Step 4: 跑测试**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/review-acceptance.test.ts`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/daemon/src/runtime/acceptance-service.ts apps/daemon/src/runtime/effects.ts apps/daemon/test/review-acceptance.test.ts
@@ -163,7 +163,7 @@ Seam: verifier prompt → `<acceptance_report>` → run/items
 **Interfaces:**
 - Produces: `VERIFIER_PROMPT_MARKER='<verifier_task>'`（prompt 首行）；`parseAcceptanceReport(text)` → `{ verdict, summary, items } | null`；`concludeVerifier(task, message, origin)` 写 items/run/`acceptance.updated`，失败标 failed。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 it('parses the last acceptance_report block', () => {
@@ -181,18 +181,18 @@ it('returns null on malformed json and marks run failed', async () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/supervisor-acceptance.test.ts`
 Expected: FAIL。
 
-- [ ] **Step 3: 实现 parser**
+- [x] **Step 3: 实现 parser**
 
 - 用正则取最后一个 `<acceptance_report>([\s\S]*?)</acceptance_report>`；没有则取最后一个 ```json 块。
 - `JSON.parse` + zod（verdict/summary/items/text/status/evidence）；items 截断到 8、text/evidence 200、summary 1000；失败返回 null。
 - 导出 `VERIFIER_PROMPT_MARKER`，`buildVerifierPrompt` 首行加 marker；prompt 里加输出格式与“只读/相对路径/不要 transcript”。
 
-- [ ] **Step 4: 接入 concludeVerifier**
+- [x] **Step 4: 接入 concludeVerifier**
 
 - `concludeVerifier(task, message, origin)`：
   - `parseAcceptanceReport(message)`；成功 → 用当前 draft contract 写 items（`source=verifier`）、run `complete` + verdict/summary；发 `acceptance.updated`（只带 counts/ids）。
@@ -200,12 +200,12 @@ Expected: FAIL。
   - 保留原有 `setReviewPreliminary` 与 `review.preliminary` 事件；`preliminaryVerdict` 用 verdict 映射（pass/fail/unknown）。
 - `dispatchVerifier` 创建验收员任务时传 `budgetUsd: Math.min(0.5, config.claudeMaxBudgetUsd)`；Plan 3 引入 `BATON_VERIFIER_BUDGET_USD` 后替换为 config。
 
-- [ ] **Step 5: 跑测试**
+- [x] **Step 5: 跑测试**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/supervisor-acceptance.test.ts`
 Expected: PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/daemon/src/supervisor apps/daemon/test/supervisor-acceptance.test.ts
@@ -228,7 +228,7 @@ Seam: WS 命令 → 事务 + 409/422
 **Interfaces:**
 - Produces: `handleAcceptanceUpdate(deps, input)` → `{ contract, items }`；错误 `invalid_state` / `revision_conflict` / `acceptance_invalid`；成功后 emit `acceptance.updated` + audit `task.acceptance.update`（只写 counts/ids）。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 it('updates items and increments revision', async () => {
@@ -246,12 +246,12 @@ it('rejects when task is not in review', async () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/acceptance-command.test.ts`
 Expected: FAIL。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - 校验任务属于当前 workspace、状态 `review`、合同 `draft`、contractId 匹配。
 - 调 `validateAcceptanceUpdate`；失败按 code 映射 `invalid_payload`/`acceptance_invalid`。
@@ -259,12 +259,12 @@ Expected: FAIL。
 - 发 `acceptance.updated`。
 - `runtime/index.ts` 的 `ClientMessage` switch 加 `acceptance.update`。
 
-- [ ] **Step 4: 跑测试**
+- [x] **Step 4: 跑测试**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/acceptance-command.test.ts`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/daemon/src/runtime apps/daemon/test/acceptance-command.test.ts
@@ -287,7 +287,7 @@ Seam: `GET /api/tasks/:id/acceptance` + 列表摘要
 **Interfaces:**
 - Produces: `getAcceptanceResponse(db, taskId, config)` → `{ contract, items, run, report }`；`report.hash` 用 `createHash('sha256').update(canonical).digest('hex')`；任务列表/详情带 acceptance/budget 紧凑字段。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 it('returns report with stable hash', async () => {
@@ -304,12 +304,12 @@ it('task list carries compact acceptance/budget', async () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/acceptance-report.test.ts`
 Expected: FAIL。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - `getAcceptanceResponse`：读 bundle + review + sessions；`buildAcceptanceReport`（Plan 1）；`stableStringify` + sha256；返回。
 - `http/tasks.ts`：
@@ -318,12 +318,12 @@ Expected: FAIL。
   - `/api/tasks/:id` 也带 acceptance/budget。
 - 不在 HTTP 层读 transcript/diff 正文。
 
-- [ ] **Step 4: 跑测试**
+- [x] **Step 4: 跑测试**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/acceptance-report.test.ts`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/daemon/src/acceptance apps/daemon/src/http/tasks.ts apps/daemon/test/acceptance-report.test.ts
@@ -347,7 +347,7 @@ Seam: `get_task` / `list_tasks` 输出
 **Interfaces:**
 - Produces: `taskSummary` 带 `acceptance {pass,total,fail}`、`budget {spent,limit,over}`；`get_task` 带 `acceptance/usage/report`；`filter=attention` 纳入超预算/AC 未过；prompt 规则与版本更新。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 it('get_task returns acceptance and usage without transcript', async () => {
@@ -363,23 +363,23 @@ it('list_tasks attention includes over budget', async () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/supervisor-tools.test.ts`
 Expected: FAIL。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - `tools.ts` 的 `taskSummary` 读 `listAcceptanceSummaries` + `budgetState`；`get_task` 增加 acceptance/usage/report summary；`list_tasks` 的 attention 排序纳入 over budget / AC fail。
 - `prompt.ts` 增加：用 acceptance/usage/report 回答；不得声称“已通过/已提额/已批准”；不得编造 AC；不读 transcript/代码。`PROMPT_VERSION` 自动变。
 - `service.ts` 的 anti-hallucination 加 `已通过|AC 全过|已提额|已批准` 断言，必须有对应工具事实。
 
-- [ ] **Step 4: 跑测试**
+- [x] **Step 4: 跑测试**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/supervisor-tools.test.ts test/supervisor-observe.test.ts`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/daemon/src/supervisor apps/daemon/test/supervisor-tools.test.ts
@@ -402,7 +402,7 @@ Seam: `review.decide` 命令 + 状态离开 review
 **Interfaces:**
 - Produces: approve 时 AC 非全 pass/无 AC 必须带 `overrideReason`；approve/reject 冻结当前合同；review 期间 cancel 也冻结；审计含 contractId/version/revision/reportHash/counts/verdict/overrideReason。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 it('requires overrideReason when AC has a failure', async () => {
@@ -416,23 +416,23 @@ it('freezes contract on approve/reject/cancel', async () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/review-acceptance.test.ts`
 Expected: FAIL。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - review.decide handler：approve 前读 acceptance summary；若 `fail>0 || pending>0 || total===0` 且无 `overrideReason` → 422。
 - 计算报告 hash（Task 5）并写入 audit `review.approve_override`（扩展 detail）或正常 `review.approve`。
 - `transition-runner` 在状态写完后：若 `previousStatus==='review' && status!=='review'`，`freezeAcceptanceContract` 最新 draft；cancel 也走这条。
 
-- [ ] **Step 4: 跑测试**
+- [x] **Step 4: 跑测试**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/review-acceptance.test.ts`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/daemon/src/runtime apps/daemon/test/review-acceptance.test.ts
@@ -447,17 +447,17 @@ Blocking: Task 1-7
 Slice type: verification
 Seam: `pnpm --filter @evanfang0054/baton test`
 
-- [ ] **Step 1: 跑 daemon 全量测试**
+- [x] **Step 1: 跑 daemon 全量测试**
 
 Run: `pnpm --filter @evanfang0054/baton test`
 Expected: PASS；既有 `transition-runner`/`supervisor-observe`/`task-service` 不回归。
 
-- [ ] **Step 2: 跑协议/core/daemon typecheck**
+- [x] **Step 2: 跑协议/core/daemon typecheck**
 
 Run: `pnpm --filter @baton/protocol typecheck && pnpm --filter @baton/core typecheck && pnpm --filter @evanfang0054/baton typecheck`
 Expected: PASS。
 
-- [ ] **Step 3: Commit（如有测试调整）**
+- [x] **Step 3: Commit（如有测试调整）**
 
 ```bash
 git add apps/daemon/test
@@ -468,8 +468,21 @@ git commit -m "test(daemon): M6-3 验收合同/报告/总管回归"
 
 ## 自检
 
-- [ ] Spec §5-§7、§10 的 daemon 行为均有 task。
-- [ ] 验收员失败不阻塞 review；WS 事件不含条目正文。
-- [ ] 报告不落库、不含 diff/transcript；hash 稳定。
-- [ ] 不实现预算/提额/自动批准上限/注入幂等（Plan 3）。
-- [ ] `pnpm --filter @evanfang0054/baton test` 全绿。
+- [x] Spec §5-§7、§10 的 daemon 行为均有 task。
+- [x] 验收员失败不阻塞 review；WS 事件不含条目正文。
+- [x] 报告不落库、不含 diff/transcript；hash 稳定。
+- [x] 不实现预算/提额/自动批准上限/注入幂等（Plan 3）。
+- [x] `pnpm --filter @evanfang0054/baton test` 全绿。
+
+---
+
+## 执行记录
+
+- 2026-11-21：Task 1-8 完成。
+- 提交：`2eb4e74` 验收仓储、`85bb281` review 入口生成合同/run、`ccef7f0` 验收员结构化输出、`d7dc1b2` `acceptance.update`、`c4c73ae` 报告/hash/HTTP、`ef356e2` 总管只读字段、`5c631f2` 决策冻结与 override。
+- 验证：daemon 全量 363 tests 全绿；`pnpm verify` 退出码 0（typecheck + lint + format + boundaries + protocol + tests + build）。
+- 偏差：
+  - `getAcceptanceResponse(db, task, config)` 接收 `Task` 而非 `taskId`，便于复用已加载任务。
+  - 报告路径在核心层统一遮蔽：根未知或越界一律 `<external>`，verify 输出中的绝对路径也会被打码。
+  - 决策审计 action 为 `review.decide`，含 `contractId/version/revision/reportHash/counts/verdict/overrideReason`；冻结在 transition-runner 同一事务内完成并广播 `acceptance.updated`。
+  - 无 AC 的旧 review approve 现在也要求 `overrideReason`（符合 spec），相关旧测试已补理由。
