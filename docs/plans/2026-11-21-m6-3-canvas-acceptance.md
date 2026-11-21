@@ -4,7 +4,7 @@ spec_topic: m6-3-acceptance-evidence
 task_count: 6
 estimated_phases: [tests, implementation, verification]
 dod: "画布 review 卡承载验收摘要并可打开证据；现场条显示 AC/成本；Playwright 与 ego-lite 证据落库；contract 收口"
-status: active
+status: completed
 depends_on: 2026-11-21-m6-3-tasks-web.md
 ---
 
@@ -317,13 +317,13 @@ git add docs
 git commit -m "docs: M6-3 收口"
 ```
 
-- [ ] **Step 5: 合并前检查**
+- [x] **Step 5: 合并前检查**
 
 - `git diff main...HEAD -- apps packages` 只含 M6-3 范围；不混入 M6-2 未合并提交。
 - 先合并 M6-2 到 main，再把 `feat/m6-3-acceptance` 从最新 main rebase/retarget。
 - PR 描述附：spec/contract/5 plans/evidence；`pnpm verify:full` 输出；DESIGN token 说明；迁移 0012 说明。
 
-> 未执行：当前分支包含尚未合入 `main` 的 M6-2 提交；需要先处理 M6-2 的合并/PR，再做本分支 rebase/retarget。代码、测试、证据与 contract 收口已完成。
+> 已完成：本地 main 已快进到 `origin/main`（含 M6-2 与 docs #32）；分支差异只含 M6-3；PR #33 已创建。
 
 ---
 
@@ -348,4 +348,5 @@ git commit -m "docs: M6-3 收口"
   4. 任务详情缺 acceptance/budget → `TaskDetailResponse` 增加紧凑字段（兼容旧 mock 的默认值）；
   5. 重启把 `waiting_input(budget)` 降级为 stalled → boot reconcile 保留预算停止。
 - **验证**：`pnpm verify:full` 退出码 0；protocol 151 / adapters 31 / core 199 / daemon 378 / web 267 个测试通过；Playwright 46 个 e2e 通过；`pnpm pack:check`、`pnpm check:secrets` 通过。
-- **未执行**：Task 6 Step 5 合并/PR——当前分支含未合入 main 的 M6-2 提交；总管真实问答因临时环境未配置 `supervisor.json` 未运行（由 daemon 测试与 Playwright mock 覆盖）。
+- **合并/PR**：本地 `main` 已快进到 `origin/main`（含 M6-2）；`git diff main...HEAD` 只含 M6-3；PR #33 已创建，CI 以 PR 检查为准。
+- **未执行**：总管真实问答因临时环境未配置 `supervisor.json` 未运行（由 daemon 测试与 Playwright mock 覆盖）。
