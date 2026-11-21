@@ -592,6 +592,40 @@ describe('supervisor service', () => {
     ).toEqual({ n: 1 })
   })
 
+  it('does not record a recommendation when the target already left review', () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        throw new Error('unused')
+      },
+    }
+    const { database, seeded, service, frames } = setup(engine, {
+      trusted: true,
+    })
+    const targetOrigin = seedSupervisorReview(database, seeded)
+    const verifierTaskId = seedVerifierTask(database, seeded, targetOrigin, 'PASS')
+    database.raw.prepare("update task set status = 'done' where id = ?").run(seeded.taskId)
+
+    service.observeTask({ taskId: verifierTaskId, status: 'review', waitingReason: null })
+
+    const review = database.raw
+      .prepare(
+        'select preliminary_verdict, preliminary_reason, preliminary_at from review where id = ?',
+      )
+      .get('rv1')
+    expect(review).toEqual({
+      preliminary_verdict: null,
+      preliminary_reason: null,
+      preliminary_at: null,
+    })
+    expect(frames.some((frame) => frame.includes('review.preliminary'))).toBe(false)
+    expect(
+      database.raw
+        .prepare("select count(*) as n from ws_event where type = 'review.preliminary'")
+        .get(),
+    ).toEqual({ n: 0 })
+    expect(service.history(seeded.workspaceId, 50).messages.at(-1)?.content).toContain('仅作参考')
+  })
+
   it('leaves the target in review when the verifier returns FAIL', () => {
     const engine: SupervisorEngine = {
       async run() {

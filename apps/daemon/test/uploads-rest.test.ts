@@ -1,5 +1,6 @@
 import { WorkspaceUploadResponse } from '@baton/protocol'
-import { existsSync, readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { buildTestApp, type TestApp } from './helpers/app.js'
@@ -88,6 +89,7 @@ describe('GET /api/workspaces/:id/uploads/:name', () => {
     expect(res.headers['content-type']).toBe('image/png')
     expect(res.headers['x-content-type-options']).toBe('nosniff')
     expect(res.headers['cache-control']).toBe('private, max-age=300')
+    expect(res.headers['content-length']).toBe(String(Buffer.byteLength('png-bytes')))
   })
 
   it('adds CSP sandbox for SVG and rejects non-image extensions', async () => {
@@ -125,6 +127,29 @@ describe('GET /api/workspaces/:id/uploads/:name', () => {
   it('rejects traversal and missing files', async () => {
     const { app, handle } = await setup()
     for (const name of ['..%2Fsecret.png', 'missing.png']) {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/workspaces/${handle.seeded.workspaceId}/uploads/${name}`,
+      })
+      expect(res.statusCode).toBe(404)
+    }
+  })
+
+  it('rejects symlinks, directories, and FIFO entries', async () => {
+    const { app, handle } = await setup()
+    const workspacePath = join(handle.root, handle.seeded.relPath)
+    const uploadDir = join(workspacePath, '.baton', 'uploads')
+    mkdirSync(uploadDir, { recursive: true })
+    writeFileSync(join(handle.root, 'outside.png'), 'png-bytes')
+    symlinkSync(join(handle.root, 'outside.png'), join(uploadDir, 'link.png'))
+    mkdirSync(join(uploadDir, 'dir.png'))
+    const names = ['link.png', 'dir.png']
+    if (process.platform !== 'win32') {
+      execFileSync('mkfifo', [join(uploadDir, 'pipe.png')])
+      names.push('pipe.png')
+    }
+
+    for (const name of names) {
       const res = await app.inject({
         method: 'GET',
         url: `/api/workspaces/${handle.seeded.workspaceId}/uploads/${name}`,

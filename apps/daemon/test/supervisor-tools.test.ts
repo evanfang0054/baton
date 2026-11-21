@@ -525,10 +525,76 @@ describe('supervisor tools', () => {
         .prepare("select count(*) as n from audit where action = 'supervisor.node.update'")
         .get(),
     ).toEqual({ n: 1 })
+    const audit = database.raw
+      .prepare("select detail_json from audit where action = 'supervisor.node.update'")
+      .get() as { detail_json: string }
+    expect(JSON.parse(audit.detail_json)).toMatchObject({
+      fields: ['x', 'y', 'title'],
+      before: { x: 0, y: 0, title: 'agent' },
+      after: { x: 10, y: 20, title: '新 Agent' },
+    })
 
     await expect(
       tools.update_node.execute({ nodeId: 'text-1', title: '不允许' }, ctx(seeded)),
     ).rejects.toMatchObject({ code: 'invalid_payload' })
+  })
+
+  it('moves a group together with its children and records the move', async () => {
+    const { database, seeded, tools } = setup()
+    const insert = database.raw.prepare(
+      `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
+       values (?, ?, ?, ?, ?, 100, 50, ?, ?, 1, 1)`,
+    )
+    insert.run(
+      'group-1',
+      seeded.canvasId,
+      'group',
+      0,
+      0,
+      null,
+      JSON.stringify({ label: '组', collapsed: false }),
+    )
+    insert.run(
+      'child-1',
+      seeded.canvasId,
+      'text',
+      10,
+      20,
+      'group-1',
+      JSON.stringify({ content: 'a' }),
+    )
+    insert.run(
+      'child-2',
+      seeded.canvasId,
+      'text',
+      60,
+      80,
+      'group-1',
+      JSON.stringify({ content: 'b' }),
+    )
+
+    await tools.update_node.execute({ nodeId: 'group-1', x: 50, y: 60 }, ctx(seeded))
+
+    expect(getNode(database.db, 'group-1')).toMatchObject({ x: 50, y: 60 })
+    expect(getNode(database.db, 'child-1')).toMatchObject({ x: 60, y: 80 })
+    expect(getNode(database.db, 'child-2')).toMatchObject({ x: 110, y: 140 })
+    const audit = database.raw
+      .prepare("select detail_json from audit where action = 'supervisor.node.update'")
+      .get() as { detail_json: string }
+    expect(JSON.parse(audit.detail_json)).toMatchObject({
+      before: { x: 0, y: 0 },
+      after: { x: 50, y: 60 },
+      childrenMoved: 2,
+    })
+  })
+
+  it('rejects nodes that belong to another canvas', async () => {
+    const { database, seeded, tools } = setup()
+    const other = seedTask(database.raw)
+
+    await expect(
+      tools.update_node.execute({ nodeId: other.nodeId, x: 1, y: 2 }, ctx(seeded)),
+    ).rejects.toMatchObject({ code: 'node_not_found' })
   })
 
   it('auto-creates an agent and can start the task', async () => {

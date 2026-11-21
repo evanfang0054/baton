@@ -181,6 +181,29 @@ describe('ws router', () => {
     })
     const error = await ws.next('error')
     expect(error.payload).toMatchObject({ commandId: 'g2', code: 'group_invalid' })
+
+    ws.send({
+      v: 1,
+      type: 'node.create',
+      id: 'g3',
+      ts: 1,
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        node: {
+          type: 'text',
+          x: 0,
+          y: 0,
+          w: 100,
+          h: 50,
+          groupId: 'missing',
+          data: { content: 'x' },
+        },
+      },
+    })
+    expect((await ws.next('error')).payload).toMatchObject({
+      commandId: 'g3',
+      code: 'group_invalid',
+    })
   })
 
   it('creates image nodes and rejects unsafe src', async () => {
@@ -227,6 +250,44 @@ describe('ws router', () => {
     })
     expect((await ws.next('error')).payload).toMatchObject({
       commandId: 'i2',
+      code: 'image_src_invalid',
+    })
+
+    ws.send({
+      v: 1,
+      type: 'node.create',
+      id: 'i3',
+      ts: 1,
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        node: {
+          type: 'image',
+          x: 0,
+          y: 0,
+          w: 320,
+          h: 240,
+          groupId: null,
+          data: { src: '.baton/uploads/notes.txt' },
+        },
+      },
+    })
+    expect((await ws.next('error')).payload).toMatchObject({
+      commandId: 'i3',
+      code: 'image_src_invalid',
+    })
+
+    ws.send({
+      v: 1,
+      type: 'node.update',
+      id: 'i4',
+      ts: 1,
+      payload: {
+        nodeId: imageId,
+        patch: { data: { src: 'file:///tmp/a.png' } },
+      },
+    })
+    expect((await ws.next('error')).payload).toMatchObject({
+      commandId: 'i4',
       code: 'image_src_invalid',
     })
   })
@@ -281,6 +342,21 @@ describe('ws router', () => {
     await ws.next('ack')
     expect(getNode(handle.database.db, groupId)).toMatchObject({ x: 100, y: 100 })
     expect(getNode(handle.database.db, 'm6-g-text-1')).toMatchObject({ x: 110, y: 110 })
+
+    ws.send({
+      v: 1,
+      type: 'node.move_many',
+      id: 'm2',
+      ts: 1,
+      payload: {
+        canvasId: handle.seeded.canvasId,
+        moves: [{ nodeId: 'missing', x: 0, y: 0 }],
+      },
+    })
+    expect((await ws.next('error')).payload).toMatchObject({
+      commandId: 'm2',
+      code: 'node_move_invalid',
+    })
 
     ws.send({
       v: 1,

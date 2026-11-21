@@ -30,6 +30,7 @@ import {
   type WaitingReason,
 } from '@baton/protocol'
 import { and, asc, desc, eq, gt, gte, inArray, lt, ne, notInArray, or, sql } from 'drizzle-orm'
+import { appError } from '../errors.js'
 import {
   approval,
   audit,
@@ -279,21 +280,25 @@ export function moveNodes(
   tx: Tx,
   canvasId: string,
   moves: Array<{ nodeId: string; x: number; y: number }>,
+  updatedAt = Date.now(),
 ): number {
   const ids = new Set<string>()
   for (const move of moves) {
-    if (ids.has(move.nodeId)) throw new Error('duplicate nodeId')
+    if (ids.has(move.nodeId)) {
+      throw appError('node_move_invalid', 'duplicate nodeId', { nodeId: move.nodeId })
+    }
     if (!Number.isFinite(move.x) || !Number.isFinite(move.y)) {
-      throw new Error('invalid coordinate')
+      throw appError('node_move_invalid', 'invalid coordinate', { nodeId: move.nodeId })
     }
     ids.add(move.nodeId)
   }
   const rows = tx.select({ id: node.id }).from(node).where(eq(node.canvasId, canvasId)).all()
   const known = new Set(rows.map((row) => row.id))
   for (const id of ids) {
-    if (!known.has(id)) throw new Error('node not in canvas')
+    if (!known.has(id)) {
+      throw appError('node_move_invalid', 'node not in canvas', { nodeId: id })
+    }
   }
-  const updatedAt = Date.now()
   for (const move of moves) {
     tx.update(node).set({ x: move.x, y: move.y, updatedAt }).where(eq(node.id, move.nodeId)).run()
   }
@@ -302,16 +307,22 @@ export function moveNodes(
 
 /** 新建 group 并批量设置子节点 groupId；子节点必须同 canvas、未分组、不是 group。 */
 export function createGroup(tx: Tx, canvasId: string, group: Node, childIds: string[]): void {
-  if (group.type !== 'group' || group.canvasId !== canvasId) throw new Error('invalid group')
+  if (group.type !== 'group' || group.canvasId !== canvasId || group.groupId !== null) {
+    throw appError('group_invalid', 'invalid group')
+  }
   const unique = new Set(childIds)
-  if (unique.size !== childIds.length) throw new Error('duplicate childId')
+  if (unique.size !== childIds.length) throw appError('group_invalid', 'duplicate childId')
   const rows = tx.select().from(node).where(eq(node.canvasId, canvasId)).all()
   const byId = new Map(rows.map((row) => [row.id, row]))
   for (const id of childIds) {
     const child = byId.get(id)
-    if (!child) throw new Error('child not in canvas')
-    if (child.type === 'group') throw new Error('nested group is not supported')
-    if (child.groupId !== null) throw new Error('child already grouped')
+    if (!child) throw appError('group_invalid', 'child not in canvas', { nodeId: id })
+    if (child.type === 'group') {
+      throw appError('group_invalid', 'nested group is not supported', { nodeId: id })
+    }
+    if (child.groupId !== null) {
+      throw appError('group_invalid', 'child already grouped', { nodeId: id })
+    }
   }
   insertNode(tx, group)
   for (const id of childIds) {
@@ -323,9 +334,9 @@ export function createGroup(tx: Tx, canvasId: string, group: Node, childIds: str
 }
 
 /** 删除分组前把子节点解绑；返回解绑数量。 */
-export function ungroupChildren(tx: Tx, groupId: string): number {
+export function ungroupChildren(tx: Tx, groupId: string, updatedAt = Date.now()): number {
   const rows = tx.select({ id: node.id }).from(node).where(eq(node.groupId, groupId)).all()
-  tx.update(node).set({ groupId: null }).where(eq(node.groupId, groupId)).run()
+  tx.update(node).set({ groupId: null, updatedAt }).where(eq(node.groupId, groupId)).run()
   return rows.length
 }
 

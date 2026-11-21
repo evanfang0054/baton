@@ -13,19 +13,10 @@ import type { Config } from '../config.js'
 import { getWorkspace } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
+import { IMAGE_MIME, UPLOAD_DIR } from '../workspace/image-src.js'
 import { resolveWorkspaceDir, resolveWithin } from '../workspace/resolver.js'
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
-const UPLOAD_DIR = '.baton/uploads'
-
-const IMAGE_MIME: Record<string, string> = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp',
-  '.gif': 'image/gif',
-  '.svg': 'image/svg+xml',
-}
 
 function safeFileName(value: string): string {
   const name = [...basename(value.replaceAll('\\', '/'))]
@@ -118,12 +109,14 @@ export function registerUploadRoutes(app: FastifyInstance, deps: UploadRoutesDep
     }
 
     const workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
-    const uploadDir = resolveWithin(workspacePath, UPLOAD_DIR)
+    let realDir: string
     let realFile: string
     try {
-      const realDir = realpathSync(uploadDir)
-      const candidate = resolveWithin(uploadDir, name)
-      if (lstatSync(candidate).isSymbolicLink()) throw new Error('symlink')
+      realDir = realpathSync(resolveWithin(workspacePath, UPLOAD_DIR))
+      const candidate = join(realDir, name)
+      // lstat 看的是未跟随软链的原始项：软链、FIFO、目录一律拒绝，避免 open 时被跟走或阻塞。
+      const info = lstatSync(candidate)
+      if (!info.isFile() || info.isSymbolicLink()) throw new Error('not a regular file')
       realFile = realpathSync(candidate)
       if (!realFile.startsWith(`${realDir}${sep}`)) throw new Error('escape')
     } catch {
@@ -133,10 +126,12 @@ export function registerUploadRoutes(app: FastifyInstance, deps: UploadRoutesDep
     const mime = IMAGE_MIME[extname(realFile).toLowerCase()]
     if (!mime) throw appError('image_type_unsupported', 'unsupported image type')
     const stat = statSync(realFile)
+    if (!stat.isFile()) throw appError('image_not_found', 'image not found')
     if (stat.size > MAX_UPLOAD_BYTES) throw appError('image_too_large', 'image too large')
 
     reply.header('X-Content-Type-Options', 'nosniff')
     reply.header('Cache-Control', 'private, max-age=300')
+    reply.header('Content-Length', String(stat.size))
     if (mime === 'image/svg+xml') {
       reply.header(
         'Content-Security-Policy',

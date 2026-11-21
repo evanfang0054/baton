@@ -34,6 +34,7 @@ import {
   listSessionsByTask,
   listTaskStatusHistory,
   listTasks,
+  moveNodes,
   updateNode,
   updateTaskTitle,
 } from '../db/repositories.js'
@@ -754,13 +755,47 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           parsed.title !== undefined && node.type === 'agent'
             ? { ...(node.data as Record<string, unknown>), title: parsed.title }
             : undefined
+        const hasPosition = parsed.x !== undefined || parsed.y !== undefined
+        const nextX = parsed.x ?? node.x
+        const nextY = parsed.y ?? node.y
+        // group 只能带着子节点整体移动，否则框和内容会错位。
+        const children =
+          node.type === 'group' && hasPosition
+            ? listNodes(deps.db, node.canvasId).filter((child) => child.groupId === node.id)
+            : []
+        const before = {
+          ...(parsed.x !== undefined ? { x: node.x } : {}),
+          ...(parsed.y !== undefined ? { y: node.y } : {}),
+          ...(parsed.title !== undefined
+            ? { title: (node.data as { title?: string }).title ?? null }
+            : {}),
+        }
+        const after = {
+          ...(parsed.x !== undefined ? { x: nextX } : {}),
+          ...(parsed.y !== undefined ? { y: nextY } : {}),
+          ...(parsed.title !== undefined ? { title: parsed.title } : {}),
+        }
         deps.db.transaction((tx) => {
-          updateNode(tx, node.id, {
-            ...(parsed.x !== undefined ? { x: parsed.x } : {}),
-            ...(parsed.y !== undefined ? { y: parsed.y } : {}),
-            ...(data !== undefined ? { data } : {}),
-            updatedAt: deps.now(),
-          })
+          if (hasPosition) {
+            const dx = nextX - node.x
+            const dy = nextY - node.y
+            moveNodes(
+              tx,
+              node.canvasId,
+              [
+                { nodeId: node.id, x: nextX, y: nextY },
+                ...children.map((child) => ({
+                  nodeId: child.id,
+                  x: child.x + dx,
+                  y: child.y + dy,
+                })),
+              ],
+              deps.now(),
+            )
+          }
+          if (data !== undefined) {
+            updateNode(tx, node.id, { data, updatedAt: deps.now() })
+          }
           insertAudit(tx, {
             id: deps.newId(),
             ts: deps.now(),
@@ -774,6 +809,9 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
                 ...(parsed.y !== undefined ? ['y'] : []),
                 ...(parsed.title !== undefined ? ['title'] : []),
               ],
+              before,
+              after,
+              ...(children.length > 0 ? { childrenMoved: children.length } : {}),
             },
           })
         })

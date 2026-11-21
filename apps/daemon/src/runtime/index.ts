@@ -39,7 +39,7 @@ import {
   updateNode,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
-import { appError, toAppError } from '../errors.js'
+import { appError, isAppError, toAppError } from '../errors.js'
 import type { Logger } from '../log.js'
 import { createVerifyRunner, type VerifyRunner } from '../verify/runner.js'
 import type { AdapterFactory } from './adapter-factory.js'
@@ -520,8 +520,19 @@ export function createRuntime(deps: RuntimeDeps) {
             ),
           }
         }
-        if (input.type === 'image' && !isValidImageSrc(input.data.src)) {
-          return { ok: false, error: appError('image_src_invalid', 'invalid image src') }
+        if (input.type === 'image') {
+          if (!isValidImageSrc(input.data.src)) {
+            return { ok: false, error: appError('image_src_invalid', 'invalid image src') }
+          }
+          if (input.data.alt !== undefined && input.data.alt.length > 200) {
+            return { ok: false, error: appError('invalid_payload', 'image alt is too long') }
+          }
+        }
+        if (input.groupId !== null) {
+          const group = getNode(deps.db, input.groupId)
+          if (!group || group.type !== 'group' || group.canvasId !== canvas.id) {
+            return { ok: false, error: appError('group_invalid', 'group not found in canvas') }
+          }
         }
         const id = newId()
         const ts = now()
@@ -605,15 +616,24 @@ export function createRuntime(deps: RuntimeDeps) {
             }
           }
           if (existing.type === 'image') {
-            const data = patch.data as { alt?: unknown }
-            if (Object.keys(data).some((key) => key !== 'alt')) {
+            const data = patch.data as { src?: unknown; alt?: unknown }
+            if (Object.keys(data).some((key) => key !== 'src' && key !== 'alt')) {
               return {
                 ok: false,
-                error: appError('invalid_payload', 'image node data only allows alt'),
+                error: appError('invalid_payload', 'image node data only allows src/alt'),
               }
+            }
+            if (
+              data.src !== undefined &&
+              (typeof data.src !== 'string' || !isValidImageSrc(data.src))
+            ) {
+              return { ok: false, error: appError('image_src_invalid', 'invalid image src') }
             }
             if (data.alt !== undefined && typeof data.alt !== 'string') {
               return { ok: false, error: appError('invalid_payload', 'image alt must be a string') }
+            }
+            if (typeof data.alt === 'string' && data.alt.length > 200) {
+              return { ok: false, error: appError('invalid_payload', 'image alt is too long') }
             }
           }
           if (existing.type === 'group') {
@@ -626,7 +646,9 @@ export function createRuntime(deps: RuntimeDeps) {
             }
             if (
               data.label !== undefined &&
-              (typeof data.label !== 'string' || data.label.trim().length === 0)
+              (typeof data.label !== 'string' ||
+                data.label.trim().length === 0 ||
+                data.label.length > 80)
             ) {
               return { ok: false, error: appError('invalid_payload', 'group label is invalid') }
             }
@@ -693,7 +715,7 @@ export function createRuntime(deps: RuntimeDeps) {
         }
         let ungrouped = 0
         deps.db.transaction((tx) => {
-          if (existing.type === 'group') ungrouped = ungroupChildren(tx, existing.id)
+          if (existing.type === 'group') ungrouped = ungroupChildren(tx, existing.id, now())
           deleteEdgesForNode(tx, existing.id)
           deleteNode(tx, existing.id)
         })
@@ -723,16 +745,13 @@ export function createRuntime(deps: RuntimeDeps) {
       case 'node.move_many': {
         try {
           const moved = deps.db.transaction((tx) =>
-            moveNodes(tx, message.payload.canvasId, message.payload.moves),
+            moveNodes(tx, message.payload.canvasId, message.payload.moves, now()),
           )
           return { ok: true, ack: { moved } }
-        } catch {
-          return {
-            ok: false,
-            error: appError('node_move_invalid', 'invalid node move', {
-              canvasId: message.payload.canvasId,
-            }),
-          }
+        } catch (error) {
+          // 校验失败返回协议错误；未预期异常交给上层按 internal 处理。
+          if (isAppError(error)) return { ok: false, error }
+          throw error
         }
       }
       case 'group.create': {
@@ -765,8 +784,9 @@ export function createRuntime(deps: RuntimeDeps) {
         }
         try {
           deps.db.transaction((tx) => createGroup(tx, canvas.id, group, message.payload.childIds))
-        } catch {
-          return { ok: false, error: appError('group_invalid', 'invalid group') }
+        } catch (error) {
+          if (isAppError(error)) return { ok: false, error }
+          throw error
         }
         return {
           ok: true,

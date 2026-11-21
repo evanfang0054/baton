@@ -183,6 +183,7 @@ describe('createAiSdkSupervisorEngine with a mock OpenAI-compatible model', () =
       'reopen_task',
       'reply_task',
       'retry_task',
+      'update_node',
     ])
   })
 })

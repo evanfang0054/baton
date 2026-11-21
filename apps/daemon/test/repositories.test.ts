@@ -320,6 +320,8 @@ describe('M6-1 canvas repository', () => {
         repo.moveNodes(tx, seeded.canvasId, [{ nodeId: 'missing', x: 0, y: 0 }]),
       ),
     ).toThrow()
+    // 失败整笔回滚，不能留下部分移动。
+    expect(repo.getNode(database.db, 'n1')).toMatchObject({ x: 100, y: 110 })
     expect(() =>
       database.db.transaction((tx) =>
         repo.moveNodes(tx, seeded.canvasId, [
@@ -328,6 +330,7 @@ describe('M6-1 canvas repository', () => {
         ]),
       ),
     ).toThrow()
+    expect(repo.getNode(database.db, 'n1')).toMatchObject({ x: 100, y: 110 })
   })
 
   it('creates a group and assigns children atomically', () => {
@@ -346,6 +349,8 @@ describe('M6-1 canvas repository', () => {
         repo.createGroup(tx, seeded.canvasId, groupNode(seeded.canvasId, 'g2'), ['n1']),
       ),
     ).toThrow()
+    expect(repo.getNode(database.db, 'g2')).toBeNull()
+    expect(repo.getNode(database.db, 'n1')?.groupId).toBe('g1')
   })
 
   it('ungroups children and writes preliminary verdict only for existing reviews', () => {
