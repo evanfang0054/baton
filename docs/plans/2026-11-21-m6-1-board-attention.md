@@ -4,13 +4,13 @@ spec_topic: m6-task-scene
 task_count: 6
 estimated_phases: [tests, implementation, verification]
 dod: 'M6-1 DoD 8、12-16：看板需要我、stale、review 卡联动、现场入口'
-status: planned
+status: completed
 depends_on: 2026-11-21-m6-1-canvas-web.md
 ---
 
 # M6-1 Plan 4：Web 看板与注意力
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use agent-harness:subagent-driven-development (recommended) or agent-harness:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use agent-harness:subagent-driven-development (recommended) or agent-harness:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 把“需要我”变成看板的第一视图，并让 review 卡、stale 标记和现场入口在桌面/手机一致可用。
 
@@ -40,7 +40,7 @@ Seam: `TaskBoardFilters` + `visibleTasks`
 - `TaskFilter = 'all' | 'needs_me' | 'review' | 'waiting'`
 - `filterTasks(tasks, { filter, query, now }): TaskSummary[]` 复用 `needsPerson`/`sortByWaiting`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```tsx
 it('filters needs_me and sorts by waiting', () => {
@@ -59,12 +59,12 @@ it('searches title case-insensitively', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/web test -- TaskBoardFilters`
 Expected: FAIL，组件/函数不存在。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 ```tsx
 // TaskBoardFilters.tsx
@@ -106,12 +106,12 @@ export function TaskBoardFilters({ filter, query, onFilter, onQuery }: {...}) {
 
 `TaskBoard` 增加 `filter/query` state，`visibleTasks = filterTasks(tasks, { filter, query, now: Date.now() })`，`groupTasks(visibleTasks)`；header 下方渲染 `TaskBoardFilters`；筛选时批量选择只对 `visibleTasks` 里的 todo 生效。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pnpm --filter @baton/web test -- TaskBoardFilters TaskBoard.filter`
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/web/src/features/tasks
@@ -134,7 +134,7 @@ Seam: `TaskCard` 结构
 - `TaskCard` 增加 `stale?: boolean`、`onOpenScene?: (taskId: string) => void`。
 - 外层从 `<button>` 改为 `<div>`，主区域一个 `<button>`，场景动作为独立 `<button>`，避免嵌套按钮。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```tsx
 it('shows stale text and calls onOpenScene without selecting the task', async () => {
@@ -148,12 +148,12 @@ it('shows stale text and calls onOpenScene without selecting the task', async ()
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/web test -- TaskCard`
 Expected: FAIL，stale/场景按钮不存在。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 ```tsx
 export function TaskCard({ task, stale = false, onOpenScene, ...props }: TaskCardProps) {
@@ -179,12 +179,12 @@ export function TaskCard({ task, stale = false, onOpenScene, ...props }: TaskCar
 
 `BoardColumn` 传 `stale={isStale(task.waitingSince, Date.now())}`；`TaskBoard` 透传 `onOpenScene`。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pnpm --filter @baton/web test -- TaskCard`
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/web/src/features/tasks
@@ -208,7 +208,7 @@ Seam: rail 计数
 - `BoardRail` counts 增加 `needs_me: number`。
 - `App` 用 `needsPerson` 统计 `needs_me`，并与 `TaskBoard` 的筛选后列表长度一致。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```tsx
 it('shows needs_me count', () => {
@@ -218,12 +218,12 @@ it('shows needs_me count', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/web test -- BoardRail`
 Expected: FAIL，counts 类型不含 needs_me。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 ```tsx
 interface BoardRailProps {
@@ -240,12 +240,12 @@ interface BoardRailProps {
 needs_me: list.filter((task) => needsPerson({ status: task.status, attention: task.attention })).length,
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pnpm --filter @baton/web test -- BoardRail App`
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/web/src/features/tasks/BoardRail.tsx apps/web/src/App.tsx
@@ -267,7 +267,7 @@ Seam: `MobileBoardList`
 **Interfaces:**
 - 复用 `filterTasks`；增加筛选按钮和 stale 文本；不加入「看现场」。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```tsx
 it('filters needs_me and marks stale on mobile', () => {
@@ -277,24 +277,24 @@ it('filters needs_me and marks stale on mobile', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/web test -- MobileBoardList`
 Expected: FAIL，stale 文本不存在。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - 顶部加「全部 / 需要我」两个按钮 + 搜索输入。
 - 用 `filterTasks` 生成列表。
 - 每条任务显示 `isStale(task.waitingSince, Date.now())` 的文本。
 - 不渲染 `onOpenScene`。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pnpm --filter @baton/web test -- MobileBoardList`
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/web/src/features/tasks/MobileBoardList.tsx
@@ -320,7 +320,7 @@ Seam: `TaskHeader` / `ReviewCard`
 - `TaskHeader` 增加 `onOpenScene?: () => void`，渲染「看现场」。
 - `ReviewCard` 显示 `preliminaryVerdict/reason/at`，明确“最终由你决定”。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```tsx
 it('shows preliminary verdict and keeps human gate', () => {
@@ -338,12 +338,12 @@ it('opens scene from task header', async () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/web test -- TaskDetailPanel ReviewCard`
 Expected: FAIL，按钮/文案不存在。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 `TaskHeader`：
 
@@ -377,12 +377,12 @@ const openScene = () => {
 </section>
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pnpm --filter @baton/web test -- TaskDetailPanel ReviewCard`
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/web/src/features/tasks
@@ -404,7 +404,7 @@ Seam: `RealtimeProvider`
 **Interfaces:**
 - 收到 `review.preliminary` 时失效 `queryKeys.task(payload.taskId)` 与 `queryKeys.tasks(workspaceId)`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```tsx
 it('invalidates target task on review.preliminary', async () => {
@@ -414,12 +414,12 @@ it('invalidates target task on review.preliminary', async () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pnpm --filter @baton/web test -- RealtimeProvider`
 Expected: FAIL，事件未处理。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 ```ts
 if (event.type === 'review.preliminary') {
@@ -430,12 +430,12 @@ if (event.type === 'review.preliminary') {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pnpm --filter @baton/web test -- RealtimeProvider`
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/web/src/features/realtime
@@ -453,3 +453,12 @@ pnpm format:check
 ```
 
 Expected: 全部通过；现有 web 204 tests 不回归。
+
+---
+
+## 执行记录
+
+- 2026-11-21：Task 1-6 全部完成，提交 `01431df`。
+- 验证：`pnpm verify` 退出码 0；web 231 tests、daemon 309 tests、core 161 tests、protocol 127 tests；typecheck/lint/format/boundaries/protocol/build 全绿。
+- 关键落地：`filterTasks` 复用 core `needsPerson`/`sortByWaiting`；桌面与手机看板共用筛选；stale 文案带 Clock 图标；rail 计数=同一 `needsPerson` 口径；任务详情与任务卡都可进现场；review 卡展示初步结论并保留“最终由你决定”；`review.preliminary` 实时失效任务详情与列表。
+- 偏差：手机看板保留原有 5 个分类 tab，并额外增加“需要我”开关 + 搜索，而不是替换为两个 tab；`TaskBoard.filter.test.tsx` 只覆盖筛选/搜索主路径，未模拟键盘或触控；六个 task 合并为一个提交，原因同 Plan 3（改动集中在同一批组件）。
