@@ -18,6 +18,8 @@ export interface TransitionContext {
   readonly workspaceTrusted: boolean
   readonly killSwitch: boolean
   readonly waitingReason: WaitingReason | null
+  /** 任务剩余预算；undefined 表示未启用预算约束。 */
+  readonly budgetRemainingUsd?: number
 }
 
 export type TaskEffect =

@@ -65,7 +65,20 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
       return invalid(ctx, event)
 
     case 'queued':
+      if (event.type === 'budget_exceeded') {
+        return ok('waiting_input', ctx.retryCount, [], 'budget', { waitingReason: 'budget' })
+      }
       if (event.type === 'start') {
+        if ((ctx.budgetRemainingUsd ?? Number.POSITIVE_INFINITY) <= 0) {
+          return {
+            ok: false,
+            error: {
+              code: 'budget_exhausted',
+              message: 'task budget exhausted',
+              details: { budgetRemainingUsd: ctx.budgetRemainingUsd },
+            },
+          }
+        }
         if (ctx.runningCount >= ctx.maxConcurrency) {
           return {
             ok: false,
@@ -84,6 +97,11 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
       return invalid(ctx, event)
 
     case 'running':
+      if (event.type === 'budget_exceeded') {
+        return ok('waiting_input', ctx.retryCount, [effects.interruptSession('budget_exceeded')], 'budget', {
+          waitingReason: 'budget',
+        })
+      }
       if (event.type === 'approval_requested') {
         return ok(
           'waiting_input',
@@ -115,6 +133,10 @@ export function transition(ctx: TransitionContext, event: TaskTransitionEvent): 
       return invalid(ctx, event)
 
     case 'waiting_input':
+      if (event.type === 'budget_raise') {
+        if (ctx.waitingReason !== 'budget') return invalid(ctx, event)
+        return ok('queued', ctx.retryCount, [effects.enqueueTask()])
+      }
       if (event.type === 'approval_allow') {
         return ok(
           'running',
