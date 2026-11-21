@@ -86,6 +86,7 @@ function setup(
       }
     },
     replyToTask: () => ({ ok: true }),
+    injectContext: () => ({ ok: true, taskId: 'unused', seq: 1, truncated: false, dropped: 0 }),
     cancelTask: (taskId) => ({
       ok: true,
       taskId,

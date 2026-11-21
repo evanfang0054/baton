@@ -52,7 +52,7 @@ describe('ws router', () => {
     expect((enqueued.payload as { data: { taskId: string } }).data.taskId).toBe(taskId)
   })
 
-  it('returns context_inject_not_ready until the context service is wired', async () => {
+  it('acks context.inject through the context service', async () => {
     const { handle, ws } = await setup()
     ws.send({
       v: 1,
@@ -70,8 +70,13 @@ describe('ws router', () => {
       ts: 1,
       payload: { taskId, nodeIds: ['text-1'] },
     })
-    const error = await ws.next('error')
-    expect(error.payload).toMatchObject({ code: 'context_inject_not_ready' })
+    const ack = await ws.next('ack')
+    expect((ack.payload as { data: unknown }).data).toMatchObject({
+      taskId,
+      seq: 1,
+      truncated: false,
+      dropped: 0,
+    })
   })
 
   it('replays events for resume and returns a cursor', async () => {

@@ -51,6 +51,7 @@ function setup() {
   let nodeSeq = 0
   const transitions: Array<{ taskId: string; type: string }> = []
   const replies: Array<{ taskId: string; text: string }> = []
+  const injected: unknown[] = []
   const tools = createSupervisorTools({
     db: database.db,
     workspacesRoot: root,
@@ -102,8 +103,12 @@ function setup() {
         events: [],
       }
     },
+    injectContext: (input) => {
+      injected.push(input)
+      return { ok: true, taskId: input.taskId, seq: 1, truncated: false, dropped: 0 }
+    },
   })
-  return { database, seeded, tools, root, transitions, replies }
+  return { database, seeded, tools, root, transitions, replies, injected }
 }
 
 function ctx(seeded: ReturnType<typeof seedTask>): ToolContext {
@@ -666,6 +671,63 @@ describe('supervisor tools', () => {
     expect(detail).not.toHaveProperty('events')
     expect(detail).not.toHaveProperty('transcript')
     expect(detail).not.toHaveProperty('logs')
+    expect(detail.injectable).toEqual({ ok: false, reason: 'use_review_reject' })
+  })
+
+  it('reports injection counts without note content', async () => {
+    const { database, seeded, tools } = setup()
+    database.raw.prepare('update task set context_json = ? where id = ?').run(
+      JSON.stringify({
+        included: [],
+        dropped: [],
+        truncated: false,
+        redactedPaths: [],
+        relations: [],
+        relationsTruncated: false,
+        injections: [
+          {
+            seq: 2,
+            at: 5,
+            source: 'user',
+            note: 'secret note',
+            nodeIds: ['text-1'],
+            included: [],
+            dropped: [],
+            truncated: false,
+            relations: [],
+            relationsTruncated: false,
+            chars: 10,
+          },
+        ],
+      }),
+      seeded.taskId,
+    )
+
+    const detail = (await tools.get_task.execute({ taskId: seeded.taskId }, ctx(seeded))) as {
+      injectable: unknown
+      context: { injections: unknown }
+    }
+    expect(detail.injectable).toEqual({ ok: true })
+    expect(detail.context.injections).toEqual({ count: 1, lastAt: 5, lastSeq: 2 })
+    expect(JSON.stringify(detail)).not.toContain('secret note')
+  })
+
+  it('injects context through the tool', async () => {
+    const { seeded, tools, injected } = setup()
+    const result = await tools.inject_context.execute(
+      { taskId: seeded.taskId, nodeIds: ['text-1'], note: '补充' },
+      ctx(seeded),
+    )
+    expect(result).toEqual({ taskId: seeded.taskId, seq: 1, truncated: false, dropped: 0 })
+    expect(injected).toEqual([
+      {
+        taskId: seeded.taskId,
+        nodeIds: ['text-1'],
+        note: '补充',
+        source: 'supervisor',
+        actor: 'supervisor',
+      },
+    ])
   })
 
   it('hides tasks that belong to another workspace', async () => {

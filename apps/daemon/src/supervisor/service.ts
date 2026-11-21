@@ -68,6 +68,15 @@ export interface SupervisorServiceDeps {
   enqueueTask: (taskId: string) => EnqueueTaskResult
   applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
   replyToTask: (taskId: string, text: string) => { ok: boolean; error?: AppError }
+  injectContext: (input: {
+    taskId: string
+    nodeIds: string[]
+    note?: string
+    source: 'user' | 'supervisor'
+    actor: string
+  }) =>
+    | { ok: true; taskId: string; seq: number; truncated: boolean; dropped: number }
+    | { ok: false; error: AppError }
   cancelTask: (taskId: string, reason?: string) => TransitionOutcome
   workspacesRoot: string
   killSwitch: () => boolean
@@ -152,6 +161,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     enqueueTask: deps.enqueueTask,
     applyTransition: deps.applyTransition,
     replyToTask: deps.replyToTask,
+    injectContext: deps.injectContext,
     cancelTask: deps.cancelTask,
     ...(deps.logger ? { logger: deps.logger } : {}),
   })
@@ -803,6 +813,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         reply_task: wrapTool(
           'reply_task',
           bound.reply_task,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        inject_context: wrapTool(
+          'inject_context',
+          bound.inject_context,
           input.assistantMessageId,
           input.threadId,
         ),
