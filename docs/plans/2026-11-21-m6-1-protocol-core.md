@@ -4,7 +4,7 @@ spec_topic: m6-task-scene
 task_count: 6
 estimated_phases: [tests, implementation, verification]
 dod: 'M6-1 DoD 1-2、5-9、14-16：协议增量、现场/分组/注意力/初步验收纯函数、migration 0010'
-status: active
+status: completed
 depends_on: none
 ---
 
@@ -445,7 +445,7 @@ Seam: `isStale` / `sortByWaiting`
 
 **Files:**
 - Modify: `packages/core/src/tasks/board.ts`
-- Test: `packages/core/test/board.test.ts`
+- Test: `packages/core/test/tasks-board.test.ts`
 
 **Interfaces:**
 - Produces: `isStale(waitingSince: number | null, now: number, thresholdMs?: number): boolean`、`sortByWaiting<T extends { waitingSince: number | null }>(tasks: T[]): T[]`。
@@ -611,7 +611,7 @@ Seam: fixture DB 升级
 - Modify: `apps/daemon/src/db/schema.ts`
 - Create: `apps/daemon/migrations/0010_m6_task_scene.sql`
 - Modify: `apps/daemon/migrations/meta/_journal.json`
-- Test: `apps/daemon/test/migrations-m6.test.ts`
+- Test: `apps/daemon/test/migration-0010.test.ts`
 
 **Interfaces:**
 - Produces: `review.preliminary_verdict/preliminary_reason/preliminary_at`。
@@ -696,4 +696,5 @@ Expected: 全部通过。Plan 2 依赖本 plan 的协议、纯函数与 migratio
 - 提交：`24dd6cb` protocol 契约、`cf7df49` 任务现场、`9548656` 分组成员几何、`c70a062` stale 与排序、`e2f91f6` 预验收解析下沉、`81ac4d0` review 字段与 migration 0010、`99873ed` web ReviewView fixture 兼容。
 - 验证：`pnpm verify` 退出码 0；protocol 126 tests、core 157 tests、daemon 295 tests；migration 0010 在 fixture DB 上升级通过；`pnpm check:boundaries`、`check:protocol`、`format:check` 全绿。
 - 备注：`insertReview` 接受可选 preliminary 字段并写库；`migration-0009` 测试同步排除 0010，避免复制未来 migration。
+- 2026-11-21 code review 修复：`review.preliminary` 改为可重放事件；`PreliminaryVerdict` 复用 protocol 类型；`handleCommand` 恢复显式穷举（新命令暂返回 `unsupported_command`）；`TaskScene` 增加 `relatedGroupIds`；`node.update` 持久化 `groupId`；migration 测试改为按 journal `idx` 截断；补 `groupBounds` 空输入、`sortByWaiting` 稳定性、review 字段解析测试。
 

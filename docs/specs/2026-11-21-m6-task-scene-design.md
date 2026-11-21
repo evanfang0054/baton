@@ -119,6 +119,8 @@ M1-M5-3 已把“单任务闭环 + 总管任务管理”做实：画布上下文
 export interface TaskScene {
   taskId: string
   relatedNodeIds: string[]
+  /** 包含相关节点的分组框；现场需要高亮而不是降暗。 */
+  relatedGroupIds: string[]
   relatedEdgeIds: string[]
   /** 需要临时展开的 group；现场退出后恢复原折叠状态。 */
   expandGroupIds: string[]
@@ -135,10 +137,11 @@ export interface TaskScene {
 
 1. `related = (task.nodeId ? {task.nodeId} : ∅) ∪ context.included[].id ∪ origin.contextNodeIds`。
 2. `missingNodeIds = related - nodes.id`；`relatedNodeIds` 只保留当前存在的节点。
-3. `expandGroupIds`：对每个相关节点，如果 `groupId` 非空且该 group 存在且 `collapsed=true`，加入展开集合；v0 不支持 group 嵌套，忽略 group 的 `groupId`。
-4. `relatedEdgeIds`：只保留 source/target 都在 `relatedNodeIds` 的边。
-5. `showReviewCard = task.status === 'review'`；位置优先用 Agent 节点右侧 `(x + w + 40, y)`，Agent 缺失时 `(0, 0)`。
-6. 纯函数：不读时间、不读文件、不访问随机数；同一输入逐字节一致。
+3. `relatedGroupIds`：对每个相关节点，如果 `groupId` 非空且该 group 存在，加入相关分组框集合；现场高亮这些 group。
+4. `expandGroupIds`：对 `relatedGroupIds` 中 `collapsed=true` 的 group 临时展开；v0 不支持 group 嵌套，忽略 group 的 `groupId`。
+5. `relatedEdgeIds`：只保留 source/target 都在 `relatedNodeIds` 的边。
+6. `showReviewCard = task.status === 'review'`；位置优先用 Agent 节点右侧 `(x + w + 40, y)`，Agent 缺失或不是 agent 时 `(0, 0)`。
+7. 纯函数：不读时间、不读文件、不访问随机数；同一输入逐字节一致。
 
 ### 4.2 派生 Review 卡
 
