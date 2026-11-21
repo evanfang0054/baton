@@ -4,7 +4,7 @@ decision_summary: "M6-3 验收证据 v0：AC 合同/条目/运行三表、派生
 design_approved: true
 user_approved_at: "2026-11-21T15:43:53+08:00"
 gates: [design-approved, user-review-passed]
-status: approved
+status: implemented
 spec_ref: 2026-11-21-m6-2-context-injection-design.md
 domain_terms:
   [
@@ -30,7 +30,7 @@ domain_terms:
 
 ## 0. 文档信息
 
-- **状态**：设计已获用户确认（2026-11-21）；spec 待用户审阅；尚未实现。
+- **状态**：已实现并完成真实链路验收（2026-11-21）；总管真实问答因临时环境未配置模型未运行。
 - **范围**：`packages/protocol/**`、`packages/core/**`、`apps/daemon/**`、`apps/web/**`、数据库 migration 0012、测试与 `docs/**`。
 - **预期不改**：任务状态列表与转移语义；`task.status` 单写者；`assembleContext` 的预算/深度/敏感路径规则；`node`/`edge` 表结构；现有上传接口行为；总管工具数量（仍 17 个）。
 - **不在范围**：自动验收/代验收；AC 模板与跨任务统计；DAG/任务依赖/优先级/任务模板；外部 Source（M5-2）；运行中 `context.inject`；现场通过/打回（M6-4）；任务级独立画布；系统推送/短信；图片 OCR；向量检索；SDK session resume；移动端 AC 编辑。
