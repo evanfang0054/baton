@@ -265,3 +265,126 @@ describe('repositories', () => {
     expect(JSON.parse(row.detail_json)).toEqual({ approvalId: 'a1' })
   })
 })
+
+describe('M6-1 canvas repository', () => {
+  function groupNode(canvasId: string, id: string): Node {
+    return Node.parse({
+      id,
+      canvasId,
+      type: 'group',
+      x: 0,
+      y: 0,
+      w: 400,
+      h: 300,
+      groupId: null,
+      data: { label: '组', collapsed: false },
+      createdAt: 1,
+      updatedAt: 1,
+    })
+  }
+
+  function textNode(canvasId: string, id: string, groupId: string | null = null): Node {
+    return Node.parse({
+      id,
+      canvasId,
+      type: 'text',
+      x: 10,
+      y: 10,
+      w: 100,
+      h: 50,
+      groupId,
+      data: { content: id },
+      createdAt: 1,
+      updatedAt: 1,
+    })
+  }
+
+  it('moves nodes in one transaction and rejects unknown/duplicate ids', () => {
+    const database = db()
+    const seeded = seedTask(database.raw)
+    database.db.transaction((tx) => {
+      repo.insertNode(tx, textNode(seeded.canvasId, 'n1'))
+      repo.insertNode(tx, textNode(seeded.canvasId, 'n2'))
+    })
+    expect(
+      database.db.transaction((tx) =>
+        repo.moveNodes(tx, seeded.canvasId, [
+          { nodeId: 'n1', x: 100, y: 110 },
+          { nodeId: 'n2', x: 200, y: 210 },
+        ]),
+      ),
+    ).toBe(2)
+    expect(repo.getNode(database.db, 'n1')).toMatchObject({ x: 100, y: 110 })
+    expect(() =>
+      database.db.transaction((tx) =>
+        repo.moveNodes(tx, seeded.canvasId, [{ nodeId: 'missing', x: 0, y: 0 }]),
+      ),
+    ).toThrow()
+    expect(() =>
+      database.db.transaction((tx) =>
+        repo.moveNodes(tx, seeded.canvasId, [
+          { nodeId: 'n1', x: 0, y: 0 },
+          { nodeId: 'n1', x: 1, y: 1 },
+        ]),
+      ),
+    ).toThrow()
+  })
+
+  it('creates a group and assigns children atomically', () => {
+    const database = db()
+    const seeded = seedTask(database.raw)
+    database.db.transaction((tx) => {
+      repo.insertNode(tx, textNode(seeded.canvasId, 'n1'))
+      repo.insertNode(tx, textNode(seeded.canvasId, 'n2'))
+      repo.createGroup(tx, seeded.canvasId, groupNode(seeded.canvasId, 'g1'), ['n1', 'n2'])
+    })
+    expect(repo.getNode(database.db, 'g1')?.type).toBe('group')
+    expect(repo.getNode(database.db, 'n1')?.groupId).toBe('g1')
+    expect(repo.getNode(database.db, 'n2')?.groupId).toBe('g1')
+    expect(() =>
+      database.db.transaction((tx) =>
+        repo.createGroup(tx, seeded.canvasId, groupNode(seeded.canvasId, 'g2'), ['n1']),
+      ),
+    ).toThrow()
+  })
+
+  it('ungroups children and writes preliminary verdict only for existing reviews', () => {
+    const database = db()
+    const seeded = seedTask(database.raw)
+    database.db.transaction((tx) => {
+      repo.insertNode(tx, groupNode(seeded.canvasId, 'g1'))
+      repo.insertNode(tx, textNode(seeded.canvasId, 'n1', 'g1'))
+    })
+    expect(database.db.transaction((tx) => repo.ungroupChildren(tx, 'g1'))).toBe(1)
+    expect(repo.getNode(database.db, 'n1')?.groupId).toBeNull()
+
+    const review: Review = {
+      id: 'r1',
+      taskId: seeded.taskId,
+      verdict: null,
+      verifyExitCode: 0,
+      verifyOutput: 'ok',
+      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+      decidedAt: null,
+      preliminaryVerdict: null,
+      preliminaryReason: null,
+      preliminaryAt: null,
+    }
+    database.db.transaction((tx) => repo.insertReview(tx, review))
+    expect(
+      database.db.transaction((tx) =>
+        repo.setReviewPreliminary(tx, 'r1', { verdict: 'pass', reason: 'VERDICT: PASS', at: 3 }),
+      ),
+    ).toBe(true)
+    expect(repo.getReviewByTask(database.db, seeded.taskId)).toMatchObject({
+      preliminaryVerdict: 'pass',
+      preliminaryReason: 'VERDICT: PASS',
+      preliminaryAt: 3,
+    })
+    expect(
+      database.db.transaction((tx) =>
+        repo.setReviewPreliminary(tx, 'missing', { verdict: 'fail', reason: 'x', at: 4 }),
+      ),
+    ).toBe(false)
+  })
+})

@@ -20,6 +20,7 @@ import {
   Workspace,
   type ApprovalDecision,
   type ApprovalRequest,
+  type PreliminaryVerdict,
   type ReviewVerdict,
   type SessionOutcome,
   type SessionStatus,
@@ -271,6 +272,61 @@ export function updateNode(
 
 export function deleteNode(tx: Tx, id: string): void {
   tx.delete(node).where(eq(node.id, id)).run()
+}
+
+/** 批量移动保持绝对坐标；任一节点不存在/不属于 canvas/重复/坐标非法时整笔拒绝。 */
+export function moveNodes(
+  tx: Tx,
+  canvasId: string,
+  moves: Array<{ nodeId: string; x: number; y: number }>,
+): number {
+  const ids = new Set<string>()
+  for (const move of moves) {
+    if (ids.has(move.nodeId)) throw new Error('duplicate nodeId')
+    if (!Number.isFinite(move.x) || !Number.isFinite(move.y)) {
+      throw new Error('invalid coordinate')
+    }
+    ids.add(move.nodeId)
+  }
+  const rows = tx.select({ id: node.id }).from(node).where(eq(node.canvasId, canvasId)).all()
+  const known = new Set(rows.map((row) => row.id))
+  for (const id of ids) {
+    if (!known.has(id)) throw new Error('node not in canvas')
+  }
+  const updatedAt = Date.now()
+  for (const move of moves) {
+    tx.update(node).set({ x: move.x, y: move.y, updatedAt }).where(eq(node.id, move.nodeId)).run()
+  }
+  return moves.length
+}
+
+/** 新建 group 并批量设置子节点 groupId；子节点必须同 canvas、未分组、不是 group。 */
+export function createGroup(tx: Tx, canvasId: string, group: Node, childIds: string[]): void {
+  if (group.type !== 'group' || group.canvasId !== canvasId) throw new Error('invalid group')
+  const unique = new Set(childIds)
+  if (unique.size !== childIds.length) throw new Error('duplicate childId')
+  const rows = tx.select().from(node).where(eq(node.canvasId, canvasId)).all()
+  const byId = new Map(rows.map((row) => [row.id, row]))
+  for (const id of childIds) {
+    const child = byId.get(id)
+    if (!child) throw new Error('child not in canvas')
+    if (child.type === 'group') throw new Error('nested group is not supported')
+    if (child.groupId !== null) throw new Error('child already grouped')
+  }
+  insertNode(tx, group)
+  for (const id of childIds) {
+    tx.update(node)
+      .set({ groupId: group.id, updatedAt: group.updatedAt })
+      .where(eq(node.id, id))
+      .run()
+  }
+}
+
+/** 删除分组前把子节点解绑；返回解绑数量。 */
+export function ungroupChildren(tx: Tx, groupId: string): number {
+  const rows = tx.select({ id: node.id }).from(node).where(eq(node.groupId, groupId)).all()
+  tx.update(node).set({ groupId: null }).where(eq(node.groupId, groupId)).run()
+  return rows.length
 }
 
 export function getEdge(db: Db, id: string): Edge | null {
@@ -944,6 +1000,25 @@ export function updateReviewVerdict(
   decidedAt: number,
 ): void {
   tx.update(review).set({ verdict, decidedAt }).where(eq(review.id, id)).run()
+}
+
+/** 验收员初步结论只写当前 review；review 不存在返回 false。 */
+export function setReviewPreliminary(
+  tx: Tx,
+  reviewId: string,
+  input: { verdict: PreliminaryVerdict; reason: string; at: number },
+): boolean {
+  const existing = tx.select({ id: review.id }).from(review).where(eq(review.id, reviewId)).get()
+  if (!existing) return false
+  tx.update(review)
+    .set({
+      preliminaryVerdict: input.verdict,
+      preliminaryReason: input.reason.slice(0, 2000),
+      preliminaryAt: input.at,
+    })
+    .where(eq(review.id, reviewId))
+    .run()
+  return true
 }
 
 export function insertAudit(
