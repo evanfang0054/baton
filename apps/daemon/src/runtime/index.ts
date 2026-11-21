@@ -45,6 +45,7 @@ import type { Logger } from '../log.js'
 import { createVerifyRunner, type VerifyRunner } from '../verify/runner.js'
 import type { AdapterFactory } from './adapter-factory.js'
 import { createContextService } from './context-service.js'
+import { handleAcceptanceUpdate } from './acceptance-command.js'
 import { createEdge, deleteEdge } from './edge-service.js'
 import { createHandoffNode } from '../handoff/service.js'
 import type { EngineRegistry } from './engines.js'
@@ -560,6 +561,17 @@ export function createRuntime(deps: RuntimeDeps) {
             }
           : { ok: false, error: result.error }
       }
+      case 'acceptance.update':
+        return handleAcceptanceUpdate(
+          {
+            db: deps.db,
+            eventStore,
+            now,
+            newId,
+            ...(deps.broadcastRaw ? { broadcastRaw: deps.broadcastRaw } : {}),
+          },
+          message.payload,
+        )
       case 'node.create': {
         const canvas = getCanvas(deps.db, message.payload.canvasId)
         if (!canvas) {
