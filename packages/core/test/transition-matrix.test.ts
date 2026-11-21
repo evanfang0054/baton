@@ -209,6 +209,27 @@ describe('transition matrix', () => {
     ])
   })
 
+  it('approve adds an override audit effect only when requested', () => {
+    const clean = expectOk(transition(ctx('review'), { type: 'approve', reviewId: 'r1' }))
+    expect(clean.effects).toEqual([
+      { type: 'persistReviewVerdict', reviewId: 'r1', verdict: 'approved' },
+      emit('done', { reviewId: 'r1' }),
+    ])
+
+    const override = expectOk(
+      transition(ctx('review'), {
+        type: 'approve',
+        reviewId: 'r1',
+        override: { verifyExitCode: 1, reasonProvided: true },
+      }),
+    )
+    expect(override.effects).toEqual([
+      { type: 'persistReviewVerdict', reviewId: 'r1', verdict: 'approved' },
+      { type: 'auditReviewOverride', reviewId: 'r1', verifyExitCode: 1, reasonProvided: true },
+      emit('done', { reviewId: 'r1' }),
+    ])
+  })
+
   it('reopen resets retryCount and appends a reopen note', () => {
     const result = expectOk(
       transition(ctx('done', { retryCount: 2 }), { type: 'reopen', note: '继续修边界' }),

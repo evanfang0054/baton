@@ -4,6 +4,7 @@ import type {
   AppError,
   ApprovalDecideInput,
   ClientMessage,
+  ContextInjection,
   Engine,
   ReviewDecideInput,
   TaskTransitionEvent,
@@ -31,7 +32,7 @@ import {
   getTask,
   hasTaskForNode,
   insertNode,
-  listTasksByStatus,
+  listQueuedTasksByEnqueuedAt,
   listWorkspaces,
   moveNodes,
   ungroupChildren,
@@ -43,6 +44,7 @@ import { appError, isAppError, toAppError } from '../errors.js'
 import type { Logger } from '../log.js'
 import { createVerifyRunner, type VerifyRunner } from '../verify/runner.js'
 import type { AdapterFactory } from './adapter-factory.js'
+import { createContextService } from './context-service.js'
 import { createEdge, deleteEdge } from './edge-service.js'
 import { createHandoffNode } from '../handoff/service.js'
 import type { EngineRegistry } from './engines.js'
@@ -178,6 +180,19 @@ export function createRuntime(deps: RuntimeDeps) {
   }
 
   const taskService = createTaskService({ db: deps.db, config: deps.config, now, newId })
+  const contextService = createContextService({
+    db: deps.db,
+    config: deps.config,
+    eventStore,
+    applyTransition: (taskId, event) =>
+      transitionRunnerHolder.value
+        ? transitionRunnerHolder.value.applyTransition(taskId, event)
+        : { ok: false, error: appError('runtime_not_ready', 'transition runner is not ready') },
+    hasSession: (taskId) => sessionHolder.value?.has(taskId) ?? false,
+    broadcast: deps.broadcast,
+    now,
+    newId,
+  })
   let persistedKillSwitch: boolean
   try {
     const setting = getSetting(deps.db, 'kill_switch') as { enabled?: boolean } | null
@@ -280,6 +295,7 @@ export function createRuntime(deps: RuntimeDeps) {
             error: appError('runtime_not_ready', 'transition runner is not ready'),
           },
     replyToTask,
+    injectContext: contextService.injectContext,
     cancelTask: cancel,
     workspacesRoot: deps.config.workspacesRoot,
     killSwitch: () => automationState.isKillSwitchOn(),
@@ -426,12 +442,39 @@ export function createRuntime(deps: RuntimeDeps) {
       }
     }
     if (input.decision === 'approve') {
-      return applyTransition(review.taskId, { type: 'approve', reviewId: input.reviewId })
+      const reasonProvided = Boolean(input.reason?.trim())
+      const override =
+        reasonProvided || review.verifyExitCode !== 0
+          ? { verifyExitCode: review.verifyExitCode, reasonProvided }
+          : undefined
+      return applyTransition(review.taskId, {
+        type: 'approve',
+        reviewId: input.reviewId,
+        ...(override ? { override } : {}),
+      })
+    }
+    let contextInjection: ContextInjection | undefined
+    let contextBlock: string | undefined
+    if (input.contextNodeIds?.length) {
+      const prepared = contextService.prepareContextInjection(
+        {
+          taskId: review.taskId,
+          nodeIds: input.contextNodeIds,
+          ...(input.contextNote ? { note: input.contextNote } : {}),
+          source: 'user',
+          actor: 'user',
+        },
+        { allowReview: true },
+      )
+      if (!prepared.ok) return prepared
+      contextInjection = prepared.injection
+      contextBlock = prepared.block
     }
     return applyTransition(review.taskId, {
       type: 'reject',
       reviewId: input.reviewId,
-      feedback: input.feedback,
+      feedback: input.feedback?.trim() || '请结合补充的上下文修改',
+      ...(contextInjection && contextBlock ? { contextInjection, contextBlock } : {}),
     })
   }
 
@@ -497,6 +540,26 @@ export function createRuntime(deps: RuntimeDeps) {
         return ackFromOutcome(decideApproval(message.payload))
       case 'review.decide':
         return ackFromOutcome(decideReview(message.payload))
+      case 'context.inject': {
+        const result = contextService.injectContext({
+          taskId: message.payload.taskId,
+          nodeIds: message.payload.nodeIds,
+          ...(message.payload.note ? { note: message.payload.note } : {}),
+          source: 'user',
+          actor: 'human',
+        })
+        return result.ok
+          ? {
+              ok: true,
+              ack: {
+                taskId: result.taskId,
+                seq: result.seq,
+                truncated: result.truncated,
+                dropped: result.dropped,
+              },
+            }
+          : { ok: false, error: result.error }
+      }
       case 'node.create': {
         const canvas = getCanvas(deps.db, message.payload.canvasId)
         if (!canvas) {
@@ -797,7 +860,7 @@ export function createRuntime(deps: RuntimeDeps) {
   }
 
   function findNextQueued(exclude?: ReadonlySet<string>): { id: string } | null {
-    const next = listTasksByStatus(deps.db, ['queued']).find((task) => !exclude?.has(task.id))
+    const next = listQueuedTasksByEnqueuedAt(deps.db).find((task) => !exclude?.has(task.id))
     return next ? { id: next.id } : null
   }
 

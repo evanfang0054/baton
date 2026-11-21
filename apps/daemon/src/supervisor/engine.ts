@@ -96,6 +96,11 @@ export function createAiSdkSupervisorEngine(config: SupervisorConfig): Superviso
           inputSchema: tools.reply_task.parameters,
           execute: (input) => tools.reply_task.execute(input),
         }),
+        inject_context: tool({
+          description: tools.inject_context.description,
+          inputSchema: tools.inject_context.parameters,
+          execute: (input) => tools.inject_context.execute(input),
+        }),
         create_tasks: tool({
           description: tools.create_tasks.description,
           inputSchema: tools.create_tasks.parameters,

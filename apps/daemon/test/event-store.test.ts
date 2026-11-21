@@ -149,6 +149,27 @@ describe('event store', () => {
     expect(row.task_id).toBe(seeded.taskId)
   })
 
+  it('stores task_id for context.injected events', () => {
+    const database = db()
+    const store = createEventStore(database.db, deps)
+    const seeded = seedTask(database.raw)
+    const appended = database.db.transaction((tx) =>
+      store.appendContextInjected(tx, {
+        taskId: seeded.taskId,
+        seq: 1,
+        at: 1,
+        source: 'user',
+        nodeIds: ['n1'],
+        chars: 2,
+        ts: 1,
+      }),
+    )
+    const row = database.raw
+      .prepare('select task_id from ws_event where ordinal = ?')
+      .get(appended.ordinal) as { task_id: string | null }
+    expect(row.task_id).toBe(seeded.taskId)
+  })
+
   it('reports max ordinal and rolls back a duplicate session seq', () => {
     const database = db()
     const store = createEventStore(database.db, deps)

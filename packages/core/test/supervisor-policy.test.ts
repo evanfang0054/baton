@@ -22,6 +22,7 @@ describe('supervisor policy', () => {
       'create_agent',
       'create_edge',
       'update_node',
+      'inject_context',
     ])
     expect(supervisorPolicyVersion(SUPERVISOR_POLICY, 'v1')).toMatch(/^[a-f0-9]{12}$/)
   })

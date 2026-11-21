@@ -2,6 +2,7 @@ import {
   buildTaskOrigin,
   boardColumn,
   attentionFor,
+  canInjectContext,
   needsPerson,
   waitingSinceFor,
 } from '@baton/core'
@@ -91,6 +92,7 @@ export interface SupervisorToolset {
   reopen_task: SupervisorTool
   cancel_task: SupervisorTool
   reply_task: SupervisorTool
+  inject_context: SupervisorTool
   create_tasks: SupervisorTool
   handoff_task: SupervisorTool
   create_text: SupervisorTool
@@ -116,6 +118,7 @@ export interface BoundToolset {
   reopen_task: BoundTool
   cancel_task: BoundTool
   reply_task: BoundTool
+  inject_context: BoundTool
   create_tasks: BoundTool
   handoff_task: BoundTool
   create_text: BoundTool
@@ -141,6 +144,7 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     reopen_task: bind(tools.reopen_task),
     cancel_task: bind(tools.cancel_task),
     reply_task: bind(tools.reply_task),
+    inject_context: bind(tools.inject_context),
     create_tasks: bind(tools.create_tasks),
     handoff_task: bind(tools.handoff_task),
     create_text: bind(tools.create_text),
@@ -162,6 +166,12 @@ const listCanvasInput = z.object({
 })
 
 const getTaskInput = z.object({ taskId: z.string().min(1) })
+
+const injectContextInput = z.object({
+  taskId: z.string().min(1),
+  nodeIds: z.array(z.string().min(1)).min(1).max(40),
+  note: z.string().max(2000).optional(),
+})
 
 const getTaskHistoryInput = z.object({
   taskId: z.string().min(1),
@@ -261,6 +271,15 @@ export interface SupervisorToolsDeps {
   enqueueTask: (taskId: string) => EnqueueTaskResult
   applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
   replyToTask: (taskId: string, text: string) => { ok: boolean; error?: AppError }
+  injectContext: (input: {
+    taskId: string
+    nodeIds: string[]
+    note?: string
+    source: 'user' | 'supervisor'
+    actor: string
+  }) =>
+    | { ok: true; taskId: string; seq: number; truncated: boolean; dropped: number }
+    | { ok: false; error: AppError }
   cancelTask: (taskId: string, reason?: string) => TransitionOutcome
   logger?: Logger
 }
@@ -600,6 +619,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         }
         const task = detail.task
         const attention = attentionFor(task.status, task.waitingReason)
+        const injectable = canInjectContext(task)
         const sessions = listSessionsByTask(deps.db, task.id)
         const session = sessions.at(-1)
         const review = getReviewByTask(deps.db, task.id)
@@ -633,8 +653,17 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
                 dropped: task.context.dropped.length,
                 relations: task.context.relations.length,
                 truncated: task.context.truncated || task.context.relationsTruncated,
+                injections: {
+                  count: task.context.injections.length,
+                  lastAt: task.context.injections.at(-1)?.at ?? null,
+                  lastSeq: task.context.injections.at(-1)?.seq ?? null,
+                },
               }
             : null,
+          injectable: {
+            ok: injectable.ok,
+            ...(injectable.reason ? { reason: injectable.reason } : {}),
+          },
           pending: pendingForTask(deps.db, task),
         }
       },
@@ -1208,6 +1237,31 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         if (!result.ok) throw result.error
         audit('supervisor.task.reply', task.id, ctx, { length: parsed.text.length })
         return { ok: true, taskId: task.id, status: 'running' }
+      },
+    },
+
+    inject_context: {
+      description:
+        '把画布节点补投给一个已有任务；只在用户明确说“补给它/把这几个节点给它”时使用。' +
+        '一次只处理一个任务；review 状态只能让用户去打回。',
+      parameters: injectContextInput,
+      async execute(input, ctx) {
+        const parsed = injectContextInput.parse(input)
+        const task = requireTask(ctx, parsed.taskId)
+        const result = deps.injectContext({
+          taskId: task.id,
+          nodeIds: parsed.nodeIds,
+          ...(parsed.note ? { note: parsed.note } : {}),
+          source: 'supervisor',
+          actor: 'supervisor',
+        })
+        if (!result.ok) throw result.error
+        return {
+          taskId: result.taskId,
+          seq: result.seq,
+          truncated: result.truncated,
+          dropped: result.dropped,
+        }
       },
     },
   }

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Id } from './common.js'
+import { Id, Timestamp } from './common.js'
 import { EdgeType, NodeType } from './enums.js'
 
 export const DropReason = z.enum(['budget', 'sensitive', 'limit', 'not_found', 'target', 'empty'])
@@ -32,6 +32,24 @@ export const ContextRelation = z.object({
 })
 export type ContextRelation = z.infer<typeof ContextRelation>
 
+export const ContextInjectionSource = z.enum(['user', 'supervisor'])
+export type ContextInjectionSource = z.infer<typeof ContextInjectionSource>
+
+export const ContextInjection = z.object({
+  seq: z.number().int().positive(),
+  at: Timestamp,
+  source: ContextInjectionSource,
+  note: z.string().max(2000).nullable(),
+  nodeIds: z.array(Id).min(1),
+  included: z.array(ContextNodeRef),
+  dropped: z.array(ContextDropped),
+  truncated: z.boolean(),
+  relations: z.array(ContextRelation),
+  relationsTruncated: z.boolean(),
+  chars: z.number().int().nonnegative(),
+})
+export type ContextInjection = z.infer<typeof ContextInjection>
+
 export const ContextSnapshot = z.object({
   included: z.array(ContextNodeRef),
   dropped: z.array(ContextDropped),
@@ -39,5 +57,6 @@ export const ContextSnapshot = z.object({
   redactedPaths: z.array(z.string()),
   relations: z.array(ContextRelation),
   relationsTruncated: z.boolean(),
+  injections: z.array(ContextInjection).default([]),
 })
 export type ContextSnapshot = z.infer<typeof ContextSnapshot>

@@ -195,11 +195,33 @@ describe('ClaudeAdapter', () => {
     await run.interrupt()
   })
 
-  it('finishes immediately when a ready outcome arrives without a turn_result', async () => {
+  it('emits session usage before RUN_FINISHED when a ready outcome is followed by turn_result', async () => {
     const transport = new FakeTransport()
     const { run } = await makeRun(transport)
     transport.push({ type: 'init', sessionId: 'session-1' })
     transport.push({ type: 'outcome', outcome: 'ready', reason: 'done' })
+    transport.push({ type: 'turn_result', ok: true, costUsd: 0.42, turns: 3 })
+    transport.close()
+    const events = await collect(run)
+    const usageIndex = events.findIndex(
+      (event) => event.type === 'CUSTOM' && event.name === 'baton.session.usage',
+    )
+    const finishIndex = events.findIndex((event) => event.type === 'RUN_FINISHED')
+    expect(usageIndex).toBeGreaterThan(-1)
+    expect(finishIndex).toBeGreaterThan(usageIndex)
+    expect(events[usageIndex]).toMatchObject({
+      type: 'CUSTOM',
+      name: 'baton.session.usage',
+      value: { costUsd: 0.42, turns: 3 },
+    })
+  })
+
+  it('finishes when a ready outcome arrives without a turn_result', async () => {
+    const transport = new FakeTransport()
+    const { run } = await makeRun(transport)
+    transport.push({ type: 'init', sessionId: 'session-1' })
+    transport.push({ type: 'outcome', outcome: 'ready', reason: 'done' })
+    transport.close()
     const events = await collect(run)
     expect(events.at(-1)?.type).toBe('RUN_FINISHED')
     expect(

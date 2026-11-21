@@ -21,6 +21,7 @@ const baseTask: TaskDetailResponse['task'] = {
   worktreePath: null,
   verifyCommand: null,
   dangerouslySkipPermissions: false,
+  enqueuedAt: null,
   retryCount: 0,
   ...{ context: null, origin: null },
   createdAt: 1,
@@ -38,6 +39,8 @@ function detail(overrides: Partial<TaskDetailResponse> = {}): TaskDetailResponse
         engineSessionId: null,
         status: 'running',
         outcome: null,
+        costUsd: null,
+        turns: null,
         startedAt: 1,
         endedAt: null,
       },
@@ -145,12 +148,65 @@ describe('TaskDetailPanel', () => {
     expect(screen.getByText('prompt-1')).toBeInTheDocument()
   })
 
+  it('shows injection timeline and aggregate usage', async () => {
+    stubFetch(
+      detail({
+        task: {
+          ...baseTask,
+          context: {
+            included: [{ id: 'n1', type: 'text', title: '初始需求', depth: 0, chars: 4 }],
+            dropped: [],
+            truncated: false,
+            redactedPaths: [],
+            relations: [],
+            relationsTruncated: false,
+            injections: [
+              {
+                seq: 1,
+                at: 1_700_000_000_000,
+                source: 'user',
+                note: '补充报错',
+                nodeIds: ['n2'],
+                included: [{ id: 'n2', type: 'text', title: '报错日志', depth: 0, chars: 10 }],
+                dropped: [],
+                truncated: false,
+                relations: [],
+                relationsTruncated: false,
+                chars: 12,
+              },
+            ],
+          },
+        },
+        sessions: [
+          {
+            id: 's1',
+            taskId: 't1',
+            adapter: 'fake',
+            engineSessionId: null,
+            status: 'ended',
+            outcome: 'ready',
+            costUsd: 0.42,
+            turns: 3,
+            startedAt: 1,
+            endedAt: 3,
+          },
+        ],
+      }),
+    )
+    renderPanel()
+
+    expect(await screen.findByText('注入 #1')).toBeInTheDocument()
+    expect(screen.getByText('补充报错')).toBeInTheDocument()
+    expect(screen.getByText(/累计 \$0\.42 · 3 turns/)).toBeInTheDocument()
+  })
+
   it('shows a todo task, enqueues it and invalidates its queries', async () => {
     stubFetch(detail())
     const { send, client } = renderPanel()
     const invalidate = vi.spyOn(client, 'invalidateQueries')
 
     expect(await screen.findByText('修复登录页')).toBeInTheDocument()
+    expect(screen.getByText('累计 — · —')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '立即开工' }))
     await waitFor(() =>
       expect(send).toHaveBeenCalledWith({
@@ -400,6 +456,7 @@ describe('TaskDetailPanel', () => {
       redactedPaths: [],
       relations: [],
       relationsTruncated: false,
+      injections: [],
     }
     stubFetch(detail({ task: { ...baseTask, ['context']: snapshot } }))
     renderPanel()

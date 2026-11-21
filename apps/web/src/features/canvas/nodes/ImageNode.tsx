@@ -14,7 +14,7 @@ export function ImageNode({ data, selected }: CanvasFlowNodeProps) {
   if (!image) return null
 
   return (
-    <NodeShell selected={selected} dimmed={data.dimmed}>
+    <NodeShell selected={selected} dimmed={data.dimmed} injected={data.injected}>
       <div className="flex items-start justify-between gap-2">
         <p className="truncate text-xs text-muted">{image.alt || '图片'}</p>
         <span className="shrink-0 text-[10px] text-muted">图片</span>

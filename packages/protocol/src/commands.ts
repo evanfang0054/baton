@@ -63,6 +63,15 @@ export const SessionReplyInput = z.object({
 })
 export type SessionReplyInput = z.infer<typeof SessionReplyInput>
 
+export const ContextInjectInput = z
+  .object({
+    taskId: Id,
+    nodeIds: z.array(Id).min(1).max(40),
+    note: z.string().max(2000).optional(),
+  })
+  .strict()
+export type ContextInjectInput = z.infer<typeof ContextInjectInput>
+
 export const ApprovalDecideInput = z.object({
   approvalId: Id,
   decision: ApprovalDecision,
@@ -74,14 +83,32 @@ export const ApprovalDecideInput = z.object({
 })
 export type ApprovalDecideInput = z.infer<typeof ApprovalDecideInput>
 
-export const ReviewDecideInput = z.discriminatedUnion('decision', [
-  z.object({ reviewId: Id, decision: z.literal('approve') }).strict(),
-  z.object({
-    reviewId: Id,
-    decision: z.literal('reject'),
-    feedback: z.string().min(1),
-  }),
-])
+export const ReviewDecideInput = z
+  .discriminatedUnion('decision', [
+    z
+      .object({
+        reviewId: Id,
+        decision: z.literal('approve'),
+        reason: z.string().max(2000).optional(),
+      })
+      .strict(),
+    z
+      .object({
+        reviewId: Id,
+        decision: z.literal('reject'),
+        feedback: z.string().max(16_384).optional(),
+        contextNodeIds: z.array(Id).min(1).max(40).optional(),
+        contextNote: z.string().max(2000).optional(),
+      })
+      .strict(),
+  ])
+  .refine(
+    (value) =>
+      value.decision !== 'reject' ||
+      Boolean(value.feedback?.trim()) ||
+      (value.contextNodeIds?.length ?? 0) > 0,
+    { message: 'feedback or contextNodeIds is required' },
+  )
 export type ReviewDecideInput = z.infer<typeof ReviewDecideInput>
 
 const NodeCreateBase = z.object({
@@ -189,6 +216,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   CommandBase.extend({ type: z.literal('task.reopen'), payload: TaskReopenInput }),
   CommandBase.extend({ type: z.literal('task.handoff'), payload: TaskHandoffInput }),
   CommandBase.extend({ type: z.literal('session.reply'), payload: SessionReplyInput }),
+  CommandBase.extend({ type: z.literal('context.inject'), payload: ContextInjectInput }),
   CommandBase.extend({ type: z.literal('approval.decide'), payload: ApprovalDecideInput }),
   CommandBase.extend({ type: z.literal('review.decide'), payload: ReviewDecideInput }),
   CommandBase.extend({ type: z.literal('node.create'), payload: NodeCreateInput }),

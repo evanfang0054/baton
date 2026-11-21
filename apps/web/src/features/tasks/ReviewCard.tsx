@@ -1,37 +1,82 @@
-import { VERIFY_SKIPPED, type ReviewView } from '@baton/protocol'
+import { VERIFY_SKIPPED, type Node, type ReviewView } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
 import { TextArea } from '@heroui/react/textarea'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useAppStore } from '../../stores/app'
+import { nodeTitle } from '../canvas/node-title'
 import { DiffViewer } from './DiffViewer'
 import { useCommandAction } from './useCommandAction'
 import { verifyOutputClass } from './styles'
 
+const CONTEXT_TYPES = new Set<Node['type']>(['text', 'file', 'image', 'group'])
+
 export function ReviewCard({
   review,
+  usage,
+  contextNodes,
   onDone,
 }: {
   review: ReviewView
+  usage?: { costUsd: number | null; turns: number | null } | null
+  contextNodes?: Node[]
   onDone: () => Promise<void> | void
 }) {
   const [rejecting, setRejecting] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [showDiff, setShowDiff] = useState(false)
+  const [attachContext, setAttachContext] = useState(false)
+  const [confirmingApprove, setConfirmingApprove] = useState(false)
+  const [overrideReason, setOverrideReason] = useState('')
+  const contextNodeIds = useAppStore((state) => state.contextNodeIds)
+  const attachable = (
+    contextNodes
+      ? contextNodes
+          .filter((node) => CONTEXT_TYPES.has(node.type))
+          .map((node) => ({ id: node.id, label: nodeTitle(node) }))
+      : contextNodeIds.map((id) => ({ id, label: id }))
+  ).slice(0, 40)
   const action = useCommandAction(onDone)
   const decided = review.verdict !== null
   const verifySkipped = review.verifyExitCode === VERIFY_SKIPPED
+  const needsOverride = review.verifyExitCode !== 0
+  const withContext = attachContext && attachable.length > 0
+
+  // 选择被清空后不能留下一个不可见的“附带上下文”开关。
+  useEffect(() => {
+    if (attachable.length === 0) setAttachContext(false)
+  }, [attachable.length])
+
+  const approve = () => {
+    action.run({
+      type: 'review.decide',
+      payload: {
+        reviewId: review.id,
+        decision: 'approve',
+        ...(overrideReason.trim() ? { reason: overrideReason.trim() } : {}),
+      },
+    })
+  }
 
   return (
     <section className="shrink-0 rounded-lg border border-accent bg-surface p-3">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-medium">验收</h3>
-        <Chip
-          size="sm"
-          variant="soft"
-          color={verifySkipped ? 'warning' : review.verifyExitCode === 0 ? 'success' : 'danger'}
-        >
-          {verifySkipped ? '未执行自动校验' : `退出码 ${review.verifyExitCode}`}
-        </Chip>
+        <div className="flex items-center gap-2">
+          {usage ? (
+            <span className="text-xs text-muted">
+              本次 {usage.costUsd === null ? '—' : `$${usage.costUsd.toFixed(2)}`} ·{' '}
+              {usage.turns === null ? '—' : `${usage.turns} turns`}
+            </span>
+          ) : null}
+          <Chip
+            size="sm"
+            variant="soft"
+            color={verifySkipped ? 'warning' : review.verifyExitCode === 0 ? 'success' : 'danger'}
+          >
+            {verifySkipped ? '未执行自动校验' : `退出码 ${review.verifyExitCode}`}
+          </Chip>
+        </div>
       </div>
       <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted">
         <span title="仅统计 Git 已跟踪文件；非 git 工作区或未跟踪文件不计入">
@@ -66,6 +111,25 @@ export function ReviewCard({
         <p className="mt-3 text-sm text-muted">
           {review.verdict === 'approved' ? '已通过验收' : '已打回'}
         </p>
+      ) : confirmingApprove ? (
+        <div className="mt-3 flex flex-col gap-2 rounded border border-warning bg-warning/10 p-2">
+          <p className="text-xs text-warning">校验未通过，仍要通过吗？</p>
+          <TextArea
+            aria-label="通过理由"
+            placeholder="可选：为什么仍然通过"
+            value={overrideReason}
+            onChange={(event) => setOverrideReason(event.target.value)}
+            fullWidth
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="tertiary" onPress={() => setConfirmingApprove(false)}>
+              取消
+            </Button>
+            <Button variant="primary" isDisabled={action.pending} onPress={approve}>
+              确认通过
+            </Button>
+          </div>
+        </div>
       ) : rejecting ? (
         <div className="mt-3 flex flex-col gap-2">
           <TextArea
@@ -75,17 +139,45 @@ export function ReviewCard({
             onChange={(event) => setFeedback(event.target.value)}
             fullWidth
           />
+          {attachable.length > 0 ? (
+            <>
+              <ul className="flex flex-wrap gap-1">
+                {attachable.map((node) => (
+                  <li
+                    key={node.id}
+                    className="rounded bg-background px-1.5 py-0.5 text-xs text-muted"
+                  >
+                    {node.label}
+                  </li>
+                ))}
+              </ul>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  aria-label={`附带当前选中的 ${attachable.length} 个节点`}
+                  checked={attachContext}
+                  onChange={(event) => setAttachContext(event.target.checked)}
+                />
+                附带当前选中的 {attachable.length} 个节点
+              </label>
+            </>
+          ) : null}
           <div className="flex justify-end gap-2">
             <Button variant="tertiary" onPress={() => setRejecting(false)}>
               返回
             </Button>
             <Button
               variant="danger"
-              isDisabled={!feedback.trim() || action.pending}
+              isDisabled={(!feedback.trim() && !withContext) || action.pending}
               onPress={() =>
                 action.run({
                   type: 'review.decide',
-                  payload: { reviewId: review.id, decision: 'reject', feedback: feedback.trim() },
+                  payload: {
+                    reviewId: review.id,
+                    decision: 'reject',
+                    ...(feedback.trim() ? { feedback: feedback.trim() } : {}),
+                    ...(withContext ? { contextNodeIds: attachable.map((node) => node.id) } : {}),
+                  },
                 })
               }
             >
@@ -101,12 +193,13 @@ export function ReviewCard({
           <Button
             variant="primary"
             isDisabled={action.pending}
-            onPress={() =>
-              action.run({
-                type: 'review.decide',
-                payload: { reviewId: review.id, decision: 'approve' },
-              })
-            }
+            onPress={() => {
+              if (needsOverride) {
+                setConfirmingApprove(true)
+                return
+              }
+              approve()
+            }}
           >
             通过
           </Button>

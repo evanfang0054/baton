@@ -5,6 +5,7 @@ import {
   FolderPlus,
   Image as ImageIcon,
   Maximize,
+  Send,
   Type,
   ZoomIn,
   ZoomOut,
@@ -22,16 +23,24 @@ function ToolButton({
   label,
   hint,
   onPress,
+  disabled = false,
   children,
 }: {
   label: string
   hint?: string
   onPress: () => void
+  disabled?: boolean
   children: ReactNode
 }) {
   return (
     <span title={hint ?? label} className="inline-flex">
-      <Button variant="ghost" aria-label={label} onPress={onPress} className="h-8 w-8 p-0">
+      <Button
+        variant="ghost"
+        aria-label={label}
+        isDisabled={disabled}
+        onPress={onPress}
+        className="h-8 w-8 p-0"
+      >
         {children}
       </Button>
     </span>
@@ -43,12 +52,16 @@ export function CanvasToolbar({
   onFit,
   onZoomIn,
   onZoomOut,
+  onInject,
+  injectDisabled = false,
   readOnly = false,
 }: {
   onAdd: (type: CanvasAddType) => void
   onFit: () => void
   onZoomIn: () => void
   onZoomOut: () => void
+  onInject: () => void
+  injectDisabled?: boolean
   readOnly?: boolean
 }) {
   return (
@@ -69,6 +82,15 @@ export function CanvasToolbar({
           </ToolButton>
           <ToolButton label="添加 Agent" hint="添加 Agent 节点" onPress={() => onAdd('agent')}>
             <Bot size={16} />
+          </ToolButton>
+          <span className="mx-1 h-5 w-px bg-separator" />
+          <ToolButton
+            label="投喂给任务"
+            hint="把选中节点补投给已有任务"
+            onPress={onInject}
+            disabled={injectDisabled}
+          >
+            <Send size={16} />
           </ToolButton>
           <span className="mx-1 h-5 w-px bg-separator" />
         </>

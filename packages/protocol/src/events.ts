@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { EventSchemas } from './agui.js'
 import { DiffStat, Id, Timestamp } from './common.js'
+import { ContextInjectionSource } from './context.js'
 import { ApprovalRequest } from './entities/approval.js'
 import { Notice } from './entities/notice.js'
 import { PreliminaryVerdict } from './entities/review.js'
@@ -38,6 +39,17 @@ export type ErrorEvent = z.infer<typeof ErrorEvent>
 
 export const SESSION_OUTCOME_EVENT = 'session.outcome'
 export const USER_MESSAGE_EVENT = 'user.message'
+export const SESSION_USAGE_EVENT = 'baton.session.usage'
+
+export const SessionUsageValue = z
+  .object({
+    costUsd: z.number().finite().nonnegative().optional(),
+    turns: z.number().int().nonnegative().optional(),
+  })
+  .refine((value) => value.costUsd !== undefined || value.turns !== undefined, {
+    message: 'usage must contain costUsd or turns',
+  })
+export type SessionUsageValue = z.infer<typeof SessionUsageValue>
 
 export const SessionOutcomeValue = z.object({
   outcome: SessionOutcome.exclude(['unreported']),
@@ -158,6 +170,19 @@ export const ReviewPreliminaryEvent = ReplayableBase.extend({
 })
 export type ReviewPreliminaryEvent = z.infer<typeof ReviewPreliminaryEvent>
 
+export const ContextInjectedEvent = ReplayableBase.extend({
+  type: z.literal('context.injected'),
+  payload: z.object({
+    taskId: Id,
+    seq: z.number().int().positive(),
+    at: Timestamp,
+    source: ContextInjectionSource,
+    nodeIds: z.array(Id).min(1),
+    chars: z.number().int().nonnegative(),
+  }),
+})
+export type ContextInjectedEvent = z.infer<typeof ContextInjectedEvent>
+
 export const ServerMessage = z.discriminatedUnion('type', [
   AckEvent,
   ErrorEvent,
@@ -170,5 +195,6 @@ export const ServerMessage = z.discriminatedUnion('type', [
   SupervisorMessageEvent,
   NoticeEvent,
   ReviewPreliminaryEvent,
+  ContextInjectedEvent,
 ])
 export type ServerMessage = z.infer<typeof ServerMessage>

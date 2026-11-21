@@ -134,6 +134,7 @@ describe('transition runner', () => {
     expect(outcome.retryCount).toBe(1)
     expect(outcome.events.map((event) => event.type)).toEqual(['verify.result', 'task.status'])
     expect(handle.runtime.getTask(taskId)?.retryCount).toBe(1)
+    expect(handle.runtime.getTask(taskId)?.enqueuedAt).toBeTypeOf('number')
     expect(handle.runtime.getTask(taskId)?.prompt).toContain('<feedback>')
     expect(handle.runtime.getReviewByTask(taskId)?.verifyExitCode).toBe(1)
 
@@ -375,6 +376,25 @@ describe('transition runner', () => {
     expect(handle.interrupts).toEqual([taskId])
   })
 
+  it('stamps enqueuedAt on enqueue and clears it when returning to todo', () => {
+    const handle = setup({ maxConcurrency: 0 })
+    const taskId = handle.createTask()
+    const queued = handle.runtime.applyTransition(taskId, { type: 'enqueue' })
+    expect(queued.ok).toBe(true)
+    if (queued.ok) {
+      expect(queued.status).toBe('queued')
+    }
+    expect(handle.runtime.getTask(taskId)?.enqueuedAt).toBeTypeOf('number')
+
+    handle.database.raw.prepare("update task set status = 'done' where id = ?").run(taskId)
+    const reopened = handle.runtime.applyTransition(taskId, { type: 'reopen' })
+    expect(reopened.ok).toBe(true)
+    if (reopened.ok) {
+      expect(reopened.status).toBe('todo')
+    }
+    expect(handle.runtime.getTask(taskId)?.enqueuedAt).toBeNull()
+  })
+
   it('rejects a review and re-enqueues with feedback', async () => {
     const handle = setup()
     const taskId = handle.createTask()
@@ -420,6 +440,7 @@ describe('transition runner', () => {
     if (!outcome.ok) return
     expect(outcome.status).toBe('queued')
     expect(handle.runtime.getTask(taskId)?.retryCount).toBe(0)
+    expect(handle.runtime.getTask(taskId)?.enqueuedAt).toBeTypeOf('number')
     expect(handle.runtime.getTask(taskId)?.prompt).toContain('<feedback>\n再试一次\n</feedback>')
     const audit = handle.database.raw
       .prepare("select detail_json from audit where action = 'task.retry' and actor = 'human'")

@@ -68,6 +68,15 @@ export interface SupervisorServiceDeps {
   enqueueTask: (taskId: string) => EnqueueTaskResult
   applyTransition: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
   replyToTask: (taskId: string, text: string) => { ok: boolean; error?: AppError }
+  injectContext: (input: {
+    taskId: string
+    nodeIds: string[]
+    note?: string
+    source: 'user' | 'supervisor'
+    actor: string
+  }) =>
+    | { ok: true; taskId: string; seq: number; truncated: boolean; dropped: number }
+    | { ok: false; error: AppError }
   cancelTask: (taskId: string, reason?: string) => TransitionOutcome
   workspacesRoot: string
   killSwitch: () => boolean
@@ -152,6 +161,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     enqueueTask: deps.enqueueTask,
     applyTransition: deps.applyTransition,
     replyToTask: deps.replyToTask,
+    injectContext: deps.injectContext,
     cancelTask: deps.cancelTask,
     ...(deps.logger ? { logger: deps.logger } : {}),
   })
@@ -806,6 +816,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           input.assistantMessageId,
           input.threadId,
         ),
+        inject_context: wrapTool(
+          'inject_context',
+          bound.inject_context,
+          input.assistantMessageId,
+          input.threadId,
+        ),
         create_tasks: wrapTool(
           'create_tasks',
           bound.create_tasks,
@@ -886,9 +902,14 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       }
       const hasAfterSales = result.toolCalls.some(
         (call) =>
-          ['retry_task', 'reopen_task', 'cancel_task', 'reply_task'].includes(call.name) && call.ok,
+          ['retry_task', 'reopen_task', 'cancel_task', 'reply_task', 'inject_context'].includes(
+            call.name,
+          ) && call.ok,
       )
-      if (/已(经)?(为你|帮你)?(重试|重开|取消|回复)/.test(text) && !hasAfterSales) {
+      if (
+        /已(经)?(为你|帮你)?(重试|重开|取消|回复|注入|补给它|补投)/.test(text) &&
+        !hasAfterSales
+      ) {
         text += '\n\n（我没有对应的工具结果；请以任务详情/看板状态为准。）'
         reason = 'claim_without_tool'
       }

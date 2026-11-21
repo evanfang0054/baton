@@ -23,6 +23,7 @@ const snapshot: ContextSnapshot = {
     },
   ],
   relationsTruncated: true,
+  injections: [],
 }
 
 describe('ContextSnapshotCard', () => {

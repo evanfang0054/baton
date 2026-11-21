@@ -67,6 +67,7 @@ const task = {
   verifyCommand: null,
   retryCount: 0,
   dangerouslySkipPermissions: false,
+  enqueuedAt: null,
   createdAt: 1,
   updatedAt: 1,
   context: {
@@ -76,6 +77,7 @@ const task = {
     redactedPaths: [],
     relations: [],
     relationsTruncated: false,
+    injections: [],
   },
   origin: {
     source: 'supervisor-chat',
@@ -154,5 +156,32 @@ describe('buildTaskScene', () => {
   it('does not include a group that no longer exists', () => {
     const scene = buildTaskScene(task, [agent, text], [edge])
     expect(scene.relatedGroupIds).toEqual([])
+  })
+
+  it('includes injection node ids and reports missing ones', () => {
+    const injected = {
+      ...task,
+      context: {
+        ...task.context,
+        injections: [
+          {
+            seq: 1,
+            at: 1,
+            source: 'user' as const,
+            note: null,
+            nodeIds: ['n2', 'gone'],
+            included: [],
+            dropped: [],
+            truncated: false,
+            relations: [],
+            relationsTruncated: false,
+            chars: 1,
+          },
+        ],
+      },
+    } satisfies TaskDetail
+    const scene = buildTaskScene(injected, [{ ...text, id: 'n2' }], [])
+    expect(scene.relatedNodeIds).toContain('n2')
+    expect(scene.missingNodeIds).toContain('gone')
   })
 })

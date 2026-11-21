@@ -16,12 +16,15 @@ export interface TaskScene {
   reviewCardPosition: { x: number; y: number }
 }
 
-/** 任务直接相关的节点 ID：目标 Agent + context 快照 + origin 显式上下文。 */
+/** 任务直接相关的节点 ID：目标 Agent + context 快照 + origin 显式上下文 + 注入节点。 */
 export function relatedNodeIdSet(task: TaskDetail): Set<string> {
   const related = new Set<string>()
   if (task.nodeId) related.add(task.nodeId)
   for (const ref of task.context?.included ?? []) related.add(ref.id)
   for (const id of task.origin?.contextNodeIds ?? []) related.add(id)
+  for (const injection of task.context?.injections ?? []) {
+    for (const id of injection.nodeIds) related.add(id)
+  }
   return related
 }
 

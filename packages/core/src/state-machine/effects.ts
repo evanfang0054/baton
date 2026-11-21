@@ -1,5 +1,6 @@
 import type {
   ApprovalDecision,
+  ContextInjection,
   DiffStat,
   ReviewVerdict,
   TaskStatus,
@@ -34,8 +35,18 @@ export const effects = {
     reviewId,
     verdict,
   }),
+  auditReviewOverride: (
+    reviewId: string,
+    verifyExitCode: number,
+    reasonProvided: boolean,
+  ): TaskEffect => ({ type: 'auditReviewOverride', reviewId, verifyExitCode, reasonProvided }),
   appendFeedback: (feedback: string): TaskEffect => ({ type: 'appendFeedback', feedback }),
   appendReopenNote: (note: string): TaskEffect => ({ type: 'appendReopenNote', note }),
+  appendContextInjection: (injection: ContextInjection, block?: string): TaskEffect => ({
+    type: 'appendContextInjection',
+    injection,
+    ...(block ? { block } : {}),
+  }),
   incrementRetry: (): TaskEffect => ({ type: 'incrementRetry' }),
   interruptSession: (reason?: string): TaskEffect => ({
     type: 'interruptSession',

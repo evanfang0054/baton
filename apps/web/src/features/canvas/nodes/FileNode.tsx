@@ -4,7 +4,7 @@ import { NodeShell, type CanvasFlowNodeProps } from './NodeShell'
 export function FileNode({ data, selected }: CanvasFlowNodeProps) {
   const file = data.node.type === 'file' ? data.node.data : null
   return (
-    <NodeShell selected={selected}>
+    <NodeShell selected={selected} injected={data.injected}>
       <div className="flex items-center gap-2 text-xs text-muted">
         <FileText size={14} />
         文件

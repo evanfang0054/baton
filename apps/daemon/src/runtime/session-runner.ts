@@ -4,7 +4,9 @@ import {
   ApprovalRequestValue,
   EventType,
   SESSION_OUTCOME_EVENT,
+  SESSION_USAGE_EVENT,
   SessionOutcomeValue,
+  SessionUsageValue,
   USER_MESSAGE_EVENT,
   type AgentRun,
   type Policy,
@@ -22,6 +24,7 @@ import {
   updateApprovalDecision,
   updateSessionEngineId,
   updateSessionStatus,
+  updateSessionUsage,
   updateTaskWorktreePath,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
@@ -253,6 +256,16 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
 
         if (event.type === EventType.RUN_STARTED) {
           deps.db.transaction((tx) => updateSessionEngineId(tx, active.sessionId, event.threadId))
+        } else if (event.type === EventType.CUSTOM && event.name === SESSION_USAGE_EVENT) {
+          const parsed = SessionUsageValue.safeParse(event.value)
+          if (parsed.success) {
+            deps.db.transaction((tx) =>
+              updateSessionUsage(tx, active.sessionId, {
+                ...(parsed.data.costUsd !== undefined ? { costUsd: parsed.data.costUsd } : {}),
+                ...(parsed.data.turns !== undefined ? { turns: parsed.data.turns } : {}),
+              }),
+            )
+          }
         } else if (event.type === EventType.CUSTOM && event.name === APPROVAL_REQUEST_EVENT) {
           await handleApproval(active, policy, event.value)
         } else if (event.type === EventType.CUSTOM && event.name === SESSION_OUTCOME_EVENT) {

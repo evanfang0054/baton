@@ -223,6 +223,12 @@ export function RealtimeProvider({
           void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
           return
         }
+        if (event.type === 'context.injected') {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+          void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+          void queryClient.invalidateQueries({ queryKey: queryKeys.task(event.payload.taskId) })
+          return
+        }
         if (INVALIDATING_EVENTS.has(event.type)) invalidate()
       },
     })

@@ -58,6 +58,7 @@ const task: TaskSummary = {
   worktreePath: null,
   verifyCommand: null,
   dangerouslySkipPermissions: false,
+  enqueuedAt: null,
   retryCount: 0,
   createdAt: 1,
   updatedAt: 1,
@@ -115,6 +116,15 @@ describe('canvas model', () => {
       data: { node: textNode, task: null },
     })
     expect(flow[1]?.data.task).toEqual(task)
+  })
+
+  it('marks injected nodes from the injected id set', () => {
+    const flow = toFlowNodes([textNode, groupNode('g1')], [], {
+      injectedNodeIds: new Set([textNode.id, 'g1']),
+    })
+    expect(flow.find((node) => node.id === textNode.id)?.data.injected).toBe(true)
+    expect(flow.find((node) => node.id === 'g1')?.data.injected).toBe(true)
+    expect(toFlowNodes([textNode], [])[0]?.data.injected).toBe(false)
   })
 
   it('shows the newest task when an agent has task history', () => {

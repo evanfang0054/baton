@@ -2,6 +2,7 @@ import {
   Approval,
   Audit,
   Canvas,
+  ContextInjection,
   ContextSnapshot,
   DiffSnapshot,
   Edge,
@@ -114,6 +115,7 @@ function toTask(row: typeof task.$inferSelect): Task {
     verifyCommand: row.verifyCommand,
     retryCount: row.retryCount,
     dangerouslySkipPermissions: row.dangerouslySkipPermissions,
+    enqueuedAt: row.enqueuedAt ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   })
@@ -127,6 +129,8 @@ function toSession(row: typeof session.$inferSelect): Session {
     engineSessionId: row.engineSessionId,
     status: row.status,
     outcome: row.outcome as SessionOutcome | null,
+    costUsd: row.costUsd ?? null,
+    turns: row.turns ?? null,
     startedAt: row.startedAt,
     endedAt: row.endedAt,
   })
@@ -621,9 +625,20 @@ export function listTasksByStatus(db: Db, statuses: TaskStatus[]): Task[] {
     .map(toTask)
 }
 
+/** 队列顺序以入队时间为准；旧数据没有 enqueued_at 时退回 updated_at。 */
+export function listQueuedTasksByEnqueuedAt(db: Db): Task[] {
+  return db
+    .select()
+    .from(task)
+    .where(eq(task.status, 'queued'))
+    .orderBy(sql`coalesce(${task.enqueuedAt}, ${task.updatedAt})`, asc(task.id))
+    .all()
+    .map(toTask)
+}
+
 export function insertTask(
   tx: Tx,
-  input: Task,
+  input: Omit<Task, 'enqueuedAt'> & { enqueuedAt?: number | null },
   contextJson: string | null = null,
   originJson: string | null = null,
 ): void {
@@ -645,6 +660,7 @@ export function insertTask(
       dangerouslySkipPermissions: input.dangerouslySkipPermissions,
       contextJson,
       originJson,
+      enqueuedAt: input.enqueuedAt ?? null,
       createdAt: input.createdAt,
       updatedAt: input.updatedAt,
     })
@@ -670,6 +686,14 @@ export function updateTaskPolicy(tx: Tx, id: string, policy: Policy): void {
     .set({ policyJson: JSON.stringify(policy) })
     .where(eq(task.id, id))
     .run()
+}
+
+export function setTaskEnqueuedAt(tx: Tx, id: string, at: number): void {
+  tx.update(task).set({ enqueuedAt: at }).where(eq(task.id, id)).run()
+}
+
+export function clearTaskEnqueuedAt(tx: Tx, id: string): void {
+  tx.update(task).set({ enqueuedAt: null }).where(eq(task.id, id)).run()
 }
 
 export function updateTaskWorktreePath(
@@ -738,6 +762,93 @@ export function appendTaskPromptBlock(
     .run()
 }
 
+export function appendTaskPromptRaw(
+  tx: Tx,
+  id: string,
+  text: string,
+  maxChars: number,
+  updatedAt: number,
+): void {
+  const row = tx.select({ prompt: task.prompt }).from(task).where(eq(task.id, id)).get()
+  if (!row) {
+    return
+  }
+  const clipped = text.length > maxChars ? `${text.slice(0, maxChars)}\n…[truncated]` : text
+  tx.update(task)
+    .set({
+      prompt: `${row.prompt}\n\n${clipped}`,
+      updatedAt,
+    })
+    .where(eq(task.id, id))
+    .run()
+}
+
+export function appendTaskContextInjection(
+  tx: Tx,
+  taskId: string,
+  injection: ContextInjection,
+  limits?: { maxCumulativeChars: number },
+): void {
+  const row = tx
+    .select({ contextJson: task.contextJson })
+    .from(task)
+    .where(eq(task.id, taskId))
+    .get()
+  if (!row) {
+    return
+  }
+  const fallback: ContextSnapshot = {
+    included: [],
+    dropped: [],
+    truncated: false,
+    redactedPaths: [],
+    relations: [],
+    relationsTruncated: false,
+    injections: [],
+  }
+  let snapshot = fallback
+  if (row.contextJson) {
+    try {
+      const parsed = ContextSnapshot.safeParse(JSON.parse(row.contextJson) as unknown)
+      if (!parsed.success) {
+        throw appError('context_invalid', 'existing context snapshot is invalid', { taskId })
+      }
+      snapshot = parsed.data
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error) throw error
+      throw appError('context_invalid', 'existing context snapshot is not valid JSON', { taskId })
+    }
+  }
+  // prepare 与写入之间可能隔着一个事务边界；在写入时再核对一次，避免重复 seq 或超预算。
+  const expectedSeq = snapshot.injections.length + 1
+  if (injection.seq !== expectedSeq) {
+    throw appError('context_conflict', 'context injection sequence is stale', {
+      taskId,
+      expectedSeq,
+      seq: injection.seq,
+    })
+  }
+  if (limits) {
+    const used = snapshot.injections.reduce((sum, item) => sum + item.chars, 0)
+    if (used + injection.chars > limits.maxCumulativeChars) {
+      throw appError('context_budget_exceeded', 'cumulative injection budget exceeded', {
+        limit: limits.maxCumulativeChars,
+        used,
+        requested: injection.chars,
+      })
+    }
+  }
+  tx.update(task)
+    .set({
+      contextJson: JSON.stringify({
+        ...snapshot,
+        injections: [...snapshot.injections, injection],
+      }),
+    })
+    .where(eq(task.id, taskId))
+    .run()
+}
+
 export function countActiveTasks(db: Db): number {
   const row = db
     .select({ count: sql<number>`count(*)` })
@@ -756,7 +867,13 @@ export function countLiveSessions(db: Db): number {
   return row?.count ?? 0
 }
 
-export function insertSession(tx: Tx, input: Session): void {
+export function insertSession(
+  tx: Tx,
+  input: Omit<Session, 'costUsd' | 'turns'> & {
+    costUsd?: number | null
+    turns?: number | null
+  },
+): void {
   tx.insert(session)
     .values({
       id: input.id,
@@ -765,6 +882,8 @@ export function insertSession(tx: Tx, input: Session): void {
       engineSessionId: input.engineSessionId,
       status: input.status,
       outcome: input.outcome,
+      costUsd: input.costUsd ?? null,
+      turns: input.turns ?? null,
       startedAt: input.startedAt,
       endedAt: input.endedAt,
     })
@@ -873,6 +992,21 @@ export function updateSessionStatus(
   outcome: SessionOutcome | null = null,
 ): void {
   tx.update(session).set({ status, endedAt, outcome }).where(eq(session.id, id)).run()
+}
+
+export function updateSessionUsage(
+  tx: Tx,
+  id: string,
+  usage: { costUsd?: number; turns?: number },
+): void {
+  if (usage.costUsd === undefined && usage.turns === undefined) return
+  tx.update(session)
+    .set({
+      ...(usage.costUsd !== undefined ? { costUsd: usage.costUsd } : {}),
+      ...(usage.turns !== undefined ? { turns: usage.turns } : {}),
+    })
+    .where(eq(session.id, id))
+    .run()
 }
 
 export function updateSessionEngineId(tx: Tx, id: string, engineSessionId: string): void {

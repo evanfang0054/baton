@@ -1,4 +1,4 @@
-import { buildTaskScene, groupBounds } from '@baton/core'
+import { buildTaskScene, canInjectContext, groupBounds } from '@baton/core'
 import type { CanvasResponse, NodeCreateValue, ReviewView, TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
@@ -33,6 +33,7 @@ import { CanvasActionsProvider } from './actions'
 import { CanvasToolbar } from './CanvasToolbar'
 import { CreateFileNodeDialog } from './CreateFileNodeDialog'
 import { CreateImageNodeDialog } from './CreateImageNodeDialog'
+import { InjectContextDialog } from './InjectContextDialog'
 import {
   dropPatch,
   groupMovePlan,
@@ -111,6 +112,8 @@ function FlowCanvas({
     useReactFlow()
   const [fileDialogOpen, setFileDialogOpen] = useState(false)
   const [imageDialogOpen, setImageDialogOpen] = useState(false)
+  const [injectOpen, setInjectOpen] = useState(false)
+  const [injectTaskId, setInjectTaskId] = useState<string | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [dropActive, setDropActive] = useState(false)
   const selectedNodeIds = useAppStore((state) => state.selectedNodeIds)
@@ -138,17 +141,60 @@ function FlowCanvas({
     return { [sceneTaskId]: sceneDetail.data.review } satisfies Record<string, ReviewView>
   }, [sceneDetail.data, sceneTaskId])
 
+  const injectedNodeIds = useMemo(
+    () =>
+      new Set(
+        sceneDetail.data?.task.context?.injections.flatMap((injection) => injection.nodeIds) ?? [],
+      ),
+    [sceneDetail.data],
+  )
+
   const flowNodes = useMemo(() => {
     if (!canvas) return []
     return toFlowNodes(canvas.nodes, tasks, {
       scene,
       reviewDetails,
       workspaceId: canvas.canvas.workspaceId,
+      injectedNodeIds,
     })
-  }, [canvas, reviewDetails, scene, tasks])
+  }, [canvas, injectedNodeIds, reviewDetails, scene, tasks])
   const hiddenNodeIds = useMemo(
     () => new Set(flowNodes.filter((node) => node.hidden).map((node) => node.id)),
     [flowNodes],
+  )
+  const selectedNodes = useMemo(
+    () => canvas?.nodes.filter((node) => selectedNodeIds.includes(node.id)) ?? [],
+    [canvas?.nodes, selectedNodeIds],
+  )
+  const injectableSelectedNodes = useMemo(
+    () => selectedNodes.filter((node) => ['text', 'file', 'image', 'group'].includes(node.type)),
+    [selectedNodes],
+  )
+  const injectableTasks = useMemo(
+    () =>
+      tasks.filter(
+        (task) => canInjectContext({ status: task.status, waitingReason: task.waitingReason }).ok,
+      ),
+    [tasks],
+  )
+  const openInject = useCallback(
+    (taskId?: string) => {
+      if (injectableSelectedNodes.length === 0) {
+        toast.danger('先选择可投喂的文本/文件/图片/分组节点')
+        return
+      }
+      if (injectableTasks.length === 0) {
+        toast.danger('没有可投喂的任务')
+        return
+      }
+      if (taskId && !injectableTasks.some((task) => task.id === taskId)) {
+        toast.danger('该任务当前不可投喂')
+        return
+      }
+      setInjectTaskId(taskId ?? sceneTaskId ?? null)
+      setInjectOpen(true)
+    },
+    [injectableSelectedNodes.length, injectableTasks, sceneTaskId],
   )
   const flowEdges = useMemo(
     () => (canvas ? toFlowEdges(canvas.edges, scene, hiddenNodeIds) : []),
@@ -560,11 +606,18 @@ function FlowCanvas({
         onFit={() => void fitView({ padding: 0.2 })}
         onZoomIn={() => void zoomIn()}
         onZoomOut={() => void zoomOut()}
+        onInject={() => openInject()}
+        injectDisabled={injectableSelectedNodes.length === 0 || injectableTasks.length === 0}
         readOnly={sceneActive}
       />
       {sceneTaskId !== null ? (
         scene && sceneDetail.data ? (
-          <TaskSceneBar scene={scene} detail={sceneDetail.data} onExit={exitScene} />
+          <TaskSceneBar
+            scene={scene}
+            detail={sceneDetail.data}
+            onExit={exitScene}
+            onInject={() => openInject(sceneTaskId)}
+          />
         ) : (
           <div
             data-testid="task-scene-loading"
@@ -644,7 +697,7 @@ function FlowCanvas({
             onSelectNode(node.id)
           }}
           onSelectionChange={({ nodes: selected }) => {
-            if (sceneActive) return
+            // 现场允许选中节点用于投喂；布局写操作仍由 sceneActive 关闭。
             onSelectNodes(selected.map((node) => ({ id: node.id, type: node.data.node.type })))
           }}
           onPaneClick={() => {
@@ -659,7 +712,7 @@ function FlowCanvas({
           multiSelectionKeyCode={['Meta', 'Control']}
           nodesDraggable={!sceneActive}
           nodesConnectable={!sceneActive}
-          elementsSelectable={!sceneActive}
+          elementsSelectable
           edgesFocusable={!sceneActive}
           deleteKeyCode={sceneActive ? null : ['Backspace', 'Delete']}
           isValidConnection={(connection) => isValidConnection(connection, canvas.edges)}
@@ -721,6 +774,25 @@ function FlowCanvas({
             groupId: null,
             data: image,
           })
+        }}
+      />
+      <InjectContextDialog
+        open={injectOpen}
+        nodes={injectableSelectedNodes}
+        tasks={tasks}
+        defaultTaskId={injectTaskId}
+        onOpenChange={setInjectOpen}
+        onDone={() => {
+          if (!canvas) return
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.canvas(canvas.canvas.workspaceId),
+          })
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.tasks(canvas.canvas.workspaceId),
+          })
+          if (injectTaskId) {
+            void queryClient.invalidateQueries({ queryKey: queryKeys.task(injectTaskId) })
+          }
         }}
       />
     </section>

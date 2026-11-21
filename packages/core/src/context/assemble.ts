@@ -1,4 +1,10 @@
-import type { ContextNodeRef, ContextRelation, Node, NodeType } from '@baton/protocol'
+import type {
+  ContextDropped,
+  ContextNodeRef,
+  ContextRelation,
+  Node,
+  NodeType,
+} from '@baton/protocol'
 import { isSensitivePath } from './sensitive.js'
 import type { AssembleContextInput, AssembleContextResult, DropReason } from './types.js'
 
@@ -80,7 +86,7 @@ function compareText(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0
 }
 
-function escapeAttr(value: string): string {
+export function escapeAttr(value: string): string {
   return value
     .replaceAll('&', '&amp;')
     .replaceAll('"', '&quot;')
@@ -113,11 +119,23 @@ function drop(map: Map<string, DropReason>, id: string, reason: DropReason): voi
   if (!map.has(id)) map.set(id, reason)
 }
 
+export interface AssemblePayload {
+  body: string
+  included: ContextNodeRef[]
+  dropped: ContextDropped[]
+  truncated: boolean
+  redactedPaths: string[]
+  relations: ContextRelation[]
+  relationsTruncated: boolean
+  relationLines: string[]
+  truncatedIds: string[]
+}
+
 /**
  * 确定性上下文装配：不读文件、不访问时间/随机数，同一输入必须逐字节相同。
  * 调用方负责把文件内容预读进 contentByNodeId；敏感路径在读取前也要再判一次。
  */
-export function assembleContext(input: AssembleContextInput): AssembleContextResult {
+export function assemblePayload(input: AssembleContextInput): AssemblePayload {
   const maxChars = Math.max(0, input.maxChars ?? DEFAULT_MAX_CHARS)
   const maxNodeChars = Math.max(0, input.maxNodeChars ?? DEFAULT_MAX_NODE_CHARS)
   const byId = new Map(input.nodes.map((node) => [node.id, node]))
@@ -358,20 +376,6 @@ export function assembleContext(input: AssembleContextInput): AssembleContextRes
     relationChars += line.length
   }
 
-  const parts = [
-    `<task>${input.taskPrompt}</task>`,
-    `<context>${body.length > 0 ? `\n${body}\n` : ''}</context>`,
-  ]
-
-  if (relationLines.length > 0) {
-    const attr = relationsTruncated ? ' truncated="true"' : ''
-    parts.push(`<relations${attr}>\n${relationLines.join('\n')}\n</relations>`)
-  }
-
-  if (truncatedIds.size > 0) {
-    parts.push(`<truncated nodes="${escapeAttr([...truncatedIds].sort().join(','))}"/>`)
-  }
-
   const included: ContextNodeRef[] = rendered.map((item) => ({
     id: item.node.id,
     type: item.node.type as NodeType,
@@ -388,12 +392,42 @@ export function assembleContext(input: AssembleContextInput): AssembleContextRes
     .sort((a, b) => compareText(a.id, b.id))
 
   return {
-    prompt: parts.join('\n'),
+    body,
     included,
     dropped: droppedList,
     truncated,
     redactedPaths,
     relations: renderedRelations,
     relationsTruncated,
+    relationLines,
+    truncatedIds: [...truncatedIds].sort(),
+  }
+}
+
+/** 输出必须与重构前逐字节一致；旧快照测试是这条契约的回归门。 */
+export function assembleContext(input: AssembleContextInput): AssembleContextResult {
+  const payload = assemblePayload(input)
+  const parts = [
+    `<task>${input.taskPrompt}</task>`,
+    `<context>${payload.body.length > 0 ? `\n${payload.body}\n` : ''}</context>`,
+  ]
+
+  if (payload.relationLines.length > 0) {
+    const attr = payload.relationsTruncated ? ' truncated="true"' : ''
+    parts.push(`<relations${attr}>\n${payload.relationLines.join('\n')}\n</relations>`)
+  }
+
+  if (payload.truncatedIds.length > 0) {
+    parts.push(`<truncated nodes="${escapeAttr(payload.truncatedIds.join(','))}"/>`)
+  }
+
+  return {
+    prompt: parts.join('\n'),
+    included: payload.included,
+    dropped: payload.dropped,
+    truncated: payload.truncated,
+    redactedPaths: payload.redactedPaths,
+    relations: payload.relations,
+    relationsTruncated: payload.relationsTruncated,
   }
 }

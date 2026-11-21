@@ -9,6 +9,8 @@ export const Session = z.object({
   engineSessionId: z.string().nullable(),
   status: SessionStatus,
   outcome: SessionOutcome.nullable(),
+  costUsd: z.number().nonnegative().nullable().default(null),
+  turns: z.number().int().nonnegative().nullable().default(null),
   startedAt: Timestamp,
   endedAt: Timestamp.nullable(),
 })

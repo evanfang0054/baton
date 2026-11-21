@@ -3,6 +3,7 @@ import {
   EventSchemas,
   EventType,
   SESSION_OUTCOME_EVENT,
+  SESSION_USAGE_EVENT,
   type AgentAdapter,
   type AgentEvent,
   type AgentRun,
@@ -15,6 +16,7 @@ export type FakeStep =
   | { kind: 'text'; text: string }
   | { kind: 'approval'; request: ApprovalRequest }
   | { kind: 'pause'; outcome: 'blocked' | 'dropped'; reason?: string }
+  | { kind: 'usage'; costUsd?: number; turns?: number }
   | { kind: 'finish'; outcome?: 'ready' | 'unreported' }
   | { kind: 'error'; message: string }
 
@@ -177,6 +179,15 @@ export class FakeAdapter implements AgentAdapter {
               return
             }
             yield* text(`fake: resumed: ${reply}`)
+          } else if (step.kind === 'usage') {
+            yield event({
+              type: EventType.CUSTOM,
+              name: SESSION_USAGE_EVENT,
+              value: {
+                ...(step.costUsd !== undefined ? { costUsd: step.costUsd } : {}),
+                ...(step.turns !== undefined ? { turns: step.turns } : {}),
+              },
+            })
           } else if (step.kind === 'error') {
             finished = true
             yield event({ type: EventType.RUN_ERROR, message: step.message })

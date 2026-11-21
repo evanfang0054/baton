@@ -33,6 +33,7 @@
 - [2026-11-20 M5-1 总管售后与批量设计](specs/2026-11-20-m5-supervisor-aftersales-design.md)
 - [2026-11-21 M5-3 上下文交接设计](specs/2026-11-21-m5-3-context-handoff-design.md)
 - [2026-11-21 M6-1 任务现场 v0 设计](specs/2026-11-21-m6-task-scene-design.md)
+- [2026-11-21 M6-2 上下文再注入与轻验收证据设计](specs/2026-11-21-m6-2-context-injection-design.md)
 
 ## 现行 ADR
 
@@ -63,6 +64,7 @@
 - [M5-1 总管售后与批量](contracts/M5-1-supervisor-aftersales.contract.md)
 - [M5-3 上下文交接](contracts/M5-3-context-handoff.contract.md)
 - [M6-1 任务现场](contracts/M6-1-task-scene.contract.md)
+- [M6-2 上下文再注入与轻验收证据](contracts/M6-2-context-injection.contract.md)
 
 ## 现行 plan
 
@@ -108,6 +110,11 @@
 - [M6-1 web 画布实施计划](plans/2026-11-21-m6-1-canvas-web.md)
 - [M6-1 web 看板实施计划](plans/2026-11-21-m6-1-board-attention.md)
 - [M6-1 验收实施计划](plans/2026-11-21-m6-1-acceptance.md)
+- [M6-2 protocol + core + migration 0011 实施计划](plans/2026-11-21-m6-2-protocol-core.md)
+- [M6-2 daemon 实施计划](plans/2026-11-21-m6-2-daemon.md)
+- [M6-2 web 画布实施计划](plans/2026-11-21-m6-2-canvas-web.md)
+- [M6-2 web 任务实施计划](plans/2026-11-21-m6-2-tasks-web.md)
+- [M6-2 验收实施计划](plans/2026-11-21-m6-2-acceptance.md)
 
 ## 验收证据
 
@@ -119,6 +126,7 @@
 - [M5-1 总管售后与批量验收](evidence/2026-11-21-m5-supervisor-aftersales/README.md)
 - [M5-3 上下文交接验收](evidence/2026-11-21-m5-3-context-handoff/README.md)
 - [M6-1 任务现场验收](evidence/2026-11-21-m6-task-scene/README.md)
+- [M6-2 上下文再注入验收](evidence/2026-11-21-m6-2-context-injection/README.md)
 
 ## 约定
 

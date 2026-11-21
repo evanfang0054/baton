@@ -38,6 +38,7 @@ const task: TaskSummary = {
   worktreePath: null,
   verifyCommand: null,
   dangerouslySkipPermissions: false,
+  enqueuedAt: null,
   retryCount: 0,
   createdAt: 1,
   updatedAt: 1,
@@ -86,6 +87,11 @@ function renderNode(element: ReactElement, handlers: Partial<CanvasActions> = {}
 }
 
 describe('canvas nodes', () => {
+  it('shows an injected badge with text, not color alone', () => {
+    renderNode(<TextNode {...props(taskNode(), { injected: true })} />)
+    expect(screen.getByText('已投喂')).toBeInTheDocument()
+  })
+
   it('renders image with no-referrer and fallback', () => {
     const node: ProtocolNode = {
       ...taskNode(),

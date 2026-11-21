@@ -71,6 +71,30 @@ export interface ClaudeTransport {
 
 export type ClaudeTransportFactory = (input: ClaudeTransportInput) => Promise<ClaudeTransport>
 
+/**
+ * baton_report 每轮只认一次；新一轮 send 后必须重置，否则 resumed turn 的
+ * ready/blocked 会被静默丢弃，任务永远停在 running。
+ */
+export function createBatonReportHandler(
+  emit: (outcome: 'ready' | 'blocked' | 'dropped', reason?: string) => void,
+) {
+  let reported = false
+  return {
+    report(args: { outcome: 'ready' | 'blocked' | 'dropped'; reason?: string }): {
+      content: Array<{ type: 'text'; text: string }>
+    } {
+      if (!reported) {
+        reported = true
+        emit(args.outcome, args.reason)
+      }
+      return { content: [{ type: 'text' as const, text: 'reported' }] }
+    },
+    reset(): void {
+      reported = false
+    },
+  }
+}
+
 class AsyncQueue<T> implements AsyncIterable<T> {
   private readonly values: T[] = []
   private readonly waiters: Array<(result: IteratorResult<T>) => void> = []
@@ -273,8 +297,10 @@ export const createSdkClaudeTransport: ClaudeTransportFactory = async (input) =>
     { input: Record<string, unknown>; resolve: (result: PermissionResult) => void }
   >()
   let requestSeq = 0
-  let reported = false
   let closed = false
+  const reportHandler = createBatonReportHandler((outcome, reason) => {
+    events.push({ type: 'outcome', outcome, ...(reason ? { reason } : {}) })
+  })
 
   inputQueue.push({
     type: 'user',
@@ -324,15 +350,7 @@ export const createSdkClaudeTransport: ClaudeTransportFactory = async (input) =>
           reason: z.string().optional(),
         } as never,
         (async (args: { outcome: 'ready' | 'blocked' | 'dropped'; reason?: string }) => {
-          if (!reported) {
-            reported = true
-            events.push({
-              type: 'outcome',
-              outcome: args.outcome,
-              ...(args.reason ? { reason: args.reason } : {}),
-            })
-          }
-          return { content: [{ type: 'text' as const, text: 'reported' }] }
+          return reportHandler.report(args)
         }) as never,
       ) as never,
     ],
@@ -376,6 +394,7 @@ export const createSdkClaudeTransport: ClaudeTransportFactory = async (input) =>
       if (closed) {
         throw new Error('session_closed')
       }
+      reportHandler.reset()
       inputQueue.push({
         type: 'user',
         message: { role: 'user', content: text },

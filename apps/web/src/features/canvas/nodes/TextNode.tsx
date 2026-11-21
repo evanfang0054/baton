@@ -35,7 +35,7 @@ export function TextNode({ id, data, selected }: CanvasFlowNodeProps) {
   }
 
   return (
-    <NodeShell selected={selected}>
+    <NodeShell selected={selected} injected={data.injected}>
       <div className="flex items-center gap-2 text-xs text-muted">
         <Type size={14} />
         <span>文本</span>

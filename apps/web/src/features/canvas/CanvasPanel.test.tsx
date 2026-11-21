@@ -1,6 +1,7 @@
 import type { CanvasResponse, TaskDetailResponse, TaskSummary } from '@baton/protocol'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { createRef } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CommandProvider } from '../../lib/command-context'
@@ -28,7 +29,29 @@ const canvas: CanvasResponse = {
   edges: [],
 }
 
-const tasks: TaskSummary[] = []
+const tasks: TaskSummary[] = [
+  {
+    id: 't1',
+    workspaceId: 'w1',
+    nodeId: null,
+    title: '待办任务',
+    prompt: '',
+    status: 'todo',
+    waitingReason: null,
+    engine: 'fake',
+    workspaceMode: 'main',
+    branch: null,
+    worktreePath: null,
+    verifyCommand: null,
+    retryCount: 0,
+    dangerouslySkipPermissions: false,
+    enqueuedAt: null,
+    createdAt: 1,
+    updatedAt: 1,
+    attention: 'none',
+    waitingSince: null,
+  },
+]
 
 const sceneDetail: TaskDetailResponse = {
   task: {
@@ -46,6 +69,7 @@ const sceneDetail: TaskDetailResponse = {
     verifyCommand: null,
     retryCount: 0,
     dangerouslySkipPermissions: false,
+    enqueuedAt: null,
     createdAt: 1,
     updatedAt: 1,
     context: {
@@ -55,6 +79,7 @@ const sceneDetail: TaskDetailResponse = {
       redactedPaths: [],
       relations: [],
       relationsTruncated: false,
+      injections: [],
     },
     origin: null,
   },
@@ -171,12 +196,28 @@ describe('CanvasPanel', () => {
     expect(send).not.toHaveBeenCalled()
   })
 
+  it('opens the inject dialog from the toolbar and submits selection', async () => {
+    useAppStore.setState({ selectedNodeIds: ['n1'] })
+    const { send } = renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: '投喂给任务' }))
+    expect(await screen.findByRole('heading', { name: '投喂给任务' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '投喂' }))
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({
+        type: 'context.inject',
+        payload: { taskId: 't1', nodeIds: ['n1'] },
+      }),
+    )
+  })
+
   it('enters scene, hides write actions, and exits without write commands', async () => {
     useAppStore.setState({ sceneTaskId: 't1' })
     const { send } = renderPanel(undefined, sceneDetail)
 
     expect(await screen.findByTestId('task-scene-bar')).toHaveTextContent('任务 A')
     expect(screen.getByText(/上下文 1 个/)).toBeInTheDocument()
+    expect(screen.getByText(/已注入 0 次/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '投喂' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: '添加文本' })).not.toBeInTheDocument()
     expect(send).not.toHaveBeenCalled()
 
