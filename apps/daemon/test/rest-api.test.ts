@@ -256,6 +256,7 @@ describe('REST API', () => {
       redactedPaths: [],
       relations: [],
       relationsTruncated: false,
+      injections: [],
     }
 
     const list = await app.inject({

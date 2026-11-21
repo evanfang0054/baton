@@ -139,7 +139,10 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
 
   function appendWs(tx: Tx, input: WsEventDraft): BroadcastEvent {
     const taskId =
-      input.type === 'task.status' && 'taskId' in input.payload ? input.payload.taskId : null
+      (input.type === 'task.status' || input.type === 'context.injected') &&
+      'taskId' in input.payload
+        ? input.payload.taskId
+        : null
     return appendWsJson(tx, {
       type: input.type,
       payload: input.payload,
@@ -224,6 +227,24 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
     })
   }
 
+  function appendContextInjected(
+    tx: Tx,
+    input: PayloadOf<'context.injected'> & { ts: number },
+  ): BroadcastEvent {
+    return appendWs(tx, {
+      type: 'context.injected',
+      payload: {
+        taskId: input.taskId,
+        seq: input.seq,
+        at: input.at,
+        source: input.source,
+        nodeIds: input.nodeIds,
+        chars: input.chars,
+      },
+      ts: input.ts,
+    })
+  }
+
   function replay(sinceOrdinal: number, limit = REPLAY_LIMIT): ReplayResult {
     const rows = db
       .select()
@@ -254,6 +275,7 @@ export function createEventStore(db: Db, deps: EventStoreDeps) {
     appendTaskStatus,
     appendApprovalRequest,
     appendVerifyResult,
+    appendContextInjected,
     replay,
     maxOrdinal,
   }

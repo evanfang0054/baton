@@ -428,10 +428,18 @@ export function createRuntime(deps: RuntimeDeps) {
     if (input.decision === 'approve') {
       return applyTransition(review.taskId, { type: 'approve', reviewId: input.reviewId })
     }
+    if (input.contextNodeIds?.length) {
+      return {
+        ok: false,
+        error: appError('context_inject_not_ready', 'review context injection is not wired yet', {
+          reviewId: input.reviewId,
+        }),
+      }
+    }
     return applyTransition(review.taskId, {
       type: 'reject',
       reviewId: input.reviewId,
-      feedback: input.feedback,
+      feedback: input.feedback?.trim() || '请结合补充的上下文修改',
     })
   }
 
@@ -497,6 +505,12 @@ export function createRuntime(deps: RuntimeDeps) {
         return ackFromOutcome(decideApproval(message.payload))
       case 'review.decide':
         return ackFromOutcome(decideReview(message.payload))
+      case 'context.inject':
+        // Plan 2 接入 context service；在此之前保持协议穷尽，并给出明确错误。
+        return {
+          ok: false,
+          error: appError('context_inject_not_ready', 'context injection is not wired yet'),
+        }
       case 'node.create': {
         const canvas = getCanvas(deps.db, message.payload.canvasId)
         if (!canvas) {

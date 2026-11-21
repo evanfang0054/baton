@@ -78,6 +78,13 @@
       "when": 1795223302567,
       "tag": "0010_m6_task_scene",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1795238863976,
+      "tag": "0011_m6_2_context_injection",
+      "breakpoints": true
     }
   ]
 }

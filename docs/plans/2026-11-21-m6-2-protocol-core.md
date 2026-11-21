@@ -393,7 +393,6 @@ describe('context injection', () => {
     const nodes = [text('a', '上游'), text('b', '中间'), text('c', '选中')]
     const edges = [edge('a', 'b'), edge('b', 'c')]
     const result = assembleContextInjection({
-      targetNodeId: 'agent',
       selectedNodeIds: ['c'],
       nodes,
       edges,
@@ -413,7 +412,6 @@ describe('context injection', () => {
       },
     ]
     const result = assembleContextInjection({
-      targetNodeId: null,
       selectedNodeIds: ['a', 'f'],
       nodes,
       edges: [],
@@ -562,16 +560,19 @@ export function canInjectContext(task: {
 }
 
 export interface InjectionPayload extends AssemblePayload {
+  /** 只把 included/dropped/truncated/redactedPaths/relations/relationsTruncated/chars
+   * 写进 ContextInjection；不要把整个 payload spread 进 context_json。 */
   chars: number
 }
 
 export function assembleContextInjection(
-  input: Omit<AssembleContextInput, 'taskPrompt'> & { targetNodeId: string | null },
+  input: Omit<AssembleContextInput, 'taskPrompt' | 'targetNodeId'>,
 ): InjectionPayload {
   const payload = assemblePayload({
     ...input,
     taskPrompt: '',
-    targetNodeId: input.targetNodeId ?? '',
+    // 显式注入只从选中节点向上游闭包；不自动展开目标 Agent 的既有 context 边。
+    targetNodeId: '',
   })
   const chars = payload.included.reduce((sum, item) => sum + item.chars, 0)
   return { ...payload, chars }
@@ -579,6 +580,10 @@ export function assembleContextInjection(
 
 function escapeText(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+}
+
+export function contextUpdateChars(assembled: InjectionPayload, note: string): number {
+  return assembled.chars + escapeText(note).length
 }
 
 export function buildContextUpdateBlock(input: {
@@ -590,18 +595,22 @@ export function buildContextUpdateBlock(input: {
 }): string {
   const lines = [
     `<context_update seq="${input.seq}" at="${input.at}" source="${input.source}">`,
-    `<note>${escapeText(input.note)}</note>`,
   ]
+  if (input.note.length > 0) lines.push(`<note>${escapeText(input.note)}</note>`)
   if (input.assembled.body.length > 0) lines.push(input.assembled.body)
+  if (input.assembled.truncatedIds.length > 0) {
+    lines.push(`<truncated nodes="${escapeAttr(input.assembled.truncatedIds.join(','))}"/>`)
+  }
   if (input.assembled.relationLines.length > 0) {
-    lines.push(`<relations>\n${input.assembled.relationLines.join('\n')}\n</relations>`)
+    const attr = input.assembled.relationsTruncated ? ' truncated="true"' : ''
+    lines.push(`<relations${attr}>\n${input.assembled.relationLines.join('\n')}\n</relations>`)
   }
   lines.push('</context_update>')
   return lines.join('\n')
 }
 
 export function cumulativeInjectedChars(snapshot: ContextSnapshot | null): number {
-  return snapshot?.injections.reduce((sum, item) => sum + item.chars, 0) ?? 0
+  return snapshot?.injections?.reduce((sum, item) => sum + item.chars, 0) ?? 0
 }
 ```
 

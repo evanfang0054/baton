@@ -10,6 +10,8 @@ import {
   type ApprovalRecord,
   appendTaskFeedback,
   appendTaskPromptBlock,
+  appendTaskPromptRaw,
+  appendTaskContextInjection,
   getActiveSession,
   insertAudit,
   insertReview,
@@ -23,7 +25,7 @@ import type { BroadcastEvent, EventStore } from '../db/event-store.js'
 import type { Tx } from '../db/types.js'
 import type { RuntimeHooks } from './types.js'
 
-const MAX_FEEDBACK_CHARS = 16_384
+const MAX_FEEDBACK_CHARS = 64_000
 
 function enrichCause(
   tx: Tx,
@@ -160,6 +162,54 @@ export function planAndApplyEffects(tx: Tx, ctx: EffectContext, effects: TaskEff
           effect.note,
           MAX_FEEDBACK_CHARS,
           ctx.now,
+        )
+        break
+      }
+      case 'appendContextInjection': {
+        if (effect.block) {
+          appendTaskPromptRaw(tx, ctx.task.id, effect.block, MAX_FEEDBACK_CHARS, ctx.now)
+        }
+        appendTaskContextInjection(tx, ctx.task.id, effect.injection)
+        insertAudit(tx, {
+          id: ctx.newId(),
+          ts: ctx.now,
+          actor: effect.injection.source === 'supervisor' ? 'supervisor' : 'human',
+          action: 'task.context.inject',
+          detail: {
+            taskId: ctx.task.id,
+            seq: effect.injection.seq,
+            source: effect.injection.source,
+            nodeIds: effect.injection.nodeIds,
+            chars: effect.injection.chars,
+            dropped: effect.injection.dropped.length,
+            truncated: effect.injection.truncated,
+          },
+        })
+        if (effect.injection.source === 'supervisor') {
+          insertAudit(tx, {
+            id: ctx.newId(),
+            ts: ctx.now,
+            actor: 'supervisor',
+            action: 'supervisor.context.inject',
+            detail: {
+              taskId: ctx.task.id,
+              seq: effect.injection.seq,
+              nodeIds: effect.injection.nodeIds,
+              chars: effect.injection.chars,
+              dropped: effect.injection.dropped.length,
+            },
+          })
+        }
+        plan.events.push(
+          ctx.eventStore.appendContextInjected(tx, {
+            taskId: ctx.task.id,
+            seq: effect.injection.seq,
+            at: effect.injection.at,
+            source: effect.injection.source,
+            nodeIds: effect.injection.nodeIds,
+            chars: effect.injection.chars,
+            ts: ctx.now,
+          }),
         )
         break
       }
