@@ -360,6 +360,9 @@ describe('TaskDetailPanel', () => {
       decidedAt: null,
       diffAvailable: false,
       response: null,
+      preliminaryVerdict: null,
+      preliminaryReason: null,
+      preliminaryAt: null,
     } as const
     stubFetch(
       detail({

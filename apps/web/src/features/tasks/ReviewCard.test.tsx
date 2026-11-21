@@ -13,6 +13,9 @@ const review: ReviewView = {
   diffStat: { filesChanged: 2, insertions: 10, deletions: 3 },
   decidedAt: null,
   diffAvailable: false,
+  preliminaryVerdict: null,
+  preliminaryReason: null,
+  preliminaryAt: null,
 }
 
 describe('ReviewCard', () => {

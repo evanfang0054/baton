@@ -47,6 +47,9 @@ describe('TaskHistory', () => {
           diffStat: { filesChanged: 1, insertions: 1, deletions: 0 },
           decidedAt: 4,
           diffAvailable: true,
+          preliminaryVerdict: null,
+          preliminaryReason: null,
+          preliminaryAt: null,
         },
       ],
     })
