@@ -20,8 +20,12 @@ export type FakeStep =
   | { kind: 'finish'; outcome?: 'ready' | 'unreported' }
   | { kind: 'error'; message: string }
 
+export const VERIFIER_PROMPT_MARKER = '<verifier_task>'
+
 interface FakeOptions {
   script?: FakeStep[]
+  /** prompt 含 VERIFIER_PROMPT_MARKER 时使用的脚本（测试验收员链路）。 */
+  verifierScript?: FakeStep[]
   threadId?: string
 }
 
@@ -64,16 +68,21 @@ function event(value: unknown): AgentEvent {
 export class FakeAdapter implements AgentAdapter {
   readonly name = 'fake' as const
   private readonly script: FakeStep[]
+  private readonly verifierScript?: FakeStep[]
   private readonly threadId: string
 
   constructor(options: FakeOptions = {}) {
     this.script = options.script ?? DEFAULT_SCRIPT
+    this.verifierScript = options.verifierScript
     this.threadId = options.threadId ?? 'fake-thread'
   }
 
-  async start(_input: StartInput): Promise<AgentRun> {
+  async start(input: StartInput): Promise<AgentRun> {
     const threadId = this.threadId
-    const script = this.script
+    const script =
+      this.verifierScript && input.prompt.includes(VERIFIER_PROMPT_MARKER)
+        ? this.verifierScript
+        : this.script
     const runId = 'fake-run'
     const queue: string[] = []
     let pending: { requestId: string; deferred: Deferred<ApprovalDecision> } | null = null

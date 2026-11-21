@@ -55,7 +55,7 @@ export class ClaudeAdapter implements AgentAdapter {
       bypassPermissions: input.bypassPermissions,
       systemPromptAppend: BATON_PROTOCOL_PROMPT,
       maxTurns: this.maxTurns,
-      maxBudgetUsd: this.maxBudgetUsd,
+      maxBudgetUsd: input.maxBudgetUsd ?? this.maxBudgetUsd,
     })
 
     const runId = randomUUID()

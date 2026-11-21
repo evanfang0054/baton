@@ -235,4 +235,28 @@ describe('FakeAdapter', () => {
     ).toBe(true)
     expect(events.at(-1)?.type).toBe('RUN_FINISHED')
   })
+
+  it('uses verifierScript when the prompt has the verifier marker', async () => {
+    const adapter = new FakeAdapter({
+      script: [{ kind: 'text', text: 'worker' }, { kind: 'finish' }],
+      verifierScript: [
+        {
+          kind: 'text',
+          text: '<acceptance_report>{"verdict":"pass","summary":"ok","items":[]}</acceptance_report>',
+        },
+        { kind: 'finish' },
+      ],
+    })
+    const run = await adapter.start({
+      ...startInput(),
+      prompt: '<verifier_task>检查</verifier_task>',
+    })
+    const events = await collect(run.events)
+    const text = events
+      .filter((event) => event.type === 'TEXT_MESSAGE_CONTENT')
+      .map((event) => String((event as { delta?: unknown }).delta ?? ''))
+      .join('')
+    expect(text).toContain('acceptance_report')
+    expect(text).not.toContain('worker')
+  })
 })
