@@ -3,6 +3,7 @@ import { claudeSdkMeta } from '../../src/claude/meta.js'
 import {
   buildClaudeOptions,
   approvalInputWithCwd,
+  createBatonReportHandler,
   DISALLOWED_TOOLS,
 } from '../../src/claude/transport.js'
 
@@ -15,6 +16,24 @@ const base = {
   maxTurns: 30,
   maxBudgetUsd: 2,
 }
+
+describe('createBatonReportHandler', () => {
+  it('reports once per turn and resets for the next send', () => {
+    const emitted: Array<{ outcome: string; reason?: string }> = []
+    const handler = createBatonReportHandler((outcome, reason) =>
+      emitted.push({ outcome, ...(reason ? { reason } : {}) }),
+    )
+    expect(handler.report({ outcome: 'blocked', reason: 'need input' })).toEqual({
+      content: [{ type: 'text', text: 'reported' }],
+    })
+    handler.report({ outcome: 'ready' })
+    expect(emitted).toEqual([{ outcome: 'blocked', reason: 'need input' }])
+
+    handler.reset()
+    handler.report({ outcome: 'ready' })
+    expect(emitted).toEqual([{ outcome: 'blocked', reason: 'need input' }, { outcome: 'ready' }])
+  })
+})
 
 describe('buildClaudeOptions', () => {
   it('isolates an untrusted workspace and disables hooks', () => {
