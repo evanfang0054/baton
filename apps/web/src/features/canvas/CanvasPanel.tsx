@@ -1,4 +1,4 @@
-import { buildTaskScene, groupBounds } from '@baton/core'
+import { buildTaskScene, canInjectContext, groupBounds } from '@baton/core'
 import type { CanvasResponse, NodeCreateValue, ReviewView, TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
@@ -33,6 +33,7 @@ import { CanvasActionsProvider } from './actions'
 import { CanvasToolbar } from './CanvasToolbar'
 import { CreateFileNodeDialog } from './CreateFileNodeDialog'
 import { CreateImageNodeDialog } from './CreateImageNodeDialog'
+import { InjectContextDialog } from './InjectContextDialog'
 import {
   dropPatch,
   groupMovePlan,
@@ -111,6 +112,8 @@ function FlowCanvas({
     useReactFlow()
   const [fileDialogOpen, setFileDialogOpen] = useState(false)
   const [imageDialogOpen, setImageDialogOpen] = useState(false)
+  const [injectOpen, setInjectOpen] = useState(false)
+  const [injectTaskId, setInjectTaskId] = useState<string | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [dropActive, setDropActive] = useState(false)
   const selectedNodeIds = useAppStore((state) => state.selectedNodeIds)
@@ -149,6 +152,36 @@ function FlowCanvas({
   const hiddenNodeIds = useMemo(
     () => new Set(flowNodes.filter((node) => node.hidden).map((node) => node.id)),
     [flowNodes],
+  )
+  const selectedNodes = useMemo(
+    () => canvas?.nodes.filter((node) => selectedNodeIds.includes(node.id)) ?? [],
+    [canvas?.nodes, selectedNodeIds],
+  )
+  const injectableSelectedNodes = useMemo(
+    () => selectedNodes.filter((node) => ['text', 'file', 'image', 'group'].includes(node.type)),
+    [selectedNodes],
+  )
+  const injectableTasks = useMemo(
+    () =>
+      tasks.filter(
+        (task) => canInjectContext({ status: task.status, waitingReason: task.waitingReason }).ok,
+      ),
+    [tasks],
+  )
+  const openInject = useCallback(
+    (taskId?: string) => {
+      if (injectableSelectedNodes.length === 0) {
+        toast.danger('先选择可投喂的文本/文件/图片/分组节点')
+        return
+      }
+      if (injectableTasks.length === 0) {
+        toast.danger('没有可投喂的任务')
+        return
+      }
+      setInjectTaskId(taskId ?? sceneTaskId ?? null)
+      setInjectOpen(true)
+    },
+    [injectableSelectedNodes.length, injectableTasks.length, sceneTaskId],
   )
   const flowEdges = useMemo(
     () => (canvas ? toFlowEdges(canvas.edges, scene, hiddenNodeIds) : []),
@@ -560,11 +593,18 @@ function FlowCanvas({
         onFit={() => void fitView({ padding: 0.2 })}
         onZoomIn={() => void zoomIn()}
         onZoomOut={() => void zoomOut()}
+        onInject={() => openInject()}
+        injectDisabled={injectableSelectedNodes.length === 0 || injectableTasks.length === 0}
         readOnly={sceneActive}
       />
       {sceneTaskId !== null ? (
         scene && sceneDetail.data ? (
-          <TaskSceneBar scene={scene} detail={sceneDetail.data} onExit={exitScene} />
+          <TaskSceneBar
+            scene={scene}
+            detail={sceneDetail.data}
+            onExit={exitScene}
+            onInject={() => openInject(sceneTaskId)}
+          />
         ) : (
           <div
             data-testid="task-scene-loading"
@@ -721,6 +761,25 @@ function FlowCanvas({
             groupId: null,
             data: image,
           })
+        }}
+      />
+      <InjectContextDialog
+        open={injectOpen}
+        nodes={injectableSelectedNodes}
+        tasks={tasks}
+        defaultTaskId={injectTaskId}
+        onOpenChange={setInjectOpen}
+        onDone={() => {
+          if (!canvas) return
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.canvas(canvas.canvas.workspaceId),
+          })
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.tasks(canvas.canvas.workspaceId),
+          })
+          if (injectTaskId) {
+            void queryClient.invalidateQueries({ queryKey: queryKeys.task(injectTaskId) })
+          }
         }}
       />
     </section>

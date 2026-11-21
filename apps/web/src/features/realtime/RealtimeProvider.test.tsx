@@ -543,4 +543,34 @@ describe('RealtimeProvider', () => {
     await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.task('t1') }))
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.tasks('w1') })
   })
+
+  it('invalidates canvas, tasks, and the target task after context.injected', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    renderProvider(client)
+    const socket = FakeSocket.instances[0]!
+    socket.open()
+    invalidate.mockClear()
+
+    socket.message({
+      v: 1,
+      ts: 40,
+      seq: 12,
+      type: 'context.injected',
+      payload: {
+        taskId: 't1',
+        seq: 1,
+        at: 40,
+        source: 'user',
+        nodeIds: ['n1'],
+        chars: 5,
+      },
+    })
+
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.canvas('w1') })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.tasks('w1') })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.task('t1') })
+    })
+  })
 })
