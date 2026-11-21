@@ -34,6 +34,7 @@
 - [2026-11-21 M5-3 上下文交接设计](specs/2026-11-21-m5-3-context-handoff-design.md)
 - [2026-11-21 M6-1 任务现场 v0 设计](specs/2026-11-21-m6-task-scene-design.md)
 - [2026-11-21 M6-2 上下文再注入与轻验收证据设计](specs/2026-11-21-m6-2-context-injection-design.md)
+- [2026-11-21 M6-3 验收证据与放权护栏设计](specs/2026-11-21-m6-3-acceptance-evidence-design.md)
 
 ## 现行 ADR
 
@@ -65,6 +66,7 @@
 - [M5-3 上下文交接](contracts/M5-3-context-handoff.contract.md)
 - [M6-1 任务现场](contracts/M6-1-task-scene.contract.md)
 - [M6-2 上下文再注入与轻验收证据](contracts/M6-2-context-injection.contract.md)
+- [M6-3 验收证据与放权护栏](contracts/M6-3-acceptance-evidence.contract.md)
 
 ## 现行 plan
 
@@ -115,6 +117,11 @@
 - [M6-2 web 画布实施计划](plans/2026-11-21-m6-2-canvas-web.md)
 - [M6-2 web 任务实施计划](plans/2026-11-21-m6-2-tasks-web.md)
 - [M6-2 验收实施计划](plans/2026-11-21-m6-2-acceptance.md)
+- [M6-3 protocol + core + migration 0012 实施计划](plans/2026-11-21-m6-3-protocol-core.md)
+- [M6-3 daemon 验收实施计划](plans/2026-11-21-m6-3-daemon-acceptance.md)
+- [M6-3 daemon 护栏实施计划](plans/2026-11-21-m6-3-daemon-guardrails.md)
+- [M6-3 web 任务实施计划](plans/2026-11-21-m6-3-tasks-web.md)
+- [M6-3 画布与验收实施计划](plans/2026-11-21-m6-3-canvas-acceptance.md)
 
 ## 验收证据
 
