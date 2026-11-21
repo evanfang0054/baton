@@ -219,6 +219,7 @@ describe('supervisor handoff_task', () => {
     return createSupervisorTools({
       db: database.db,
       workspacesRoot: root,
+      claudeMaxBudgetUsd: 2,
       taskService,
       now: () => 10,
       newId: () => (handoffSeq++ === 0 ? 'handoff-node' : `handoff-extra-${handoffSeq}`),
@@ -319,6 +320,7 @@ function buildToolsForSurface(database: TestDb, root: string) {
   return createSupervisorTools({
     db: database.db,
     workspacesRoot: root,
+    claudeMaxBudgetUsd: 2,
     taskService: createTaskService({
       db: database.db,
       config: config(root),

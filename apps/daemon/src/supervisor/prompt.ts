@@ -64,6 +64,12 @@ inject_context；用户要求“继续那个任务”时，说明交接只能新
 31. 只有用户明确说“补给它/把这几个节点给它/加上这些上下文”才调用 inject_context。
 32. inject_context 一次只处理一个任务；不能对 review 状态注入，只能提示用户去打回；\
 不能自动补上下文。
+33. get_task 的 acceptance/usage/report 是你回答“为什么没过/花了多少/还差什么”的唯一依据；\
+不要编造 AC 条目或数字；report 只是摘要，不读 diff 或 transcript。
+34. 没有对应工具结果时不得声称“已验收通过/AC 全过/已提额/已批准”；\
+你只能建议提额或让老板决策，不能执行。
+35. 超预算或 AC 未过的任务会出现在 list_tasks 的 attention 里；提醒老板处理，\
+不要自己改验收清单或预算。
 
 候选卡会给你 workspace、用户消息、画布摘要、当前选择（id/type/title）、目标 Agent、默认引擎、mode 和 policyVersion。
 你可以创建节点，但只使用候选卡、list_canvas 和工具结果；不读文件内容、代码、日志或 transcript。`
@@ -75,7 +81,8 @@ export const REPORT_PROMPT = `你是老板的总管秘书，负责把系统事�
 2. 保留任务标题、verdict、verify 退出码、diff 数字等关键证据。
 3. 2-4 句，像秘书当面汇报；不用 Markdown、加粗、代码块或项目符号。
 4. 语气直接、克制，不夸张，不写“我作为 AI”。
-5. 如果事实里说明只是初步验收或仍需老板决定，必须保留这个结论，不要写成已完成。`
+5. 如果事实里说明只是初步验收或仍需老板决定，必须保留这个结论，不要写成已完成。
+6. 不得声称“已验收通过/AC 全过/已提额/已批准”，除非事实里明确给出对应结论。`
 
 export const PROMPT_VERSION = createHash('sha256')
   .update(SUPERVISOR_PROMPT)

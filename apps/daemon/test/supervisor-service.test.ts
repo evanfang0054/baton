@@ -8,7 +8,7 @@ import { getTask } from '../src/db/repositories.js'
 import { createEventStore } from '../src/db/event-store.js'
 import { createTaskService } from '../src/runtime/task-service.js'
 import type { SupervisorEngine } from '../src/supervisor/engine.js'
-import { createSupervisorService } from '../src/supervisor/service.js'
+import { createSupervisorService, guardAcceptanceClaims } from '../src/supervisor/service.js'
 import { createTestDb, seedTask, seedTextNode, type TestDb } from './helpers/db.js'
 
 const dirs: string[] = []
@@ -70,6 +70,7 @@ function setup(
     db: database.db,
     eventStore,
     dataDir: root,
+    claudeMaxBudgetUsd: 2,
     taskService,
     defaultEngine: 'claude-sdk',
     enqueueTask: () => ({ ok: true, status: 'queued' }),
@@ -715,5 +716,54 @@ describe('supervisor service', () => {
     const messages = service.history(seeded.workspaceId, 50).messages
     expect(messages.at(-1)?.content).toContain('建议通过')
     expect(messages.at(-1)?.content).toContain('等你最终确认')
+  })
+})
+
+describe('guardAcceptanceClaims', () => {
+  it('flags acceptance pass claims without tool evidence', () => {
+    const guarded = guardAcceptanceClaims('这个任务已验收通过，AC 全过。', [])
+    expect(guarded.flagged).toBe(true)
+    expect(guarded.text).toContain('验收清单为准')
+  })
+
+  it('accepts pass claims backed by a passing get_task result', () => {
+    const guarded = guardAcceptanceClaims('任务已通过。', [
+      {
+        name: 'get_task',
+        ok: true,
+        result: {
+          acceptance: {
+            verdict: 'pass',
+            counts: { total: 2, pass: 2, fail: 0, pending: 0, waived: 0 },
+          },
+        },
+      },
+    ])
+    expect(guarded.flagged).toBe(false)
+  })
+
+  it('rejects pass claims when the acceptance result still has failures', () => {
+    const guarded = guardAcceptanceClaims('任务已通过。', [
+      {
+        name: 'get_task',
+        ok: true,
+        result: {
+          acceptance: {
+            verdict: 'fail',
+            counts: { total: 2, pass: 1, fail: 1, pending: 0, waived: 0 },
+          },
+        },
+      },
+    ])
+    expect(guarded.flagged).toBe(true)
+  })
+
+  it('never allows budget raise or approval claims', () => {
+    const raised = guardAcceptanceClaims('已经提额到 $5。', [])
+    expect(raised.flagged).toBe(true)
+    expect(raised.text).toContain('没有提额工具')
+    const approved = guardAcceptanceClaims('老板已批准。', [])
+    expect(approved.flagged).toBe(true)
+    expect(approved.text).toContain('审批记录为准')
   })
 })

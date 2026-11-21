@@ -91,6 +91,7 @@ export interface SupervisorServiceDeps {
     | { ok: false; error: AppError }
   cancelTask: (taskId: string, reason?: string) => TransitionOutcome
   workspacesRoot: string
+  claudeMaxBudgetUsd: number
   killSwitch: () => boolean
   engine?: SupervisorEngine
   now: () => number
@@ -161,11 +162,62 @@ ${agents}
 <policy_version>${xmlEscape(input.policyVersion)}</policy_version>`
 }
 
+export interface SupervisorToolClaim {
+  name: string
+  ok: boolean
+  result?: unknown
+}
+
+/**
+ * 验收/预算/审批类结论只能来自工具事实；否则追加免责声明。
+ * 这里只处理读证据能覆盖的断言，写操作断言仍由调用点的工具结果检查兜底。
+ */
+export function guardAcceptanceClaims(
+  text: string,
+  toolCalls: ReadonlyArray<SupervisorToolClaim>,
+): { text: string; flagged: boolean } {
+  let next = text
+  let flagged = false
+  const acceptancePass = toolCalls.some((call) => {
+    if (!call.ok || call.name !== 'get_task') return false
+    const acceptance = (
+      call.result as
+        | { acceptance?: { verdict?: string; counts?: { fail?: number; pending?: number } } }
+        | undefined
+    )?.acceptance
+    return (
+      acceptance?.verdict === 'pass' &&
+      (acceptance.counts?.fail ?? 0) === 0 &&
+      (acceptance.counts?.pending ?? 0) === 0
+    )
+  })
+  if (/已(经)?(验收)?通过|AC(清单)?(全|都)过/.test(text) && !acceptancePass) {
+    next += '\n\n（我没有验收通过的工具结果；请以任务详情里的验收清单为准。）'
+    flagged = true
+  }
+  if (/已(经)?(提额|提高预算|增加预算)/.test(text)) {
+    next += '\n\n（我没有提额工具，不能替你改预算；请在任务详情里操作。）'
+    flagged = true
+  }
+  const approvedFact = toolCalls.some(
+    (call) =>
+      call.ok &&
+      call.name === 'get_task' &&
+      (call.result as { task?: { status?: string } } | undefined)?.task?.status === 'done',
+  )
+  if (/已(经)?批准/.test(text) && !approvedFact) {
+    next += '\n\n（我没有审批通过的工具结果；请以任务详情/审批记录为准。）'
+    flagged = true
+  }
+  return { text: next, flagged }
+}
+
 export function createSupervisorService(deps: SupervisorServiceDeps) {
   const store = createSupervisorStore({ db: deps.db, now: deps.now, newId: deps.newId })
   const tools = createSupervisorTools({
     db: deps.db,
     workspacesRoot: deps.workspacesRoot,
+    claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
     taskService: deps.taskService,
     now: deps.now,
     newId: deps.newId,
@@ -1006,8 +1058,13 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         text += '\n\n（我没有创建任务；请明确说要做什么，我再建任务。）'
         reason = 'claim_without_tool'
       }
-      if (/已完成|已通过/.test(text) && !result.toolCalls.some((call) => call.ok)) {
+      if (/已完成/.test(text) && !result.toolCalls.some((call) => call.ok)) {
         text += '\n\n（我没有工具结果证明完成；请以看板/任务详情状态为准。）'
+        reason = 'claim_without_tool'
+      }
+      const guarded = guardAcceptanceClaims(text, result.toolCalls)
+      if (guarded.flagged) {
+        text = guarded.text
         reason = 'claim_without_tool'
       }
       const hasAfterSales = result.toolCalls.some(

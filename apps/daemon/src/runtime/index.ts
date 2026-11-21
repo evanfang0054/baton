@@ -299,6 +299,7 @@ export function createRuntime(deps: RuntimeDeps) {
     injectContext: contextService.injectContext,
     cancelTask: cancel,
     workspacesRoot: deps.config.workspacesRoot,
+    claudeMaxBudgetUsd: deps.config.claudeMaxBudgetUsd,
     killSwitch: () => automationState.isKillSwitchOn(),
     ...(deps.supervisorEngine ? { engine: deps.supervisorEngine } : {}),
     now,
