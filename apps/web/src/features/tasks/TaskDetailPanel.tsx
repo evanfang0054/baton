@@ -330,7 +330,7 @@ function DetailContent({
       <div data-section="acceptance" className="flex shrink-0 flex-col gap-2">
         {acceptanceError ? <p className="text-sm text-muted">验收证据暂不可用</p> : null}
         {acceptance ? <AcceptanceReport report={acceptance.report} /> : null}
-        {task.status === 'review' && acceptance ? (
+        {task.status === 'review' && acceptance && !mobile ? (
           <AcceptanceEditor
             taskId={task.id}
             contract={acceptance.contract}
