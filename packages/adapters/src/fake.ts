@@ -4,6 +4,7 @@ import {
   EventType,
   SESSION_OUTCOME_EVENT,
   SESSION_USAGE_EVENT,
+  VERIFIER_PROMPT_MARKER,
   type AgentAdapter,
   type AgentEvent,
   type AgentRun,
@@ -12,6 +13,8 @@ import {
   type StartInput,
 } from '@baton/protocol'
 
+export { VERIFIER_PROMPT_MARKER }
+
 export type FakeStep =
   | { kind: 'text'; text: string }
   | { kind: 'approval'; request: ApprovalRequest }
@@ -19,8 +22,6 @@ export type FakeStep =
   | { kind: 'usage'; costUsd?: number; turns?: number }
   | { kind: 'finish'; outcome?: 'ready' | 'unreported' }
   | { kind: 'error'; message: string }
-
-export const VERIFIER_PROMPT_MARKER = '<verifier_task>'
 
 interface FakeOptions {
   script?: FakeStep[]

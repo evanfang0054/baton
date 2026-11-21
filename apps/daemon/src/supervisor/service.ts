@@ -1,4 +1,9 @@
-import { buildTaskOrigin, SUPERVISOR_POLICY, supervisorPolicyVersion } from '@baton/core'
+import {
+  acceptanceSummary,
+  buildTaskOrigin,
+  SUPERVISOR_POLICY,
+  supervisorPolicyVersion,
+} from '@baton/core'
 import {
   Node,
   SupervisorTaskCard,
@@ -10,6 +15,7 @@ import {
   type SupervisorMessagesResponse,
   type SupervisorSendInput,
   type SupervisorStatusResponse,
+  type Task,
   type TaskDetail,
   type TaskOrigin,
   type TaskTransitionEvent,
@@ -33,6 +39,11 @@ import {
   setReviewPreliminary,
   updateTaskWorktreePath,
 } from '../db/repositories.js'
+import {
+  getAcceptanceBundle,
+  replaceAcceptanceItems,
+  updateAcceptanceRun,
+} from '../db/acceptance-repository.js'
 import type { Db } from '../db/types.js'
 import type { EventStore } from '../db/event-store.js'
 import { appError, isAppError } from '../errors.js'
@@ -44,6 +55,7 @@ import { canvasOverviewXml, nodeTitle } from './canvas-summary.js'
 import { loadSupervisorConfig, type SupervisorConfig } from './config.js'
 import { createAiSdkSupervisorEngine, type SupervisorEngine } from './engine.js'
 import { buildVerifierPrompt, parseVerdict } from './observe.js'
+import { parseAcceptanceReport, type ParsedAcceptanceReport } from './acceptance-parse.js'
 import { PROMPT_VERSION, REPORT_PROMPT, SUPERVISOR_PROMPT } from './prompt.js'
 import { createSupervisorStore } from './store.js'
 import { xmlEscape } from './xml.js'
@@ -448,7 +460,8 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     const session = listSessionsByTask(deps.db, task.id).at(-1)
     const output = session ? getAssistantTranscriptText(deps.db, session.id) : ''
     const outcomeReason = session ? getSessionOutcomeReason(deps.db, session.id) : null
-    const parsed = parseVerdict(output, outcomeReason)
+    const acceptance = parseAcceptanceReport(output)
+    const parsed = withAcceptanceVerdict(parseVerdict(output, outcomeReason), acceptance)
 
     // 验收员任务本身不需要人再验收；它的产出就是结论。
     const closed = deps.applyTransition(task.id, {
@@ -461,7 +474,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         'failed to close verifier task',
       )
     }
-    concludeVerifier(task, parsed, origin)
+    concludeVerifier(task, parsed, origin, acceptance)
   }
 
   /**
@@ -474,7 +487,8 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     const session = listSessionsByTask(deps.db, task.id).at(-1)
     const output = session ? getAssistantTranscriptText(deps.db, session.id) : ''
     const outcomeReason = session ? getSessionOutcomeReason(deps.db, session.id) : null
-    const parsed = parseVerdict(output, outcomeReason)
+    const acceptance = parseAcceptanceReport(output)
+    const parsed = withAcceptanceVerdict(parseVerdict(output, outcomeReason), acceptance)
     if (parsed.verdict === 'unknown') {
       notify(
         origin.threadId,
@@ -494,13 +508,101 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         'failed to close stalled verifier task',
       )
     }
-    concludeVerifier(task, parsed, origin)
+    concludeVerifier(task, parsed, origin, acceptance)
+  }
+
+  function withAcceptanceVerdict(
+    parsed: ReturnType<typeof parseVerdict>,
+    acceptance: ParsedAcceptanceReport | null,
+  ): ReturnType<typeof parseVerdict> {
+    if (parsed.verdict !== 'unknown' || !acceptance) return parsed
+    const verdict =
+      acceptance.verdict === 'pass' ? 'pass' : acceptance.verdict === 'fail' ? 'fail' : 'unknown'
+    return { ...parsed, verdict }
+  }
+
+  function recordAcceptance(input: {
+    target: Task
+    verifierTaskId: string
+    reviewId: string
+    parsed: ReturnType<typeof parseVerdict>
+    acceptance: ParsedAcceptanceReport | null
+  }): void {
+    const bundle = getAcceptanceBundle(deps.db, input.target.id)
+    if (!bundle?.run || bundle.run.reviewId !== input.reviewId) return
+    const runId = bundle.run.id
+    const at = deps.now()
+    const event = deps.db.transaction((tx) => {
+      if (!input.acceptance) {
+        updateAcceptanceRun(tx, runId, {
+          status: 'failed',
+          verdict: 'incomplete',
+          summary: '验收员输出无法解析',
+          verifierTaskId: input.verifierTaskId,
+          completedAt: at,
+        })
+      } else {
+        if (bundle.contract.revision === 0) {
+          const items = input.acceptance.items.map((item, index) => ({
+            id: deps.newId(),
+            contractId: bundle.contract.id,
+            ordinal: index + 1,
+            text: item.text,
+            status: item.status,
+            evidence: item.evidence,
+            source: 'verifier' as const,
+            updatedAt: at,
+          }))
+          const replaced = replaceAcceptanceItems(tx, {
+            contractId: bundle.contract.id,
+            expectedRevision: 0,
+            items,
+          })
+          if (!replaced.ok) {
+            deps.logger?.warn(
+              {
+                event: 'supervisor.acceptance.replace_failed',
+                taskId: input.target.id,
+                code: replaced.code,
+              },
+              'failed to replace acceptance items',
+            )
+          }
+        }
+        updateAcceptanceRun(tx, runId, {
+          status: 'complete',
+          verdict: input.acceptance.verdict,
+          summary: input.acceptance.summary || input.parsed.reason,
+          verifierTaskId: input.verifierTaskId,
+          completedAt: at,
+        })
+      }
+
+      const after = getAcceptanceBundle(tx, input.target.id)
+      if (!after) return null
+      const { counts, verdict } = acceptanceSummary(after.items)
+      return deps.eventStore.appendWs(tx, {
+        type: 'acceptance.updated',
+        ts: at,
+        payload: {
+          taskId: input.target.id,
+          contractId: after.contract.id,
+          version: after.contract.version,
+          revision: after.contract.revision,
+          status: after.contract.status,
+          counts,
+          verdict,
+        },
+      })
+    })
+    if (event) deps.broadcastRaw?.(buildWsFrame(event))
   }
 
   function concludeVerifier(
     task: TaskDetail,
     parsed: ReturnType<typeof parseVerdict>,
     origin: TaskOrigin,
+    acceptance: ParsedAcceptanceReport | null = null,
   ): void {
     const threadId = origin.threadId
     const targetTaskId = origin.reviewOfTaskId
@@ -530,6 +632,14 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       )
       return
     }
+
+    recordAcceptance({
+      target,
+      verifierTaskId: task.id,
+      reviewId,
+      parsed,
+      acceptance,
+    })
 
     const preliminaryAt = deps.now()
     const preliminaryEvent = deps.db.transaction((tx) => {
