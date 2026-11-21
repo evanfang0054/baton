@@ -22,6 +22,7 @@ const STATUS_BY_CODE: Record<string, number> = {
   task_not_found: 404,
   approval_not_found: 404,
   review_not_found: 404,
+  acceptance_not_found: 404,
   diff_unavailable: 404,
   image_not_found: 404,
   image_type_unsupported: 415,

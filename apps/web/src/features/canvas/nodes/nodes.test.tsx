@@ -38,12 +38,15 @@ const task: TaskSummary = {
   worktreePath: null,
   verifyCommand: null,
   dangerouslySkipPermissions: false,
+  budgetUsd: null,
   enqueuedAt: null,
   retryCount: 0,
   createdAt: 1,
   updatedAt: 1,
   attention: 'needs_review',
   waitingSince: 1,
+  acceptance: null,
+  budget: null,
 }
 
 function actions(overrides: Partial<CanvasActions> = {}): CanvasActions {
@@ -175,6 +178,8 @@ describe('canvas nodes', () => {
     expect(screen.queryByRole('button', { name: '通过' })).not.toBeInTheDocument()
     screen.getByRole('button', { name: '打开任务 登录页重构' }).click()
     expect(openTask).toHaveBeenCalledWith('t1')
+    screen.getByRole('button', { name: '查看证据' }).click()
+    expect(openTask).toHaveBeenCalledTimes(2)
   })
 })
 

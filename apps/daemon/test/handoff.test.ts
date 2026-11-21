@@ -87,6 +87,8 @@ function config(root: string) {
     maxLiveSessions: 5,
     claudeMaxTurns: 30,
     claudeMaxBudgetUsd: 2,
+    verifierBudgetUsd: 0.5,
+    maxTaskBudgetUsd: 50,
     claudeProjectHooks: 'on' as const,
     allowBypassPermissions: false,
     killSwitch: false,
@@ -219,6 +221,7 @@ describe('supervisor handoff_task', () => {
     return createSupervisorTools({
       db: database.db,
       workspacesRoot: root,
+      claudeMaxBudgetUsd: 2,
       taskService,
       now: () => 10,
       newId: () => (handoffSeq++ === 0 ? 'handoff-node' : `handoff-extra-${handoffSeq}`),
@@ -319,6 +322,7 @@ function buildToolsForSurface(database: TestDb, root: string) {
   return createSupervisorTools({
     db: database.db,
     workspacesRoot: root,
+    claudeMaxBudgetUsd: 2,
     taskService: createTaskService({
       db: database.db,
       config: config(root),

@@ -54,13 +54,20 @@ describe('migrateDb', () => {
     const db2 = openDb(file)
     migrateDb(db2)
     expect(schema(db2)).toEqual(before)
-    expect(before.filter((row) => row.type === 'table')).toHaveLength(16)
+    expect(before.filter((row) => row.type === 'table')).toHaveLength(19)
     expect(
       before
         .filter((row) => row.type === 'index')
         .map((row) => row.name)
         .sort(),
     ).toEqual([
+      'acceptance_contract_task_status_idx',
+      'acceptance_contract_task_version_idx',
+      'acceptance_item_contract_idx',
+      'acceptance_item_contract_ordinal_idx',
+      'acceptance_run_contract_idx',
+      'acceptance_run_review_idx',
+      'acceptance_run_task_created_idx',
       'approval_session_request_idx',
       'audit_action_ts_idx',
       'audit_ts_idx',

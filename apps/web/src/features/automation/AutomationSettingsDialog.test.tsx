@@ -26,6 +26,7 @@ function summary(overrides: Partial<AutomationSummary> = {}): AutomationSummary 
         retryMax: 2,
         digestCron: '0 9,21 * * *',
         delegatedAuthority: false,
+        maxAutoApprovalsPerTask: 10,
       },
     },
     policyVersion: 'abc123abc123',

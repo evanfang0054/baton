@@ -3,6 +3,11 @@ import { EventSchemas } from './agui.js'
 import { DiffStat, Id, Timestamp } from './common.js'
 import { ContextInjectionSource } from './context.js'
 import { ApprovalRequest } from './entities/approval.js'
+import {
+  AcceptanceContractStatus,
+  AcceptanceCounts,
+  AcceptanceVerdict,
+} from './entities/acceptance.js'
 import { Notice } from './entities/notice.js'
 import { PreliminaryVerdict } from './entities/review.js'
 import { Attention, SessionOutcome, TaskStatus, WaitingReason } from './enums.js'
@@ -183,6 +188,20 @@ export const ContextInjectedEvent = ReplayableBase.extend({
 })
 export type ContextInjectedEvent = z.infer<typeof ContextInjectedEvent>
 
+export const AcceptanceUpdatedEvent = ReplayableBase.extend({
+  type: z.literal('acceptance.updated'),
+  payload: z.object({
+    taskId: Id,
+    contractId: Id,
+    version: z.number().int().positive(),
+    revision: z.number().int().nonnegative(),
+    status: AcceptanceContractStatus,
+    counts: AcceptanceCounts,
+    verdict: AcceptanceVerdict,
+  }),
+})
+export type AcceptanceUpdatedEvent = z.infer<typeof AcceptanceUpdatedEvent>
+
 export const ServerMessage = z.discriminatedUnion('type', [
   AckEvent,
   ErrorEvent,
@@ -196,5 +215,6 @@ export const ServerMessage = z.discriminatedUnion('type', [
   NoticeEvent,
   ReviewPreliminaryEvent,
   ContextInjectedEvent,
+  AcceptanceUpdatedEvent,
 ])
 export type ServerMessage = z.infer<typeof ServerMessage>

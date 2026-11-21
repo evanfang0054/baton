@@ -44,6 +44,15 @@ export function createTaskService(deps: TaskServiceDeps) {
         }
       }
       const workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+      if (input.budgetUsd !== undefined && input.budgetUsd > deps.config.maxTaskBudgetUsd) {
+        return {
+          ok: false,
+          error: appError('budget_too_large', 'task budget exceeds the configured maximum', {
+            budgetUsd: input.budgetUsd,
+            maxTaskBudgetUsd: deps.config.maxTaskBudgetUsd,
+          }),
+        }
+      }
       if (input.workspaceMode === 'worktree' && !isGitRepoSync(workspacePath)) {
         return {
           ok: false,
@@ -155,6 +164,7 @@ export function createTaskService(deps: TaskServiceDeps) {
             branch: null,
             worktreePath: null,
             verifyCommand: input.verifyCommand ?? null,
+            budgetUsd: input.budgetUsd ?? null,
             retryCount: 0,
             dangerouslySkipPermissions: input.dangerouslySkipPermissions,
             createdAt: now,

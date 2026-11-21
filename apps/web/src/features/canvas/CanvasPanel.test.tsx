@@ -45,11 +45,14 @@ const tasks: TaskSummary[] = [
     verifyCommand: null,
     retryCount: 0,
     dangerouslySkipPermissions: false,
+    budgetUsd: null,
     enqueuedAt: null,
     createdAt: 1,
     updatedAt: 1,
     attention: 'none',
     waitingSince: null,
+    acceptance: null,
+    budget: null,
   },
 ]
 
@@ -69,6 +72,7 @@ const sceneDetail: TaskDetailResponse = {
     verifyCommand: null,
     retryCount: 0,
     dangerouslySkipPermissions: false,
+    budgetUsd: null,
     enqueuedAt: null,
     createdAt: 1,
     updatedAt: 1,
@@ -90,6 +94,18 @@ const sceneDetail: TaskDetailResponse = {
   review: null,
   waitingSince: null,
   attention: 'none',
+  acceptance: null,
+  budget: {
+    budgetUsd: 2,
+    spentUsd: 0,
+    remainingUsd: 2,
+    ratio: 0,
+    overBudget: false,
+    nearBudget: false,
+    workerCostUsd: 0,
+    verifierCostUsd: 0,
+    turns: 0,
+  },
 }
 
 afterEach(() => {

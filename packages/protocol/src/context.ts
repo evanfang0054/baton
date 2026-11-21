@@ -40,6 +40,8 @@ export const ContextInjection = z.object({
   at: Timestamp,
   source: ContextInjectionSource,
   note: z.string().max(2000).nullable(),
+  /** 客户端幂等键；旧数据没有该字段时按 null 读取。 */
+  requestId: z.string().min(1).max(100).nullable().default(null),
   nodeIds: z.array(Id).min(1),
   included: z.array(ContextNodeRef),
   dropped: z.array(ContextDropped),

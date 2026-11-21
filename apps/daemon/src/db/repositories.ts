@@ -115,6 +115,7 @@ function toTask(row: typeof task.$inferSelect): Task {
     verifyCommand: row.verifyCommand,
     retryCount: row.retryCount,
     dangerouslySkipPermissions: row.dangerouslySkipPermissions,
+    budgetUsd: row.budgetUsd ?? null,
     enqueuedAt: row.enqueuedAt ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -638,7 +639,10 @@ export function listQueuedTasksByEnqueuedAt(db: Db): Task[] {
 
 export function insertTask(
   tx: Tx,
-  input: Omit<Task, 'enqueuedAt'> & { enqueuedAt?: number | null },
+  input: Omit<Task, 'enqueuedAt' | 'budgetUsd'> & {
+    enqueuedAt?: number | null
+    budgetUsd?: number | null
+  },
   contextJson: string | null = null,
   originJson: string | null = null,
 ): void {
@@ -658,6 +662,7 @@ export function insertTask(
       verifyCommand: input.verifyCommand,
       retryCount: input.retryCount,
       dangerouslySkipPermissions: input.dangerouslySkipPermissions,
+      budgetUsd: input.budgetUsd ?? null,
       contextJson,
       originJson,
       enqueuedAt: input.enqueuedAt ?? null,
@@ -717,6 +722,10 @@ export function updateTaskTitle(
   updatedAt: number,
 ): void {
   db.update(task).set({ title, updatedAt }).where(eq(task.id, id)).run()
+}
+
+export function updateTaskBudget(tx: Tx, id: string, budgetUsd: number, updatedAt: number): void {
+  tx.update(task).set({ budgetUsd, updatedAt }).where(eq(task.id, id)).run()
 }
 
 export function getTaskPolicy(db: Db, id: string): Policy | null {
@@ -1049,6 +1058,16 @@ export function listApprovalsByTask(db: Db, taskId: string): ApprovalRecord[] {
     .orderBy(asc(approval.id))
     .all()
     .map((row) => toApproval(row.approval))
+}
+
+export function countAutoApprovals(db: Db, taskId: string): number {
+  const row = db
+    .select({ count: sql<number>`count(*)` })
+    .from(approval)
+    .innerJoin(session, eq(approval.sessionId, session.id))
+    .where(and(eq(session.taskId, taskId), eq(approval.decidedBy, 'auto')))
+    .get()
+  return row?.count ?? 0
 }
 
 export function listPendingApprovals(db: Db): ApprovalRecord[] {

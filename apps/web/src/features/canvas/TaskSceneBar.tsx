@@ -1,6 +1,6 @@
 import { canInjectContext } from '@baton/core'
 import type { TaskScene } from '@baton/core'
-import type { TaskDetailResponse } from '@baton/protocol'
+import type { TaskAcceptanceSummary, TaskBudgetSummary, TaskDetailResponse } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { StatusChip } from '../tasks/StatusChip'
 import { WaitingTime } from '../tasks/WaitingTime'
@@ -8,11 +8,15 @@ import { WaitingTime } from '../tasks/WaitingTime'
 export function TaskSceneBar({
   scene,
   detail,
+  acceptance = null,
+  budget = null,
   onExit,
   onInject,
 }: {
   scene: TaskScene
   detail: TaskDetailResponse
+  acceptance?: TaskAcceptanceSummary | null
+  budget?: TaskBudgetSummary | null
   onExit: () => void
   onInject: () => void
 }) {
@@ -36,6 +40,10 @@ export function TaskSceneBar({
       {detail.review ? (
         <span className="text-muted">verify {detail.review.verifyExitCode}</span>
       ) : null}
+      <span className="text-muted">
+        {acceptance ? `AC ${acceptance.counts.pass}/${acceptance.counts.total}` : 'AC —'}
+        {budget ? ` · $${budget.spentUsd.toFixed(2)} / $${budget.budgetUsd.toFixed(2)}` : ''}
+      </span>
       <span title={injectable ? undefined : '当前状态不能投喂；review 请用打回'}>
         <Button size="sm" variant="tertiary" isDisabled={!injectable} onPress={onInject}>
           投喂

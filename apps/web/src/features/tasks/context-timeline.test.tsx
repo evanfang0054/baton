@@ -17,6 +17,7 @@ const snapshot: ContextSnapshot = {
       at: 1_700_000_000_000,
       source: 'user',
       note: '补充报错',
+      requestId: null,
       nodeIds: ['n1'],
       included: [{ id: 'n1', type: 'text', title: '报错日志', depth: 0, chars: 10 }],
       dropped: [],

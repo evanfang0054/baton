@@ -127,6 +127,7 @@ describe('core entities', () => {
       verifyCommand: null,
       retryCount: 0,
       dangerouslySkipPermissions: false,
+      budgetUsd: null,
       enqueuedAt: null,
       createdAt: 1,
       updatedAt: 1,

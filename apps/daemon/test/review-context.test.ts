@@ -63,7 +63,12 @@ describe('review context', () => {
       id: 'c2',
       ts: 1,
       type: 'review.decide',
-      payload: { reviewId: 'review-2', decision: 'approve', reason: '测试已手动通过' },
+      payload: {
+        reviewId: 'review-2',
+        decision: 'approve',
+        reason: '测试已手动通过',
+        overrideReason: '已知风险',
+      },
     })
     expect(outcome.ok).toBe(true)
     const audit = handle.database.raw
@@ -86,7 +91,7 @@ describe('review context', () => {
       id: 'c-skip',
       ts: 1,
       type: 'review.decide',
-      payload: { reviewId: 'review-skip', decision: 'approve' },
+      payload: { reviewId: 'review-skip', decision: 'approve', overrideReason: '已知风险' },
     })
     expect(outcome.ok).toBe(true)
     const audit = handle.database.raw
@@ -107,7 +112,7 @@ describe('review context', () => {
       id: 'c3',
       ts: 1,
       type: 'review.decide',
-      payload: { reviewId: 'review-3', decision: 'approve' },
+      payload: { reviewId: 'review-3', decision: 'approve', overrideReason: '已知风险' },
     })
     expect(outcome.ok).toBe(true)
     const audit = handle.database.raw

@@ -1,4 +1,4 @@
-import { VERIFY_SKIPPED, type DiffStat } from '@baton/protocol'
+import { VERIFIER_PROMPT_MARKER, VERIFY_SKIPPED, type DiffStat } from '@baton/protocol'
 import { xmlEscape } from './xml.js'
 
 export {
@@ -32,13 +32,15 @@ export function buildVerifierPrompt(input: VerifierPromptInput): string {
   const title = xmlEscape(input.title)
   const targetPrompt = xmlEscape(input.prompt.slice(0, 2000))
   const workerOutput = xmlEscape(input.workerOutput.slice(-4000) || '（没有文本输出）')
-  return `<role>你是 baton 的验收员。你只验收，不实现、不修改文件、不提交代码。</role>
+  return `${VERIFIER_PROMPT_MARKER}
+<role>你是 baton 的验收员。你只验收，不实现、不修改文件、不提交代码。</role>
 <verdict_protocol>
-结束前必须单独发送一条消息，内容只能是下面两行之一，不能有任何其他文字、标点或代码块：
-VERDICT: PASS
-VERDICT: FAIL
-理由放在这条消息之前。上报 session outcome 时，reason 也必须以 VERDICT: PASS 或 VERDICT: FAIL 开头。
-没有这一行，系统会视为初步验收未完成，目标任务仍等你决定。
+最后一条消息先写 1-5 行理由；其中必须有一行是 \`VERDICT: PASS\` 或 \`VERDICT: FAIL\`。
+然后输出一个 <acceptance_report> JSON 块，不要用 Markdown 代码块包裹：
+<acceptance_report>
+{"verdict":"pass|fail|incomplete","summary":"<=1000 字","items":[{"text":"<=200 字","status":"pass|fail|pending","evidence":"<=200 字"}]}
+</acceptance_report>
+items 1-8 条；无法生成时 items 为空、verdict 为 incomplete。没有 VERDICT 或 acceptance_report 时，系统会视为初步验收未完成，目标任务仍等你决定。
 </verdict_protocol>
 <target_task id="${xmlEscape(input.taskId)}" title="${title}">
 ${targetPrompt}
@@ -57,8 +59,9 @@ ${workerOutput}
 1. 用 git status / git diff 检查实际改动（如果有），核对是否满足原始要求。
 2. 只运行只读校验命令（如测试、构建、lint）；不要安装依赖，不要改文件，不要 git commit。
 3. 如果任务只产出资料而没有代码改动，就核对工人回复是否覆盖要求。
-4. 得出结论后，先写最多 5 行理由，再发送只含 VERDICT 行的最后一条消息。
-5. 不要创建任务、不要联系总管、不要输出 Markdown 代码块。
+4. 得出结论后：先写最多 5 行理由，其中一行是 VERDICT；再输出 acceptance_report JSON。
+5. acceptance_report 的 items 写可验证的验收项；证据用 file:line、命令或测试名，使用相对路径，不贴大段代码。
+6. 不要创建任务、不要联系总管、不要用 Markdown 代码块包裹 acceptance_report。
 </instructions>
-最后提醒：你的最后一条消息必须只有一行：VERDICT: PASS 或 VERDICT: FAIL。不要输出其他内容。`
+最后提醒：最后一条消息必须同时包含 \`VERDICT: PASS\` 或 \`VERDICT: FAIL\`，以及 \`<acceptance_report>...</acceptance_report>\`。`
 }

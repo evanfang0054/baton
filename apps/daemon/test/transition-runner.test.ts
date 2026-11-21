@@ -164,7 +164,17 @@ describe('transition runner', () => {
     const review = handle.runtime.getReviewByTask(taskId)
     expect(review?.verifyExitCode).toBe(0)
 
-    const decided = handle.runtime.decideReview({ reviewId: 'review-1', decision: 'approve' })
+    const blocked = handle.runtime.decideReview({ reviewId: 'review-1', decision: 'approve' })
+    expect(blocked.ok).toBe(false)
+    if (!blocked.ok) {
+      expect(blocked.error.code).toBe('acceptance_override_reason_required')
+    }
+
+    const decided = handle.runtime.decideReview({
+      reviewId: 'review-1',
+      decision: 'approve',
+      overrideReason: '已知风险',
+    })
     expect(decided.ok).toBe(true)
     if (decided.ok) {
       expect(decided.status).toBe('done')

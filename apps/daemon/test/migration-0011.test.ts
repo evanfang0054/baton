@@ -101,6 +101,7 @@ describe('migration 0011', () => {
         at: 2,
         source: 'user',
         note: null,
+        requestId: null,
         nodeIds: ['n1'],
         included: [],
         dropped: [],

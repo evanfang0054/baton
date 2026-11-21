@@ -1,4 +1,8 @@
-import type { SessionEventsResponse, TaskDetailResponse } from '@baton/protocol'
+import type {
+  SessionEventsResponse,
+  TaskAcceptanceResponse,
+  TaskDetailResponse,
+} from '@baton/protocol'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,6 +25,7 @@ const baseTask: TaskDetailResponse['task'] = {
   worktreePath: null,
   verifyCommand: null,
   dangerouslySkipPermissions: false,
+  budgetUsd: null,
   enqueuedAt: null,
   retryCount: 0,
   ...{ context: null, origin: null },
@@ -49,18 +54,115 @@ function detail(overrides: Partial<TaskDetailResponse> = {}): TaskDetailResponse
     review: null,
     waitingSince: null,
     attention: 'none',
+    acceptance: null,
+    budget: {
+      budgetUsd: 2,
+      spentUsd: 0,
+      remainingUsd: 2,
+      ratio: 0,
+      overBudget: false,
+      nearBudget: false,
+      workerCostUsd: 0,
+      verifierCostUsd: 0,
+      turns: 0,
+    },
     ['contextInvalid']: false,
     ['originInvalid']: false,
     ...overrides,
   }
 }
 
-function stubFetch(payload: TaskDetailResponse) {
+function acceptanceBundle(): TaskAcceptanceResponse {
+  return {
+    contract: {
+      id: 'ac1',
+      taskId: 't1',
+      version: 1,
+      status: 'draft',
+      createdBy: 'verifier',
+      revision: 0,
+      truncated: false,
+      createdAt: 1,
+      frozenAt: null,
+    },
+    items: [
+      {
+        id: 'i1',
+        contractId: 'ac1',
+        ordinal: 1,
+        text: '登录成功',
+        status: 'pass',
+        evidence: 'src/login.tsx:1',
+        source: 'verifier',
+        updatedAt: 1,
+      },
+    ],
+    run: null,
+    report: {
+      taskId: 't1',
+      contractId: 'ac1',
+      contractVersion: 1,
+      contractRevision: 0,
+      goal: '修复登录页',
+      result: '完成登录与错误提示',
+      changes: { filesChanged: 1, insertions: 2, deletions: 0, files: ['src/login.tsx'] },
+      verify: { command: 'pnpm test', exitCode: 0, outputSummary: 'ok', skipped: false },
+      acceptance: {
+        items: [
+          {
+            id: 'i1',
+            contractId: 'ac1',
+            ordinal: 1,
+            text: '登录成功',
+            status: 'pass',
+            evidence: 'src/login.tsx:1',
+            source: 'verifier',
+            updatedAt: 1,
+          },
+        ],
+        counts: { total: 1, pass: 1, fail: 0, pending: 0, waived: 0 },
+        verdict: 'pass',
+      },
+      usage: {
+        workerCostUsd: 0.2,
+        verifierCostUsd: 0.1,
+        turns: 2,
+        budgetUsd: 2,
+        spentUsd: 0.2,
+        remainingUsd: 1.8,
+        overBudget: false,
+        nearBudget: false,
+      },
+      risks: [],
+      unverified: [],
+      preliminary: { verdict: 'pass', summary: '满足要求' },
+      hash: 'a'.repeat(64),
+    },
+    budget: {
+      budgetUsd: 2,
+      spentUsd: 0.2,
+      remainingUsd: 1.8,
+      ratio: 0.1,
+      overBudget: false,
+      nearBudget: false,
+      workerCostUsd: 0.2,
+      verifierCostUsd: 0.1,
+      turns: 2,
+    },
+  }
+}
+
+function stubFetch(payload: TaskDetailResponse, acceptance?: TaskAcceptanceResponse) {
+  const state = { acceptanceCalls: 0 }
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url === '/api/tasks/t1') return Response.json(payload)
+      if (acceptance && url === '/api/tasks/t1/acceptance') {
+        state.acceptanceCalls += 1
+        return Response.json(acceptance)
+      }
       if (url === '/api/tasks/t1/automation') {
         return Response.json({
           taskId: 't1',
@@ -88,6 +190,7 @@ function stubFetch(payload: TaskDetailResponse) {
       throw new Error(`unexpected fetch ${url}`)
     }),
   )
+  return state
 }
 
 function renderPanel(send = vi.fn().mockResolvedValue(undefined)) {
@@ -166,6 +269,7 @@ describe('TaskDetailPanel', () => {
                 at: 1_700_000_000_000,
                 source: 'user',
                 note: '补充报错',
+                requestId: null,
                 nodeIds: ['n2'],
                 included: [{ id: 'n2', type: 'text', title: '报错日志', depth: 0, chars: 10 }],
                 dropped: [],
@@ -462,6 +566,40 @@ describe('TaskDetailPanel', () => {
     renderPanel()
     expect(await screen.findByText('上下文快照')).toBeInTheDocument()
     expect(screen.getByText('需求 A')).toBeInTheDocument()
+  })
+
+  it('refreshes acceptance evidence after saving the AC list', async () => {
+    const review = {
+      id: 'r1',
+      taskId: 't1',
+      verdict: null,
+      verifyExitCode: 0,
+      verifyOutput: 'verify ok',
+      diffStat: { filesChanged: 1, insertions: 2, deletions: 0 },
+      decidedAt: null,
+      diffAvailable: false,
+      response: null,
+      preliminaryVerdict: 'pass' as const,
+      preliminaryReason: '满足要求',
+      preliminaryAt: 2,
+    }
+    const state = stubFetch(
+      detail({
+        task: { ...baseTask, status: 'review' },
+        attention: 'needs_review',
+        review,
+      }),
+      acceptanceBundle(),
+    )
+    const { send } = renderPanel()
+
+    expect(await screen.findByRole('heading', { name: '验收清单' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '保存验收清单' }))
+
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'acceptance.update' })),
+    )
+    await waitFor(() => expect(state.acceptanceCalls).toBeGreaterThan(1))
   })
 
   it('opens the task scene from the header without writing commands', async () => {

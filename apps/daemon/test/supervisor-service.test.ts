@@ -8,7 +8,7 @@ import { getTask } from '../src/db/repositories.js'
 import { createEventStore } from '../src/db/event-store.js'
 import { createTaskService } from '../src/runtime/task-service.js'
 import type { SupervisorEngine } from '../src/supervisor/engine.js'
-import { createSupervisorService } from '../src/supervisor/service.js'
+import { createSupervisorService, guardAcceptanceClaims } from '../src/supervisor/service.js'
 import { createTestDb, seedTask, seedTextNode, type TestDb } from './helpers/db.js'
 
 const dirs: string[] = []
@@ -48,6 +48,8 @@ function setup(
     maxLiveSessions: 5,
     claudeMaxTurns: 30,
     claudeMaxBudgetUsd: 2,
+    verifierBudgetUsd: 0.5,
+    maxTaskBudgetUsd: 50,
     claudeProjectHooks: 'on' as const,
     allowBypassPermissions: false,
     killSwitch: false,
@@ -70,6 +72,8 @@ function setup(
     db: database.db,
     eventStore,
     dataDir: root,
+    claudeMaxBudgetUsd: 2,
+    verifierBudgetUsd: 0.5,
     taskService,
     defaultEngine: 'claude-sdk',
     enqueueTask: () => ({ ok: true, status: 'queued' }),
@@ -478,6 +482,37 @@ describe('supervisor service', () => {
     expect(messages.at(-1)?.content).toContain('最终通过仍由你决定')
   })
 
+  it('dispatches a verifier for a manual task in review', () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        throw new Error('unused')
+      },
+    }
+    const { database, seeded, service } = setup(engine)
+    database.raw
+      .prepare("update task set status = 'review', origin_json = null, updated_at = 2 where id = ?")
+      .run(seeded.taskId)
+    database.raw
+      .prepare(
+        `insert into review (id, task_id, verdict, verify_exit_code, verify_output, diff_stat_json, decided_at)
+         values ('rv-manual', ?, null, 0, 'ok', ?, null)`,
+      )
+      .run(seeded.taskId, JSON.stringify({ filesChanged: 0, insertions: 0, deletions: 0 }))
+
+    service.observeTask({ taskId: seeded.taskId, status: 'review', waitingReason: null })
+
+    const rows = database.raw
+      .prepare('select id, origin_json from task order by created_at')
+      .all() as Array<{ id: string; origin_json: string | null }>
+    expect(rows).toHaveLength(2)
+    expect(JSON.parse(rows[1]!.origin_json!)).toMatchObject({
+      source: 'supervisor-review',
+      reviewOfTaskId: seeded.taskId,
+      reviewOfReviewId: 'rv-manual',
+      actor: { kind: 'system' },
+    })
+  })
+
   it('does not dispatch a verifier when the kill switch is on', () => {
     const engine: SupervisorEngine = {
       async run() {
@@ -715,5 +750,54 @@ describe('supervisor service', () => {
     const messages = service.history(seeded.workspaceId, 50).messages
     expect(messages.at(-1)?.content).toContain('建议通过')
     expect(messages.at(-1)?.content).toContain('等你最终确认')
+  })
+})
+
+describe('guardAcceptanceClaims', () => {
+  it('flags acceptance pass claims without tool evidence', () => {
+    const guarded = guardAcceptanceClaims('这个任务已验收通过，AC 全过。', [])
+    expect(guarded.flagged).toBe(true)
+    expect(guarded.text).toContain('验收清单为准')
+  })
+
+  it('accepts pass claims backed by a passing get_task result', () => {
+    const guarded = guardAcceptanceClaims('任务已通过。', [
+      {
+        name: 'get_task',
+        ok: true,
+        result: {
+          acceptance: {
+            verdict: 'pass',
+            counts: { total: 2, pass: 2, fail: 0, pending: 0, waived: 0 },
+          },
+        },
+      },
+    ])
+    expect(guarded.flagged).toBe(false)
+  })
+
+  it('rejects pass claims when the acceptance result still has failures', () => {
+    const guarded = guardAcceptanceClaims('任务已通过。', [
+      {
+        name: 'get_task',
+        ok: true,
+        result: {
+          acceptance: {
+            verdict: 'fail',
+            counts: { total: 2, pass: 1, fail: 1, pending: 0, waived: 0 },
+          },
+        },
+      },
+    ])
+    expect(guarded.flagged).toBe(true)
+  })
+
+  it('never allows budget raise or approval claims', () => {
+    const raised = guardAcceptanceClaims('已经提额到 $5。', [])
+    expect(raised.flagged).toBe(true)
+    expect(raised.text).toContain('没有提额工具')
+    const approved = guardAcceptanceClaims('老板已批准。', [])
+    expect(approved.flagged).toBe(true)
+    expect(approved.text).toContain('审批记录为准')
   })
 })

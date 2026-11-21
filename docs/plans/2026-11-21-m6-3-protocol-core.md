@@ -4,7 +4,7 @@ spec_topic: m6-3-acceptance-evidence
 task_count: 8
 estimated_phases: [tests, implementation, verification]
 dod: "protocol/core/migration 0012 全绿；AC/budget/report 纯函数与转移矩阵有测试；fake verifier 与 StartInput.maxBudgetUsd 可用"
-status: active
+status: completed
 depends_on: none
 ---
 
@@ -36,7 +36,7 @@ Seam: zod schema 解析 + 类型导出
 **Interfaces:**
 - Produces: `AcceptanceItemStatus`, `AcceptanceVerdict`, `AcceptanceContractStatus`, `AcceptanceRunStatus`, `AcceptanceContract`, `AcceptanceItem`, `AcceptanceRun`, `AcceptanceCounts`, `TaskAcceptanceSummary`, `TaskBudgetSummary`, `AcceptanceReportFacts`, `AcceptanceReport`; `WaitingReason` includes `'budget'`; `Task.budgetUsd`; `TaskSummary.acceptance/budget`.
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 // packages/protocol/test/acceptance.test.ts
@@ -80,12 +80,12 @@ it('task summary defaults acceptance/budget to null', () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `pnpm --filter @baton/protocol exec vitest run test/acceptance.test.ts`
 Expected: FAIL，`AcceptanceContract` 未导出。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 在 `entities/acceptance.ts` 定义：
 
@@ -125,19 +125,19 @@ export const AcceptanceCounts = z.object({
 
 `TaskAcceptanceSummary`、`TaskBudgetSummary`、`AcceptanceReportFacts`、`AcceptanceReport` 按 spec §7.1 定义；`AcceptanceReport = AcceptanceReportFacts.extend({ hash: z.string() })`。
 
-- [ ] **Step 4: 接入现有类型**
+- [x] **Step 4: 接入现有类型**
 
 - `enums.ts` 的 `WaitingReason` 加 `'budget'`。
 - `entities/task.ts` 的 `Task` 加 `budgetUsd: z.number().nonnegative().nullable().default(null)`。
 - `api.ts` 的 `TaskSummary` 加 `acceptance: TaskAcceptanceSummary.nullable().default(null)`、`budget: TaskBudgetSummary.nullable().default(null)`。
 - `entities/index.ts` 与 `index.ts` 导出新 schema。
 
-- [ ] **Step 5: 跑测试与 typecheck**
+- [x] **Step 5: 跑测试与 typecheck**
 
 Run: `pnpm --filter @baton/protocol exec vitest run test/acceptance.test.ts && pnpm --filter @baton/protocol typecheck`
 Expected: PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/protocol/src packages/protocol/test/acceptance.test.ts
@@ -159,7 +159,7 @@ Seam: `ClientMessage` / `ServerMessage` 解析
 **Interfaces:**
 - Produces: `AcceptanceUpdateInput`, `TaskSetBudgetInput`; `ContextInjectInput.requestId?`; `ReviewDecideInput.approve.overrideReason?`; `AcceptanceUpdatedEvent`; `TaskTransitionEvent` 增加 `budget_exceeded` / `budget_raise`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 it('parses acceptance.update and budget command', () => {
@@ -175,12 +175,12 @@ it('requires overrideReason on approve only when supplied', () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `pnpm --filter @baton/protocol exec vitest run test/acceptance-commands.test.ts`
 Expected: FAIL，命令未注册。
 
-- [ ] **Step 3: 实现命令**
+- [x] **Step 3: 实现命令**
 
 - `ContextInjectInput` 加 `requestId: z.string().min(1).max(100).optional()`。
 - `AcceptanceUpdateInput`：`{ taskId, contractId, expectedRevision, items: AcceptanceItemInput[] }`，`items` 允许 0-8，`text` 1-200，`evidence` 0-200。
@@ -189,17 +189,17 @@ Expected: FAIL，命令未注册。
 - `ReviewDecideInput` 的 approve 分支加 `overrideReason: z.string().max(2000).optional()`。
 - `ClientMessage` union 加 `acceptance.update`、`task.set_budget`。
 
-- [ ] **Step 4: 实现事件与转移类型**
+- [x] **Step 4: 实现事件与转移类型**
 
 - `events.ts` 新增 `AcceptanceUpdatedEvent`（type `acceptance.updated`，payload `{ taskId, contractId, version, revision, status, counts, verdict }`），加入 `ServerMessage`。
 - `transitions.ts` 的 `TaskTransitionEvent` 加 `{ type: 'budget_exceeded' }`、`{ type: 'budget_raise'; budgetUsd: number }`。
 
-- [ ] **Step 5: 跑测试与 typecheck**
+- [x] **Step 5: 跑测试与 typecheck**
 
 Run: `pnpm --filter @baton/protocol exec vitest run test/acceptance-commands.test.ts && pnpm --filter @baton/protocol typecheck`
 Expected: PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/protocol/src packages/protocol/test/acceptance-commands.test.ts
@@ -221,7 +221,7 @@ Seam: 纯函数输入/输出
 **Interfaces:**
 - Produces: `MAX_AC_ITEMS=8`, `MAX_AC_TEXT=200`, `MAX_AC_EVIDENCE=200`, `MAX_AC_TOTAL_CHARS=2000`; `acceptanceSummary(items)`; `validateAcceptanceUpdate({ items, expectedRevision, currentRevision })`; `cloneAcceptanceItems(items)`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 it('derives pass/fail/incomplete', () => {
@@ -240,24 +240,24 @@ it('rejects revision mismatch and over-limit', () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `pnpm --filter @baton/core exec vitest run test/acceptance-core.test.ts`
 Expected: FAIL，函数不存在。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - `acceptanceSummary`：统计计数；`fail>0` → fail；`pending>0 || total===0` → incomplete；否则 pass。
 - `validateAcceptanceUpdate`：条数 0-8、text 1-200、evidence 0-200、总文本 <=2000、状态枚举、revision 相等；错误返回 `{ ok:false, code, message, index? }`。
 - `cloneAcceptanceItems`：保留 text，status=`pending`，evidence=null，source=`verifier`，ordinal 重排。
 - `index.ts` 导出。
 
-- [ ] **Step 4: 跑测试**
+- [x] **Step 4: 跑测试**
 
 Run: `pnpm --filter @baton/core exec vitest run test/acceptance-core.test.ts`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/core/src/acceptance packages/core/test/acceptance-core.test.ts
@@ -279,7 +279,7 @@ Seam: 固定 input → 报告快照
 **Interfaces:**
 - Produces: `buildAcceptanceReport(input): { report: AcceptanceReportFacts; canonical: string }`；内部使用 `stableStringify`（`packages/core/src/policy/match.ts:9`）。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 it('builds a deterministic report without diff or transcript', () => {
@@ -293,12 +293,12 @@ it('builds a deterministic report without diff or transcript', () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `pnpm --filter @baton/core exec vitest run test/acceptance-report.test.ts`
 Expected: FAIL。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - 输入：`{ taskTitle, goal, review, contract, items, run, workerSessions, verifierSessions, budget, workspaceRoot }`。
 - 输出按 spec §7.1；`result` 取 `run.summary` 或 `review.preliminaryReason`，没有写“未生成”。
@@ -307,12 +307,12 @@ Expected: FAIL。
 - `canonical = stableStringify(report)`；不含 hash。
 - 不读 transcript；不调用 LLM。
 
-- [ ] **Step 4: 跑测试**
+- [x] **Step 4: 跑测试**
 
 Run: `pnpm --filter @baton/core exec vitest run test/acceptance-report.test.ts`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/core/src/acceptance/report.ts packages/core/test/acceptance-report.test.ts
@@ -334,7 +334,7 @@ Seam: 纯函数
 **Interfaces:**
 - Produces: `budgetState({ budgetUsd, workerCostUsd, verifierCostUsd, turns })` → `TaskBudgetSummary`；`canRaiseBudget({ status, waitingReason, spentUsd, nextBudgetUsd, maxBudgetUsd })`；`autoApprovalCapReached({ count, cap })`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 it('marks near/over budget', () => {
@@ -355,23 +355,23 @@ it('cap 0 disables auto approval', () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `pnpm --filter @baton/core exec vitest run test/budget-core.test.ts test/approval-cap.test.ts`
 Expected: FAIL。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - `budgetState` 的 `spentUsd` 只累计 worker；`verifierCostUsd` 单独返回；`nearBudget = ratio >= 0.8 && !over`。
 - `canRaiseBudget` 只在 `waiting_input(budget)` 允许恢复；`nextBudgetUsd > spentUsd` 且 `<= maxBudgetUsd`。
 - `autoApprovalCapReached`：`cap <= 0 || count >= cap`。
 
-- [ ] **Step 4: 跑测试**
+- [x] **Step 4: 跑测试**
 
 Run: `pnpm --filter @baton/core exec vitest run test/budget-core.test.ts test/approval-cap.test.ts`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/core/src/budget packages/core/src/automation/approval-cap.ts packages/core/test/budget-core.test.ts packages/core/test/approval-cap.test.ts
@@ -393,7 +393,7 @@ Seam: transition 矩阵
 **Interfaces:**
 - Produces: `budget_exceeded`（running/queued → waiting_input(budget)，running 时 effects 含 `interruptSession`）；`budget_raise`（waiting_input(budget) → queued）；`start` 守卫 `budget_exhausted`；`attentionFor` 把 budget 映射为 needs_approval；`canAcceptUserInput('budget')=false`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 it('stops a running task at budget', () => {
@@ -413,24 +413,24 @@ it('start refuses exhausted budget', () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `pnpm --filter @baton/core exec vitest run test/transition-budget.test.ts`
 Expected: FAIL。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - `types.ts` 的 `TransitionContext` 加 `budgetRemainingUsd?: number`。
 - `transition.ts` 在 `start` 分支前检查 `(ctx.budgetRemainingUsd ?? Infinity) <= 0`，返回 `budget_exhausted`。
 - 新增 `budget_exceeded` / `budget_raise` 分支；错误状态返回 `invalid_transition`。
 - `attention.ts` 的 `attentionFor` 把 `'budget'` 归入 `needs_approval`；`canAcceptUserInput` 对 `'budget'` 返回 false。
 
-- [ ] **Step 4: 跑测试**
+- [x] **Step 4: 跑测试**
 
 Run: `pnpm --filter @baton/core exec vitest run test/transition-budget.test.ts && pnpm --filter @baton/core test`
 Expected: PASS；既有 transition 矩阵不回归。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/core/src/state-machine packages/core/test/transition-budget.test.ts
@@ -454,7 +454,7 @@ Seam: fixture DB 0011 → 0012
 **Interfaces:**
 - Produces: `acceptanceContract`, `acceptanceItem`, `acceptanceRun` tables；`task.budgetUsd`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 it('upgrades 0011 to 0012 and keeps old tasks readable', () => {
@@ -471,26 +471,26 @@ it('upgrades 0011 to 0012 and keeps old tasks readable', () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/migration-0012.test.ts`
 Expected: FAIL，表/列不存在。
 
-- [ ] **Step 3: 改 schema**
+- [x] **Step 3: 改 schema**
 
 在 `schema.ts` 增加三张表（字段按 spec §4.1-4.3）与 `budgetUsd: real('budget_usd')`；索引/唯一约束按 spec。`acceptance_run.review_id` 参照 `review.id`，`uniqueIndex('acceptance_run_review_idx').on(t.reviewId)`。
 
-- [ ] **Step 4: 生成 migration**
+- [x] **Step 4: 生成 migration**
 
 Run: `pnpm --dir apps/daemon exec drizzle-kit generate --name m6_3_acceptance_evidence`
 Expected: 生成 `0012_m6_3_acceptance_evidence.sql` 与 meta；检查 SQL 只含 `CREATE TABLE` / `ALTER TABLE task ADD COLUMN budget_usd real`，无数据回填。
 
-- [ ] **Step 5: 跑测试**
+- [x] **Step 5: 跑测试**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/migration-0012.test.ts && pnpm --filter @evanfang0054/baton typecheck`
 Expected: PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/daemon/src/db/schema.ts apps/daemon/migrations apps/daemon/test/migration-0012.test.ts
@@ -513,7 +513,7 @@ Seam: fake adapter 脚本选择 + Claude transport 参数
 **Interfaces:**
 - Produces: `FakeOptions.verifierScript?: FakeStep[]`；`VERIFIER_PROMPT_MARKER='<verifier_task>'`；`StartInput.maxBudgetUsd`；Claude adapter 使用 `input.maxBudgetUsd ?? options.maxBudgetUsd`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 it('uses verifierScript when prompt has marker', async () => {
@@ -527,24 +527,24 @@ it('uses verifierScript when prompt has marker', async () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `pnpm --filter @baton/adapters exec vitest run test/fake.test.ts`
 Expected: FAIL。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - `FakeOptions` 加 `verifierScript`；`start(input)` 选择 `input.prompt.includes(VERIFIER_PROMPT_MARKER) ? verifierScript : script`。
 - `StartInput` 加 `maxBudgetUsd?: number`。
 - `ClaudeAdapter.start` 把 `maxBudgetUsd: input.maxBudgetUsd ?? this.options.maxBudgetUsd` 传给 transport。
 - 导出 `VERIFIER_PROMPT_MARKER` 供 daemon 用。
 
-- [ ] **Step 4: 跑测试与 typecheck**
+- [x] **Step 4: 跑测试与 typecheck**
 
 Run: `pnpm --filter @baton/adapters test && pnpm --filter @baton/adapters typecheck`
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/protocol/src/adapter.ts packages/adapters/src packages/adapters/test
@@ -555,7 +555,15 @@ git commit -m "feat(adapters): fake verifier 脚本与按 run 预算"
 
 ## 自检
 
-- [ ] Spec §4-§9 的 schema/纯函数/状态机均有对应 task。
-- [ ] 没有新增任务状态；只新增 `waitingReason='budget'`。
-- [ ] `pnpm --filter @baton/protocol test`、`pnpm --filter @baton/core test`、`pnpm --filter @baton/adapters test`、`pnpm --filter @evanfang0054/baton exec vitest run test/migration-0012.test.ts` 全绿。
-- [ ] 不触碰 daemon 业务/web；留给 Plan 2-5。
+- [x] Spec §4-§9 的 schema/纯函数/状态机均有对应 task。
+- [x] 没有新增任务状态；只新增 `waitingReason='budget'`。
+- [x] `pnpm --filter @baton/protocol test`、`pnpm --filter @baton/core test`、`pnpm --filter @baton/adapters test`、`pnpm --filter @evanfang0054/baton exec vitest run test/migration-0012.test.ts` 全绿。
+- [x] 不触碰 daemon 业务/web；留给 Plan 2-5。
+
+
+## 执行记录
+
+- 2026-11-21：Task 1-8 完成。
+- 提交：`358aafe` protocol 实体、`ac351fc` protocol 命令/事件、`ce04d64` core AC、`0414d30` core 报告、`7188f9a` core 预算/上限、`42894b0` core 转移、`9e45636` daemon migration 0012、`1c7c0ab` adapters fake verifier/预算、`e01ac25` web fixture、`550a58a` 格式化。
+- 验证：protocol 151、core 198、adapters 31、daemon 338 tests 全绿；`pnpm typecheck` 全绿；`pnpm verify` 退出码 0（typecheck + lint + format + boundaries + protocol + tests + build）。
+- 偏差：`runtime/index.ts` 的 `task.set_budget` / `acceptance.update` 先返回 `unsupported_command` 兜底，Plan 2/3 替换为真实服务；迁移表数从 16 → 19，`migrate.test.ts` 已同步。

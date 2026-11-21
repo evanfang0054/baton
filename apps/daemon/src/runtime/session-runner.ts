@@ -1,4 +1,4 @@
-import { evaluateApproval } from '@baton/core'
+import { autoApprovalCapReached, evaluateApproval } from '@baton/core'
 import {
   APPROVAL_REQUEST_EVENT,
   ApprovalRequestValue,
@@ -14,7 +14,10 @@ import {
   type TaskTransitionEvent,
 } from '@baton/protocol'
 import type { BroadcastEvent, EventStore } from '../db/event-store.js'
+import { getTaskBudgetState } from '../budget/service.js'
+import { formatBudgetResume, pendingBudgetResume } from './budget-command.js'
 import {
+  countAutoApprovals,
   getApproval,
   getTask,
   getTaskDetail,
@@ -44,6 +47,10 @@ const VERIFIER_SAFE_RUN = /^(node\s+(--version|-v)|pnpm\s+(test|lint|typecheck|b
 // 这些参数能把“只读”命令变成写文件或执行子进程。
 const VERIFIER_DENY_FLAGS =
   /(^|\s)(--output|--ext-diff|--pre)(=|\s|$)|(^|\s)-(delete|exec|execdir|ok|okdir|fprint0?|fls)(\s|$)/
+
+function isBudgetError(message: string): boolean {
+  return /budget|maxBudget|cost limit|USD budget/i.test(message)
+}
 
 /**
  * 验收员只应读；总管全权不能让它获得任意 Bash。
@@ -76,6 +83,7 @@ export function isReadOnlyVerifierRequest(request: { toolName: string; input: un
 export interface SessionRunnerDeps {
   db: Db
   dataDir: string
+  claudeMaxBudgetUsd: number
   adapters: AdapterFactory
   eventStore: EventStore
   broadcast: (event: BroadcastEvent) => void
@@ -148,11 +156,11 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     const task = getTask(deps.db, active.taskId)
     const workspace = task ? getWorkspace(deps.db, task.workspaceId) : null
     const taskDetail = task ? getTaskDetail(deps.db, task.id) : null
-    // 总管派发的任务（含它派出的验收员）才可能获得 workspace 的委派授权；人工任务永远走人工闸门。
+    // 验收员是系统任务，只读请求不依赖 workspace 委派授权；deny 与逃逸检查仍然优先。
     const originSource = taskDetail?.task.origin?.source
-    const delegatedAuthority =
-      originSource === 'supervisor-chat' ||
-      (originSource === 'supervisor-review' && isReadOnlyVerifierRequest(request))
+    const verifierReadOnly =
+      originSource === 'supervisor-review' && isReadOnlyVerifierRequest(request)
+    const delegatedAuthority = originSource === 'supervisor-chat' || verifierReadOnly
     // 结构化提问不能被策略自动放行：没有答案的 allow 会让 SDK 停在 pending。
     // 先跑策略，保证 deny 永远优先；symlink 逃逸只能把 allow/ask 降级为人工确认。
     const evaluated =
@@ -178,28 +186,60 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
               autoApproved: false,
               reason: 'write escapes workspace via symlink',
             }
-          : evaluated
+          : verifierReadOnly && evaluated.decision !== 'deny'
+            ? {
+                ...evaluated,
+                decision: 'allow' as const,
+                autoApproved: true,
+                reason: 'verifier read-only verification',
+              }
+            : evaluated
     if (decision !== null && (decision.decision === 'allow' || decision.decision === 'deny')) {
       const autoDecision = decision.decision
-      // 决策与审计必须同事务提交，否则崩溃窗口会出现“已放行但无审计”。
-      deps.db.transaction((tx) => {
-        updateApprovalDecision(tx, approvalId, autoDecision, 'auto', deps.now())
-        insertAudit(tx, {
-          id: deps.newId(),
-          ts: deps.now(),
-          actor: 'auto',
-          action: autoDecision === 'allow' ? 'approval.auto_allow' : 'approval.auto_deny',
-          detail: {
-            approvalId,
-            taskId: active.taskId,
-            risk: decision.risk,
-            matchedRule: decision.matchedRule,
-            policyVersion: hashPolicy(policy),
-          },
+      const autoCount = autoDecision === 'allow' ? countAutoApprovals(deps.db, active.taskId) : 0
+      if (
+        autoDecision === 'allow' &&
+        autoApprovalCapReached({
+          count: autoCount,
+          cap: policy.autopilot.maxAutoApprovalsPerTask,
         })
-      })
-      await active.run.approve(requestId, autoDecision)
-      return
+      ) {
+        // 到达上限后不再自动放行，转人工审批；deny 仍然优先且不受上限影响。
+        deps.db.transaction((tx) =>
+          insertAudit(tx, {
+            id: deps.newId(),
+            ts: deps.now(),
+            actor: 'auto',
+            action: 'approval.cap_reached',
+            detail: {
+              taskId: active.taskId,
+              approvalId,
+              count: autoCount,
+              cap: policy.autopilot.maxAutoApprovalsPerTask,
+            },
+          }),
+        )
+      } else {
+        // 决策与审计必须同事务提交，否则崩溃窗口会出现“已放行但无审计”。
+        deps.db.transaction((tx) => {
+          updateApprovalDecision(tx, approvalId, autoDecision, 'auto', deps.now())
+          insertAudit(tx, {
+            id: deps.newId(),
+            ts: deps.now(),
+            actor: 'auto',
+            action: autoDecision === 'allow' ? 'approval.auto_allow' : 'approval.auto_deny',
+            detail: {
+              approvalId,
+              taskId: active.taskId,
+              risk: decision.risk,
+              matchedRule: decision.matchedRule,
+              policyVersion: hashPolicy(policy),
+            },
+          })
+        })
+        await active.run.approve(requestId, autoDecision)
+        return
+      }
     }
 
     active.requestIdByApprovalId.set(approvalId, requestId)
@@ -265,6 +305,17 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
                 ...(parsed.data.turns !== undefined ? { turns: parsed.data.turns } : {}),
               }),
             )
+            const budget = getTaskBudgetState(deps.db, active.taskId, {
+              claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
+            })
+            if (budget?.overBudget) {
+              const current = getTask(deps.db, active.taskId)
+              if (current?.status === 'running') {
+                deps.applyTransition(active.taskId, { type: 'budget_exceeded' })
+                await active.run.interrupt().catch(() => {})
+                break
+              }
+            }
           }
         } else if (event.type === EventType.CUSTOM && event.name === APPROVAL_REQUEST_EVENT) {
           await handleApproval(active, policy, event.value)
@@ -323,11 +374,14 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
           break
         } else if (event.type === EventType.RUN_ERROR) {
           finished = true
-          deps.applyTransition(active.taskId, {
-            type: 'error',
-            message: event.message ?? 'run failed',
-          })
-          endSession(active.sessionId, 'failed')
+          const message = event.message ?? 'run failed'
+          if (isBudgetError(message)) {
+            deps.applyTransition(active.taskId, { type: 'budget_exceeded' })
+            endSession(active.sessionId, 'ended')
+          } else {
+            deps.applyTransition(active.taskId, { type: 'error', message })
+            endSession(active.sessionId, 'failed')
+          }
           break
         }
       }
@@ -345,24 +399,34 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
             outcome.ok ? 'unreported' : null,
           )
         } else if (current?.status === 'waiting_input') {
-          deps.applyTransition(active.taskId, {
-            type: 'error',
-            message: 'adapter stream ended while waiting for input',
-          })
-          endSession(active.sessionId, 'failed')
+          // 预算耗尽是我们主动停下的，不是适配器异常退出。
+          if (current.waitingReason === 'budget') {
+            endSession(active.sessionId, 'ended')
+          } else {
+            deps.applyTransition(active.taskId, {
+              type: 'error',
+              message: 'adapter stream ended while waiting for input',
+            })
+            endSession(active.sessionId, 'failed')
+          }
         } else if (current?.status === 'cancelled') {
           endSession(active.sessionId, 'ended')
         }
       }
     } catch (error) {
-      const current = getTask(deps.db, active.taskId)
-      if (current && (current.status === 'running' || current.status === 'waiting_input')) {
-        deps.applyTransition(active.taskId, {
-          type: 'error',
-          message: toAppError(error).message,
-        })
+      try {
+        const current = getTask(deps.db, active.taskId)
+        const message = toAppError(error).message
+        if (current && (current.status === 'running' || current.status === 'waiting_input')) {
+          deps.applyTransition(
+            active.taskId,
+            isBudgetError(message) ? { type: 'budget_exceeded' } : { type: 'error', message },
+          )
+        }
+        endSession(active.sessionId, isBudgetError(message) ? 'ended' : 'failed')
+      } catch {
+        // daemon 关闭时 DB 可能已关闭；此时不再写状态，避免卸载阶段产生未处理拒绝。
       }
-      endSession(active.sessionId, 'failed')
     } finally {
       activeRuns.delete(active.sessionId)
       await active.run.dispose().catch(() => {})
@@ -374,6 +438,17 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     if (!task) {
       return
     }
+
+    const budget = getTaskBudgetState(deps.db, task.id, {
+      claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
+    })
+    if (budget?.overBudget) {
+      const outcome = deps.applyTransition(task.id, { type: 'budget_exceeded' })
+      endSession(input.sessionId, outcome.ok ? 'ended' : 'failed')
+      return
+    }
+    const resumeNote = pendingBudgetResume(deps.db, task.id)
+    const prompt = resumeNote ? `${task.prompt}\n\n${formatBudgetResume(resumeNote)}` : task.prompt
 
     let workspacePath = input.workspacePath
     if (task.workspaceMode === 'worktree') {
@@ -419,16 +494,28 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     try {
       const adapter = await deps.adapters(task.engine)
       run = await adapter.start({
-        prompt: task.prompt,
+        prompt,
         cwd: workspacePath,
         permissionMode: 'manual',
         policy: input.policy,
         workspaceTrust: input.workspaceTrust,
         bypassPermissions: input.bypassPermissions,
+        ...(budget ? { maxBudgetUsd: budget.remainingUsd } : {}),
       })
     } catch (error) {
       failTask(task.id, input.sessionId, error)
       return
+    }
+    if (resumeNote) {
+      deps.db.transaction((tx) =>
+        insertAudit(tx, {
+          id: deps.newId(),
+          ts: deps.now(),
+          actor: 'system',
+          action: 'task.budget.resume',
+          detail: { taskId: task.id, ...resumeNote },
+        }),
+      )
     }
 
     const active: ActiveRun = {

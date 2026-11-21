@@ -52,7 +52,19 @@ describe('ReviewCard', () => {
     const send = vi.fn().mockResolvedValue(undefined)
     render(
       <CommandProvider send={send}>
-        <ReviewCard review={review} onDone={vi.fn()} />
+        <ReviewCard
+          review={review}
+          acceptance={{
+            contractId: 'ac1',
+            version: 1,
+            revision: 0,
+            status: 'draft',
+            counts: { total: 1, pass: 1, fail: 0, pending: 0, waived: 0 },
+            verdict: 'pass',
+            topFailures: [],
+          }}
+          onDone={vi.fn()}
+        />
       </CommandProvider>,
     )
     fireEvent.click(screen.getByRole('button', { name: '通过' }))
@@ -78,13 +90,13 @@ describe('ReviewCard', () => {
     expect(screen.getByText('本次 $0.42 · 3 turns')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '通过' }))
     expect(send).not.toHaveBeenCalled()
-    expect(screen.getByText('校验未通过，仍要通过吗？')).toBeInTheDocument()
+    expect(screen.getByText('仍有验收项未通过，仍要通过吗？')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('通过理由'), { target: { value: '已知问题，先合' } })
     fireEvent.click(screen.getByRole('button', { name: '确认通过' }))
     await waitFor(() =>
       expect(send).toHaveBeenCalledWith({
         type: 'review.decide',
-        payload: { reviewId: 'r1', decision: 'approve', reason: '已知问题，先合' },
+        payload: { reviewId: 'r1', decision: 'approve', overrideReason: '已知问题，先合' },
       }),
     )
   })

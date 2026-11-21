@@ -111,6 +111,7 @@ describe('session runner approval failures', () => {
     const runner = createSessionRunner({
       db: database.db,
       dataDir: process.cwd(),
+      claudeMaxBudgetUsd: 2,
       adapters: createAdapterFactory({ fake: approvalAdapter(approvals) }),
       eventStore,
       broadcast: () => {},
@@ -149,6 +150,72 @@ describe('session runner approval failures', () => {
     database.raw.close()
   })
 
+  it('auto-allows read-only verifier commands without workspace delegated authority', async () => {
+    const database = createTestDb()
+    const seeded = seedTask(database.raw)
+    database.raw.prepare('update task set origin_json = ? where id = ?').run(
+      JSON.stringify({
+        source: 'supervisor-review',
+        triggerId: 'trigger-1',
+        threadId: 'thread-1',
+        actor: { id: 'local-user', kind: 'system', source: 'supervisor-review' },
+        workspaceId: seeded.workspaceId,
+        targetNodeId: seeded.nodeId,
+        contextNodeIds: [],
+        policyVersion: 'p1',
+        promptVersion: 'v1',
+        reviewOfTaskId: 'target-task',
+        reviewOfReviewId: 'target-review',
+        createdAt: 1,
+      }),
+      seeded.taskId,
+    )
+    const approvals: Array<{ requestId: string; decision: string }> = []
+    const transitions: string[] = []
+    let id = 0
+    const eventStore = createEventStore(database.db, {
+      now: () => 1,
+      newId: () => `event-${++id}`,
+    })
+    const runner = createSessionRunner({
+      db: database.db,
+      dataDir: process.cwd(),
+      claudeMaxBudgetUsd: 2,
+      adapters: createAdapterFactory({ fake: approvalAdapter(approvals) }),
+      eventStore,
+      broadcast: () => {},
+      killSwitch: () => false,
+      applyTransition: (_taskId, event): TransitionOutcome => {
+        transitions.push(event.type)
+        return {
+          ok: true,
+          taskId: seeded.taskId,
+          status: 'running',
+          previousStatus: 'running',
+          retryCount: 0,
+          waitingReason: null,
+          events: [],
+        }
+      },
+      now: () => 1,
+      newId: () => `id-${++id}`,
+    })
+
+    await runner.start({
+      taskId: seeded.taskId,
+      sessionId: seeded.sessionId!,
+      workspacePath: '.',
+      policy: PolicySchema.parse({}),
+      workspaceTrust: { projectSettings: false, projectHooks: false },
+      bypassPermissions: false,
+    })
+    await runner.close()
+
+    expect(approvals).toEqual([{ requestId: 'req-1', decision: 'allow' }])
+    expect(transitions).not.toContain('approval_requested')
+    database.raw.close()
+  })
+
   it('dispatches stored question answers through answerQuestion', async () => {
     const database = createTestDb()
     const seeded = seedTask(database.raw)
@@ -165,6 +232,7 @@ describe('session runner approval failures', () => {
     const runner = createSessionRunner({
       db: database.db,
       dataDir: process.cwd(),
+      claudeMaxBudgetUsd: 2,
       adapters: createAdapterFactory({ fake: questionAdapter(replies) }),
       eventStore,
       broadcast: () => {},
@@ -239,6 +307,7 @@ describe('session runner approval failures', () => {
     const runner = createSessionRunner({
       db: database.db,
       dataDir: process.cwd(),
+      claudeMaxBudgetUsd: 2,
       adapters: createAdapterFactory({ fake: questionAdapter(replies, denials) }),
       eventStore,
       broadcast: () => {},

@@ -1,12 +1,29 @@
 import { expect, test } from '@playwright/test'
-import { agentNode, mockWorkspace, sceneDetail, task } from './m6-helpers'
+import {
+  acceptanceBundle,
+  acceptanceSummary,
+  agentNode,
+  mockWorkspace,
+  sceneDetail,
+  task,
+} from './m6-helpers'
 
 test('needs me filter, stale and review card', async ({ page }) => {
   const commands: Array<{ type?: string }> = []
+  const passSummary = acceptanceSummary({
+    counts: { total: 1, pass: 1, fail: 0, pending: 0, waived: 0 },
+    verdict: 'pass',
+    topFailures: [],
+  })
   const state = await mockWorkspace(page, {
     nodes: [agentNode('a1', 80, 80)],
     tasks: [
-      task({ id: 't1', nodeId: 'a1', title: '待验收任务' }),
+      task({
+        id: 't1',
+        nodeId: 'a1',
+        title: '待验收任务',
+        acceptance: passSummary,
+      }),
       task({
         id: 't2',
         nodeId: null,
@@ -18,6 +35,7 @@ test('needs me filter, stale and review card', async ({ page }) => {
     ],
     taskDetail: sceneDetail(),
     reviewDetail: { preliminaryVerdict: 'pass', preliminaryReason: 'VERDICT: PASS' },
+    acceptance: acceptanceBundle({ acceptance: passSummary }),
   })
 
   await page.routeWebSocket('**/ws', (ws) => {

@@ -1,4 +1,9 @@
-import { buildTaskOrigin, SUPERVISOR_POLICY, supervisorPolicyVersion } from '@baton/core'
+import {
+  acceptanceSummary,
+  buildTaskOrigin,
+  SUPERVISOR_POLICY,
+  supervisorPolicyVersion,
+} from '@baton/core'
 import {
   Node,
   SupervisorTaskCard,
@@ -10,6 +15,7 @@ import {
   type SupervisorMessagesResponse,
   type SupervisorSendInput,
   type SupervisorStatusResponse,
+  type Task,
   type TaskDetail,
   type TaskOrigin,
   type TaskTransitionEvent,
@@ -33,6 +39,11 @@ import {
   setReviewPreliminary,
   updateTaskWorktreePath,
 } from '../db/repositories.js'
+import {
+  getAcceptanceBundle,
+  replaceAcceptanceItems,
+  updateAcceptanceRun,
+} from '../db/acceptance-repository.js'
 import type { Db } from '../db/types.js'
 import type { EventStore } from '../db/event-store.js'
 import { appError, isAppError } from '../errors.js'
@@ -44,6 +55,7 @@ import { canvasOverviewXml, nodeTitle } from './canvas-summary.js'
 import { loadSupervisorConfig, type SupervisorConfig } from './config.js'
 import { createAiSdkSupervisorEngine, type SupervisorEngine } from './engine.js'
 import { buildVerifierPrompt, parseVerdict } from './observe.js'
+import { parseAcceptanceReport, type ParsedAcceptanceReport } from './acceptance-parse.js'
 import { PROMPT_VERSION, REPORT_PROMPT, SUPERVISOR_PROMPT } from './prompt.js'
 import { createSupervisorStore } from './store.js'
 import { xmlEscape } from './xml.js'
@@ -79,6 +91,8 @@ export interface SupervisorServiceDeps {
     | { ok: false; error: AppError }
   cancelTask: (taskId: string, reason?: string) => TransitionOutcome
   workspacesRoot: string
+  claudeMaxBudgetUsd: number
+  verifierBudgetUsd: number
   killSwitch: () => boolean
   engine?: SupervisorEngine
   now: () => number
@@ -149,11 +163,62 @@ ${agents}
 <policy_version>${xmlEscape(input.policyVersion)}</policy_version>`
 }
 
+export interface SupervisorToolClaim {
+  name: string
+  ok: boolean
+  result?: unknown
+}
+
+/**
+ * 验收/预算/审批类结论只能来自工具事实；否则追加免责声明。
+ * 这里只处理读证据能覆盖的断言，写操作断言仍由调用点的工具结果检查兜底。
+ */
+export function guardAcceptanceClaims(
+  text: string,
+  toolCalls: ReadonlyArray<SupervisorToolClaim>,
+): { text: string; flagged: boolean } {
+  let next = text
+  let flagged = false
+  const acceptancePass = toolCalls.some((call) => {
+    if (!call.ok || call.name !== 'get_task') return false
+    const acceptance = (
+      call.result as
+        | { acceptance?: { verdict?: string; counts?: { fail?: number; pending?: number } } }
+        | undefined
+    )?.acceptance
+    return (
+      acceptance?.verdict === 'pass' &&
+      (acceptance.counts?.fail ?? 0) === 0 &&
+      (acceptance.counts?.pending ?? 0) === 0
+    )
+  })
+  if (/已(经)?(验收)?通过|AC(清单)?(全|都)过/.test(text) && !acceptancePass) {
+    next += '\n\n（我没有验收通过的工具结果；请以任务详情里的验收清单为准。）'
+    flagged = true
+  }
+  if (/已(经)?(提额|提高预算|增加预算)/.test(text)) {
+    next += '\n\n（我没有提额工具，不能替你改预算；请在任务详情里操作。）'
+    flagged = true
+  }
+  const approvedFact = toolCalls.some(
+    (call) =>
+      call.ok &&
+      call.name === 'get_task' &&
+      (call.result as { task?: { status?: string } } | undefined)?.task?.status === 'done',
+  )
+  if (/已(经)?批准/.test(text) && !approvedFact) {
+    next += '\n\n（我没有审批通过的工具结果；请以任务详情/审批记录为准。）'
+    flagged = true
+  }
+  return { text: next, flagged }
+}
+
 export function createSupervisorService(deps: SupervisorServiceDeps) {
   const store = createSupervisorStore({ db: deps.db, now: deps.now, newId: deps.newId })
   const tools = createSupervisorTools({
     db: deps.db,
     workspacesRoot: deps.workspacesRoot,
+    claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
     taskService: deps.taskService,
     now: deps.now,
     newId: deps.newId,
@@ -321,24 +386,62 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
    * 总管不亲自验收：为这一轮 review 派一个新的验收 Agent 任务。
    * 验收员只拿任务元数据、verify/diff 摘要和工人最后回复，不拿完整 transcript。
    */
-  function dispatchVerifier(task: TaskDetail, origin: TaskOrigin, review: Review): void {
+  function failAcceptanceRun(taskId: string, reviewId: string, summary: string): void {
+    const bundle = getAcceptanceBundle(deps.db, taskId)
+    if (!bundle?.run || bundle.run.reviewId !== reviewId || bundle.run.status !== 'running') return
+    const runId = bundle.run.id
+    const at = deps.now()
+    const event = deps.db.transaction((tx) => {
+      updateAcceptanceRun(tx, runId, {
+        status: 'failed',
+        verdict: 'incomplete',
+        summary: summary.slice(0, 1000),
+        completedAt: at,
+      })
+      const after = getAcceptanceBundle(tx, taskId)
+      if (!after) return null
+      const { counts, verdict } = acceptanceSummary(after.items)
+      return deps.eventStore.appendWs(tx, {
+        type: 'acceptance.updated',
+        ts: at,
+        payload: {
+          taskId,
+          contractId: after.contract.id,
+          version: after.contract.version,
+          revision: after.contract.revision,
+          status: after.contract.status,
+          counts,
+          verdict,
+        },
+      })
+    })
+    if (event) deps.broadcastRaw?.(buildWsFrame(event))
+  }
+
+  /**
+   * 总管不亲自验收：为这一轮 review 派一个新的验收 Agent 任务。
+   * 验收员只拿任务元数据、verify/diff 摘要和工人最后回复，不拿完整 transcript。
+   * 人工创建的任务没有总管会话，只写审计和验收结果，不推站内消息。
+   */
+  function dispatchVerifier(task: TaskDetail, origin: TaskOrigin | null, review: Review): void {
+    const threadId = origin?.threadId ?? null
     const dedupeKey = `observe:dispatch:${task.id}:${review.id}`
-    if (store.hasNotification(origin.threadId, dedupeKey)) return
+    if (threadId && store.hasNotification(threadId, dedupeKey)) return
+    const notifyOrigin = (key: string, content: string) => {
+      if (threadId) notify(threadId, key, content)
+    }
     if (deps.killSwitch()) {
-      notify(
-        origin.threadId,
-        dedupeKey,
-        `自动化已暂停。任务「${task.title}」仍在待验收，等你决定。`,
-      )
+      notifyOrigin(dedupeKey, `自动化已暂停。任务「${task.title}」仍在待验收，等你决定。`)
+      failAcceptanceRun(task.id, review.id, '自动化已暂停，未派验收员')
       return
     }
     const isolated = task.workspaceMode === 'worktree'
     if (isolated && !task.worktreePath) {
-      notify(
-        origin.threadId,
+      notifyOrigin(
         `observe:review:${task.id}:${review.id}`,
         `任务「${task.title}」进入待验收，但 worktree 路径缺失，无法派验收员；需要你确认。`,
       )
+      failAcceptanceRun(task.id, review.id, 'worktree 路径缺失，无法派验收员')
       return
     }
 
@@ -346,13 +449,13 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     try {
       agent = createVerifierAgent(task)
     } catch (error) {
-      notify(
-        origin.threadId,
+      notifyOrigin(
         `observe:review:${task.id}:${review.id}`,
         `任务「${task.title}」进入待验收，但验收员 Agent 创建失败：${
           error instanceof Error ? error.message : '未知错误'
-        }。`,
+        }。需要你确认。`,
       )
+      failAcceptanceRun(task.id, review.id, '验收员 Agent 创建失败')
       return
     }
 
@@ -377,12 +480,13 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         engine: deps.defaultEngine,
         workspaceMode: task.workspaceMode,
         dangerouslySkipPermissions: false,
+        budgetUsd: deps.verifierBudgetUsd,
       },
       {
         origin: buildTaskOrigin({
           source: 'supervisor-review',
-          triggerId: origin.triggerId,
-          threadId: origin.threadId,
+          triggerId: origin?.triggerId ?? `manual-review:${review.id}`,
+          threadId: origin?.threadId ?? `manual-review:${review.id}`,
           workspaceId: task.workspaceId,
           targetNodeId: agent.id,
           contextNodeIds: [],
@@ -406,11 +510,11 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       },
     )
     if (!created.ok) {
-      notify(
-        origin.threadId,
+      notifyOrigin(
         `observe:review:${task.id}:${review.id}`,
         `任务「${task.title}」进入待验收，但验收任务创建失败：${created.error.message}。`,
       )
+      failAcceptanceRun(task.id, review.id, `验收任务创建失败：${created.error.message}`)
       return
     }
 
@@ -427,8 +531,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
 
     const enqueued = deps.enqueueTask(created.taskId)
     const startNote = enqueued.ok ? '验收员已开工。' : `验收员开工失败：${enqueued.error.message}。`
-    notify(
-      origin.threadId,
+    notifyOrigin(
       dedupeKey,
       `任务「${task.title}」进入待验收。\n` +
         `verify 退出码：${review.verifyExitCode ?? '未执行'}；diff：${diffText(review)}。\n` +
@@ -448,7 +551,8 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     const session = listSessionsByTask(deps.db, task.id).at(-1)
     const output = session ? getAssistantTranscriptText(deps.db, session.id) : ''
     const outcomeReason = session ? getSessionOutcomeReason(deps.db, session.id) : null
-    const parsed = parseVerdict(output, outcomeReason)
+    const acceptance = parseAcceptanceReport(output)
+    const parsed = withAcceptanceVerdict(parseVerdict(output, outcomeReason), acceptance)
 
     // 验收员任务本身不需要人再验收；它的产出就是结论。
     const closed = deps.applyTransition(task.id, {
@@ -461,7 +565,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         'failed to close verifier task',
       )
     }
-    concludeVerifier(task, parsed, origin)
+    concludeVerifier(task, parsed, origin, acceptance)
   }
 
   /**
@@ -474,8 +578,16 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     const session = listSessionsByTask(deps.db, task.id).at(-1)
     const output = session ? getAssistantTranscriptText(deps.db, session.id) : ''
     const outcomeReason = session ? getSessionOutcomeReason(deps.db, session.id) : null
-    const parsed = parseVerdict(output, outcomeReason)
+    const acceptance = parseAcceptanceReport(output)
+    const parsed = withAcceptanceVerdict(parseVerdict(output, outcomeReason), acceptance)
     if (parsed.verdict === 'unknown') {
+      if (origin.reviewOfTaskId && origin.reviewOfReviewId) {
+        failAcceptanceRun(
+          origin.reviewOfTaskId,
+          origin.reviewOfReviewId,
+          `验收员未给出结论：${fallbackReason}`,
+        )
+      }
       notify(
         origin.threadId,
         `observe:verifier:${task.id}:waiting:${task.updatedAt}`,
@@ -494,13 +606,101 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         'failed to close stalled verifier task',
       )
     }
-    concludeVerifier(task, parsed, origin)
+    concludeVerifier(task, parsed, origin, acceptance)
+  }
+
+  function withAcceptanceVerdict(
+    parsed: ReturnType<typeof parseVerdict>,
+    acceptance: ParsedAcceptanceReport | null,
+  ): ReturnType<typeof parseVerdict> {
+    if (parsed.verdict !== 'unknown' || !acceptance) return parsed
+    const verdict =
+      acceptance.verdict === 'pass' ? 'pass' : acceptance.verdict === 'fail' ? 'fail' : 'unknown'
+    return { ...parsed, verdict }
+  }
+
+  function recordAcceptance(input: {
+    target: Task
+    verifierTaskId: string
+    reviewId: string
+    parsed: ReturnType<typeof parseVerdict>
+    acceptance: ParsedAcceptanceReport | null
+  }): void {
+    const bundle = getAcceptanceBundle(deps.db, input.target.id)
+    if (!bundle?.run || bundle.run.reviewId !== input.reviewId) return
+    const runId = bundle.run.id
+    const at = deps.now()
+    const event = deps.db.transaction((tx) => {
+      if (!input.acceptance) {
+        updateAcceptanceRun(tx, runId, {
+          status: 'failed',
+          verdict: 'incomplete',
+          summary: '验收员输出无法解析',
+          verifierTaskId: input.verifierTaskId,
+          completedAt: at,
+        })
+      } else {
+        if (bundle.contract.revision === 0) {
+          const items = input.acceptance.items.map((item, index) => ({
+            id: deps.newId(),
+            contractId: bundle.contract.id,
+            ordinal: index + 1,
+            text: item.text,
+            status: item.status,
+            evidence: item.evidence,
+            source: 'verifier' as const,
+            updatedAt: at,
+          }))
+          const replaced = replaceAcceptanceItems(tx, {
+            contractId: bundle.contract.id,
+            expectedRevision: 0,
+            items,
+          })
+          if (!replaced.ok) {
+            deps.logger?.warn(
+              {
+                event: 'supervisor.acceptance.replace_failed',
+                taskId: input.target.id,
+                code: replaced.code,
+              },
+              'failed to replace acceptance items',
+            )
+          }
+        }
+        updateAcceptanceRun(tx, runId, {
+          status: 'complete',
+          verdict: input.acceptance.verdict,
+          summary: input.acceptance.summary || input.parsed.reason,
+          verifierTaskId: input.verifierTaskId,
+          completedAt: at,
+        })
+      }
+
+      const after = getAcceptanceBundle(tx, input.target.id)
+      if (!after) return null
+      const { counts, verdict } = acceptanceSummary(after.items)
+      return deps.eventStore.appendWs(tx, {
+        type: 'acceptance.updated',
+        ts: at,
+        payload: {
+          taskId: input.target.id,
+          contractId: after.contract.id,
+          version: after.contract.version,
+          revision: after.contract.revision,
+          status: after.contract.status,
+          counts,
+          verdict,
+        },
+      })
+    })
+    if (event) deps.broadcastRaw?.(buildWsFrame(event))
   }
 
   function concludeVerifier(
     task: TaskDetail,
     parsed: ReturnType<typeof parseVerdict>,
     origin: TaskOrigin,
+    acceptance: ParsedAcceptanceReport | null = null,
   ): void {
     const threadId = origin.threadId
     const targetTaskId = origin.reviewOfTaskId
@@ -530,6 +730,14 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       )
       return
     }
+
+    recordAcceptance({
+      target,
+      verifierTaskId: task.id,
+      reviewId,
+      parsed,
+      acceptance,
+    })
 
     const preliminaryAt = deps.now()
     const preliminaryEvent = deps.db.transaction((tx) => {
@@ -633,14 +841,17 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     const detail = getTaskDetail(deps.db, input.taskId)
     const task = detail?.task
     const origin = task?.origin
-    if (!task || !origin) return
+    if (!task) return
 
-    if (origin.source === 'supervisor-review') {
+    if (origin?.source === 'supervisor-review') {
       if (input.status === 'review') {
         finishVerifier(task)
         return
       }
       if (input.status === 'failed') {
+        if (origin.reviewOfTaskId && origin.reviewOfReviewId) {
+          failAcceptanceRun(origin.reviewOfTaskId, origin.reviewOfReviewId, '验收员任务执行失败')
+        }
         notify(
           origin.threadId,
           `observe:verifier:${task.id}:failed:${task.updatedAt}`,
@@ -654,15 +865,15 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       return
     }
 
-    if (origin.source !== 'supervisor-chat') return
-
+    // 人工任务没有总管会话，也必须有验收证据；验收结果直接落任务详情。
     if (input.status === 'review') {
       const review = getReviewByTask(deps.db, task.id)
       if (!review) return
-      // 验收员只做初步检查；最终通过仍由人决定。
-      dispatchVerifier(task, origin, review)
+      dispatchVerifier(task, origin ?? null, review)
       return
     }
+
+    if (!origin || origin.source !== 'supervisor-chat') return
 
     if (input.status === 'failed') {
       notify(
@@ -896,8 +1107,13 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         text += '\n\n（我没有创建任务；请明确说要做什么，我再建任务。）'
         reason = 'claim_without_tool'
       }
-      if (/已完成|已通过/.test(text) && !result.toolCalls.some((call) => call.ok)) {
+      if (/已完成/.test(text) && !result.toolCalls.some((call) => call.ok)) {
         text += '\n\n（我没有工具结果证明完成；请以看板/任务详情状态为准。）'
+        reason = 'claim_without_tool'
+      }
+      const guarded = guardAcceptanceClaims(text, result.toolCalls)
+      if (guarded.flagged) {
+        text = guarded.text
         reason = 'claim_without_tool'
       }
       const hasAfterSales = result.toolCalls.some(

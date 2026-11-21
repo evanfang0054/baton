@@ -134,6 +134,7 @@
 - [M5-3 上下文交接验收](evidence/2026-11-21-m5-3-context-handoff/README.md)
 - [M6-1 任务现场验收](evidence/2026-11-21-m6-task-scene/README.md)
 - [M6-2 上下文再注入验收](evidence/2026-11-21-m6-2-context-injection/README.md)
+- [M6-3 验收证据真实链路](evidence/2026-11-21-m6-3-acceptance/README.md)
 
 ## 约定
 

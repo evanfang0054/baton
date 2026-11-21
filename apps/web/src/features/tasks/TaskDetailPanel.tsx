@@ -2,16 +2,21 @@ import type {
   CanvasResponse,
   SessionEventRecord,
   SessionEventsResponse,
+  TaskAcceptanceResponse,
+  TaskAcceptanceSummary,
   TaskDetailResponse,
 } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState, type ReactNode } from 'react'
-import { getTask, listSessionEvents } from '../../lib/api'
+import { ApiError, getTaskAcceptance, getTask, listSessionEvents } from '../../lib/api'
 import { queryKeys } from '../../lib/query'
 import { useAppStore } from '../../stores/app'
 import { mergeSessionPage } from '../realtime/session-cache'
+import { AcceptanceEditor } from './AcceptanceEditor'
+import { AcceptanceReport } from './AcceptanceReport'
 import { ApprovalCard } from './ApprovalCard'
+import { BudgetEditor } from './BudgetEditor'
 import { ContextTimeline } from './ContextTimeline'
 import { QuestionCard } from './QuestionCard'
 import { ReplyComposer } from './ReplyComposer'
@@ -41,6 +46,20 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
     queryKey: queryKeys.task(activeTaskId ?? ''),
     queryFn: () => getTask(activeTaskId!),
     enabled: Boolean(activeTaskId),
+  })
+
+  const acceptance = useQuery({
+    queryKey: queryKeys.taskAcceptance(activeTaskId ?? ''),
+    queryFn: async () => {
+      try {
+        return await getTaskAcceptance(activeTaskId!)
+      } catch (error) {
+        // 旧任务或尚未进入 review 时没有合同；这是正常状态，不阻塞详情。
+        if (error instanceof ApiError && error.status === 404) return null
+        throw error
+      }
+    },
+    enabled: Boolean(activeTaskId) && Boolean(detail.data),
   })
 
   const sessions = detail.data?.sessions ?? []
@@ -79,6 +98,7 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
     const taskId = detail.data?.task.id
     if (!taskId) return
     await queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.taskAcceptance(taskId) })
     await queryClient.invalidateQueries({ queryKey: queryKeys.taskHistory(taskId) })
     if (activeWorkspaceId) {
       await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(activeWorkspaceId) })
@@ -125,6 +145,8 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
                 knownNodeIds={knownNodeIds}
                 onSelectNode={setSelectedNode}
                 contextNodes={selectedContextNodes}
+                acceptance={acceptance.data ?? null}
+                acceptanceError={acceptance.isError}
                 mobile
                 showActions={false}
               />
@@ -143,6 +165,8 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
                   workspaceId={activeWorkspaceId}
                   status={detail.data.task.status}
                   attention={detail.data.attention}
+                  waitingReason={detail.data.task.waitingReason}
+                  budget={acceptance.data?.budget ?? null}
                 />
               </div>
             ) : null}
@@ -164,6 +188,8 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
             knownNodeIds={knownNodeIds}
             onSelectNode={setSelectedNode}
             contextNodes={selectedContextNodes}
+            acceptance={acceptance.data ?? null}
+            acceptanceError={acceptance.isError}
             mobile={false}
             showActions
           />
@@ -197,6 +223,8 @@ function DetailContent({
   knownNodeIds,
   onSelectNode,
   contextNodes,
+  acceptance,
+  acceptanceError,
   mobile,
   showActions,
 }: {
@@ -214,6 +242,8 @@ function DetailContent({
   knownNodeIds: ReadonlySet<string> | undefined
   onSelectNode: (nodeId: string) => void
   contextNodes: CanvasResponse['nodes']
+  acceptance: TaskAcceptanceResponse | null
+  acceptanceError: boolean
   mobile: boolean
   showActions: boolean
 }) {
@@ -226,6 +256,21 @@ function DetailContent({
   const totalCost = detail.sessions.reduce((sum, session) => sum + (session.costUsd ?? 0), 0)
   const totalTurns = detail.sessions.reduce((sum, session) => sum + (session.turns ?? 0), 0)
   const lastSession = detail.sessions.at(-1)
+  const acceptanceSummary: TaskAcceptanceSummary | null = acceptance
+    ? {
+        contractId: acceptance.contract.id,
+        version: acceptance.contract.version,
+        revision: acceptance.contract.revision,
+        status: acceptance.contract.status,
+        counts: acceptance.report.acceptance.counts,
+        verdict: acceptance.report.acceptance.verdict,
+        topFailures: acceptance.items
+          .filter((item) => item.status === 'fail' || item.status === 'pending')
+          .slice(0, 1)
+          .map((item) => ({ text: item.text, evidence: item.evidence })),
+      }
+    : null
+  const budgetSummary = detail.budget ?? acceptance?.budget ?? null
 
   return (
     <>
@@ -239,6 +284,9 @@ function DetailContent({
         <p className="text-xs text-muted">
           累计 {hasCost ? `$${totalCost.toFixed(2)}` : '—'} ·{' '}
           {hasTurns ? `${totalTurns} turns` : '—'}
+          {acceptance
+            ? ` · 预算 $${acceptance.budget.spentUsd.toFixed(2)} / $${acceptance.budget.budgetUsd.toFixed(2)}`
+            : ''}
         </p>
       ) : null}
       {mobile ? (
@@ -281,6 +329,23 @@ function DetailContent({
         onDone={onDone}
       />
 
+      <div data-section="acceptance" className="flex shrink-0 flex-col gap-2">
+        {acceptanceError ? <p className="text-sm text-muted">验收证据暂不可用</p> : null}
+        {acceptance ? <AcceptanceReport report={acceptance.report} /> : null}
+        {task.status === 'review' && acceptance && !mobile ? (
+          <AcceptanceEditor
+            taskId={task.id}
+            contract={acceptance.contract}
+            items={acceptance.items}
+            disabled={acceptance.contract.status !== 'draft'}
+            onSaved={onDone}
+          />
+        ) : null}
+      </div>
+      {budgetSummary && ['todo', 'queued', 'failed'].includes(task.status) ? (
+        <BudgetEditor taskId={task.id} budget={budgetSummary} onDone={onDone} />
+      ) : null}
+
       <TaskHistory taskId={task.id} onOpenDiff={setHistoryDiffReviewId} />
       {historyDiffReviewId ? (
         <DiffViewer reviewId={historyDiffReviewId} onClose={() => setHistoryDiffReviewId(null)} />
@@ -311,6 +376,8 @@ function DetailContent({
           <ReviewCard
             review={detail.review}
             usage={lastSession ? { costUsd: lastSession.costUsd, turns: lastSession.turns } : null}
+            acceptance={acceptanceSummary}
+            budget={budgetSummary}
             contextNodes={contextNodes}
             onDone={onDone}
           />
@@ -327,6 +394,8 @@ function DetailContent({
           workspaceId={workspaceId}
           status={task.status}
           attention={detail.attention}
+          waitingReason={task.waitingReason}
+          budget={budgetSummary}
           sticky={mobile}
         />
       ) : null}

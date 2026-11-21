@@ -1,6 +1,11 @@
-import { transition } from '@baton/core'
+import { acceptanceSummary, transition } from '@baton/core'
 import { PolicySchema, type TaskTransitionEvent } from '@baton/protocol'
 import type { Config } from '../config.js'
+import {
+  freezeAcceptanceContract,
+  getAcceptanceBundle,
+  getLatestAcceptanceContract,
+} from '../db/acceptance-repository.js'
 import type { EventStore } from '../db/event-store.js'
 import {
   type ApprovalRecord,
@@ -152,7 +157,7 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
             },
           })
         }
-        return planAndApplyEffects(
+        const plan = planAndApplyEffects(
           tx,
           {
             eventStore: deps.eventStore,
@@ -171,6 +176,33 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
           },
           result.effects,
         )
+        // 离开 review 时冻结合同，避免下一轮克隆到未冻结的草稿。
+        if (task.status === 'review' && result.status !== 'review') {
+          const contract = getLatestAcceptanceContract(tx, task.id)
+          if (contract?.status === 'draft') {
+            freezeAcceptanceContract(tx, contract.id, now)
+            const bundle = getAcceptanceBundle(tx, task.id)
+            if (bundle) {
+              const { counts, verdict } = acceptanceSummary(bundle.items)
+              plan.events.push(
+                deps.eventStore.appendWs(tx, {
+                  type: 'acceptance.updated',
+                  ts: now,
+                  payload: {
+                    taskId: task.id,
+                    contractId: contract.id,
+                    version: contract.version,
+                    revision: contract.revision,
+                    status: 'frozen',
+                    counts,
+                    verdict,
+                  },
+                }),
+              )
+            }
+          }
+        }
+        return plan
       })
     } catch (error) {
       return { ok: false, error: toAppError(error) }

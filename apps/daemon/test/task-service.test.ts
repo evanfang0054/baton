@@ -40,6 +40,8 @@ function setup(options: { allowBypassPermissions?: boolean } = {}): Setup {
     maxLiveSessions: 5,
     claudeMaxTurns: 30,
     claudeMaxBudgetUsd: 2,
+    verifierBudgetUsd: 0.5,
+    maxTaskBudgetUsd: 50,
     claudeProjectHooks: 'on',
     allowBypassPermissions: options.allowBypassPermissions ?? false,
     killSwitch: false,

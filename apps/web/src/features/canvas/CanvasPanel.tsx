@@ -568,6 +568,10 @@ function FlowCanvas({
         onSelectNode(null)
         setTask(taskId)
         setRightPanel('task')
+        // review 卡上的“查看证据”直接定位到验收区块；普通打开也会落到同一位置。
+        window.setTimeout(() => {
+          document.querySelector('[data-section="acceptance"]')?.scrollIntoView({ block: 'start' })
+        }, 50)
       },
     }),
     [onSelectNode, sceneActive, setRightPanel, setTask, updateNode],
@@ -615,6 +619,8 @@ function FlowCanvas({
           <TaskSceneBar
             scene={scene}
             detail={sceneDetail.data}
+            acceptance={tasks.find((task) => task.id === sceneTaskId)?.acceptance ?? null}
+            budget={tasks.find((task) => task.id === sceneTaskId)?.budget ?? null}
             onExit={exitScene}
             onInject={() => openInject(sceneTaskId)}
           />

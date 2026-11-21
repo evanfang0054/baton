@@ -43,6 +43,8 @@ const AutopilotPolicy = z.object({
    * 除 deny 规则外，所有工具（含高风险 Bash）自动批准；仍受 trust 与 kill switch 约束。
    */
   delegatedAuthority: z.boolean().default(false),
+  /** 单个任务累计自动批准次数上限；0 表示禁用自动批准。 */
+  maxAutoApprovalsPerTask: z.number().int().nonnegative().default(10),
 })
 
 export const PolicySchema = z.object({

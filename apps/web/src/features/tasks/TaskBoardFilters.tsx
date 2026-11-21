@@ -23,7 +23,11 @@ export function filterTasks(
       if (query && !task.title.toLowerCase().includes(query)) return false
       if (input.filter === 'all') return true
       if (input.filter === 'needs_me') {
-        return needsPerson({ status: task.status, attention: task.attention })
+        return (
+          needsPerson({ status: task.status, attention: task.attention }) ||
+          (task.acceptance?.counts.fail ?? 0) > 0 ||
+          task.budget?.overBudget === true
+        )
       }
       if (input.filter === 'review') return task.status === 'review'
       return task.status === 'waiting_input'

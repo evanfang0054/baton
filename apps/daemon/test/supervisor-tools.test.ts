@@ -5,6 +5,11 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { appError } from '../src/errors.js'
 import { getNode, getTask, insertApproval, insertReview } from '../src/db/repositories.js'
+import {
+  insertAcceptanceContract,
+  insertAcceptanceItems,
+  insertAcceptanceRun,
+} from '../src/db/acceptance-repository.js'
 import { createTaskService } from '../src/runtime/task-service.js'
 import { createSupervisorTools, type ToolContext } from '../src/supervisor/tools.js'
 import { createTestDb, seedTask, seedTextNode, type TestDb } from './helpers/db.js'
@@ -41,6 +46,8 @@ function setup() {
       maxLiveSessions: 5,
       claudeMaxTurns: 30,
       claudeMaxBudgetUsd: 2,
+      verifierBudgetUsd: 0.5,
+      maxTaskBudgetUsd: 50,
       claudeProjectHooks: 'on',
       allowBypassPermissions: false,
       killSwitch: false,
@@ -55,6 +62,7 @@ function setup() {
   const tools = createSupervisorTools({
     db: database.db,
     workspacesRoot: root,
+    claudeMaxBudgetUsd: 2,
     taskService,
     now: () => 10,
     newId: () => `node-${++nodeSeq}`,
@@ -672,6 +680,134 @@ describe('supervisor tools', () => {
     expect(detail).not.toHaveProperty('transcript')
     expect(detail).not.toHaveProperty('logs')
     expect(detail.injectable).toEqual({ ok: false, reason: 'use_review_reject' })
+  })
+
+  it('includes acceptance, usage and report in get_task', async () => {
+    const { database, seeded, tools } = setup()
+    database.raw
+      .prepare("update task set status='review', updated_at=9 where id=?")
+      .run(seeded.taskId)
+    database.raw
+      .prepare(
+        `insert into session (id, task_id, adapter, status, cost_usd, turns, started_at, ended_at)
+         values ('sess-usage', ?, 'fake', 'ended', 1.2, 4, 1, 2)`,
+      )
+      .run(seeded.taskId)
+    database.db.transaction((tx) => {
+      insertReview(tx, {
+        id: 'r1',
+        taskId: seeded.taskId,
+        verdict: null,
+        verifyExitCode: 0,
+        verifyOutput: 'ok',
+        diffStat: { filesChanged: 1, insertions: 2, deletions: 0 },
+        decidedAt: null,
+      })
+      insertAcceptanceContract(tx, {
+        id: 'ac1',
+        taskId: seeded.taskId,
+        version: 1,
+        status: 'draft',
+        createdBy: 'verifier',
+        revision: 0,
+        truncated: false,
+        createdAt: 1,
+        frozenAt: null,
+      })
+      insertAcceptanceItems(tx, [
+        {
+          id: 'i1',
+          contractId: 'ac1',
+          ordinal: 1,
+          text: '登录成功',
+          status: 'pass',
+          evidence: 'src/login.tsx:1',
+          source: 'verifier',
+          updatedAt: 1,
+        },
+        {
+          id: 'i2',
+          contractId: 'ac1',
+          ordinal: 2,
+          text: '错误提示',
+          status: 'fail',
+          evidence: 'test/login.test.ts',
+          source: 'verifier',
+          updatedAt: 1,
+        },
+      ])
+      insertAcceptanceRun(tx, {
+        id: 'run1',
+        taskId: seeded.taskId,
+        contractId: 'ac1',
+        reviewId: 'r1',
+        verifierTaskId: null,
+        status: 'complete',
+        verdict: 'fail',
+        summary: '1 条未过',
+        createdAt: 1,
+        completedAt: 2,
+      })
+    })
+
+    const detail = (await tools.get_task.execute({ taskId: seeded.taskId }, ctx(seeded))) as {
+      acceptance: {
+        total: number
+        pass: number
+        fail: number
+        verdict: string
+        topFailures: Array<{ text: string; evidence: string | null }>
+      }
+      usage: { workerCostUsd: number; budgetUsd: number; overBudget: boolean }
+      report: { summary: string; risks: string[]; unverified: string[] }
+    }
+    expect(detail.acceptance).toMatchObject({
+      total: 2,
+      pass: 1,
+      fail: 1,
+      verdict: 'fail',
+      topFailures: [{ text: '错误提示', evidence: 'test/login.test.ts' }],
+    })
+    expect(detail.usage).toMatchObject({ workerCostUsd: 1.2, budgetUsd: 2, overBudget: false })
+    expect(detail.report.summary).toBe('1 条未过')
+    expect(detail.report.risks).toEqual(expect.arrayContaining(['1 条验收未通过']))
+    expect(detail.report.unverified).toContain('错误提示')
+    expect(JSON.stringify(detail)).not.toContain('diff --git')
+    expect(JSON.stringify(detail)).not.toContain('transcript')
+
+    const list = (await tools.list_tasks.execute({ filter: 'attention' }, ctx(seeded))) as {
+      tasks: Array<{
+        id: string
+        acceptance: { pass: number; total: number; fail: number } | null
+        budget: { spent: number; limit: number; over: boolean }
+      }>
+    }
+    expect(list.tasks[0]).toMatchObject({
+      id: seeded.taskId,
+      acceptance: { pass: 1, total: 2, fail: 1 },
+      budget: { limit: 2, over: false },
+    })
+  })
+
+  it('treats over-budget running tasks as attention', async () => {
+    const { database, seeded, tools } = setup()
+    database.raw
+      .prepare("update task set status='running', updated_at=9 where id=?")
+      .run(seeded.taskId)
+    database.raw
+      .prepare(
+        `insert into session (id, task_id, adapter, status, cost_usd, turns, started_at)
+         values ('sess-over', ?, 'fake', 'running', 2.5, 3, 1)`,
+      )
+      .run(seeded.taskId)
+
+    const list = (await tools.list_tasks.execute({ filter: 'attention' }, ctx(seeded))) as {
+      tasks: Array<{ id: string; budget: { spent: number; limit: number; over: boolean } }>
+    }
+    expect(list.tasks[0]).toMatchObject({
+      id: seeded.taskId,
+      budget: { spent: 2.5, limit: 2, over: true },
+    })
   })
 
   it('reports injection counts without note content', async () => {

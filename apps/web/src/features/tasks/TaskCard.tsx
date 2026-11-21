@@ -2,7 +2,7 @@ import { isStale } from '@baton/core'
 import type { TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
-import { Clock } from 'lucide-react'
+import { AlertTriangle, BadgeCheck, Clock } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { AttentionBadge } from './AttentionBadge'
 import { StatusChip } from './StatusChip'
@@ -53,6 +53,23 @@ export function TaskCard({
           {task.engine}
         </Chip>
         {task.retryCount > 0 ? <span>重试 {task.retryCount}</span> : null}
+        {task.acceptance ? (
+          <span className="inline-flex items-center gap-1">
+            <BadgeCheck size={12} aria-hidden="true" />
+            AC {task.acceptance.counts.pass}/{task.acceptance.counts.total}
+          </span>
+        ) : null}
+        {task.budget?.overBudget ? (
+          <span className="inline-flex items-center gap-1 text-danger">
+            <AlertTriangle size={12} aria-hidden="true" />
+            超预算
+          </span>
+        ) : task.budget?.nearBudget ? (
+          <span className="inline-flex items-center gap-1 text-warning">
+            <AlertTriangle size={12} aria-hidden="true" />
+            接近预算
+          </span>
+        ) : null}
       </div>
       {task.waitingSince ? (
         <div className="mt-2">

@@ -17,9 +17,13 @@ import {
   type Engine as EngineValue,
   type SupervisorTaskCard as SupervisorTaskCardValue,
   type Task,
+  type TaskAcceptanceSummary,
   type TaskTransitionEvent,
 } from '@baton/protocol'
 import { z } from 'zod'
+import { getAcceptanceResponse } from '../acceptance/report-service.js'
+import { getTaskBudgetSummary } from '../budget/service.js'
+import { listAcceptanceSummaries } from '../db/acceptance-repository.js'
 import {
   getCanvasByWorkspace,
   getNode,
@@ -264,6 +268,7 @@ type BatchFailure = { nodeId: string; stage: 'create' | 'enqueue'; error: AppErr
 export interface SupervisorToolsDeps {
   db: Db
   workspacesRoot: string
+  claudeMaxBudgetUsd: number
   taskService: TaskService
   now: () => number
   newId: () => string
@@ -285,6 +290,10 @@ export interface SupervisorToolsDeps {
 }
 
 const CONTENT_TYPES = new Set(['text', 'file', 'image'])
+
+function truncateText(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max)}…` : value
+}
 
 function pendingForTask(db: Db, task: Task): unknown {
   if (task.status !== 'waiting_input') return null
@@ -309,8 +318,19 @@ function pendingForTask(db: Db, task: Task): unknown {
 }
 
 export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorToolset {
-  function taskSummary(task: ReturnType<typeof listTasks>[number], column: string) {
+  function taskSummary(
+    task: ReturnType<typeof listTasks>[number],
+    column: string,
+    acceptance: TaskAcceptanceSummary | null,
+  ) {
     const attention = attentionFor(task.status, task.waitingReason)
+    const budget = getTaskBudgetSummary(deps.db, task, {
+      claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
+    })
+    const needsAttention =
+      needsPerson({ status: task.status, attention }) ||
+      budget.overBudget ||
+      (acceptance?.counts.fail ?? 0) > 0
     return {
       id: task.id,
       title: task.title,
@@ -323,7 +343,20 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       attention,
       waitingSince: waitingSinceFor(task),
       column,
-      needsPerson: needsPerson({ status: task.status, attention }),
+      acceptance: acceptance
+        ? {
+            pass: acceptance.counts.pass,
+            total: acceptance.counts.total,
+            fail: acceptance.counts.fail,
+          }
+        : null,
+      budget: {
+        spent: budget.spentUsd,
+        limit: budget.budgetUsd,
+        over: budget.overBudget,
+        near: budget.nearBudget,
+      },
+      needsPerson: needsAttention,
     }
   }
 
@@ -578,22 +611,29 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     },
 
     list_tasks: {
-      description: '列出当前 workspace 的任务；filter=attention 只返回需要人处理的任务。',
+      description:
+        '列出当前 workspace 的任务；filter=attention 只返回需要人处理的任务（含超预算、AC 未过）。',
       parameters: listTasksInput,
       async execute(input, ctx) {
         const parsed = listTasksInput.parse(input)
         const needle = parsed.q?.toLowerCase()
-        const tasks = listTasks(deps.db, {
+        const rows = listTasks(deps.db, {
           workspaceId: ctx.workspaceId,
           ...(parsed.status ? { status: parsed.status } : {}),
-        })
-          .filter(
-            (task) =>
-              !needle ||
-              task.title.toLowerCase().includes(needle) ||
-              task.id.toLowerCase().startsWith(needle),
+        }).filter(
+          (task) =>
+            !needle ||
+            task.title.toLowerCase().includes(needle) ||
+            task.id.toLowerCase().startsWith(needle),
+        )
+        const acceptance = listAcceptanceSummaries(
+          deps.db,
+          rows.map((task) => task.id),
+        )
+        const tasks = rows
+          .map((task) =>
+            taskSummary(task, boardColumn(task.status), acceptance.get(task.id) ?? null),
           )
-          .map((task) => taskSummary(task, boardColumn(task.status)))
           .filter((task) => (parsed.filter === 'attention' ? task.needsPerson : true))
           .sort((a, b) => {
             if (a.needsPerson !== b.needsPerson) return a.needsPerson ? -1 : 1
@@ -608,7 +648,8 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
 
     get_task: {
       description:
-        '读取一个任务的元数据、session 摘要与 review 摘要；' + '不返回 transcript 或日志。',
+        '读取一个任务的元数据、验收摘要、成本用量、报告摘要、session 与 review 摘要；' +
+        '不返回 transcript、日志或 diff 正文。',
       parameters: getTaskInput,
       async execute(input, ctx) {
         const parsed = getTaskInput.parse(input)
@@ -623,6 +664,16 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         const sessions = listSessionsByTask(deps.db, task.id)
         const session = sessions.at(-1)
         const review = getReviewByTask(deps.db, task.id)
+        const acceptance = listAcceptanceSummaries(deps.db, [task.id]).get(task.id) ?? null
+        const usage = getTaskBudgetSummary(deps.db, task, {
+          claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
+        })
+        const acceptanceResponse = acceptance
+          ? getAcceptanceResponse(deps.db, task, {
+              claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
+              workspacesRoot: deps.workspacesRoot,
+            })
+          : null
         return {
           task: {
             id: task.id,
@@ -645,6 +696,25 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
                 verdict: review.verdict,
                 verifyExitCode: review.verifyExitCode,
                 diffStat: review.diffStat,
+              }
+            : null,
+          acceptance: acceptance
+            ? {
+                total: acceptance.counts.total,
+                pass: acceptance.counts.pass,
+                fail: acceptance.counts.fail,
+                pending: acceptance.counts.pending,
+                waived: acceptance.counts.waived,
+                verdict: acceptance.verdict,
+                topFailures: acceptance.topFailures,
+              }
+            : null,
+          usage,
+          report: acceptanceResponse
+            ? {
+                summary: truncateText(acceptanceResponse.report.result, 500),
+                risks: acceptanceResponse.report.risks.slice(0, 5),
+                unverified: acceptanceResponse.report.unverified.slice(0, 5),
               }
             : null,
           context: task.context

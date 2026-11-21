@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { Id, Timestamp } from './common.js'
 import {
+  AcceptanceItemStatus,
   AgentNode,
   FileNode,
   GroupNode,
@@ -26,6 +27,7 @@ export const TaskCreateInput = z.object({
   workspaceMode: WorkspaceMode.default('main'),
   verifyCommand: z.string().min(1).optional(),
   dangerouslySkipPermissions: z.boolean().default(false),
+  budgetUsd: z.number().finite().positive().optional(),
 })
 export type TaskCreateInput = z.infer<typeof TaskCreateInput>
 
@@ -68,6 +70,8 @@ export const ContextInjectInput = z
     taskId: Id,
     nodeIds: z.array(Id).min(1).max(40),
     note: z.string().max(2000).optional(),
+    /** 客户端生成的幂等键；断线重试复用同一个值。 */
+    requestId: z.string().min(1).max(100).optional(),
   })
   .strict()
 export type ContextInjectInput = z.infer<typeof ContextInjectInput>
@@ -90,6 +94,8 @@ export const ReviewDecideInput = z
         reviewId: Id,
         decision: z.literal('approve'),
         reason: z.string().max(2000).optional(),
+        /** AC fail/pending/缺失时必填；daemon 校验并写审计。 */
+        overrideReason: z.string().max(2000).optional(),
       })
       .strict(),
     z
@@ -110,6 +116,33 @@ export const ReviewDecideInput = z
     { message: 'feedback or contextNodeIds is required' },
   )
 export type ReviewDecideInput = z.infer<typeof ReviewDecideInput>
+
+const AcceptanceItemInput = z
+  .object({
+    id: Id.optional(),
+    text: z.string().min(1).max(200),
+    status: AcceptanceItemStatus,
+    evidence: z.string().max(200).nullable().optional(),
+  })
+  .strict()
+
+export const AcceptanceUpdateInput = z
+  .object({
+    taskId: Id,
+    contractId: Id,
+    expectedRevision: z.number().int().nonnegative(),
+    items: z.array(AcceptanceItemInput).max(8),
+  })
+  .strict()
+export type AcceptanceUpdateInput = z.infer<typeof AcceptanceUpdateInput>
+
+export const TaskSetBudgetInput = z
+  .object({
+    taskId: Id,
+    budgetUsd: z.number().finite().positive(),
+  })
+  .strict()
+export type TaskSetBudgetInput = z.infer<typeof TaskSetBudgetInput>
 
 const NodeCreateBase = z.object({
   x: z.number(),
@@ -215,8 +248,10 @@ export const ClientMessage = z.discriminatedUnion('type', [
   CommandBase.extend({ type: z.literal('task.retry'), payload: TaskRetryInput }),
   CommandBase.extend({ type: z.literal('task.reopen'), payload: TaskReopenInput }),
   CommandBase.extend({ type: z.literal('task.handoff'), payload: TaskHandoffInput }),
+  CommandBase.extend({ type: z.literal('task.set_budget'), payload: TaskSetBudgetInput }),
   CommandBase.extend({ type: z.literal('session.reply'), payload: SessionReplyInput }),
   CommandBase.extend({ type: z.literal('context.inject'), payload: ContextInjectInput }),
+  CommandBase.extend({ type: z.literal('acceptance.update'), payload: AcceptanceUpdateInput }),
   CommandBase.extend({ type: z.literal('approval.decide'), payload: ApprovalDecideInput }),
   CommandBase.extend({ type: z.literal('review.decide'), payload: ReviewDecideInput }),
   CommandBase.extend({ type: z.literal('node.create'), payload: NodeCreateInput }),

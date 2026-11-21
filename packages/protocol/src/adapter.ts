@@ -5,6 +5,9 @@ import type { Policy } from './policy.js'
 /** 执行期只读的策略快照；daemon 从 PolicySchema 解析后传入。 */
 export type PolicySnapshot = Readonly<Policy>
 
+/** 验收员 prompt 的稳定标记；fake adapter 与 daemon 共用。 */
+export const VERIFIER_PROMPT_MARKER = '<verifier_task>'
+
 /** 会话启动时冻结的 trust 决策；运行中修改 workspace trust 不影响已启动会话。 */
 export interface WorkspaceTrustSnapshot {
   projectSettings: boolean
@@ -21,6 +24,8 @@ export interface StartInput {
   workspaceTrust: WorkspaceTrustSnapshot
   /** 仅该任务跳过权限审批；由 daemon 校验全局开关与 workspace trust 后传入。 */
   bypassPermissions: boolean
+  /** 本次 run 的预算上限；缺省时由 adapter 使用自身默认值。 */
+  maxBudgetUsd?: number
 }
 
 export interface AgentRun {
