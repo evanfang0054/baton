@@ -11,6 +11,7 @@ import type {
 } from '@baton/protocol'
 import { randomUUID } from 'node:crypto'
 import { createDigestService } from '../automation/digest.js'
+import { getAcceptanceResponse, type AcceptanceResponse } from '../acceptance/report-service.js'
 import { createDigestScheduler, createTimeoutSchedule } from '../automation/scheduler.js'
 import { createAutomationService } from '../automation/service.js'
 import { createAutomationState } from '../automation/state.js'
@@ -31,6 +32,7 @@ import {
   getSetting,
   getTask,
   hasTaskForNode,
+  insertAudit,
   insertNode,
   listQueuedTasksByEnqueuedAt,
   listWorkspaces,
@@ -417,6 +419,43 @@ export function createRuntime(deps: RuntimeDeps) {
     return applyTransition(session.taskId, event)
   }
 
+  function recordReviewDecision(input: {
+    taskId: string
+    reviewId: string
+    decision: 'approve' | 'reject'
+    acceptance: AcceptanceResponse | null
+    overrideReason?: string
+  }): void {
+    const overrideReason = input.overrideReason?.trim()
+    // 旧 review 没有 AC，也没写 override 时不强行补审计；新决策都有合同。
+    if (!input.acceptance && !overrideReason) return
+    const at = now()
+    deps.db.transaction((tx) => {
+      insertAudit(tx, {
+        id: newId(),
+        ts: at,
+        actor: 'human',
+        action: 'review.decide',
+        detail: {
+          taskId: input.taskId,
+          reviewId: input.reviewId,
+          decision: input.decision,
+          ...(input.acceptance
+            ? {
+                contractId: input.acceptance.contract.id,
+                version: input.acceptance.contract.version,
+                revision: input.acceptance.contract.revision,
+                reportHash: input.acceptance.report.hash,
+                counts: input.acceptance.report.acceptance.counts,
+                verdict: input.acceptance.report.acceptance.verdict,
+              }
+            : {}),
+          ...(overrideReason ? { overrideReason } : {}),
+        },
+      })
+    })
+  }
+
   function decideReview(input: ReviewDecideInput): TransitionOutcome {
     const review = getReview(deps.db, input.reviewId)
     if (!review) {
@@ -443,17 +482,49 @@ export function createRuntime(deps: RuntimeDeps) {
         }),
       }
     }
+    const task = getTask(deps.db, review.taskId)
+    const acceptance = task ? getAcceptanceResponse(deps.db, task, deps.config) : null
     if (input.decision === 'approve') {
+      const counts = acceptance?.report.acceptance.counts
+      const overrideRequired =
+        !acceptance ||
+        (counts?.total ?? 0) === 0 ||
+        (counts?.fail ?? 0) > 0 ||
+        (counts?.pending ?? 0) > 0
+      if (overrideRequired && !input.overrideReason?.trim()) {
+        return {
+          ok: false,
+          error: appError(
+            'acceptance_override_reason_required',
+            'acceptance override reason is required',
+            {
+              taskId: review.taskId,
+              counts,
+              verdict: acceptance?.report.acceptance.verdict ?? 'incomplete',
+            },
+          ),
+        }
+      }
       const reasonProvided = Boolean(input.reason?.trim())
       const override =
         reasonProvided || review.verifyExitCode !== 0
           ? { verifyExitCode: review.verifyExitCode, reasonProvided }
           : undefined
-      return applyTransition(review.taskId, {
+      const outcome = applyTransition(review.taskId, {
         type: 'approve',
         reviewId: input.reviewId,
         ...(override ? { override } : {}),
       })
+      if (outcome.ok) {
+        recordReviewDecision({
+          taskId: review.taskId,
+          reviewId: input.reviewId,
+          decision: 'approve',
+          acceptance,
+          ...(input.overrideReason ? { overrideReason: input.overrideReason } : {}),
+        })
+      }
+      return outcome
     }
     let contextInjection: ContextInjection | undefined
     let contextBlock: string | undefined
@@ -472,12 +543,21 @@ export function createRuntime(deps: RuntimeDeps) {
       contextInjection = prepared.injection
       contextBlock = prepared.block
     }
-    return applyTransition(review.taskId, {
+    const outcome = applyTransition(review.taskId, {
       type: 'reject',
       reviewId: input.reviewId,
       feedback: input.feedback?.trim() || '请结合补充的上下文修改',
       ...(contextInjection && contextBlock ? { contextInjection, contextBlock } : {}),
     })
+    if (outcome.ok) {
+      recordReviewDecision({
+        taskId: review.taskId,
+        reviewId: input.reviewId,
+        decision: 'reject',
+        acceptance,
+      })
+    }
+    return outcome
   }
 
   function replay(sinceSeq?: number) {

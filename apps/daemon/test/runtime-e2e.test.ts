@@ -76,7 +76,11 @@ describe('M1-5 runtime e2e', () => {
       type: 'review.decide',
       id: 'c4',
       ts: 1,
-      payload: { reviewId: verifyPayload.reviewId, decision: 'approve' },
+      payload: {
+        reviewId: verifyPayload.reviewId,
+        decision: 'approve',
+        overrideReason: '测试覆盖',
+      },
     })
     await ws.next('ack')
 
@@ -137,7 +141,11 @@ describe('M1-5 runtime e2e', () => {
       type: 'review.decide',
       id: 'q4',
       ts: 1,
-      payload: { reviewId: verifyPayload.reviewId, decision: 'approve' },
+      payload: {
+        reviewId: verifyPayload.reviewId,
+        decision: 'approve',
+        overrideReason: '测试覆盖',
+      },
     })
     await ws.next('ack')
     await nextStatus(ws, taskId, 'done')
