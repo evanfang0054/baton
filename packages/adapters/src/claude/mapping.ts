@@ -2,6 +2,7 @@ import {
   APPROVAL_REQUEST_EVENT,
   EventType,
   SESSION_OUTCOME_EVENT,
+  SESSION_USAGE_EVENT,
   type AgentEvent,
   type ApprovalRequest,
 } from '@baton/protocol'
@@ -54,5 +55,19 @@ export function mapSessionOutcome(
     type: EventType.CUSTOM,
     name: SESSION_OUTCOME_EVENT,
     value: { outcome, ...(reason ? { reason } : {}) },
+  }
+}
+
+export function mapSessionUsage(
+  costUsd: number | undefined,
+  turns: number | undefined,
+): AgentEvent {
+  return {
+    type: EventType.CUSTOM,
+    name: SESSION_USAGE_EVENT,
+    value: {
+      ...(costUsd !== undefined ? { costUsd } : {}),
+      ...(turns !== undefined ? { turns } : {}),
+    },
   }
 }

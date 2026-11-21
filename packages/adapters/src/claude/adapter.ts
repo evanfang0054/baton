@@ -12,6 +12,7 @@ import {
   mapRunFinished,
   mapRunStarted,
   mapSessionOutcome,
+  mapSessionUsage,
   mapText,
   mapToolResult,
   mapToolUse,
@@ -109,6 +110,9 @@ export class ClaudeAdapter implements AgentAdapter {
               finished = true
               yield mapRunError(event.error ?? 'claude turn failed')
               return
+            }
+            if (event.costUsd !== undefined || event.turns !== undefined) {
+              yield mapSessionUsage(event.costUsd, event.turns)
             }
             if (outcome === 'ready') {
               finished = true
