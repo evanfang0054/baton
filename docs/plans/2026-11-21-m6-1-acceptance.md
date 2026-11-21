@@ -4,13 +4,13 @@ spec_topic: m6-task-scene
 task_count: 5
 estimated_phases: [tests, implementation, verification]
 dod: 'M6-1 DoD 14-17：Playwright、ego-lite 真实 Claude、证据、文档收口'
-status: planned
+status: completed
 depends_on: 2026-11-21-m6-1-board-attention.md
 ---
 
 # M6-1 Plan 5：验收与文档收口
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use agent-harness:subagent-driven-development (recommended) or agent-harness:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use agent-harness:subagent-driven-development (recommended) or agent-harness:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 用 Playwright 固化现场/分组/看板回归，用 ego-lite + 真实 Claude 跑通 review 现场，最后收口 contract 与 docs。
 
@@ -52,7 +52,7 @@ Seam: `apps/web/e2e/task-scene.spec.ts`
 **Interfaces:**
 - 复用现有 `page.routeWebSocket` / `page.route` 模式；断言 `node.update`/`group.create` 命令与现场条。
 
-- [ ] **Step 1: 写测试**
+- [x] **Step 1: 写测试**
 
 ```ts
 test('image node and task scene', async ({ page }) => {
@@ -89,12 +89,12 @@ test('image node and task scene', async ({ page }) => {
 })
 ```
 
-- [ ] **Step 2: 运行**
+- [x] **Step 2: 运行**
 
 Run: `pnpm exec playwright test apps/web/e2e/task-scene.spec.ts --project=chromium`
 Expected: PASS（或先 FAIL，补 mock 数据后 PASS）。
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add apps/web/e2e/task-scene.spec.ts
@@ -115,7 +115,7 @@ Seam: `group.create` / `node.move_many`
 **Interfaces:**
 - 建组后拖动 group，断言只发一次 `node.move_many`，且 payload 包含 group + child 绝对坐标；刷新后 mock 返回新坐标，页面保持。
 
-- [ ] **Step 1: 写测试**
+- [x] **Step 1: 写测试**
 
 ```ts
 test('group drag persists children in one command', async ({ page }) => {
@@ -132,12 +132,12 @@ test('group drag persists children in one command', async ({ page }) => {
 })
 ```
 
-- [ ] **Step 2: 运行**
+- [x] **Step 2: 运行**
 
 Run: `pnpm exec playwright test apps/web/e2e/canvas-group.spec.ts --project=chromium`
 Expected: PASS。
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add apps/web/e2e/canvas-group.spec.ts
@@ -158,7 +158,7 @@ Seam: 需要我过滤 / stale / review 卡
 **Interfaces:**
 - 用两条任务（review 等待 40 分钟、running）断言「需要我」只显示 review、stale 文本出现、review 卡显示初步结论、通过后卡片消失。
 
-- [ ] **Step 1: 写测试**
+- [x] **Step 1: 写测试**
 
 ```ts
 test('needs me filter, stale and review card', async ({ page }) => {
@@ -180,12 +180,12 @@ test('needs me filter, stale and review card', async ({ page }) => {
 })
 ```
 
-- [ ] **Step 2: 运行**
+- [x] **Step 2: 运行**
 
 Run: `pnpm exec playwright test apps/web/e2e/board-attention.spec.ts --project=chromium`
 Expected: PASS。
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add apps/web/e2e/board-attention.spec.ts
@@ -209,7 +209,7 @@ Seam: 临时 daemon + 真实 workspace
 - 启动前先确认 `lsof -i :7317` 没有本机 daemon；如果有，先停掉或复用其数据目录，不要同时写同一 SQLite。
 - 场景：一个真实 Claude 任务完成到 review → 现场显示 verify/diff/初步结论 → 人工通过/打回 → review 卡消失。
 
-- [ ] **Step 1: 启动临时环境**
+- [x] **Step 1: 启动临时环境**
 
 ```bash
 TMP=$(mktemp -d)
@@ -221,14 +221,14 @@ echo "dev pid=$DEV_PID"
 
 在演示 workspace 初始化一个最小 git 仓库与 `package.json`（含 `test` 脚本），用 web 建 workspace、信任、建任务。
 
-- [ ] **Step 2: ego-lite 取证**
+- [x] **Step 2: ego-lite 取证**
 
 1. 打开 `http://127.0.0.1:5173`，截图任务看板。
 2. 点任务「看现场」，截图现场条、上下文节点、review 卡。
 3. 人工通过/打回，截图 review 卡消失。
 4. 截图前检查用户名、绝对路径、token、transcript；不符合则裁剪/替换。
 
-- [ ] **Step 3: 写证据 README**
+- [x] **Step 3: 写证据 README**
 
 ```markdown
 # M6-1 任务现场验收
@@ -241,12 +241,12 @@ echo "dev pid=$DEV_PID"
 - 脱敏：任务 ID/绝对路径已替换，transcript 已隐藏
 ```
 
-- [ ] **Step 4: 停止并清理临时环境**
+- [x] **Step 4: 停止并清理临时环境**
 
 Run: `kill "$DEV_PID" && rm -rf "$TMP"`
 Expected: daemon 停止；临时目录删除；不触碰本机 `~/.baton`。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add docs/evidence/2026-11-21-m6-task-scene
@@ -270,7 +270,7 @@ Seam: docs index + DoD 勾选
 - docs 索引包含 spec/contract/5 个 plan/evidence。
 - contract DoD 全部 `[x]`，只勾选真实完成的项。
 
-- [ ] **Step 1: 更新 docs 索引**
+- [x] **Step 1: 更新 docs 索引**
 
 在 `docs/README.md` 的 spec/contract/plan/evidence 四节分别加入：
 
@@ -285,11 +285,11 @@ Seam: docs index + DoD 勾选
 - [M6-1 任务现场验收](evidence/2026-11-21-m6-task-scene/README.md)
 ```
 
-- [ ] **Step 2: 勾选 DoD**
+- [x] **Step 2: 勾选 DoD**
 
 逐条对照 spec、测试输出、Playwright 与 ego-lite 证据；未真实完成的条目不勾选，并在 contract 末尾写“未完成项/原因”。
 
-- [ ] **Step 3: 全量命令**
+- [x] **Step 3: 全量命令**
 
 ```bash
 pnpm verify
@@ -302,7 +302,7 @@ pnpm format:check
 
 Expected: 全部退出码 0；Playwright 全部通过。
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add docs
@@ -317,3 +317,14 @@ git commit -m "docs: M6-1 收口"
 - contract 17 条 DoD 全部有证据或明确未完成原因。
 - ego-lite 截图已脱敏；临时 daemon 已停止、临时目录已删除。
 - 不把 `dist`、`node_modules`、`.env`、本机绝对路径提交进仓库。
+
+---
+
+## 执行记录
+
+- 2026-11-21：Task 1-5 全部完成；e2e 提交 `59d2b3c`，验收证据与收口提交见 git log。
+- Playwright：新增 `m6-helpers.ts`、`task-scene.spec.ts`、`canvas-group.spec.ts`、`board-attention.spec.ts`；`pnpm verify:full` 共 41 条 e2e 全绿。分组拖动断言改为“同一笔 `node.move_many` 中 group 与子节点位移一致”，因为浏览器拖拽像素会取整；不固定绝对坐标。
+- 真实 Claude + ego-lite：临时 daemon（7317）+ Vite（5173）+ 临时 data/workspace + 真实 `claude-sdk`；任务从 `review` → 现场 → 人工通过 → `done`。证据见 `docs/evidence/2026-11-21-m6-task-scene/README.md`，截图 3 张（看板、现场/review 卡、通过后）。
+- 真实环境限制：临时环境 Corepack 缓存的 pnpm 不可用，`verifyExitCode = 1`；Claude 会话内改用 Homebrew pnpm 跑通。临时 daemon 未配置总管模型，`preliminaryVerdict = null`，review 卡显示“进行中/未完成”。这两点已写入证据 README，不伪装成通过。
+- 收口：docs 索引加入 evidence；spec `status: implemented`；contract 17 条 DoD 全部勾选并补证据说明；`pnpm verify:full`、`pnpm pack:check`、`pnpm check:boundaries`、`pnpm check:protocol`、`pnpm format:check` 均退出码 0。
+- 偏差：计划中的 `03-review-card.png` 因截图包含 transcript/本机路径而删除，review 卡证据由 `02-scene.png` 承担；没有提交未脱敏截图。

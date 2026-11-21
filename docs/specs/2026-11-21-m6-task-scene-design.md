@@ -4,6 +4,7 @@ decision_summary: 'M6-1 任务现场 v0：画布按任务上下文派生聚焦�
 design_approved: true
 user_approved_at: '2026-11-21T08:51:06+08:00'
 gates: [design-approved]
+status: implemented
 spec_ref: 2026-11-16-baton-architecture-design.md
 domain_terms:
   [

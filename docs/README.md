@@ -118,6 +118,7 @@
 - [工作区目录选择器验收](evidence/2026-11-20-workspace-picker/README.md)
 - [M5-1 总管售后与批量验收](evidence/2026-11-21-m5-supervisor-aftersales/README.md)
 - [M5-3 上下文交接验收](evidence/2026-11-21-m5-3-context-handoff/README.md)
+- [M6-1 任务现场验收](evidence/2026-11-21-m6-task-scene/README.md)
 
 ## 约定
 
