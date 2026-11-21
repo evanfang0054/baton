@@ -21,6 +21,7 @@ const baseTask: TaskDetailResponse['task'] = {
   worktreePath: null,
   verifyCommand: null,
   dangerouslySkipPermissions: false,
+  budgetUsd: null,
   enqueuedAt: null,
   retryCount: 0,
   ...{ context: null, origin: null },

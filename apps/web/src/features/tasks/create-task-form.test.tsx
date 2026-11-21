@@ -86,6 +86,7 @@ describe('CreateTaskForm', () => {
           engine: 'claude-sdk',
           workspaceMode: 'main',
           dangerouslySkipPermissions: false,
+          budgetUsd: null,
           verifyCommand: 'node -e "console.log(1)"',
         },
       }),

@@ -34,12 +34,15 @@ export function task(overrides: Partial<TaskSummary> = {}): TaskSummary {
     worktreePath: null,
     verifyCommand: 'pnpm test',
     dangerouslySkipPermissions: false,
+    budgetUsd: null,
     enqueuedAt: null,
     retryCount: 0,
     createdAt: 1,
     updatedAt: 2,
     attention: 'needs_review',
     waitingSince: Date.now() - 40 * 60_000,
+    acceptance: null,
+    budget: null,
     ...overrides,
   }
 }

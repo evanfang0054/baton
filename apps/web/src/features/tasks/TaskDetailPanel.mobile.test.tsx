@@ -26,6 +26,7 @@ function stubDetail() {
             worktreePath: null,
             verifyCommand: null,
             dangerouslySkipPermissions: false,
+            budgetUsd: null,
             enqueuedAt: null,
             retryCount: 0,
             createdAt: 1,
