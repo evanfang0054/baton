@@ -126,6 +126,7 @@
 - [M5-1 总管售后与批量验收](evidence/2026-11-21-m5-supervisor-aftersales/README.md)
 - [M5-3 上下文交接验收](evidence/2026-11-21-m5-3-context-handoff/README.md)
 - [M6-1 任务现场验收](evidence/2026-11-21-m6-task-scene/README.md)
+- [M6-2 上下文再注入验收](evidence/2026-11-21-m6-2-context-injection/README.md)
 
 ## 约定
 

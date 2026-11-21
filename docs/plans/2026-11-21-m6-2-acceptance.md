@@ -4,7 +4,7 @@ spec_topic: m6-2-context-injection
 task_count: 3
 estimated_phases: [verification, evidence, docs]
 dod: 'M6-2 DoD 13-15：Playwright、ego-lite 真实 Claude、证据、docs 与 contract 收口'
-status: pending
+status: completed
 depends_on: 2026-11-21-m6-2-canvas-web.md, 2026-11-21-m6-2-tasks-web.md
 ---
 
@@ -35,7 +35,7 @@ Seam: `apps/web/e2e/context-injection.spec.ts`
 **Interfaces:**
 - 复用 `mockWorkspace` / `task` / `agentNode` / `textNode` / `sceneDetail`；断言 `context.inject` / `review.decide` payload。
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { expect, test, type Page } from '@playwright/test'
@@ -140,12 +140,12 @@ test('rejects with canvas selection and requires confirmation on failed verify',
 
 如果 `m6-helpers.ts` 的 `task()`/`sceneDetail()` 还没有 `enqueuedAt`/`injections`，在 Step 3 一并补齐。
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm exec playwright test apps/web/e2e/context-injection.spec.ts --project=chromium`
 Expected: FAIL — 按钮/对话框/checkbox 缺失，或 fixture 类型不匹配。
 
-- [ ] **Step 3: Fix helper fixtures**
+- [x] **Step 3: Fix helper fixtures**
 
 `m6-helpers.ts`：
 
@@ -158,12 +158,12 @@ injections: [],
 
 如果 `session` fixture 出现在该文件，补 `costUsd: null, turns: null`。
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm exec playwright test apps/web/e2e/context-injection.spec.ts --project=chromium`
 Expected: PASS。再跑 `pnpm exec playwright test apps/web/e2e/task-scene.spec.ts apps/web/e2e/board-attention.spec.ts --project=chromium` 确认旧场景不回归。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/e2e
@@ -186,7 +186,7 @@ Seam: 临时 daemon + 真实 workspace
 - 临时 daemon：`BATON_PORT=7317`（与 Vite proxy 一致）、临时 `BATON_DATA_DIR`、临时 workspace；结束后停止并删除。
 - 启动前确认 `lsof -i :7317` 没有本机 daemon；有则先停掉或复用其数据目录，不要同时写同一 SQLite。
 
-- [ ] **Step 1: 启动临时环境**
+- [x] **Step 1: 启动临时环境**
 
 ```bash
 TMP=$(mktemp -d)
@@ -198,7 +198,7 @@ echo "dev pid=$DEV_PID"
 
 在演示 workspace 初始化一个最小 git 仓库与 `package.json`（含 `test` 脚本），用 web 建 workspace、信任、建 Agent 节点与任务。
 
-- [ ] **Step 2: ego-lite 取证**
+- [x] **Step 2: ego-lite 取证**
 
 1. 打开 `http://127.0.0.1:5173`，截图任务看板。
 2. 让真实 Claude 任务进入 `waiting_input`（或在任务 prompt 里要求它先提问）；选中一个新的文本节点，点「投喂给任务」，截图对话框与现场条「已注入 1 次」。
@@ -206,7 +206,7 @@ echo "dev pid=$DEV_PID"
 4. 打回时勾选「附带当前选中的节点」，截图生成的 feedback/context；或直接通过并截图确认块。
 5. 截图前检查用户名、绝对路径、token、transcript；不符合则裁剪/替换。
 
-- [ ] **Step 3: 写证据 README**
+- [x] **Step 3: 写证据 README**
 
 ```markdown
 # M6-2 上下文再注入验收
@@ -220,7 +220,7 @@ echo "dev pid=$DEV_PID"
 - 已知限制：连接中断后的手动重试可能重复注入
 ```
 
-- [ ] **Step 4: 停止并清理临时环境**
+- [x] **Step 4: 停止并清理临时环境**
 
 ```bash
 kill "$DEV_PID" && rm -rf "$TMP"
@@ -228,7 +228,7 @@ kill "$DEV_PID" && rm -rf "$TMP"
 
 Expected: daemon 停止；临时目录删除；不触碰本机 `~/.baton`。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/evidence/2026-11-21-m6-2-context-injection
@@ -252,7 +252,7 @@ Seam: docs index + contract DoD
 **Interfaces:**
 - docs 索引包含 spec/contract/5 个 plan/evidence；contract DoD 全部按真实完成情况勾选。
 
-- [ ] **Step 1: 确认 docs 索引**
+- [x] **Step 1: 确认 docs 索引**
 
 `docs/README.md` 已包含 spec/contract/5 个 plan；验收时补 evidence 行：
 
@@ -260,19 +260,19 @@ Seam: docs index + contract DoD
 - [M6-2 上下文再注入验收](evidence/2026-11-21-m6-2-context-injection/README.md)
 ```
 
-- [ ] **Step 2: 勾选 DoD**
+- [x] **Step 2: 勾选 DoD**
 
 逐条对照 spec、测试输出、Playwright 与 ego-lite 证据；未真实完成的条目不勾选，并在 contract 末尾写“未完成项/原因”。
 
 注意：contract 的 Playwright 条目里“queued 保序”由 daemon 集成测试覆盖，不伪造成浏览器断言；在 contract 里写明证据位置。
 
-- [ ] **Step 3: 更新状态**
+- [x] **Step 3: 更新状态**
 
 - spec frontmatter `status: implemented`；
 - 5 个 plan frontmatter `status: completed`；
 - contract 状态改为“已实现，验收通过”或如实记录未完成项。
 
-- [ ] **Step 4: 全量命令**
+- [x] **Step 4: 全量命令**
 
 ```bash
 pnpm verify
@@ -285,7 +285,7 @@ pnpm format:check
 
 Expected: 全部退出码 0；Playwright 全部通过。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs
@@ -300,3 +300,10 @@ git commit -m "docs: M6-2 收口"
 - contract 15 条 DoD 全部有证据或明确未完成原因。
 - ego-lite 截图已脱敏；临时 daemon 已停止、临时目录已删除。
 - 不把 `dist`、`node_modules`、`.env`、本机绝对路径提交进仓库。
+
+## 完成记录
+
+- 2026-11-21：Playwright 新增 3 条（投喂、打回带上下文、失败 verify 通过确认），44 条 e2e 全绿。
+- ego-lite + 真实 Claude 跑通 `waiting_input → 投喂 → running → review`；期间发现 resumed turn `baton_report` 被静默丢弃，修复为每次 `send` 重置上报状态并补单测。
+- 证据：`docs/evidence/2026-11-21-m6-2-context-injection/`（5 张脱敏截图 + README）。
+- 全量命令：`pnpm verify`、`pnpm verify:full`、`pnpm pack:check`、`pnpm check:boundaries`、`pnpm check:protocol`、`pnpm format:check` 全部通过。

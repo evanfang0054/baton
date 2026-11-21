@@ -6,7 +6,7 @@
 
 ## 0. 文档信息
 
-- **状态**：已谈定，待实现；实现完成后逐条勾选。
+- **状态**：已实现，验收通过；证据见 `docs/evidence/2026-11-21-m6-2-context-injection/`。
 - **范围**：`packages/protocol/**`、`packages/core/**`、`apps/daemon/**`、`apps/web/**`、migration 0011、测试与 `docs/**`。
 - **预期不改**：状态机允许转移与状态语义；`task.status` 单写者；初始 `ContextSnapshot` 的 `included/dropped` 语义；`assembleContext` 的预算/深度/敏感路径规则；`node`/`edge` 表结构；现有上传接口行为。
 - **GDD**：仓库没有 `docs/agent-harness/` 与 GDD 脚本，按 M1/M2/M3/M5/M6-1 先例显式跳过；测试设计由本 contract 的 DoD 与 5 个 plan 的测试矩阵承担。
@@ -17,21 +17,29 @@
 
 ## 2. DoD
 
-- [ ] **1. 注入状态矩阵**：`context.inject` 对 `todo` 与 `queued` 保持原状态、不启动 session；对 `waiting_input`（question/stalled/dropped）走 `user_input` 变 `running`；对 `waiting_input`（approval/null）、`review`、`running`、`verifying`、`done`、`failed`、`cancelled` 返回 `task_not_injectable`，且 reason 分别为 `approval_pending`、`use_review_reject`、`running`、`terminal`；拒绝时不写 prompt、不写 context、不写 audit。
-- [ ] **2. Review 打回携带上下文**：`review.decide(reject)` 可只带 `contextNodeIds`、不带文字 feedback；任务回 `queued`，review verdict 为 `rejected`，prompt 中 `<feedback>` 与本次独立 `<context_update>` 各恰好一份，`context.injections` 增加一条；只有 feedback 或只有 context 都合法，两者都空返回 `invalid_payload`。
-- [ ] **3. append-only 快照**：注入后初始 `ContextSnapshot` 的 `included/dropped/truncated/redactedPaths/relations/relationsTruncated` 不变；`context.injections[]` 按 `seq` 递增追加；旧 `context_json` 没有 `injections` 字段时按 `[]` 解析，旧任务详情不报错；不新建表。
-- [ ] **4. prompt 单份与标签**：每次注入在 `task.prompt` 中只出现一份；`todo/queued` 落在 `<context_update>`，`waiting_input` 落在 `<user_reply>`，`review reject` 落在独立 `<context_update>`（feedback 单独）；`<context_update>` 含 `seq/at/source` 属性、可选 `<note>`、节点与关系 XML；不重写历史 prompt，不重复旧上下文。
-- [ ] **5. 预算与原子性**：单次 40 节点 / 48k 字符 / 单节点 16k 按现有规则截断/丢弃；累计注入 96k（只累计 `injections[].chars`）超限返回 `context_budget_exceeded`；超限时 prompt、`context_json`、audit 与注入前逐字节一致；敏感路径按现有规则丢弃并标记 `sensitive`，正文不进入 prompt、事件、审计或日志；装配后 `included` 为空返回 `context_empty`。
-- [ ] **6. 队列顺序**：`task.enqueued_at` 在进入 `queued`（enqueue/reject/verify_fail 自动重试/retry）时设为 `now`，`reopen` 回 `todo` 时清空；调度器按 `enqueued_at ASC, id ASC` 取 queued；给两个 queued 任务中的第一个注入后，第一个仍先启动；migration 0011 把旧 queued 任务的 `enqueued_at` 回填为 `updated_at`。
-- [ ] **7. 现场感知**：`buildTaskScene` 的 `relatedNodeIds` 纳入 `context.injections[].nodeIds`；现场条显示「上下文 N 个 · 已注入 M 次」；被注入节点有文字/图标「已投喂」标记；已删除的注入节点计入 `missingNodeIds`；现场布局仍只读，不出现节点拖动/编辑入口。
-- [ ] **8. 上下文时间线**：任务详情显示初始快照 + 每次注入的 seq/时间/来源/note/included chips/dropped/truncated；节点 chip 可定位画布节点；已删除节点显示占位；手机视口显示同一只读时间线，不出现「投喂」按钮；时间线不提供编辑/删除注入。
-- [ ] **9. cost/turn**：Claude adapter 的 `turn_result.costUsd/turns` 经 `baton.session.usage` 落库到 `session.cost_usd/turns`；`TaskDetailResponse.sessions` 返回新字段；review 卡显示最近一次「本次 $x · y turns」，任务详情头部显示 `ΣcostUsd/Σturns`；缺失显示「—」；fake/pty 无 usage 不报错。
-- [ ] **10. 通过覆盖**：`review.decide(approve)` 支持可选 `reason`；UI 仅在 `verifyExitCode !== 0` 或 `VERIFY_SKIPPED` 时弹二次确认；确认后写 `review.approve_override` 审计，含 `reviewId/taskId/verifyExitCode/reasonProvided`；正常 verify 通过且无 reason 不写该审计；状态机 `approve` 语义不变。
-- [ ] **11. 总管边界**：`SUPERVISOR_POLICY.allowedTools` 16 → 17，真实引擎请求体包含 17 个工具；`inject_context` 只接受 `taskId/nodeIds/note?`，单任务、用户明确要求、review 不允许；成功写 `supervisor.context.inject` 审计（taskId/seq/nodeIds/chars/dropped），失败不写成功审计；`get_task` 返回 `injectable` 与 `context.injections` 计数/最后时间，不返回正文；prompt 明确不自动补上下文、不自动打回。
-- [ ] **12. 协议兼容**：`ContextInjectInput`、`ContextInjection`、`context.injected`、`baton.session.usage`、`Task.enqueuedAt`、`Session.costUsd/turns`、review reject/approve 新字段均可解析；旧字段语义不变；不新增 `NodeType`；不新增 REST 接口；`appendWs` 对 `context.injected` 写 taskId。
-- [ ] **13. 安全与隐私**：不新增文件读取面；图片仍只输出路径/URL；`note` 只进 `task.prompt` 与 `context.injections[].note`；`context.injected` 与审计不含 note/正文；错误信息不回显节点正文；UI 纯文本渲染；截图按仓库脱敏规则处理。
-- [ ] **14. 测试覆盖**：protocol 字段/命令/事件解析；core `canInjectContext` 全矩阵、`assembleContextInjection` 选中/直接边/深度 2/group/敏感路径/空内容/预算/排序/默认 note 快照、`buildContextUpdateBlock`、`cumulativeInjectedChars`、转移 effects；daemon migration/回填/注入事务/预算原子性/队列顺序/waiting_input 单份/review 携带/usage 落库/override 审计/supervisor 审计；web 对话框/现场条/时间线/review 打回/approve 确认/手机只读；Playwright 覆盖 waiting_input 投喂、review 打回、approve 确认；ego-lite + 真实 Claude 跑通一次 waiting_input 投喂到 review 并截图。
-- [ ] **15. 命令、迁移与收口**：migration 0011 在 fixture DB 上从 0010 升级通过；`pnpm verify`、`pnpm verify:full`、`pnpm pack:check`、`pnpm check:boundaries`、`pnpm check:protocol`、`pnpm format:check` 全绿；docs 索引包含 spec/contract/5 个 plan/evidence；证据落 `docs/evidence/<date>-m6-2-context-injection/`；不建新表、不改转移语义、不做 AC/现场任务动作/DAG。
+- [x] **1. 注入状态矩阵**：`context.inject` 对 `todo` 与 `queued` 保持原状态、不启动 session；对 `waiting_input`（question/stalled/dropped）走 `user_input` 变 `running`；对 `waiting_input`（approval/null）、`review`、`running`、`verifying`、`done`、`failed`、`cancelled` 返回 `task_not_injectable`，且 reason 分别为 `approval_pending`、`use_review_reject`、`running`、`terminal`；拒绝时不写 prompt、不写 context、不写 audit。
+- [x] **2. Review 打回携带上下文**：`review.decide(reject)` 可只带 `contextNodeIds`、不带文字 feedback；任务回 `queued`，review verdict 为 `rejected`，prompt 中 `<feedback>` 与本次独立 `<context_update>` 各恰好一份，`context.injections` 增加一条；只有 feedback 或只有 context 都合法，两者都空返回 `invalid_payload`。
+- [x] **3. append-only 快照**：注入后初始 `ContextSnapshot` 的 `included/dropped/truncated/redactedPaths/relations/relationsTruncated` 不变；`context.injections[]` 按 `seq` 递增追加；旧 `context_json` 没有 `injections` 字段时按 `[]` 解析，旧任务详情不报错；不新建表。
+- [x] **4. prompt 单份与标签**：每次注入在 `task.prompt` 中只出现一份；`todo/queued` 落在 `<context_update>`，`waiting_input` 落在 `<user_reply>`，`review reject` 落在独立 `<context_update>`（feedback 单独）；`<context_update>` 含 `seq/at/source` 属性、可选 `<note>`、节点与关系 XML；不重写历史 prompt，不重复旧上下文。
+- [x] **5. 预算与原子性**：单次 40 节点 / 48k 字符 / 单节点 16k 按现有规则截断/丢弃；累计注入 96k（只累计 `injections[].chars`）超限返回 `context_budget_exceeded`；超限时 prompt、`context_json`、audit 与注入前逐字节一致；敏感路径按现有规则丢弃并标记 `sensitive`，正文不进入 prompt、事件、审计或日志；装配后 `included` 为空返回 `context_empty`。
+- [x] **6. 队列顺序**：`task.enqueued_at` 在进入 `queued`（enqueue/reject/verify_fail 自动重试/retry）时设为 `now`，`reopen` 回 `todo` 时清空；调度器按 `enqueued_at ASC, id ASC` 取 queued；给两个 queued 任务中的第一个注入后，第一个仍先启动；migration 0011 把旧 queued 任务的 `enqueued_at` 回填为 `updated_at`。
+- [x] **7. 现场感知**：`buildTaskScene` 的 `relatedNodeIds` 纳入 `context.injections[].nodeIds`；现场条显示「上下文 N 个 · 已注入 M 次」；被注入节点有文字/图标「已投喂」标记；已删除的注入节点计入 `missingNodeIds`；现场布局仍只读，不出现节点拖动/编辑入口。
+- [x] **8. 上下文时间线**：任务详情显示初始快照 + 每次注入的 seq/时间/来源/note/included chips/dropped/truncated；节点 chip 可定位画布节点；已删除节点显示占位；手机视口显示同一只读时间线，不出现「投喂」按钮；时间线不提供编辑/删除注入。
+- [x] **9. cost/turn**：Claude adapter 的 `turn_result.costUsd/turns` 经 `baton.session.usage` 落库到 `session.cost_usd/turns`；`TaskDetailResponse.sessions` 返回新字段；review 卡显示最近一次「本次 $x · y turns」，任务详情头部显示 `ΣcostUsd/Σturns`；缺失显示「—」；fake/pty 无 usage 不报错。
+- [x] **10. 通过覆盖**：`review.decide(approve)` 支持可选 `reason`；UI 仅在 `verifyExitCode !== 0` 或 `VERIFY_SKIPPED` 时弹二次确认；确认后写 `review.approve_override` 审计，含 `reviewId/taskId/verifyExitCode/reasonProvided`；正常 verify 通过且无 reason 不写该审计；状态机 `approve` 语义不变。
+- [x] **11. 总管边界**：`SUPERVISOR_POLICY.allowedTools` 16 → 17，真实引擎请求体包含 17 个工具；`inject_context` 只接受 `taskId/nodeIds/note?`，单任务、用户明确要求、review 不允许；成功写 `supervisor.context.inject` 审计（taskId/seq/nodeIds/chars/dropped），失败不写成功审计；`get_task` 返回 `injectable` 与 `context.injections` 计数/最后时间，不返回正文；prompt 明确不自动补上下文、不自动打回。
+- [x] **12. 协议兼容**：`ContextInjectInput`、`ContextInjection`、`context.injected`、`baton.session.usage`、`Task.enqueuedAt`、`Session.costUsd/turns`、review reject/approve 新字段均可解析；旧字段语义不变；不新增 `NodeType`；不新增 REST 接口；`appendWs` 对 `context.injected` 写 taskId。
+- [x] **13. 安全与隐私**：不新增文件读取面；图片仍只输出路径/URL；`note` 只进 `task.prompt` 与 `context.injections[].note`；`context.injected` 与审计不含 note/正文；错误信息不回显节点正文；UI 纯文本渲染；截图按仓库脱敏规则处理。
+- [x] **14. 测试覆盖**：protocol 字段/命令/事件解析；core `canInjectContext` 全矩阵、`assembleContextInjection` 选中/直接边/深度 2/group/敏感路径/空内容/预算/排序/默认 note 快照、`buildContextUpdateBlock`、`cumulativeInjectedChars`、转移 effects；daemon migration/回填/注入事务/预算原子性/队列顺序/waiting_input 单份/review 携带/usage 落库/override 审计/supervisor 审计；web 对话框/现场条/时间线/review 打回/approve 确认/手机只读；Playwright 覆盖 waiting_input 投喂、review 打回、approve 确认；ego-lite + 真实 Claude 跑通一次 waiting_input 投喂到 review 并截图。
+- [x] **15. 命令、迁移与收口**：migration 0011 在 fixture DB 上从 0010 升级通过；`pnpm verify`、`pnpm verify:full`、`pnpm pack:check`、`pnpm check:boundaries`、`pnpm check:protocol`、`pnpm format:check` 全绿；docs 索引包含 spec/contract/5 个 plan/evidence；证据落 `docs/evidence/<date>-m6-2-context-injection/`；不建新表、不改转移语义、不做 AC/现场任务动作/DAG。
+
+### 2.1 验收证据
+
+- **单元/集成**：`pnpm verify`（protocol/core/adapters/daemon/web）+ `pnpm verify:full`（44 条 Playwright）全绿。
+- **Playwright**：`apps/web/e2e/context-injection.spec.ts` 覆盖 `waiting_input` 投喂、review 打回携带选择、verify 失败通过确认；queued 保序由 `apps/daemon/test/context-inject-command.test.ts` 的 FIFO 测试覆盖。
+- **真实链路**：`docs/evidence/2026-11-21-m6-2-context-injection/`；真实 Claude `blocked → 投喂 → ready → review`，截图含看板、投喂对话框、时间线、usage、override 确认。
+- **验收中发现并修复**：resumed turn 的 `baton_report` 被会话级 `reported` 标志静默丢弃（任务停在 running）；现已每轮 `send` 重置，并有 `createBatonReportHandler` 单测。
+- **已知限制**：临时验收环境未配置 verify，review 显示「未执行自动校验」；通过覆盖走 UI 确认与 daemon 审计测试。
 
 ## 3. Boundary Conditions
 

@@ -4,7 +4,7 @@ decision_summary: 'M6-2 任务现场 v1：画布节点可再注入已有任务�
 design_approved: true
 user_approved_at: '2026-11-21T12:35:10+08:00'
 gates: [design-approved]
-status: approved
+status: implemented
 spec_ref: 2026-11-21-m6-task-scene-design.md
 domain_terms:
   [
