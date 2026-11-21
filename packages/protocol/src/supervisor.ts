@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Id, Timestamp } from './common.js'
-import { Engine } from './enums.js'
+import { Engine, TaskStatus } from './enums.js'
 import { AppError } from './errors.js'
 
 /**
@@ -139,6 +139,24 @@ export const SupervisorTaskCard = z.object({
   status: z.enum(['todo', 'queued']),
 })
 export type SupervisorTaskCard = z.infer<typeof SupervisorTaskCard>
+
+/** handoff_task 的返回结构；web 从 ToolCallRecord.result 读取。 */
+export const SupervisorHandoffInfo = z.object({
+  nodeId: Id,
+  fromTaskId: Id,
+  fromTitle: z.string(),
+  fromStatus: TaskStatus,
+  worktree: z.boolean(),
+  warnings: z.array(z.string()),
+})
+export type SupervisorHandoffInfo = z.infer<typeof SupervisorHandoffInfo>
+
+export const SupervisorHandoffResult = z.object({
+  task: SupervisorTaskCard,
+  handoff: SupervisorHandoffInfo,
+  startError: z.string().optional(),
+})
+export type SupervisorHandoffResult = z.infer<typeof SupervisorHandoffResult>
 
 export const SupervisorStatusResponse = z.object({
   configured: z.boolean(),

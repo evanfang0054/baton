@@ -13,6 +13,14 @@ export const TaskStatus = z.enum([
 ])
 export type TaskStatus = z.infer<typeof TaskStatus>
 
+/** 允许生成交接节点的源任务状态；daemon 与 web 共用，避免两处漂移。 */
+export const HANDOFFABLE_STATUSES = ['review', 'done', 'failed', 'cancelled'] as const
+export type HandoffableStatus = (typeof HANDOFFABLE_STATUSES)[number]
+
+export function isHandoffable(status: TaskStatus): status is HandoffableStatus {
+  return (HANDOFFABLE_STATUSES as readonly TaskStatus[]).includes(status)
+}
+
 export const NodeType = z.enum(['text', 'image', 'file', 'agent', 'review', 'group'])
 export type NodeType = z.infer<typeof NodeType>
 

@@ -52,8 +52,8 @@ export type TaskReopenInput = z.infer<typeof TaskReopenInput>
 
 export const TaskHandoffInput = z.object({
   taskId: Id,
-  /** 传了就校验归属；web 与总管都带当前 workspace。 */
-  workspaceId: Id.optional(),
+  /** 当前 workspace；用于任务归属校验，防止跨 workspace 交接。 */
+  workspaceId: Id,
 })
 export type TaskHandoffInput = z.infer<typeof TaskHandoffInput>
 
