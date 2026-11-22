@@ -48,6 +48,19 @@ export type SupervisorThread = z.infer<typeof SupervisorThread>
 export const Strength = z.enum(['explicit', 'inferred'])
 export type Strength = z.infer<typeof Strength>
 
+export const TaskAction = z.enum([
+  'retry',
+  'reopen',
+  'cancel',
+  'reply',
+  'inject_context',
+  'handoff',
+  'update_canvas',
+  'enqueue',
+  'apply_plan',
+])
+export type TaskAction = z.infer<typeof TaskAction>
+
 export const SupervisorMode = z.enum(['explicit', 'observe', 'auto'])
 export type SupervisorMode = z.infer<typeof SupervisorMode>
 
@@ -122,6 +135,10 @@ export const TaskOrigin = z
     contextNodeIds: z.array(Id).max(40),
     policyVersion: z.string().min(1),
     promptVersion: z.string().min(1),
+    scope: z.literal('task').optional(),
+    strength: Strength.optional(),
+    allowedActions: z.array(TaskAction).max(16).optional(),
+    mandateVersion: z.string().min(1).optional(),
     /** 验收员任务指向被验收的任务与那一轮 review，避免旧结论误批新尝试。 */
     reviewOfTaskId: Id.optional(),
     reviewOfReviewId: Id.optional(),

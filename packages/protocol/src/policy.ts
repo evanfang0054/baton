@@ -47,10 +47,21 @@ const AutopilotPolicy = z.object({
   maxAutoApprovalsPerTask: z.number().int().nonnegative().default(10),
 })
 
+export const AutonomyMode = z.enum(['off', 'observe', 'auto'])
+export type AutonomyMode = z.infer<typeof AutonomyMode>
+
+export const AutonomyPolicy = z.object({
+  mode: AutonomyMode.default('observe'),
+  autoRetry: AutonomyMode.default('off'),
+  attentionReminder: AutonomyMode.default('observe'),
+})
+export type AutonomyPolicy = z.infer<typeof AutonomyPolicy>
+
 export const PolicySchema = z.object({
   // 用函数默认值，避免多个 parse 共享同一份数组/对象默认值。
   verify: VerifyPolicy.default(() => VerifyPolicy.parse({})),
   approval: ApprovalPolicy.default(() => ApprovalPolicy.parse({})),
   autopilot: AutopilotPolicy.default(() => AutopilotPolicy.parse({})),
+  autonomy: AutonomyPolicy.default(() => AutonomyPolicy.parse({})),
 })
 export type Policy = z.infer<typeof PolicySchema>

@@ -25,3 +25,18 @@ describe('policy defaults', () => {
     expect(policy.approval.allow.some((rule) => rule.includes('(test|'))).toBe(false)
   })
 })
+
+describe('autonomy policy defaults', () => {
+  it('defaults to observe / off / observe', () => {
+    const policy = PolicySchema.parse({})
+    expect(policy.autonomy).toEqual({
+      mode: 'observe',
+      autoRetry: 'off',
+      attentionReminder: 'observe',
+    })
+  })
+
+  it('rejects an unknown autonomy mode', () => {
+    expect(PolicySchema.safeParse({ autonomy: { mode: 'always' } }).success).toBe(false)
+  })
+})

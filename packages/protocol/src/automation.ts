@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { Id, Timestamp } from './common.js'
 import { ApprovalDecision, Attention, RiskLevel, TaskStatus } from './enums.js'
-import { PolicySchema } from './policy.js'
+import { AutonomyMode, PolicySchema } from './policy.js'
 
 /** 只允许 UI 编辑的四个字段；allow/deny/verify/digestCron 保持只读。 */
 export const AutomationPolicyPatch = z
@@ -19,6 +19,14 @@ export const AutomationPolicyPatch = z
       .object({
         // high 永不自动批准，不提供该选项，避免误导。
         autoApproveMaxRisk: z.enum(['low', 'medium']).optional(),
+      })
+      .strict()
+      .optional(),
+    autonomy: z
+      .object({
+        mode: AutonomyMode.optional(),
+        autoRetry: AutonomyMode.optional(),
+        attentionReminder: AutonomyMode.optional(),
       })
       .strict()
       .optional(),
