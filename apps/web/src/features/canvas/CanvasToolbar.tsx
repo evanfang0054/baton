@@ -4,6 +4,7 @@ import {
   FileText,
   FolderPlus,
   Image as ImageIcon,
+  LayoutGrid,
   Maximize,
   Send,
   Type,
@@ -49,6 +50,8 @@ function ToolButton({
 
 export function CanvasToolbar({
   onAdd,
+  onArrange,
+  arrangeDisabled = false,
   onFit,
   onZoomIn,
   onZoomOut,
@@ -57,6 +60,8 @@ export function CanvasToolbar({
   readOnly = false,
 }: {
   onAdd: (type: CanvasAddType) => void
+  onArrange: () => void
+  arrangeDisabled?: boolean
   onFit: () => void
   onZoomIn: () => void
   onZoomOut: () => void
@@ -82,6 +87,14 @@ export function CanvasToolbar({
           </ToolButton>
           <ToolButton label="添加 Agent" hint="添加 Agent 节点" onPress={() => onAdd('agent')}>
             <Bot size={16} />
+          </ToolButton>
+          <ToolButton
+            label="整理画布"
+            hint="自动排列节点，保持分组"
+            onPress={onArrange}
+            disabled={arrangeDisabled}
+          >
+            <LayoutGrid size={16} />
           </ToolButton>
           <span className="mx-1 h-5 w-px bg-separator" />
           <ToolButton

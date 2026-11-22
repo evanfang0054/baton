@@ -69,7 +69,7 @@ async function mockWorkspace(page: Page) {
       })
     }
     if (path === '/api/engines') {
-      return route.fulfill({ json: { engines: [{ engine: 'fake', status: 'available' }] } })
+      return route.fulfill({ json: { engines: [{ engine: 'claude-sdk', status: 'available' }] } })
     }
     if (path === '/api/notices') return route.fulfill({ json: { notices: [] } })
     if (path === '/api/canvas') {
@@ -93,7 +93,7 @@ async function mockWorkspace(page: Page) {
               prompt: '',
               status: 'review',
               waitingReason: null,
-              engine: 'fake',
+              engine: 'claude-sdk',
               workspaceMode: 'main',
               branch: null,
               worktreePath: null,
@@ -121,7 +121,7 @@ async function mockWorkspace(page: Page) {
             prompt: '',
             status: 'review',
             waitingReason: null,
-            engine: 'fake',
+            engine: 'claude-sdk',
             workspaceMode: 'main',
             branch: null,
             worktreePath: null,

@@ -114,13 +114,14 @@ function tools(): BoundToolset {
     create_agent: noop,
     create_edge: noop,
     update_node: noop,
+    arrange_canvas: noop,
     create_task: {
       description: 'create a todo task',
       parameters: z.object({ title: z.string().min(1) }),
       execute: async (input) => ({
         taskId: 'task-1',
         title: (input as { title: string }).title,
-        target: { id: 'a1', title: 'Agent 1', engine: 'fake' },
+        target: { id: 'a1', title: 'Agent 1', engine: 'claude-sdk' },
         contextCount: 1,
         status: 'todo',
       }),
@@ -141,6 +142,7 @@ describe('createAiSdkSupervisorEngine with a mock OpenAI-compatible model', () =
       apiKey: 'test-key',
       model: 'mock-model',
     })
+    const bound = tools()
     const deltas: string[] = []
 
     const result = await engine.run({
@@ -159,7 +161,7 @@ describe('createAiSdkSupervisorEngine with a mock OpenAI-compatible model', () =
           createdAt: 1,
         },
       ],
-      tools: tools(),
+      tools: bound,
       signal: new AbortController().signal,
       onDelta: (delta) => deltas.push(delta),
     })
@@ -172,28 +174,7 @@ describe('createAiSdkSupervisorEngine with a mock OpenAI-compatible model', () =
       ok: true,
       args: { title: '登录页暗黑模式' },
     })
-    expect(sentTools.sort()).toEqual([
-      'batch_tasks',
-      'cancel_task',
-      'create_agent',
-      'create_edge',
-      'create_task',
-      'create_tasks',
-      'create_text',
-      'decide_action',
-      'enqueue_task',
-      'get_task',
-      'get_task_failure',
-      'get_task_history',
-      'handoff_task',
-      'inject_context',
-      'list_canvas',
-      'list_tasks',
-      'plan_tasks',
-      'reopen_task',
-      'reply_task',
-      'retry_task',
-      'update_node',
-    ])
+    // 引擎必须把 BoundToolset 里的每个工具都传给模型；漏一个模型就会说“没有这个能力”。
+    expect(sentTools.sort()).toEqual(Object.keys(bound).sort())
   })
 })

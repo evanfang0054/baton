@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { FakeAdapter } from '@baton/adapters'
+import { ScriptedAdapter } from './helpers/scripted-adapter.js'
 import { createAdapterFactory } from '../src/runtime/adapter-factory.js'
 import type { TestApp } from './helpers/app.js'
 import type { TestRuntimeHandle } from './helpers/runtime.js'
@@ -116,7 +116,9 @@ describe('failure paths', () => {
       useSessionRunner: true,
       useVerifyRunner: true,
       adapters: createAdapterFactory({
-        fake: new FakeAdapter({ script: [{ kind: 'error', message: 'boom token=abc' }] }),
+        'claude-sdk': new ScriptedAdapter({
+          script: [{ kind: 'error', message: 'boom token=abc' }],
+        }),
       }),
     })
     apps.push(created)

@@ -38,7 +38,7 @@ const tasks: TaskSummary[] = [
     prompt: '',
     status: 'todo',
     waitingReason: null,
-    engine: 'fake',
+    engine: 'claude-sdk',
     workspaceMode: 'main',
     branch: null,
     worktreePath: null,
@@ -65,7 +65,7 @@ const sceneDetail: TaskDetailResponse = {
     prompt: '',
     status: 'running',
     waitingReason: null,
-    engine: 'fake',
+    engine: 'claude-sdk',
     workspaceMode: 'main',
     branch: null,
     worktreePath: null,
@@ -107,6 +107,7 @@ const sceneDetail: TaskDetailResponse = {
     turns: 0,
   },
   lastFailure: null,
+  lastOutcome: null,
 }
 
 afterEach(() => {
@@ -155,7 +156,7 @@ describe('CanvasPanel', () => {
             canvasId: 'c1',
             node: expect.objectContaining({
               type: 'agent',
-              data: expect.objectContaining({ engine: 'fake', title: 'Agent 1' }),
+              data: expect.objectContaining({ engine: 'claude-sdk', title: 'Agent 1' }),
             }),
           }),
         }),
@@ -211,6 +212,17 @@ describe('CanvasPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '添加图片' }))
     expect(await screen.findByRole('heading', { name: '添加图片节点' })).toBeInTheDocument()
     expect(send).not.toHaveBeenCalled()
+  })
+
+  it('arranges canvas nodes through one move_many command', async () => {
+    const { send } = renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: '整理画布' }))
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({
+        type: 'node.move_many',
+        payload: { canvasId: 'c1', moves: [{ nodeId: 'n1', x: 80, y: 80 }] },
+      }),
+    )
   })
 
   it('opens the inject dialog from the toolbar and submits selection', async () => {

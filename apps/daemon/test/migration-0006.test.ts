@@ -58,7 +58,7 @@ describe('migration 0006', () => {
         `insert into task (
            id, workspace_id, title, prompt, status, engine, workspace_mode, retry_count,
            dangerously_skip_permissions, created_at, updated_at
-         ) values ('t1', 'w1', 'demo', 'x', 'todo', 'fake', 'main', 0, 0, 1, 1)`,
+         ) values ('t1', 'w1', 'demo', 'x', 'todo', 'claude-sdk', 'main', 0, 0, 1, 1)`,
       ).run()
 
       const row = db.prepare('select origin_json from task where id = ?').get('t1') as {

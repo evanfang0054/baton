@@ -13,9 +13,7 @@ import {
   type StartInput,
 } from '@baton/protocol'
 
-export { VERIFIER_PROMPT_MARKER }
-
-export type FakeStep =
+export type ScriptStep =
   | { kind: 'text'; text: string }
   | { kind: 'approval'; request: ApprovalRequest }
   | { kind: 'pause'; outcome: 'blocked' | 'dropped'; reason?: string }
@@ -23,10 +21,10 @@ export type FakeStep =
   | { kind: 'finish'; outcome?: 'ready' | 'unreported' }
   | { kind: 'error'; message: string }
 
-interface FakeOptions {
-  script?: FakeStep[]
+interface ScriptedOptions {
+  script?: ScriptStep[]
   /** prompt 含 VERIFIER_PROMPT_MARKER 时使用的脚本（测试验收员链路）。 */
-  verifierScript?: FakeStep[]
+  verifierScript?: ScriptStep[]
   threadId?: string
 }
 
@@ -43,13 +41,13 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve }
 }
 
-const DEFAULT_SCRIPT: FakeStep[] = [
-  { kind: 'text', text: 'fake: working' },
+const DEFAULT_SCRIPT: ScriptStep[] = [
+  { kind: 'text', text: 'scripted: working' },
   {
     kind: 'approval',
     request: { toolName: 'Bash', input: { command: 'pnpm test' }, risk: 'medium' },
   },
-  { kind: 'text', text: 'fake: approved' },
+  { kind: 'text', text: 'scripted: approved' },
   { kind: 'finish' },
 ]
 
@@ -59,23 +57,23 @@ function event(value: unknown): AgentEvent {
 
 /**
  * 脚本化适配器：只产生 AG-UI 事件并接受控制调用，不读 DB、不发 WS、不使用定时器。
- * 用于 M1-5 的确定性集成测试；真实引擎接入见 M1-7。
+ * 仅供测试注入，产品装配里不存在这个实现。
  *
  * 生命周期约定：
  * - interrupt/dispose 后不再产生事件，send/approve 抛错；
  * - RUN_FINISHED/RUN_ERROR 一旦产出，send/approve 也视为关闭；
  * - approve 必须匹配当前 pending 的 requestId，避免串审批。
  */
-export class FakeAdapter implements AgentAdapter {
-  readonly name = 'fake' as const
-  private readonly script: FakeStep[]
-  private readonly verifierScript?: FakeStep[]
+export class ScriptedAdapter implements AgentAdapter {
+  readonly name = 'claude-sdk' as const
+  private readonly script: ScriptStep[]
+  private readonly verifierScript?: ScriptStep[]
   private readonly threadId: string
 
-  constructor(options: FakeOptions = {}) {
+  constructor(options: ScriptedOptions = {}) {
     this.script = options.script ?? DEFAULT_SCRIPT
     this.verifierScript = options.verifierScript
-    this.threadId = options.threadId ?? 'fake-thread'
+    this.threadId = options.threadId ?? 'scripted-thread'
   }
 
   async start(input: StartInput): Promise<AgentRun> {
@@ -84,7 +82,7 @@ export class FakeAdapter implements AgentAdapter {
       this.verifierScript && input.prompt.includes(VERIFIER_PROMPT_MARKER)
         ? this.verifierScript
         : this.script
-    const runId = 'fake-run'
+    const runId = 'scripted-run'
     const queue: string[] = []
     let pending: { requestId: string; deferred: Deferred<ApprovalDecision> } | null = null
     let pauseWait: Deferred<string> | null = null
@@ -100,7 +98,7 @@ export class FakeAdapter implements AgentAdapter {
       if (isClosed() || interrupted) {
         return
       }
-      const messageId = `fake-msg-${++messageSeq}`
+      const messageId = `scripted-msg-${++messageSeq}`
       yield event({
         type: EventType.TEXT_MESSAGE_START,
         messageId,
@@ -159,7 +157,7 @@ export class FakeAdapter implements AgentAdapter {
               return
             }
             if (decision === 'deny') {
-              yield* text('fake: denied')
+              yield* text('scripted: denied')
               if (isClosed() || interrupted) {
                 return
               }
@@ -188,7 +186,7 @@ export class FakeAdapter implements AgentAdapter {
             if (isClosed() || interrupted) {
               return
             }
-            yield* text(`fake: resumed: ${reply}`)
+            yield* text(`scripted: resumed: ${reply}`)
           } else if (step.kind === 'usage') {
             yield event({
               type: EventType.CUSTOM,
@@ -237,7 +235,7 @@ export class FakeAdapter implements AgentAdapter {
       events,
       approve: async (requestId, decision) => {
         if (isClosed()) {
-          throw new Error('fake adapter run is closed')
+          throw new Error('scripted adapter run is closed')
         }
         const current = pending
         if (!current || current.requestId !== requestId) {
@@ -247,11 +245,11 @@ export class FakeAdapter implements AgentAdapter {
         current.deferred.resolve(decision)
       },
       answerQuestion: async () => {
-        throw new Error('fake adapter does not ask structured questions')
+        throw new Error('scripted adapter does not ask structured questions')
       },
       send: async (delta) => {
         if (isClosed()) {
-          throw new Error('fake adapter run is closed')
+          throw new Error('scripted adapter run is closed')
         }
         if (pauseWait) {
           const wait = pauseWait

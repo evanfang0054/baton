@@ -1,4 +1,3 @@
-import { FakeAdapter } from '@baton/adapters'
 import type { AgentAdapter, Engine } from '@baton/protocol'
 import { appError } from '../errors.js'
 
@@ -24,9 +23,6 @@ export function createAdapterFactory(
     const adapter = overrides[engine]
     if (adapter) {
       return adapter
-    }
-    if (engine === 'fake') {
-      return new FakeAdapter()
     }
     if (engine === 'claude-sdk') {
       if (!claude) {

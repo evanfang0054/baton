@@ -79,7 +79,7 @@ const canvasNodes = [
     w: 240,
     h: 120,
     groupId: null,
-    data: { title: 'Agent 1', engine: 'fake', taskId: null },
+    data: { title: 'Agent 1', engine: 'claude-sdk', taskId: null },
     createdAt: 1,
     updatedAt: 1,
   },
@@ -105,7 +105,7 @@ async function mockSupervisorRest(
     }
     if (path === '/api/tasks') return route.fulfill({ json: { tasks: [] } })
     if (path === '/api/engines') {
-      return route.fulfill({ json: { engines: [{ engine: 'fake', status: 'available' }] } })
+      return route.fulfill({ json: { engines: [{ engine: 'claude-sdk', status: 'available' }] } })
     }
     if (path === '/api/supervisor/status') {
       return route.fulfill({
@@ -189,7 +189,7 @@ test('creates a todo task from canvas context without starting it', async ({ pag
               result: {
                 taskId: 'task-1',
                 title: '登录页暗黑模式',
-                target: { id: 'a1', title: 'Agent 1', engine: 'fake' },
+                target: { id: 'a1', title: 'Agent 1', engine: 'claude-sdk' },
                 contextCount: 1,
                 status: 'todo',
               },

@@ -29,7 +29,7 @@ const target = Node.parse({
   id: 'n2',
   canvasId: 'c1',
   type: 'agent',
-  data: { title: 'Agent', engine: 'fake', taskId: null },
+  data: { title: 'Agent', engine: 'claude-sdk', taskId: null },
   x: 100,
   y: 0,
   groupId: null,
@@ -62,7 +62,7 @@ describe('context -> policy -> adapter wiring', () => {
 
     const approvals: Array<[string, ApprovalDecision]> = []
     const adapter: AgentAdapter = {
-      name: 'fake',
+      name: 'claude-sdk',
       async start(input: StartInput): Promise<AgentRun> {
         expect(input.prompt).toContain('<task>把登录页改成暗黑模式</task>')
         expect(input.policy.approval.default).toBe('ask')

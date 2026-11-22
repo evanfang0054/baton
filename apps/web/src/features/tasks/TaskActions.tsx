@@ -3,7 +3,7 @@ import { Button } from '@heroui/react/button'
 import { TextArea } from '@heroui/react/textarea'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { queryKeys } from '../../lib/query'
+import { invalidateTaskQueries } from '../../lib/query'
 import { BudgetCard } from './BudgetCard'
 import { useCommandAction } from './useCommandAction'
 
@@ -28,9 +28,7 @@ export function TaskActions({
   const [confirming, setConfirming] = useState(false)
   const [note, setNote] = useState('')
   const refresh = async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
-    await queryClient.invalidateQueries({ queryKey: queryKeys.taskHistory(taskId) })
-    await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+    await invalidateTaskQueries(queryClient, taskId, workspaceId)
     setConfirming(false)
   }
   const action = useCommandAction(refresh)

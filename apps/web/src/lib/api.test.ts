@@ -55,7 +55,7 @@ describe('api request', () => {
           return Response.json({
             engines: [
               { engine: 'claude-sdk', status: 'unknown' },
-              { engine: 'fake', status: 'available' },
+              { engine: 'claude-sdk', status: 'available' },
             ],
           })
         }

@@ -20,7 +20,7 @@ function taskSummary(id: string, title: string, nodeId: string) {
     prompt: '',
     status: 'todo',
     waitingReason: null,
-    engine: 'fake',
+    engine: 'claude-sdk',
     workspaceMode: 'main',
     branch: null,
     worktreePath: null,
@@ -157,7 +157,7 @@ async function mockAutomationApi(page: Page, options: MockOptions = {}) {
               w: 240,
               h: 120,
               groupId: null,
-              data: { title: 'Agent 1', engine: 'fake', taskId: null },
+              data: { title: 'Agent 1', engine: 'claude-sdk', taskId: null },
               createdAt: 1,
               updatedAt: 1,
             },
@@ -170,7 +170,7 @@ async function mockAutomationApi(page: Page, options: MockOptions = {}) {
               w: 240,
               h: 120,
               groupId: null,
-              data: { title: 'Agent 2', engine: 'fake', taskId: null },
+              data: { title: 'Agent 2', engine: 'claude-sdk', taskId: null },
               createdAt: 1,
               updatedAt: 1,
             },
@@ -181,7 +181,7 @@ async function mockAutomationApi(page: Page, options: MockOptions = {}) {
     }
     if (path === '/api/tasks') return route.fulfill({ json: { tasks } })
     if (path === '/api/engines') {
-      return route.fulfill({ json: { engines: [{ engine: 'fake', status: 'available' }] } })
+      return route.fulfill({ json: { engines: [{ engine: 'claude-sdk', status: 'available' }] } })
     }
     if (path === '/api/supervisor/status') {
       return route.fulfill({

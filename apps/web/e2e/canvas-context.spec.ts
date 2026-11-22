@@ -88,7 +88,7 @@ test('creates a task with canvas context', async ({ page }) => {
               w: 240,
               h: 120,
               groupId: null,
-              data: { title: 'Agent 1', engine: 'fake', taskId: null },
+              data: { title: 'Agent 1', engine: 'claude-sdk', taskId: null },
               createdAt: 1,
               updatedAt: 1,
             },
@@ -101,7 +101,7 @@ test('creates a task with canvas context', async ({ page }) => {
       return route.fulfill({ json: { tasks: [] } })
     }
     if (path === '/api/engines') {
-      return route.fulfill({ json: { engines: [{ engine: 'fake', status: 'available' }] } })
+      return route.fulfill({ json: { engines: [{ engine: 'claude-sdk', status: 'available' }] } })
     }
     if (path === '/api/tasks/t1') {
       return route.fulfill({
@@ -114,7 +114,7 @@ test('creates a task with canvas context', async ({ page }) => {
             prompt: '<task>开始</task>',
             status: 'todo',
             waitingReason: null,
-            engine: 'fake',
+            engine: 'claude-sdk',
             workspaceMode: 'main',
             branch: null,
             worktreePath: null,

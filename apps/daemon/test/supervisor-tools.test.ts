@@ -4,7 +4,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { appError } from '../src/errors.js'
-import { getNode, getTask, insertApproval, insertReview } from '../src/db/repositories.js'
+import {
+  getNode,
+  getTask,
+  insertApproval,
+  insertReview,
+  listNodes,
+} from '../src/db/repositories.js'
 import {
   insertAcceptanceContract,
   insertAcceptanceItems,
@@ -164,7 +170,7 @@ function ctx(seeded: ReturnType<typeof seedTask>): ToolContext {
     selection: {
       contextNodeIds: ['text-1'],
       targetNodeId: seeded.nodeId,
-      agentCandidates: [{ id: seeded.nodeId, title: 'agent', engine: 'fake' }],
+      agentCandidates: [{ id: seeded.nodeId, title: 'agent', engine: 'claude-sdk' }],
     },
     policyVersion: 'p1',
     promptVersion: 'v1',
@@ -176,14 +182,20 @@ describe('supervisor tools', () => {
   it('creates a todo task with origin and audit, never enqueues', async () => {
     const { database, seeded, tools } = setup()
     const result = (await tools.create_task.execute(
-      { title: '登录页暗黑模式', targetNodeId: seeded.nodeId, contextNodeIds: ['text-1'] },
+      {
+        title: '登录页暗黑模式',
+        prompt: '给登录页增加暗黑模式并保持现有布局',
+        targetNodeId: seeded.nodeId,
+        contextNodeIds: ['text-1'],
+      },
       ctx(seeded),
     )) as { taskId: string; status: string; contextCount: number }
 
     expect(result).toMatchObject({ taskId: 'task-new', status: 'todo', contextCount: 1 })
     const task = getTask(database.db, 'task-new')
     expect(task?.status).toBe('todo')
-    expect(task?.prompt).toContain('<task>')
+    expect(task?.prompt).toContain('给登录页增加暗黑模式并保持现有布局')
+    expect(task?.prompt).not.toContain('给这个 Agent 建个任务')
     expect(database.raw.prepare('select count(*) as n from session').get()).toEqual({ n: 0 })
     expect(database.raw.prepare('select count(*) as n from audit').get()).toEqual({ n: 1 })
     const row = database.raw
@@ -197,13 +209,45 @@ describe('supervisor tools', () => {
     })
   })
 
+  it('requires an explicit prompt instead of reusing the trigger text', async () => {
+    const { seeded, tools } = setup()
+    await expect(
+      tools.create_task.execute({ title: '没有任务指令' }, ctx(seeded)),
+    ).rejects.toBeInstanceOf(Error)
+  })
+
+  it('arranges canvas nodes and is idempotent', async () => {
+    const { database, seeded, tools } = setup()
+    await tools.create_text.execute({ content: '资料 A' }, ctx(seeded))
+    await tools.create_text.execute({ content: '资料 B' }, ctx(seeded))
+
+    const first = (await tools.arrange_canvas.execute({}, ctx(seeded))) as {
+      moved: number
+      groups: number
+    }
+    expect(first.moved).toBeGreaterThan(0)
+    expect(first.groups).toBe(0)
+
+    const nodes = listNodes(database.db, seeded.canvasId)
+    expect(nodes.some((node) => node.x === 80 && node.y === 80)).toBe(true)
+    expect(new Set(nodes.map((node) => `${node.x},${node.y}`)).size).toBe(nodes.length)
+    expect(
+      database.raw
+        .prepare("select count(*) as n from audit where action = 'supervisor.canvas.arrange'")
+        .get(),
+    ).toEqual({ n: 1 })
+
+    const second = (await tools.arrange_canvas.execute({}, ctx(seeded))) as { moved: number }
+    expect(second.moved).toBe(0)
+  })
+
   it('filters tasks by q and status in the current workspace', async () => {
     const { database, seeded, tools } = setup()
     const insert = database.raw.prepare(
       `insert into task (
          id, workspace_id, node_id, title, prompt, status, engine, workspace_mode,
          branch, worktree_path, verify_command, retry_count, created_at, updated_at
-       ) values (?, ?, ?, ?, 'p', ?, 'fake', 'main', null, null, null, 0, ?, ?)`,
+       ) values (?, ?, ?, ?, 'p', ?, 'claude-sdk', 'main', null, null, null, 0, ?, ?)`,
     )
     insert.run('task-login', seeded.workspaceId, seeded.nodeId, '登录页修复', 'todo', 3, 3)
     insert.run('task-home', seeded.workspaceId, seeded.nodeId, '首页登录入口', 'done', 2, 2)
@@ -231,7 +275,7 @@ describe('supervisor tools', () => {
       .prepare(
         'insert into session (id, task_id, adapter, status, started_at) values (?, ?, ?, ?, ?)',
       )
-      .run('sess-1', seeded.taskId, 'fake', 'waiting_input', 1)
+      .run('sess-1', seeded.taskId, 'claude-sdk', 'waiting_input', 1)
     database.db.transaction((tx) => {
       insertApproval(tx, {
         id: 'ap1',
@@ -260,7 +304,7 @@ describe('supervisor tools', () => {
       .prepare(
         'insert into session (id, task_id, adapter, status, started_at) values (?, ?, ?, ?, ?)',
       )
-      .run('sess-2', seeded.taskId, 'fake', 'waiting_input', 1)
+      .run('sess-2', seeded.taskId, 'claude-sdk', 'waiting_input', 1)
     database.db.transaction((tx) => {
       insertApproval(tx, {
         id: 'ap2',
@@ -505,6 +549,7 @@ describe('supervisor tools', () => {
     await tools.create_task.execute(
       {
         title: '隔离改动',
+        prompt: '在隔离分支完成登录页暗黑模式',
         targetNodeId: seeded.nodeId,
         contextNodeIds: [],
         workspaceMode: 'worktree',
@@ -660,7 +705,10 @@ describe('supervisor tools', () => {
       ...ctx(seeded),
       selection: { contextNodeIds: [], agentCandidates: [] },
     }
-    const result = (await tools.create_task.execute({ title: '自动派活', start: true }, bare)) as {
+    const result = (await tools.create_task.execute(
+      { title: '自动派活', prompt: '完成自动派活验证', start: true },
+      bare,
+    )) as {
       taskId: string
       status: string
       target: { id: string }
@@ -677,9 +725,9 @@ describe('supervisor tools', () => {
   it('updates a todo task title and starts it on a follow-up call', async () => {
     const { database, seeded, tools } = setup()
     const context = ctx(seeded)
-    await tools.create_task.execute({ title: '文档助手' }, context)
+    await tools.create_task.execute({ title: '文档助手', prompt: '整理文档' }, context)
     const second = (await tools.create_task.execute(
-      { title: '给 README 增加用法说明', start: true },
+      { title: '给 README 增加用法说明', prompt: '给 README 增加用法说明', start: true },
       context,
     )) as { title: string; status: string }
 
@@ -700,7 +748,12 @@ describe('supervisor tools', () => {
     const { seeded, tools } = setup()
     await expect(
       tools.create_task.execute(
-        { title: 'x', targetNodeId: seeded.nodeId, contextNodeIds: ['other'] },
+        {
+          title: 'x',
+          prompt: '测试无效上下文',
+          targetNodeId: seeded.nodeId,
+          contextNodeIds: ['other'],
+        },
         ctx(seeded),
       ),
     ).rejects.toMatchObject({ code: 'supervisor_context_invalid' })
@@ -734,7 +787,7 @@ describe('supervisor tools', () => {
     database.raw
       .prepare(
         `insert into session (id, task_id, adapter, status, cost_usd, turns, started_at, ended_at)
-         values ('sess-usage', ?, 'fake', 'ended', 1.2, 4, 1, 2)`,
+         values ('sess-usage', ?, 'claude-sdk', 'ended', 1.2, 4, 1, 2)`,
       )
       .run(seeded.taskId)
     database.db.transaction((tx) => {
@@ -841,7 +894,7 @@ describe('supervisor tools', () => {
     database.raw
       .prepare(
         `insert into session (id, task_id, adapter, status, cost_usd, turns, started_at)
-         values ('sess-over', ?, 'fake', 'running', 2.5, 3, 1)`,
+         values ('sess-over', ?, 'claude-sdk', 'running', 2.5, 3, 1)`,
       )
       .run(seeded.taskId)
 

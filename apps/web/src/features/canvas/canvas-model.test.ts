@@ -39,7 +39,7 @@ const agentNode: ProtocolNode = {
   w: 320,
   h: 200,
   groupId: null,
-  data: { title: 'Agent 1', engine: 'fake', taskId: null },
+  data: { title: 'Agent 1', engine: 'claude-sdk', taskId: null },
   createdAt: 1,
   updatedAt: 1,
 }
@@ -52,7 +52,7 @@ const task: TaskSummary = {
   prompt: '',
   status: 'todo',
   waitingReason: null,
-  engine: 'fake',
+  engine: 'claude-sdk',
   workspaceMode: 'main',
   branch: null,
   worktreePath: null,
@@ -315,6 +315,31 @@ describe('canvas model', () => {
     expect(groupMovePlan(moved, current)).toEqual([
       { nodeId: 'g1', x: 100, y: 100 },
       { nodeId: 'n1', x: 110, y: 120 },
+    ])
+  })
+
+  it('includes nested group descendants in the move plan', () => {
+    const outer = groupNode('g1')
+    const inner: ProtocolNode = { ...groupNode('g2', false, 20, 30), groupId: 'g1' }
+    const leaf: ProtocolNode = { ...textNode, id: 'n3', groupId: 'g2', x: 25, y: 40 }
+    const flow = toFlowNodes([outer, inner, leaf], [])
+    const byId = new Map(flow.map((node) => [node.id, node]))
+    const nested = flow.map((node) => {
+      if (node.id === 'g2') {
+        return { ...node, parentId: 'g1', position: { x: 20, y: 30 } }
+      }
+      if (node.id === 'n3') {
+        return { ...node, parentId: 'g2', position: { x: 5, y: 10 } }
+      }
+      return node
+    })
+    const group = { ...byId.get('g1')!, position: { x: 100, y: 100 } }
+    const current = nested.map((node) => (node.id === 'g1' ? group : node))
+
+    expect(groupMovePlan(group, current)).toEqual([
+      { nodeId: 'g1', x: 100, y: 100 },
+      { nodeId: 'g2', x: 120, y: 130 },
+      { nodeId: 'n3', x: 125, y: 140 },
     ])
   })
 

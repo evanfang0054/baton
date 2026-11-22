@@ -36,7 +36,7 @@ describe('plan apply', () => {
             targetNodeId: null,
             agentTitle: 'Agent 1',
             contextNodeIds: [],
-            engine: 'fake',
+            engine: 'claude-sdk',
             budgetUsd: null,
           },
           {
@@ -45,7 +45,7 @@ describe('plan apply', () => {
             targetNodeId: 'missing-node',
             agentTitle: null,
             contextNodeIds: [],
-            engine: 'fake',
+            engine: 'claude-sdk',
             budgetUsd: null,
           },
         ],

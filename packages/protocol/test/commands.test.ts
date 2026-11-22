@@ -11,7 +11,7 @@ const fixtures = [
       title: 'demo',
       prompt: 'do it',
       contextNodeIds: ['n1'],
-      engine: 'fake',
+      engine: 'claude-sdk',
     },
   ],
   ['task.enqueue', { taskId: 't1' }],
@@ -99,7 +99,7 @@ const fixtures = [
         w: 320,
         h: 200,
         groupId: null,
-        data: { title: 'agent', engine: 'fake', taskId: null },
+        data: { title: 'agent', engine: 'claude-sdk', taskId: null },
       },
     },
   ],
@@ -168,7 +168,7 @@ describe('ClientMessage', () => {
         title: 'demo',
         prompt: 'do it',
         contextNodeIds: ['n1'],
-        engine: 'fake',
+        engine: 'claude-sdk',
       },
     })
     if (parsed.type !== 'task.create') throw new Error('expected task.create')

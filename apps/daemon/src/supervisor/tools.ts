@@ -1,4 +1,5 @@
 import {
+  arrangeCanvasNodes,
   buildPlan,
   buildTaskOrigin,
   boardColumn,
@@ -116,6 +117,7 @@ export interface SupervisorToolset {
   create_agent: SupervisorTool
   create_edge: SupervisorTool
   update_node: SupervisorTool
+  arrange_canvas: SupervisorTool
 }
 
 export interface BoundTool {
@@ -146,6 +148,7 @@ export interface BoundToolset {
   create_agent: BoundTool
   create_edge: BoundTool
   update_node: BoundTool
+  arrange_canvas: BoundTool
 }
 
 export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundToolset {
@@ -176,6 +179,7 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     create_agent: bind(tools.create_agent),
     create_edge: bind(tools.create_edge),
     update_node: bind(tools.update_node),
+    arrange_canvas: bind(tools.arrange_canvas),
   }
 }
 
@@ -211,6 +215,8 @@ const getTaskFailureInput = z.object({
 
 const createTaskInput = z.object({
   title: z.string().min(1).max(80),
+  // 任务指令必须由总管显式给全：用户只说“可以/继续”时，不能把确认词当成任务内容。
+  prompt: z.string().trim().min(1).max(16_384),
   agentTitle: z.string().min(1).max(80).optional(),
   targetNodeId: z.string().min(1).optional(),
   contextNodeIds: z.array(z.string().min(1)).max(40).optional(),
@@ -320,6 +326,8 @@ const updateNodeInput = z
   .refine((value) => value.x !== undefined || value.y !== undefined || value.title !== undefined, {
     message: 'at least one field is required',
   })
+
+const arrangeCanvasInput = z.object({})
 
 export type EnqueueTaskResult = { ok: true; status: TaskStatus } | { ok: false; error: AppError }
 
@@ -954,9 +962,39 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       },
     },
 
+    arrange_canvas: {
+      description:
+        '自动整理当前画布：按视觉顺序行式排布，分组整体移动且组内相对位置不变。' +
+        '只在用户明确要求“整理画布/排一下/太乱了”时使用；不要主动整理。',
+      parameters: arrangeCanvasInput,
+      async execute(_input, ctx) {
+        const canvas = resolver.canvasFor(ctx)
+        const nodes = listNodes(deps.db, canvas.id)
+        const groups = nodes.filter((node) => node.type === 'group').length
+        const moves = arrangeCanvasNodes(nodes)
+        if (moves.length === 0) return { canvasId: canvas.id, moved: 0, groups }
+        deps.db.transaction((tx) => {
+          moveNodes(tx, canvas.id, moves, deps.now())
+          insertAudit(tx, {
+            id: deps.newId(),
+            ts: deps.now(),
+            actor: 'supervisor',
+            action: 'supervisor.canvas.arrange',
+            detail: {
+              workspaceId: ctx.workspaceId,
+              canvasId: canvas.id,
+              moved: moves.length,
+              groups,
+            },
+          })
+        })
+        return { canvasId: canvas.id, moved: moves.length, groups }
+      },
+    },
+
     create_task: {
       description:
-        '创建任务；没有目标 Agent 时会自动创建一个 Agent 节点。只有用户明确要求隔离/worktree 时才传 workspaceMode=worktree。start=true 时立即开工。',
+        '创建任务；prompt 必填，写清要执行的具体工作（用户只回复“可以/继续”时，结合上一轮请求补全，不能把确认词当任务）。没有目标 Agent 时会自动创建一个 Agent 节点。只有用户明确要求隔离/worktree 时才传 workspaceMode=worktree。start=true 时立即开工。',
       parameters: createTaskInput,
       async execute(input, ctx) {
         const parsed = createTaskInput.parse(input)
@@ -997,7 +1035,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
 
         const created = createTaskForTool(ctx, {
           title: parsed.title,
-          prompt: ctx.text,
+          prompt: parsed.prompt,
           target,
           contextNodeIds,
           engine,

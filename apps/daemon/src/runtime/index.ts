@@ -268,8 +268,7 @@ export function createRuntime(deps: RuntimeDeps) {
     ...(deps.logger ? { logger: deps.logger } : {}),
   })
   rescheduleDigest = () => digestScheduler.reschedule()
-  const defaultEngine: Engine =
-    deps.engines && deps.engines.get('claude-sdk').status === 'unavailable' ? 'fake' : 'claude-sdk'
+  const defaultEngine: Engine = 'claude-sdk'
 
   function requireMandate(taskId: string, action: TaskAction, strength: Strength): AppError | null {
     const detail = getTaskDetail(deps.db, taskId)

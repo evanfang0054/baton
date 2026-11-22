@@ -39,7 +39,7 @@ const assistantWithTaskCard: SupervisorMessage = {
       result: {
         taskId: 't1',
         title: '整理需求',
-        target: { id: 'a1', title: 'Agent 1', engine: 'fake' },
+        target: { id: 'a1', title: 'Agent 1', engine: 'claude-sdk' },
         contextCount: 2,
         status: 'todo',
       },

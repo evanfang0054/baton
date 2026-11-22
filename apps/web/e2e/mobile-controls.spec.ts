@@ -73,7 +73,7 @@ async function mockApi(page: Page, sent: Sent[], state: { paused: boolean }) {
               groupId: null,
               createdAt: 1,
               updatedAt: 1,
-              data: { title: '主 Agent', engine: 'fake', taskId: null },
+              data: { title: '主 Agent', engine: 'claude-sdk', taskId: null },
             },
             {
               id: 'n1',
@@ -94,7 +94,7 @@ async function mockApi(page: Page, sent: Sent[], state: { paused: boolean }) {
       })
     }
     if (path === '/api/engines') {
-      return route.fulfill({ json: { engines: [{ engine: 'fake', status: 'available' }] } })
+      return route.fulfill({ json: { engines: [{ engine: 'claude-sdk', status: 'available' }] } })
     }
     if (path === '/api/tasks') return route.fulfill({ json: { tasks: [] } })
     if (path === '/api/notices') return route.fulfill({ json: { notices: [] } })
@@ -147,7 +147,7 @@ test('creates a task from mobile with agent and context', async ({ page }) => {
       nodeId: 'a1',
       contextNodeIds: ['n1'],
       title: '移动建任务',
-      engine: 'fake',
+      engine: 'claude-sdk',
     })
   await expect(page.getByLabel('任务标题')).toHaveCount(0)
 })

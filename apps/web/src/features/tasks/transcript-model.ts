@@ -44,6 +44,30 @@ function systemEntry(
 }
 
 /**
+ * 取最近一次会话结论。只返回 blocked/dropped 的原因，用于在任务详情里
+ * 直接告诉用户“为什么需要你回复”，而不是只显示一个泛化的待处理状态。
+ */
+export function latestBlockedOutcome(
+  events: SessionEventRecord[],
+): { outcome: 'blocked' | 'dropped'; reason: string } | null {
+  const ordered = [...events].sort((a, b) => b.seq - a.seq)
+  for (const event of ordered) {
+    if (event.type !== 'CUSTOM') continue
+    const payload = recordOf(event.payload)
+    if (!payload || textOf(payload.name) !== SESSION_OUTCOME_EVENT) continue
+    const value = recordOf(payload.value) ?? {}
+    const outcome = textOf(value.outcome)
+    const reason = textOf(value.reason).trim()
+    if ((outcome === 'blocked' || outcome === 'dropped') && reason) {
+      return { outcome, reason }
+    }
+    // 最新一次结论不是 blocked/dropped 时，旧原因已经失效。
+    return null
+  }
+  return null
+}
+
+/**
  * 把 AG-UI 事件投影成可渲染的 transcript。
  * 只消费已知事件；未知 payload 不抛错，避免一条坏事件拖垮整个详情面板。
  */

@@ -199,7 +199,7 @@ const failedTask = {
   prompt: '<task>SECRET_TRANSCRIPT_SHOULD_NOT_APPEAR</task>',
   status: 'failed',
   waitingReason: null,
-  engine: 'fake',
+  engine: 'claude-sdk',
   workspaceMode: 'main',
   branch: null,
   worktreePath: null,

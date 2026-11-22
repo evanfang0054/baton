@@ -1,4 +1,4 @@
-import { FakeAdapter, type FakeStep } from '@baton/adapters'
+import { ScriptedAdapter, type ScriptStep } from './helpers/scripted-adapter.js'
 import { EventSchemas, type AgentAdapter } from '@baton/protocol'
 import { afterEach, describe, expect, it } from 'vitest'
 import { listSessionsByTask } from '../src/db/repositories.js'
@@ -11,14 +11,14 @@ const handles: TestRuntimeHandle[] = []
 function setupAdapter(adapter: AgentAdapter) {
   const handle = createTestRuntime({
     useSessionRunner: true,
-    adapters: createAdapterFactory({ fake: adapter }),
+    adapters: createAdapterFactory({ 'claude-sdk': adapter }),
   })
   handles.push(handle)
   return handle
 }
 
-function setup(script: FakeStep[]) {
-  return setupAdapter(new FakeAdapter({ script }))
+function setup(script: ScriptStep[]) {
+  return setupAdapter(new ScriptedAdapter({ script }))
 }
 
 afterEach(async () => {
@@ -81,11 +81,11 @@ describe('session runner attention', () => {
   })
 
   it('cleans up the active run when send fails', async () => {
-    const base = new FakeAdapter({
+    const base = new ScriptedAdapter({
       script: [{ kind: 'pause', outcome: 'blocked' }, { kind: 'finish' }],
     })
     const failing: AgentAdapter = {
-      name: 'fake',
+      name: 'claude-sdk',
       async start(input) {
         const run = await base.start(input)
         return {
@@ -126,7 +126,7 @@ describe('session runner attention', () => {
 
   it('RUN_FINISHED without outcome -> waiting_input(stalled)', async () => {
     const finishedOnly: AgentAdapter = {
-      name: 'fake',
+      name: 'claude-sdk',
       async start() {
         return {
           events: (async function* () {

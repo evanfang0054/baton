@@ -55,7 +55,7 @@ function queuedTask(
     prompt: '',
     status: 'queued',
     waitingReason: null,
-    engine: 'fake',
+    engine: 'claude-sdk',
     workspaceMode: 'main',
     branch: null,
     worktreePath: null,
@@ -140,7 +140,7 @@ describe('migration 0011', () => {
       insertSession(tx, {
         id: 's1',
         taskId: seeded.taskId,
-        adapter: 'fake',
+        adapter: 'claude-sdk',
         engineSessionId: null,
         status: 'running',
         outcome: null,
@@ -174,13 +174,13 @@ describe('migration 0011', () => {
         `insert into task (
            id, workspace_id, title, prompt, status, engine, workspace_mode,
            retry_count, created_at, updated_at
-         ) values (?, ?, ?, ?, ?, 'fake', 'main', 0, 1, ?)`,
+         ) values (?, ?, ?, ?, ?, 'claude-sdk', 'main', 0, 1, ?)`,
       )
       insertTask.run('q1', 'w1', 'queued', '', 'queued', 123)
       insertTask.run('t1', 'w1', 'todo', '', 'todo', 456)
       db.prepare(
         `insert into session (id, task_id, adapter, status, started_at)
-         values ('s1', 'q1', 'fake', 'running', 1)`,
+         values ('s1', 'q1', 'claude-sdk', 'running', 1)`,
       ).run()
 
       process.env.BATON_MIGRATIONS_DIR = migrationsDir

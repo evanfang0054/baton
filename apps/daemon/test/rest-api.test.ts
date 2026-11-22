@@ -257,6 +257,39 @@ describe('REST API', () => {
     expect(body.lastFailure).not.toHaveProperty('id')
   })
 
+  it('returns the latest session outcome in task detail', async () => {
+    const { app, handle } = await setup()
+    handle.database.raw
+      .prepare(
+        `insert into session (id, task_id, adapter, status, started_at)
+         values ('s1', ?, 'claude-sdk', 'waiting_input', 1)`,
+      )
+      .run(handle.seeded.taskId)
+    handle.database.raw
+      .prepare(
+        `insert into event (id, session_id, ordinal, seq, type, payload_json, ts)
+         values ('e1', 's1', 1, 1, 'CUSTOM', ?, 1)`,
+      )
+      .run(
+        JSON.stringify({
+          type: 'CUSTOM',
+          name: 'session.outcome',
+          value: { outcome: 'blocked', reason: '缺少具体任务' },
+        }),
+      )
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${handle.seeded.taskId}`,
+      headers: auth,
+    })
+    expect(response.statusCode).toBe(200)
+    expect((response.json() as { lastOutcome: unknown }).lastOutcome).toEqual({
+      outcome: 'blocked',
+      reason: '缺少具体任务',
+    })
+  })
+
   it('returns needs_review for review tasks', async () => {
     const { app, handle } = await setup()
     handle.database.db.transaction((tx) =>

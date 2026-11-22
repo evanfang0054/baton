@@ -32,7 +32,7 @@ export function task(overrides: Partial<TaskSummary> = {}): TaskSummary {
     prompt: '<task>演示</task>',
     status: 'review',
     waitingReason: null,
-    engine: 'fake',
+    engine: 'claude-sdk',
     workspaceMode: 'main',
     branch: null,
     worktreePath: null,
@@ -88,7 +88,7 @@ export function agentNode(
     w: 280,
     h: 160,
     groupId: null,
-    data: { title: 'Agent 1', engine: 'fake', taskId: null },
+    data: { title: 'Agent 1', engine: 'claude-sdk', taskId: null },
     createdAt: 1,
     updatedAt: 1,
     ...overrides,
@@ -326,6 +326,7 @@ export function sceneDetail(): TaskDetailResponse {
     acceptance: acceptanceSummary(),
     budget: budgetSummary(),
     lastFailure: null,
+    lastOutcome: null,
   }
 }
 
@@ -407,7 +408,7 @@ export async function mockWorkspace(
               json: { code: 'acceptance_not_found', message: 'acceptance not found' },
             })
       case '/api/engines':
-        return route.fulfill({ json: { engines: [{ engine: 'fake', status: 'available' }] } })
+        return route.fulfill({ json: { engines: [{ engine: 'claude-sdk', status: 'available' }] } })
       case '/api/supervisor/status':
         return route.fulfill({
           json: { configured: false, mode: 'explicit', policyVersion: 'p1' },

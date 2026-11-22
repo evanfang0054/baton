@@ -72,7 +72,7 @@ export function seedTask(
   ).run(
     nodeId,
     canvasId,
-    JSON.stringify({ title: 'agent', engine: 'fake', taskId: null }),
+    JSON.stringify({ title: 'agent', engine: 'claude-sdk', taskId: null }),
     now,
     now,
   )
@@ -80,7 +80,7 @@ export function seedTask(
     `insert into task (
        id, workspace_id, node_id, title, prompt, status, engine, workspace_mode,
        branch, worktree_path, verify_command, retry_count, created_at, updated_at
-     ) values (?, ?, ?, ?, ?, ?, 'fake', 'main', null, null, null, 0, ?, ?)`,
+     ) values (?, ?, ?, ?, ?, ?, 'claude-sdk', 'main', null, null, null, 0, ?, ?)`,
   ).run(
     taskId,
     workspaceId,
@@ -95,7 +95,7 @@ export function seedTask(
   if (sessionId) {
     db.prepare(
       `insert into session (id, task_id, adapter, engine_session_id, status, started_at, ended_at)
-       values (?, ?, 'fake', null, ?, ?, null)`,
+       values (?, ?, 'claude-sdk', null, ?, ?, null)`,
     ).run(sessionId, taskId, options.sessionStatus ?? 'running', now)
   }
 

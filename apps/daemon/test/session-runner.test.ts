@@ -1,4 +1,4 @@
-import { FakeAdapter } from '@baton/adapters'
+import { ScriptedAdapter } from './helpers/scripted-adapter.js'
 import type { AgentAdapter } from '@baton/protocol'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -20,7 +20,7 @@ function setup(options?: {
 }): TestRuntimeHandle {
   const handle = createTestRuntime({
     useSessionRunner: true,
-    adapters: options?.adapters ?? createAdapterFactory(),
+    adapters: options?.adapters ?? createAdapterFactory({ 'claude-sdk': new ScriptedAdapter() }),
     ...(options?.config ? { config: options.config } : {}),
   })
   handles.push(handle)
@@ -159,7 +159,7 @@ describe('session runner', () => {
   it('fails the task when the adapter emits RUN_ERROR', async () => {
     const handle = setup({
       adapters: createAdapterFactory({
-        fake: new FakeAdapter({ script: [{ kind: 'error', message: 'boom' }] }),
+        'claude-sdk': new ScriptedAdapter({ script: [{ kind: 'error', message: 'boom' }] }),
       }),
     })
     const taskId = handle.createTask()
@@ -173,7 +173,7 @@ describe('session runner', () => {
 
   it('marks a silent stream end as waiting for input instead of failed', async () => {
     const emptyAdapter: AgentAdapter = {
-      name: 'fake',
+      name: 'claude-sdk',
       async start() {
         return {
           events: (async function* () {})(),
@@ -185,7 +185,7 @@ describe('session runner', () => {
         }
       },
     }
-    const handle = setup({ adapters: createAdapterFactory({ fake: emptyAdapter }) })
+    const handle = setup({ adapters: createAdapterFactory({ 'claude-sdk': emptyAdapter }) })
     const taskId = handle.createTask()
     handle.runtime.applyTransition(taskId, { type: 'enqueue' })
     await waitFor(() => handle.runtime.getTask(taskId)?.status === 'waiting_input')

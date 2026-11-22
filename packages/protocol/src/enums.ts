@@ -56,7 +56,7 @@ export type RiskLevel = z.infer<typeof RiskLevel>
 export const ReviewVerdict = z.enum(['approved', 'rejected'])
 export type ReviewVerdict = z.infer<typeof ReviewVerdict>
 
-export const Engine = z.enum(['claude-sdk', 'pty', 'fake'])
+export const Engine = z.enum(['claude-sdk', 'pty'])
 export type Engine = z.infer<typeof Engine>
 
 export const WorkspaceMode = z.enum(['main', 'worktree'])

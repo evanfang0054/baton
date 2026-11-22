@@ -10,7 +10,7 @@ import { Button } from '@heroui/react/button'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState, type ReactNode } from 'react'
 import { ApiError, getTaskAcceptance, getTask, listSessionEvents } from '../../lib/api'
-import { queryKeys } from '../../lib/query'
+import { invalidateTaskQueries, queryKeys } from '../../lib/query'
 import { useAppStore } from '../../stores/app'
 import { mergeSessionPage } from '../realtime/session-cache'
 import { AcceptanceEditor } from './AcceptanceEditor'
@@ -32,6 +32,7 @@ import { TaskOriginCard } from './TaskOriginCard'
 import { Transcript } from './Transcript'
 import { WorktreeCard } from './WorktreeCard'
 import { sessionStatusLabel } from './labels'
+import { latestBlockedOutcome } from './transcript-model'
 
 export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId)
@@ -98,12 +99,7 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
   const onDone = useCallback(async () => {
     const taskId = detail.data?.task.id
     if (!taskId) return
-    await queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
-    await queryClient.invalidateQueries({ queryKey: queryKeys.taskAcceptance(taskId) })
-    await queryClient.invalidateQueries({ queryKey: queryKeys.taskHistory(taskId) })
-    if (activeWorkspaceId) {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(activeWorkspaceId) })
-    }
+    await invalidateTaskQueries(queryClient, taskId, activeWorkspaceId ?? undefined)
   }, [activeWorkspaceId, detail.data?.task.id, queryClient])
 
   const openScene = useCallback(() => {
@@ -116,7 +112,11 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
   return (
     <div
       data-testid="task-detail"
-      className={mobile ? 'flex min-h-0 flex-1 flex-col' : 'flex min-h-0 flex-1 flex-col gap-3 p-4'}
+      className={
+        mobile
+          ? 'flex min-h-0 flex-1 flex-col'
+          : 'flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4'
+      }
     >
       {!activeWorkspaceId ? (
         <p className="text-sm text-muted">尚未选择工作区</p>
@@ -249,6 +249,16 @@ function DetailContent({
   showActions: boolean
 }) {
   const task = detail.task
+  const latestSessionId = detail.sessions.at(-1)?.id ?? null
+  const lastOutcome = detail.lastOutcome
+  const blockedOutcome =
+    activeSessionId === latestSessionId && lastOutcome
+      ? lastOutcome.outcome === 'blocked' || lastOutcome.outcome === 'dropped'
+        ? lastOutcome.reason
+          ? { outcome: lastOutcome.outcome, reason: lastOutcome.reason }
+          : null
+        : null
+      : latestBlockedOutcome(events)
   const pendingApprovals = [...detail.approvals].reverse().filter((item) => item.decision === null)
   const needsApproval = detail.attention === 'needs_approval'
   const [historyDiffReviewId, setHistoryDiffReviewId] = useState<string | null>(null)
@@ -378,7 +388,22 @@ function DetailContent({
       ) : null}
 
       {task.status === 'waiting_input' && detail.attention === 'needs_reply' ? (
-        <ReplyComposer taskId={task.id} onDone={onDone} />
+        <div className="flex shrink-0 flex-col gap-2">
+          {blockedOutcome ? (
+            <section
+              aria-label="等待你回复的原因"
+              className="rounded-lg border border-warning bg-warning/10 p-3"
+            >
+              <h3 className="text-xs font-medium text-warning">
+                {blockedOutcome.outcome === 'blocked' ? 'Agent 需要你回复' : '任务已停止'}
+              </h3>
+              <p className="mt-1 whitespace-pre-wrap break-words text-xs text-foreground">
+                {blockedOutcome.reason}
+              </p>
+            </section>
+          ) : null}
+          <ReplyComposer taskId={task.id} onDone={onDone} />
+        </div>
       ) : null}
 
       {task.status === 'review' ? (
@@ -419,7 +444,7 @@ function DetailContent({
         className={
           mobile
             ? 'flex h-[45vh] min-h-64 flex-col border-t border-separator pt-3'
-            : 'flex min-h-0 flex-1 flex-col border-t border-separator pt-3'
+            : 'flex min-h-64 flex-1 flex-col border-t border-separator pt-3'
         }
       >
         <div className="mb-2 flex shrink-0 items-center gap-2">

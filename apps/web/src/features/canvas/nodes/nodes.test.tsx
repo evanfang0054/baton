@@ -32,7 +32,7 @@ const task: TaskSummary = {
   prompt: '',
   status: 'review',
   waitingReason: null,
-  engine: 'fake',
+  engine: 'claude-sdk',
   workspaceMode: 'main',
   branch: null,
   worktreePath: null,

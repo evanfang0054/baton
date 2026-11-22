@@ -128,6 +128,7 @@ describe('supervisor service', () => {
         onDelta('正在建任务')
         const result = await tools.create_task.execute({
           title: '登录页暗黑模式',
+          prompt: '给登录页增加暗黑模式',
           contextNodeIds: ['text-1'],
         })
         return {
@@ -370,6 +371,45 @@ describe('supervisor service', () => {
     expect(last?.content).toContain('执行失败')
   })
 
+  it('includes the blocked reason in the waiting notification', async () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        throw new Error('unused')
+      },
+      async summarize({ prompt }) {
+        return prompt
+      },
+    }
+    const { database, seeded, service, drain } = setup(engine)
+    seedSupervisorReview(database, seeded)
+    database.raw
+      .prepare(
+        "insert into session (id, task_id, adapter, status, started_at) values ('sess-blocked', ?, 'claude-sdk', 'waiting_input', 1)",
+      )
+      .run(seeded.taskId)
+    database.raw
+      .prepare(
+        "insert into event (id, session_id, ordinal, seq, type, payload_json, ts) values ('evt-blocked', 'sess-blocked', 1, 1, 'CUSTOM', ?, 1)",
+      )
+      .run(
+        JSON.stringify({
+          type: 'CUSTOM',
+          name: 'session.outcome',
+          value: { outcome: 'blocked', reason: '缺少实际需求，请告诉我要做什么' },
+        }),
+      )
+
+    service.observeTask({
+      taskId: seeded.taskId,
+      status: 'waiting_input',
+      waitingReason: 'question',
+    })
+    await drain()
+
+    const last = service.history(seeded.workspaceId, 50).messages.at(-1)
+    expect(last?.content).toContain('缺少实际需求，请告诉我要做什么')
+  })
+
   function seedSupervisorReview(database: TestDb, seeded: ReturnType<typeof seedTask>) {
     const origin = {
       source: 'supervisor-chat',
@@ -428,14 +468,14 @@ describe('supervisor service', () => {
            id, workspace_id, node_id, title, prompt, status, engine, workspace_mode,
            branch, worktree_path, verify_command, retry_count, dangerously_skip_permissions,
            origin_json, created_at, updated_at
-         ) values ('verifier-1', ?, ?, '验收：demo', '<task>验收</task>', ?, 'fake',
+         ) values ('verifier-1', ?, ?, '验收：demo', '<task>验收</task>', ?, 'claude-sdk',
            'main', null, null, null, 0, 0, ?, 3, 3)`,
       )
       .run(seeded.workspaceId, seeded.nodeId, status, JSON.stringify(origin))
     database.raw
       .prepare(
         `insert into session (id, task_id, adapter, engine_session_id, status, started_at, ended_at)
-         values ('vs1', 'verifier-1', 'fake', null, 'ended', 3, 4)`,
+         values ('vs1', 'verifier-1', 'claude-sdk', null, 'ended', 3, 4)`,
       )
       .run()
     const events = ['验收完成，检查了 diff。', `\nVERDICT: ${verdict}`]

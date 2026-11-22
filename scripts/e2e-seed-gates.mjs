@@ -4,7 +4,7 @@
  * 1. 在 BATON_WORKSPACES_ROOT 下创建临时 workspace 与 package.json；
  * 2. 通过 REST 创建 workspace；
  * 3. 通过 WS 创建 agent 节点、创建任务并开工；
- * 4. 等 fake agent 进入 waiting_input(approval)；
+ * 4. 等演示 Agent 进入 waiting_input(approval)；
  * 5. 再创建一个 todo 任务用于验证「立即开工」。
  *
  * 只用于 e2e，不进入 web runtime。依赖 Node 22 全局 fetch 与 WebSocket。
@@ -157,7 +157,7 @@ async function main() {
       w: 320,
       h: 200,
       groupId: null,
-      data: { title: '演示 Agent', engine: 'fake', taskId: null },
+      data: { title: '演示 Agent', engine: 'claude-sdk', taskId: null },
     },
   })
   const task = await ws.send('task.create', {
@@ -166,7 +166,7 @@ async function main() {
     title: '演示：审批与验收',
     prompt: '请演示审批与验收',
     contextNodeIds: [],
-    engine: 'fake',
+    engine: 'claude-sdk',
     workspaceMode: 'main',
     verifyCommand: 'node -e "console.log(\'verify ok\')"',
   })
@@ -189,7 +189,7 @@ async function main() {
       w: 320,
       h: 200,
       groupId: null,
-      data: { title: '待开工 Agent', engine: 'fake', taskId: null },
+      data: { title: '待开工 Agent', engine: 'claude-sdk', taskId: null },
     },
   })
   const todoTask = await ws.send('task.create', {
@@ -198,7 +198,7 @@ async function main() {
     title: '演示：立即开工',
     prompt: '请演示立即开工',
     contextNodeIds: [],
-    engine: 'fake',
+    engine: 'claude-sdk',
     workspaceMode: 'main',
     verifyCommand: 'node -e "console.log(\'verify ok\')"',
   })

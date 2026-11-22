@@ -20,7 +20,7 @@ function stubDetail() {
             prompt: '',
             status: 'todo',
             waitingReason: null,
-            engine: 'fake',
+            engine: 'claude-sdk',
             workspaceMode: 'main',
             branch: null,
             worktreePath: null,

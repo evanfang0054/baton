@@ -128,7 +128,7 @@ describe('M6-2 protocol', () => {
       prompt: '做',
       status: 'todo',
       waitingReason: null,
-      engine: 'fake',
+      engine: 'claude-sdk',
       workspaceMode: 'main',
       branch: null,
       worktreePath: null,
@@ -142,7 +142,7 @@ describe('M6-2 protocol', () => {
     const session = Session.parse({
       id: 's1',
       taskId: 't1',
-      adapter: 'fake',
+      adapter: 'claude-sdk',
       engineSessionId: null,
       status: 'running',
       outcome: null,

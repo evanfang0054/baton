@@ -1,4 +1,4 @@
-import { FakeAdapter, type FakeStep } from '@baton/adapters'
+import { ScriptedAdapter, type ScriptStep } from './helpers/scripted-adapter.js'
 import { afterEach, describe, expect, it } from 'vitest'
 import { listSessionsByTask } from '../src/db/repositories.js'
 import { createAdapterFactory } from '../src/runtime/adapter-factory.js'
@@ -8,10 +8,10 @@ import { createTestRuntime } from './helpers/runtime.js'
 
 const handles: TestRuntimeHandle[] = []
 
-function setup(script: FakeStep[]): TestRuntimeHandle {
+function setup(script: ScriptStep[]): TestRuntimeHandle {
   const handle = createTestRuntime({
     useSessionRunner: true,
-    adapters: createAdapterFactory({ fake: new FakeAdapter({ script }) }),
+    adapters: createAdapterFactory({ 'claude-sdk': new ScriptedAdapter({ script }) }),
   })
   handles.push(handle)
   return handle

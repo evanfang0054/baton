@@ -1,7 +1,7 @@
+import { boardColumn, type BoardColumnId } from '@baton/core'
 import type { TaskStatus, TaskSummary } from '@baton/protocol'
 
-export type BoardColumnId =
-  'unplanned' | 'todo' | 'running' | 'waiting' | 'review' | 'done' | 'closed'
+export type { BoardColumnId } from '@baton/core'
 
 export const BOARD_COLUMNS: Array<{ id: BoardColumnId; label: string }> = [
   { id: 'unplanned', label: '未规划' },
@@ -14,23 +14,7 @@ export const BOARD_COLUMNS: Array<{ id: BoardColumnId; label: string }> = [
 ]
 
 export function statusColumn(status: TaskStatus): BoardColumnId {
-  switch (status) {
-    case 'todo':
-    case 'queued':
-      return 'todo'
-    case 'running':
-    case 'verifying':
-      return 'running'
-    case 'waiting_input':
-      return 'waiting'
-    case 'review':
-      return 'review'
-    case 'done':
-      return 'done'
-    case 'cancelled':
-    case 'failed':
-      return 'closed'
-  }
+  return boardColumn(status)
 }
 
 export function groupTasks(tasks: TaskSummary[]): Record<BoardColumnId, TaskSummary[]> {

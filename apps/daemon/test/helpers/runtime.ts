@@ -9,6 +9,7 @@ import { createEngineRegistry, type EngineRegistry } from '../../src/runtime/eng
 import { createRuntime, type Runtime } from '../../src/runtime/index.js'
 import type { StartSessionInput } from '../../src/runtime/types.js'
 import { createTestDb, seedTask, type SeededTask, type TestDb } from './db.js'
+import { ScriptedAdapter } from './scripted-adapter.js'
 
 export interface TestRuntimeHandle {
   runtime: Runtime
@@ -99,7 +100,8 @@ export function createTestRuntime(
       }),
     ...(options.useSessionRunner
       ? {
-          adapters: options.adapters ?? createAdapterFactory(),
+          adapters:
+            options.adapters ?? createAdapterFactory({ 'claude-sdk': new ScriptedAdapter() }),
           ...(options.useVerifyRunner
             ? {}
             : {
@@ -133,7 +135,7 @@ export function createTestRuntime(
       title: 'demo',
       prompt: '把登录页改成暗黑模式',
       contextNodeIds: ['text-1'],
-      engine: 'fake',
+      engine: 'claude-sdk',
       workspaceMode: 'main',
       dangerouslySkipPermissions: false,
       ...overrides,

@@ -414,7 +414,7 @@ describe('ws router', () => {
           w: 320,
           h: 200,
           groupId: null,
-          data: { title: 'old', engine: 'fake', taskId: null },
+          data: { title: 'old', engine: 'claude-sdk', taskId: null },
         },
       },
     })
@@ -431,7 +431,7 @@ describe('ws router', () => {
     await ws.next('ack')
     expect(getNode(handle.database.db, nodeId)?.data).toEqual({
       title: 'new',
-      engine: 'fake',
+      engine: 'claude-sdk',
       taskId: null,
     })
   })

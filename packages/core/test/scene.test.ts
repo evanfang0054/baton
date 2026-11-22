@@ -13,7 +13,7 @@ const agent = {
   groupId: null,
   createdAt: 1,
   updatedAt: 1,
-  data: { title: 'Agent', engine: 'fake', taskId: 't1' },
+  data: { title: 'Agent', engine: 'claude-sdk', taskId: 't1' },
 } satisfies Node
 
 const text = {
@@ -60,7 +60,7 @@ const task = {
   prompt: '',
   status: 'review',
   waitingReason: null,
-  engine: 'fake',
+  engine: 'claude-sdk',
   workspaceMode: 'main',
   branch: null,
   worktreePath: null,

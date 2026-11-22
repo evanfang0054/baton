@@ -165,7 +165,7 @@ describe('migrateDb', () => {
       'demo',
       'demo',
       'todo',
-      'fake',
+      'claude-sdk',
       'main',
       null,
       null,
@@ -176,7 +176,7 @@ describe('migrateDb', () => {
     )
     db.prepare(
       `insert into session (id, task_id, adapter, engine_session_id, status, started_at, ended_at)
-       values (?, ?, 'fake', null, 'ended', 1, 2)`,
+       values (?, ?, 'claude-sdk', null, 'ended', 1, 2)`,
     ).run(sessionId, taskId)
     db.prepare(
       'insert into event (id, session_id, seq, type, payload_json, ts) values (?, ?, ?, ?, ?, ?)',

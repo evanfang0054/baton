@@ -10,7 +10,7 @@ const base = {
   prompt: 'SECRET_PROMPT',
   status: 'review',
   waitingReason: null,
-  engine: 'fake',
+  engine: 'claude-sdk',
   workspaceMode: 'main',
   branch: null,
   worktreePath: null,

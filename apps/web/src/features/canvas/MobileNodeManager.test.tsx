@@ -30,10 +30,7 @@ beforeEach(() => {
     vi.fn(async (input: RequestInfo | URL) => {
       if (String(input) === '/api/engines') {
         return Response.json({
-          engines: [
-            { engine: 'fake', status: 'available' },
-            { engine: 'claude-sdk', status: 'available' },
-          ],
+          engines: [{ engine: 'claude-sdk', status: 'available' }],
         })
       }
       return Response.json({})

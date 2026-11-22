@@ -45,7 +45,7 @@ describe('TaskDetail', () => {
     prompt: '<task>demo</task>',
     status: 'todo' as const,
     waitingReason: null,
-    engine: 'fake' as const,
+    engine: 'claude-sdk' as const,
     workspaceMode: 'main' as const,
     branch: null,
     worktreePath: null,

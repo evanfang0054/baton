@@ -7,7 +7,7 @@ const auth = { authorization: 'Bearer secret' }
 
 async function setup(
   engines = createEngineRegistry({
-    env: {},
+    env: { ANTHROPIC_API_KEY: 'set' },
     sdkMeta: () => ({ available: true, version: 'test' }),
   }),
 ): Promise<TestApp> {
@@ -26,14 +26,14 @@ afterEach(async () => {
 })
 
 describe('engine API', () => {
-  it('requires auth and lists claude/fake without calling a model', async () => {
+  it('requires auth and lists claude without calling a model', async () => {
     const { app } = await setup()
     expect((await app.inject({ method: 'GET', url: '/api/engines' })).statusCode).toBe(401)
     const response = await app.inject({ method: 'GET', url: '/api/engines', headers: auth })
     expect(response.statusCode).toBe(200)
     const body = response.json() as { engines: Array<{ engine: string; status: string }> }
-    expect(body.engines.map((entry) => entry.engine)).toEqual(['claude-sdk', 'fake'])
-    expect(body.engines.find((entry) => entry.engine === 'fake')?.status).toBe('available')
+    expect(body.engines.map((entry) => entry.engine)).toEqual(['claude-sdk'])
+    expect(body.engines.find((entry) => entry.engine === 'claude-sdk')?.status).toBe('available')
   })
 
   it('blocks enqueue when the selected engine is unavailable', async () => {

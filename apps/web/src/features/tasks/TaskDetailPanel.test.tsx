@@ -19,7 +19,7 @@ const baseTask: TaskDetailResponse['task'] = {
   prompt: '',
   status: 'todo',
   waitingReason: null,
-  engine: 'fake',
+  engine: 'claude-sdk',
   workspaceMode: 'main',
   branch: null,
   worktreePath: null,
@@ -40,7 +40,7 @@ function detail(overrides: Partial<TaskDetailResponse> = {}): TaskDetailResponse
       {
         id: 's1',
         taskId: 't1',
-        adapter: 'fake',
+        adapter: 'claude-sdk',
         engineSessionId: null,
         status: 'running',
         outcome: null,
@@ -67,6 +67,7 @@ function detail(overrides: Partial<TaskDetailResponse> = {}): TaskDetailResponse
       turns: 0,
     },
     lastFailure: null,
+    lastOutcome: null,
     ['contextInvalid']: false,
     ['originInvalid']: false,
     ...overrides,
@@ -286,7 +287,7 @@ describe('TaskDetailPanel', () => {
           {
             id: 's1',
             taskId: 't1',
-            adapter: 'fake',
+            adapter: 'claude-sdk',
             engineSessionId: null,
             status: 'ended',
             outcome: 'ready',
@@ -456,6 +457,97 @@ describe('TaskDetailPanel', () => {
 
     expect(await screen.findByLabelText('回复内容')).toBeInTheDocument()
     expect(screen.queryByText('需要授权')).not.toBeInTheDocument()
+  })
+
+  it('shows the blocked reason above the reply composer', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url === '/api/tasks/t1') {
+          return Response.json(
+            detail({
+              task: { ...baseTask, status: 'waiting_input', waitingReason: 'question' },
+              attention: 'needs_reply',
+            }),
+          )
+        }
+        if (url === '/api/tasks/t1/automation') {
+          return Response.json({
+            taskId: 't1',
+            retryCount: 0,
+            lastVerifyExitCode: null,
+            lastPolicyVersion: null,
+            autoDecisions: [],
+          })
+        }
+        if (url.startsWith('/api/sessions/s1/events')) {
+          return Response.json({
+            sessionId: 's1',
+            events: [
+              {
+                seq: 1,
+                ts: 10,
+                type: 'CUSTOM',
+                payload: {
+                  type: 'CUSTOM',
+                  name: 'session.outcome',
+                  value: { outcome: 'blocked', reason: '缺少具体任务，请说明要做什么' },
+                },
+              },
+            ],
+            nextSeq: 1,
+            hasMore: false,
+          })
+        }
+        throw new Error(`unexpected fetch ${url}`)
+      }),
+    )
+    renderPanel()
+
+    expect(await screen.findByText('Agent 需要你回复')).toBeInTheDocument()
+    expect(screen.getByText('缺少具体任务，请说明要做什么')).toBeInTheDocument()
+    expect(screen.getByLabelText('回复内容')).toBeInTheDocument()
+  })
+
+  it('prefers the task tail outcome over loaded events', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url === '/api/tasks/t1') {
+          return Response.json(
+            detail({
+              task: { ...baseTask, status: 'waiting_input', waitingReason: 'question' },
+              attention: 'needs_reply',
+              lastOutcome: { outcome: 'blocked', reason: '来自任务详情的阻塞原因' },
+            }),
+          )
+        }
+        if (url === '/api/tasks/t1/automation') {
+          return Response.json({
+            taskId: 't1',
+            retryCount: 0,
+            lastVerifyExitCode: null,
+            lastPolicyVersion: null,
+            autoDecisions: [],
+          })
+        }
+        if (url.startsWith('/api/sessions/s1/events')) {
+          return Response.json({
+            sessionId: 's1',
+            events: [],
+            nextSeq: 0,
+            hasMore: false,
+          })
+        }
+        throw new Error(`unexpected fetch ${url}`)
+      }),
+    )
+    renderPanel()
+
+    expect(await screen.findByText('Agent 需要你回复')).toBeInTheDocument()
+    expect(screen.getByText('来自任务详情的阻塞原因')).toBeInTheDocument()
   })
 
   it('loads the next page of session events', async () => {

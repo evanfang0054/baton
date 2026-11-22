@@ -38,7 +38,7 @@ describe('plan_tasks', () => {
       } as never,
       now: () => now++,
       newId: () => 'id',
-      defaultEngine: 'fake',
+      defaultEngine: 'claude-sdk',
       enqueueTask: () => ({ ok: false, error: { code: 'unused', message: 'unused' } as never }),
       applyTransition: () => ({
         ok: false,

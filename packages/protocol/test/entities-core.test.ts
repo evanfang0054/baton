@@ -63,7 +63,7 @@ describe('core entities', () => {
     ['text', { content: 'hi' }],
     ['image', { src: 'artifacts/n1.png', alt: '设计稿' }],
     ['file', { path: 'src/a.ts', name: 'a.ts', mime: 'text/plain' }],
-    ['agent', { title: 'Claude', engine: 'fake', taskId: null }],
+    ['agent', { title: 'Claude', engine: 'claude-sdk', taskId: null }],
     ['review', { taskId: 't1' }],
     ['group', { label: 'Group A' }],
   ] as const)('parses the %s node variant', (type, data) => {
@@ -120,7 +120,7 @@ describe('core entities', () => {
       prompt: 'p',
       status: 'todo',
       waitingReason: null,
-      engine: 'fake',
+      engine: 'claude-sdk',
       workspaceMode: 'main',
       branch: null,
       worktreePath: null,
@@ -140,7 +140,7 @@ describe('core entities', () => {
     const session = {
       id: 's1',
       taskId: 't1',
-      adapter: 'fake',
+      adapter: 'claude-sdk',
       engineSessionId: null,
       status: 'running',
       outcome: null,

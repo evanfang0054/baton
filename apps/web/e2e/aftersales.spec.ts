@@ -34,7 +34,7 @@ async function mockWorkspace(page: Page, sent: Sent[], status: 'failed' | 'done'
     prompt: '',
     status,
     waitingReason: null,
-    engine: 'fake',
+    engine: 'claude-sdk',
     workspaceMode: 'main',
     branch: null,
     worktreePath: null,
@@ -68,7 +68,7 @@ async function mockWorkspace(page: Page, sent: Sent[], status: 'failed' | 'done'
       })
     }
     if (path === '/api/engines') {
-      return route.fulfill({ json: { engines: [{ engine: 'fake', status: 'available' }] } })
+      return route.fulfill({ json: { engines: [{ engine: 'claude-sdk', status: 'available' }] } })
     }
     if (path === '/api/notices') return route.fulfill({ json: { notices: [] } })
     if (path === '/api/canvas') {
@@ -101,7 +101,7 @@ async function mockWorkspace(page: Page, sent: Sent[], status: 'failed' | 'done'
             {
               id: 's1',
               taskId: 't1',
-              adapter: 'fake',
+              adapter: 'claude-sdk',
               engineSessionId: null,
               status: 'ended',
               outcome: 'ready',
@@ -146,7 +146,7 @@ async function mockWorkspace(page: Page, sent: Sent[], status: 'failed' | 'done'
             {
               id: 's1',
               taskId: 't1',
-              adapter: 'fake',
+              adapter: 'claude-sdk',
               engineSessionId: null,
               status: 'ended',
               outcome: 'ready',

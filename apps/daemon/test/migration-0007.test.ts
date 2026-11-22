@@ -77,11 +77,11 @@ describe('migration 0007', () => {
         `insert into task (
            id, workspace_id, title, prompt, status, engine, workspace_mode, retry_count,
            dangerously_skip_permissions, created_at, updated_at
-         ) values ('t-old', 'w-old', 'old', 'x', 'todo', 'fake', 'main', 0, 0, 1, 1)`,
+         ) values ('t-old', 'w-old', 'old', 'x', 'todo', 'claude-sdk', 'main', 0, 0, 1, 1)`,
       ).run()
       db.prepare(
         `insert into session (id, task_id, adapter, status, started_at)
-         values ('s-old', 't-old', 'fake', 'ended', 1)`,
+         values ('s-old', 't-old', 'claude-sdk', 'ended', 1)`,
       ).run()
       db.prepare(`insert into review (id, task_id) values ('r-old', 't-old')`).run()
       db.prepare(

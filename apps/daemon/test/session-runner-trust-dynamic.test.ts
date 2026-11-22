@@ -1,4 +1,4 @@
-import { FakeAdapter } from '@baton/adapters'
+import { ScriptedAdapter } from './helpers/scripted-adapter.js'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -16,7 +16,7 @@ afterEach(async () => {
 
 describe('session runner trust', () => {
   it('re-reads workspace trust for every approval', async () => {
-    const adapter = new FakeAdapter({
+    const adapter = new ScriptedAdapter({
       script: [
         {
           kind: 'approval',
@@ -32,7 +32,7 @@ describe('session runner trust', () => {
     })
     const handle = createTestRuntime({
       useSessionRunner: true,
-      adapters: createAdapterFactory({ fake: adapter }),
+      adapters: createAdapterFactory({ 'claude-sdk': adapter }),
     })
     handles.push(handle)
     mkdirSync(join(handle.root, handle.seeded.relPath, '.baton'))

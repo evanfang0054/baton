@@ -94,7 +94,7 @@ baton/
 ├── packages/
 │   ├── protocol/        # zod schema + AG-UI 事件 + 领域事件
 │   ├── core/            # 状态机、上下文装配、策略、验收（纯函数）
-│   ├── adapters/        # agent-claude / agent-pty / agent-fake
+│   ├── adapters/        # agent-claude / agent-pty / 测试脚本适配器（test-only）
 │   └── ui/              # 共享 React 组件
 ├── docs/{specs,adr,runbooks}
 ├── DESIGN.md            # web 视觉唯一真源（暗色主题 / token / 组件规范）
@@ -120,7 +120,7 @@ baton/
 
 - 框架：vitest；组件：Testing Library；E2E：Playwright（CI 回归）；需要真实浏览器交互或取证时用 ego-lite。
 - 模式：AAA（Arrange-Act-Assert）。
-- 调度层用 `agent-fake` 做确定性集成测试，不 mock 引擎内部。
+- 调度层用 test-only 的 `ScriptedAdapter` 做确定性集成测试，不 mock 引擎内部。
 - 上下文装配、策略求值必须有快照测试。
 - `packages/core` 覆盖率 ≥ 80%；不追求全局数字。
 

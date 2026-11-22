@@ -1,6 +1,6 @@
 import { EventSchemas, PolicySchema, type AgentEvent, type StartInput } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
-import { FakeAdapter } from '../src/index.js'
+import { ScriptedAdapter } from './helpers/scripted-adapter.js'
 
 const startInput = (): StartInput => ({
   prompt: 'demo',
@@ -29,9 +29,9 @@ async function collect(runEvents: AsyncIterable<AgentEvent>): Promise<AgentEvent
   return events
 }
 
-describe('FakeAdapter', () => {
+describe('ScriptedAdapter', () => {
   it('emits the default text -> approval -> text -> finish sequence', async () => {
-    const adapter = new FakeAdapter()
+    const adapter = new ScriptedAdapter()
     const run = await adapter.start(startInput())
 
     const events: AgentEvent[] = []
@@ -62,7 +62,7 @@ describe('FakeAdapter', () => {
   })
 
   it('emits denied text and finishes when approval is denied', async () => {
-    const adapter = new FakeAdapter()
+    const adapter = new ScriptedAdapter()
     const run = await adapter.start(startInput())
     const events: AgentEvent[] = []
     const consumed = (async () => {
@@ -75,14 +75,14 @@ describe('FakeAdapter', () => {
 
     expect(
       events.some(
-        (event) => event.type === 'TEXT_MESSAGE_CONTENT' && event.delta === 'fake: denied',
+        (event) => event.type === 'TEXT_MESSAGE_CONTENT' && event.delta === 'scripted: denied',
       ),
     ).toBe(true)
     expect(events.at(-1)?.type).toBe('RUN_FINISHED')
   })
 
   it('ends the stream on interrupt', async () => {
-    const adapter = new FakeAdapter()
+    const adapter = new ScriptedAdapter()
     const run = await adapter.start(startInput())
     await run.interrupt()
     const events = await collect(run.events)
@@ -90,14 +90,14 @@ describe('FakeAdapter', () => {
   })
 
   it('emits no events when disposed before consumption', async () => {
-    const adapter = new FakeAdapter()
+    const adapter = new ScriptedAdapter()
     const run = await adapter.start(startInput())
     await run.dispose()
     expect(await collect(run.events)).toEqual([])
   })
 
   it('stops between text events when disposed', async () => {
-    const adapter = new FakeAdapter({ script: [{ kind: 'text', text: 'abc' }] })
+    const adapter = new ScriptedAdapter({ script: [{ kind: 'text', text: 'abc' }] })
     const run = await adapter.start(startInput())
     const events: AgentEvent[] = []
 
@@ -110,7 +110,7 @@ describe('FakeAdapter', () => {
   })
 
   it('send appends a text event', async () => {
-    const adapter = new FakeAdapter()
+    const adapter = new ScriptedAdapter()
     const run = await adapter.start(startInput())
     const events: AgentEvent[] = []
     const consumed = (async () => {
@@ -130,7 +130,7 @@ describe('FakeAdapter', () => {
   })
 
   it('supports custom text and error scripts', async () => {
-    const textAdapter = new FakeAdapter({ script: [{ kind: 'text', text: 'hello' }] })
+    const textAdapter = new ScriptedAdapter({ script: [{ kind: 'text', text: 'hello' }] })
     const textRun = await textAdapter.start(startInput())
     const textEvents = await collect(textRun.events)
     expect(
@@ -138,14 +138,14 @@ describe('FakeAdapter', () => {
     ).toBe(true)
     expect(textEvents.at(-1)?.type).toBe('RUN_FINISHED')
 
-    const errorAdapter = new FakeAdapter({ script: [{ kind: 'error', message: 'boom' }] })
+    const errorAdapter = new ScriptedAdapter({ script: [{ kind: 'error', message: 'boom' }] })
     const errorRun = await errorAdapter.start(startInput())
     const errorEvents = await collect(errorRun.events)
     expect(errorEvents.at(-1)).toMatchObject({ type: 'RUN_ERROR', message: 'boom' })
   })
 
   it('rejects an approval with the wrong request id', async () => {
-    const adapter = new FakeAdapter()
+    const adapter = new ScriptedAdapter()
     const run = await adapter.start(startInput())
     const events: AgentEvent[] = []
     const consumed = (async () => {
@@ -159,7 +159,7 @@ describe('FakeAdapter', () => {
   })
 
   it('rejects send and approve after the stream closes', async () => {
-    const adapter = new FakeAdapter({ script: [{ kind: 'finish' }] })
+    const adapter = new ScriptedAdapter({ script: [{ kind: 'finish' }] })
     const run = await adapter.start(startInput())
     await collect(run.events)
 
@@ -168,7 +168,7 @@ describe('FakeAdapter', () => {
   })
 
   it('dispose stops the stream and clears the pending approval', async () => {
-    const adapter = new FakeAdapter()
+    const adapter = new ScriptedAdapter()
     const run = await adapter.start(startInput())
     const events: AgentEvent[] = []
     const consumed = (async () => {
@@ -184,7 +184,7 @@ describe('FakeAdapter', () => {
   })
 
   it('interrupt ends a pending approval without emitting a decision', async () => {
-    const adapter = new FakeAdapter()
+    const adapter = new ScriptedAdapter()
     const run = await adapter.start(startInput())
     const events: AgentEvent[] = []
     const consumed = (async () => {
@@ -200,7 +200,7 @@ describe('FakeAdapter', () => {
   })
 
   it('rejects send after RUN_FINISHED before finalization', async () => {
-    const adapter = new FakeAdapter({ script: [{ kind: 'finish' }] })
+    const adapter = new ScriptedAdapter({ script: [{ kind: 'finish' }] })
     const run = await adapter.start(startInput())
     const events: AgentEvent[] = []
 
@@ -215,7 +215,7 @@ describe('FakeAdapter', () => {
   })
 
   it('finish stops the script instead of continuing to the next step', async () => {
-    const adapter = new FakeAdapter({
+    const adapter = new ScriptedAdapter({
       script: [
         { kind: 'text', text: 'before' },
         { kind: 'finish' },
@@ -237,7 +237,7 @@ describe('FakeAdapter', () => {
   })
 
   it('uses verifierScript when the prompt has the verifier marker', async () => {
-    const adapter = new FakeAdapter({
+    const adapter = new ScriptedAdapter({
       script: [{ kind: 'text', text: 'worker' }, { kind: 'finish' }],
       verifierScript: [
         {

@@ -29,6 +29,7 @@ const CANVAS_MUTATING_TOOLS = new Set([
   'create_agent',
   'create_edge',
   'update_node',
+  'arrange_canvas',
 ])
 
 export function RealtimeProvider({

@@ -41,7 +41,7 @@ describe('migration 0013', () => {
       .prepare(
         `insert into task (id, workspace_id, title, prompt, status, engine, retry_count,
           dangerously_skip_permissions, created_at, updated_at)
-         values ('t1','w1','t','p','failed','fake',0,0,1,1)`,
+         values ('t1','w1','t','p','failed','claude-sdk',0,0,1,1)`,
       )
       .run()
     raw

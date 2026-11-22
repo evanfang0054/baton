@@ -1,4 +1,10 @@
-import { buildTaskScene, canInjectContext, groupBounds } from '@baton/core'
+import {
+  arrangeCanvasNodes,
+  buildTaskScene,
+  canInjectContext,
+  groupBounds,
+  type CanvasNodeMove,
+} from '@baton/core'
 import type { CanvasResponse, NodeCreateValue, ReviewView, TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
@@ -116,6 +122,7 @@ function FlowCanvas({
   const [injectTaskId, setInjectTaskId] = useState<string | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [dropActive, setDropActive] = useState(false)
+  const [arranging, setArranging] = useState(false)
   const selectedNodeIds = useAppStore((state) => state.selectedNodeIds)
   const sceneTaskId = useAppStore((state) => state.sceneTaskId)
   const setSceneTask = useAppStore((state) => state.setSceneTask)
@@ -302,6 +309,58 @@ function FlowCanvas({
     [refreshCanvas, sceneActive, send],
   )
 
+  const arrangeCanvas = useCallback(async () => {
+    if (!canvas || sceneActive || arranging) return
+    const moves = arrangeCanvasNodes(canvas.nodes)
+    if (moves.length === 0) {
+      toast.info('画布已经整齐')
+      return
+    }
+    setArranging(true)
+    // 协议单次最多 200 条；大画布按块提交。中途失败时把已提交的块挪回原位，
+    // 避免画布停在“一半整齐一半乱”的状态。
+    const applied: CanvasNodeMove[] = []
+    try {
+      for (let index = 0; index < moves.length; index += 200) {
+        const chunk = moves.slice(index, index + 200)
+        await send({
+          type: 'node.move_many',
+          payload: { canvasId: canvas.canvas.id, moves: chunk },
+        })
+        applied.push(...chunk)
+      }
+      toast.success(`已整理 ${moves.length} 个节点`)
+    } catch (cause) {
+      const previous = new Map(canvas.nodes.map((node) => [node.id, node]))
+      const restore = applied.flatMap((move) => {
+        const node = previous.get(move.nodeId)
+        return node ? [{ nodeId: node.id, x: node.x, y: node.y }] : []
+      })
+      let restored = restore.length === 0
+      for (let index = 0; index < restore.length; index += 200) {
+        try {
+          await send({
+            type: 'node.move_many',
+            payload: { canvasId: canvas.canvas.id, moves: restore.slice(index, index + 200) },
+          })
+        } catch {
+          break
+        }
+        if (index + 200 >= restore.length) restored = true
+      }
+      toast.danger(
+        restored
+          ? '整理画布失败，已恢复原位置'
+          : cause instanceof Error
+            ? cause.message
+            : '整理画布失败，部分节点可能已移动',
+      )
+    } finally {
+      setArranging(false)
+      await refreshCanvas()
+    }
+  }, [arranging, canvas, refreshCanvas, sceneActive, send])
+
   const connect = useCallback(
     async (connection: Connection) => {
       if (sceneActive || !canvas || !isValidConnection(connection, canvas.edges)) return
@@ -446,7 +505,7 @@ function FlowCanvas({
         w: DEFAULT_SIZE.w,
         h: DEFAULT_SIZE.h,
         groupId: null,
-        data: { title: `Agent ${agentCount + 1}`, engine: 'fake', taskId: null },
+        data: { title: `Agent ${agentCount + 1}`, engine: 'claude-sdk', taskId: null },
       })
     },
     [canvas, centerPosition, createGroupFromSelection, createNode, sceneActive],
@@ -620,6 +679,8 @@ function FlowCanvas({
     >
       <CanvasToolbar
         onAdd={addNode}
+        onArrange={() => void arrangeCanvas()}
+        arrangeDisabled={arranging}
         onFit={() => void fitView({ padding: 0.2 })}
         onZoomIn={() => void zoomIn()}
         onZoomOut={() => void zoomOut()}
