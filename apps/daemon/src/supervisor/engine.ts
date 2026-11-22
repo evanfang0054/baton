@@ -76,6 +76,11 @@ export function createAiSdkSupervisorEngine(config: SupervisorConfig): Superviso
           inputSchema: tools.get_task_history.parameters,
           execute: (input) => tools.get_task_history.execute(input),
         }),
+        get_task_failure: tool({
+          description: tools.get_task_failure.description,
+          inputSchema: tools.get_task_failure.parameters,
+          execute: (input) => tools.get_task_failure.execute(input),
+        }),
         retry_task: tool({
           description: tools.retry_task.description,
           inputSchema: tools.retry_task.parameters,
@@ -105,6 +110,21 @@ export function createAiSdkSupervisorEngine(config: SupervisorConfig): Superviso
           description: tools.create_tasks.description,
           inputSchema: tools.create_tasks.parameters,
           execute: (input) => tools.create_tasks.execute(input),
+        }),
+        plan_tasks: tool({
+          description: tools.plan_tasks.description,
+          inputSchema: tools.plan_tasks.parameters,
+          execute: (input) => tools.plan_tasks.execute(input),
+        }),
+        batch_tasks: tool({
+          description: tools.batch_tasks.description,
+          inputSchema: tools.batch_tasks.parameters,
+          execute: (input) => tools.batch_tasks.execute(input),
+        }),
+        decide_action: tool({
+          description: tools.decide_action.description,
+          inputSchema: tools.decide_action.parameters,
+          execute: (input) => tools.decide_action.execute(input),
         }),
         handoff_task: tool({
           description: tools.handoff_task.description,

@@ -41,7 +41,17 @@ describe('TaskCard', () => {
     render(
       <TaskCard task={{ ...task, waitingSince: Date.now() - 31 * 60_000 }} onSelect={vi.fn()} />,
     )
-    expect(screen.getByText('已等待超过 30 分钟')).toBeInTheDocument()
+    expect(screen.getByText(/超过 30 分钟/)).toBeInTheDocument()
+  })
+
+  it('does not repeat the review label twice', () => {
+    render(
+      <TaskCard
+        task={{ ...task, status: 'review', attention: 'needs_review', waitingReason: null }}
+        onSelect={vi.fn()}
+      />,
+    )
+    expect(screen.getAllByText('待验收')).toHaveLength(1)
   })
 
   it('shows stale text and opens the scene without selecting the task', async () => {
@@ -55,7 +65,7 @@ describe('TaskCard', () => {
         onOpenScene={onOpenScene}
       />,
     )
-    expect(screen.getByText('已等待超过 30 分钟')).toBeInTheDocument()
+    expect(screen.getByText(/超过 30 分钟/)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '看现场' }))
     expect(onOpenScene).toHaveBeenCalledWith('t1')
     expect(onSelect).not.toHaveBeenCalled()

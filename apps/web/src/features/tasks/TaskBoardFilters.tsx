@@ -1,4 +1,4 @@
-import { needsPerson, sortByWaiting } from '@baton/core'
+import { needsMe, sortByWaiting } from '@baton/core'
 import type { TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Input } from '@heroui/react/input'
@@ -23,11 +23,12 @@ export function filterTasks(
       if (query && !task.title.toLowerCase().includes(query)) return false
       if (input.filter === 'all') return true
       if (input.filter === 'needs_me') {
-        return (
-          needsPerson({ status: task.status, attention: task.attention }) ||
-          (task.acceptance?.counts.fail ?? 0) > 0 ||
-          task.budget?.overBudget === true
-        )
+        return needsMe({
+          status: task.status,
+          attention: task.attention,
+          acceptance: task.acceptance,
+          budget: task.budget,
+        })
       }
       if (input.filter === 'review') return task.status === 'review'
       return task.status === 'waiting_input'

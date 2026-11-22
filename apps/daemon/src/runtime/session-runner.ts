@@ -15,6 +15,7 @@ import {
 } from '@baton/protocol'
 import type { BroadcastEvent, EventStore } from '../db/event-store.js'
 import { getTaskBudgetState } from '../budget/service.js'
+import type { FailureService } from '../failures/service.js'
 import { formatBudgetResume, pendingBudgetResume } from './budget-command.js'
 import {
   countAutoApprovals,
@@ -91,6 +92,7 @@ export interface SessionRunnerDeps {
   now: () => number
   newId: () => string
   killSwitch: () => boolean
+  failures?: FailureService
 }
 
 export interface ActiveRun {
@@ -127,8 +129,34 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
 
   function failTask(taskId: string, sessionId: string, error: unknown): void {
     const failure = toAppError(error)
+    const task = getTask(deps.db, taskId)
+    if (task) {
+      deps.failures?.record({
+        workspaceId: task.workspaceId,
+        taskId,
+        sessionId,
+        attempt: task.retryCount,
+        stage: 'run',
+        message: failure.message,
+        retryable: true,
+      })
+    }
     deps.applyTransition(taskId, { type: 'error', message: failure.message })
     endSession(sessionId, 'failed')
+  }
+
+  function recordBudgetFailure(taskId: string, sessionId: string, message: string): void {
+    const task = getTask(deps.db, taskId)
+    if (!task) return
+    deps.failures?.record({
+      workspaceId: task.workspaceId,
+      taskId,
+      sessionId,
+      attempt: task.retryCount,
+      stage: 'budget',
+      message,
+      retryable: false,
+    })
   }
 
   async function handleApproval(active: ActiveRun, policy: Policy, value: unknown): Promise<void> {
@@ -311,6 +339,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
             if (budget?.overBudget) {
               const current = getTask(deps.db, active.taskId)
               if (current?.status === 'running') {
+                recordBudgetFailure(active.taskId, active.sessionId, '任务超出预算')
                 deps.applyTransition(active.taskId, { type: 'budget_exceeded' })
                 await active.run.interrupt().catch(() => {})
                 break
@@ -376,9 +405,22 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
           finished = true
           const message = event.message ?? 'run failed'
           if (isBudgetError(message)) {
+            recordBudgetFailure(active.taskId, active.sessionId, message)
             deps.applyTransition(active.taskId, { type: 'budget_exceeded' })
             endSession(active.sessionId, 'ended')
           } else {
+            const task = getTask(deps.db, active.taskId)
+            if (task) {
+              deps.failures?.record({
+                workspaceId: task.workspaceId,
+                taskId: task.id,
+                sessionId: active.sessionId,
+                attempt: task.retryCount,
+                stage: 'run',
+                message,
+                retryable: true,
+              })
+            }
             deps.applyTransition(active.taskId, { type: 'error', message })
             endSession(active.sessionId, 'failed')
           }
@@ -418,6 +460,19 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
         const current = getTask(deps.db, active.taskId)
         const message = toAppError(error).message
         if (current && (current.status === 'running' || current.status === 'waiting_input')) {
+          if (isBudgetError(message)) {
+            recordBudgetFailure(active.taskId, active.sessionId, message)
+          } else {
+            deps.failures?.record({
+              workspaceId: current.workspaceId,
+              taskId: current.id,
+              sessionId: active.sessionId,
+              attempt: current.retryCount,
+              stage: 'run',
+              message,
+              retryable: true,
+            })
+          }
           deps.applyTransition(
             active.taskId,
             isBudgetError(message) ? { type: 'budget_exceeded' } : { type: 'error', message },
@@ -443,6 +498,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
     })
     if (budget?.overBudget) {
+      recordBudgetFailure(task.id, input.sessionId, '任务超出预算')
       const outcome = deps.applyTransition(task.id, { type: 'budget_exceeded' })
       endSession(input.sessionId, outcome.ok ? 'ended' : 'failed')
       return

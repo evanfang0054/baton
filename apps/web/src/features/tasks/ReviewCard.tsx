@@ -8,7 +8,7 @@ import {
 import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
 import { TextArea } from '@heroui/react/textarea'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../../stores/app'
 import { nodeTitle } from '../canvas/node-title'
 import { DiffViewer } from './DiffViewer'
@@ -38,6 +38,7 @@ export function ReviewCard({
   const [attachContext, setAttachContext] = useState(false)
   const [confirmingApprove, setConfirmingApprove] = useState(false)
   const [overrideReason, setOverrideReason] = useState('')
+  const confirmRef = useRef<HTMLDivElement>(null)
   const contextNodeIds = useAppStore((state) => state.contextNodeIds)
   const attachable = (
     contextNodes
@@ -56,11 +57,29 @@ export function ReviewCard({
     acceptance.counts.pending > 0
   const needsOverride = review.verifyExitCode !== 0 || acceptanceIssue
   const withContext = attachContext && attachable.length > 0
+  const overridePrompt =
+    acceptance && acceptance.counts.total === 0
+      ? '还没有验收项，仍要直接通过吗？'
+      : acceptance && acceptance.counts.fail > 0
+        ? '仍有验收项未通过，仍要通过吗？'
+        : acceptance && acceptance.counts.pending > 0
+          ? '还有验收项待验证，仍要通过吗？'
+          : '校验未通过，仍要通过吗？'
+  const overrideReasonMissing = needsOverride && overrideReason.trim().length === 0
 
   // 选择被清空后不能留下一个不可见的“附带上下文”开关。
   useEffect(() => {
     if (attachable.length === 0) setAttachContext(false)
   }, [attachable.length])
+
+  // 通过确认区在任务详情底部展开时可能落到滚动视口上方，展开后主动带到可见区域。
+  useEffect(() => {
+    if (!confirmingApprove) return
+    const timer = window.setTimeout(() => {
+      confirmRef.current?.scrollIntoView?.({ block: 'nearest' })
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [confirmingApprove])
 
   const approve = () => {
     action.run({
@@ -93,6 +112,11 @@ export function ReviewCard({
           </Chip>
         </div>
       </div>
+      {action.error ? (
+        <p role="alert" className="mt-2 text-sm text-danger">
+          {action.error}
+        </p>
+      ) : null}
       <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted">
         <span title="仅统计 Git 已跟踪文件；非 git 工作区或未跟踪文件不计入">
           Git 文件 {review.diffStat.filesChanged}
@@ -147,22 +171,30 @@ export function ReviewCard({
           {review.verdict === 'approved' ? '已通过验收' : '已打回'}
         </p>
       ) : confirmingApprove ? (
-        <div className="mt-3 flex flex-col gap-2 rounded border border-warning bg-warning/10 p-2">
-          <p className="text-xs text-warning">
-            {acceptanceIssue ? '仍有验收项未通过，仍要通过吗？' : '校验未通过，仍要通过吗？'}
-          </p>
+        <div
+          ref={confirmRef}
+          className="mt-3 flex flex-col gap-2 rounded border border-warning bg-warning/10 p-2"
+        >
+          <p className="text-xs text-warning">{overridePrompt}</p>
           <TextArea
             aria-label="通过理由"
-            placeholder="可选：为什么仍然通过"
+            placeholder={needsOverride ? '必填：说明为什么仍然通过' : '可选：为什么仍然通过'}
             value={overrideReason}
             onChange={(event) => setOverrideReason(event.target.value)}
             fullWidth
           />
+          {overrideReasonMissing ? (
+            <p className="text-xs text-warning">通过前请填写通过理由。</p>
+          ) : null}
           <div className="flex justify-end gap-2">
             <Button variant="tertiary" onPress={() => setConfirmingApprove(false)}>
               取消
             </Button>
-            <Button variant="primary" isDisabled={action.pending} onPress={approve}>
+            <Button
+              variant="primary"
+              isDisabled={action.pending || overrideReasonMissing}
+              onPress={approve}
+            >
               确认通过
             </Button>
           </div>
@@ -242,12 +274,6 @@ export function ReviewCard({
           </Button>
         </div>
       )}
-
-      {action.error ? (
-        <p role="alert" className="mt-2 text-sm text-danger">
-          {action.error}
-        </p>
-      ) : null}
 
       {showDiff ? <DiffViewer reviewId={review.id} onClose={() => setShowDiff(false)} /> : null}
     </section>

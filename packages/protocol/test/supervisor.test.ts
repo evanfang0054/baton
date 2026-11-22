@@ -112,4 +112,66 @@ describe('supervisor protocol', () => {
     })
     expect(task.origin).toBeNull()
   })
+
+  it('parses mandate fields and rejects an unknown allowed action', () => {
+    const legacy = TaskOrigin.parse({
+      source: 'supervisor-chat',
+      triggerId: 'r1',
+      threadId: 'th1',
+      actor,
+      workspaceId: 'w1',
+      targetNodeId: 'a1',
+      contextNodeIds: [],
+      policyVersion: 'p1',
+      promptVersion: 'v1',
+      createdAt: 1,
+    })
+    expect(legacy.scope).toBeUndefined()
+
+    const withMandate = TaskOrigin.parse({
+      ...legacy,
+      scope: 'task',
+      strength: 'explicit',
+      allowedActions: ['retry', 'enqueue'],
+      mandateVersion: 'm1',
+    })
+    expect(withMandate.allowedActions).toEqual(['retry', 'enqueue'])
+
+    expect(TaskOrigin.safeParse({ ...legacy, allowedActions: ['delete_everything'] }).success).toBe(
+      false,
+    )
+  })
+
+  it('keeps legacy origins parseable and accepts template fields', () => {
+    const legacy = TaskOrigin.parse({
+      source: 'supervisor-chat',
+      triggerId: 'r1',
+      threadId: 'th1',
+      actor,
+      workspaceId: 'w1',
+      targetNodeId: 'a1',
+      contextNodeIds: [],
+      policyVersion: 'p1',
+      promptVersion: 'v1',
+      createdAt: 1,
+    })
+    expect(legacy.templateId).toBeUndefined()
+    expect(legacy.acceptanceSeed).toBeUndefined()
+
+    const templated = TaskOrigin.parse({
+      ...legacy,
+      templateId: 'bugfix',
+      acceptanceSeed: ['复现步骤可执行'],
+    })
+    expect(templated.templateId).toBe('bugfix')
+    expect(templated.acceptanceSeed).toEqual(['复现步骤可执行'])
+
+    expect(TaskOrigin.safeParse({ ...legacy, templateId: 'unknown' }).success).toBe(false)
+    expect(
+      TaskOrigin.safeParse({
+        ...legacy,
+        acceptanceSeed: ['1', '2', '3', '4', '5', '6'],
+      }).success,
+    ).toBe(false)
+  })
 })

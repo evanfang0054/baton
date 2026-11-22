@@ -1,4 +1,4 @@
-import { needsPerson } from '@baton/core'
+import { needsMe } from '@baton/core'
 import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -125,7 +125,12 @@ export function App() {
     const list = tasks.data ?? []
     return {
       needs_me: list.filter((task) =>
-        needsPerson({ status: task.status, attention: task.attention }),
+        needsMe({
+          status: task.status,
+          attention: task.attention,
+          acceptance: task.acceptance,
+          budget: task.budget,
+        }),
       ).length,
       needs_approval: list.filter((task) => task.attention === 'needs_approval').length,
       needs_reply: list.filter((task) => task.attention === 'needs_reply').length,
@@ -366,10 +371,6 @@ export function App() {
             <MobileMoreMenu
               open={mobileMoreOpen}
               onOpenChange={setMobileMoreOpen}
-              onOpenSettings={() => {
-                setMobileMoreOpen(false)
-                setAutomationSettingsOpen(true)
-              }}
               onOpenTask={() => {
                 setMobileMoreOpen(false)
                 setMobileTaskFormOpen(true)

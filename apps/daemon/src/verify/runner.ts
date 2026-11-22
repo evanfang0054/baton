@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import type { Config } from '../config.js'
 import { getTask, getWorkspace, updateReviewDiff } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
+import type { FailureService } from '../failures/service.js'
 import type { Logger } from '../log.js'
 import type { TransitionOutcome } from '../runtime/types.js'
 import { loadPolicy } from '../workspace/policy.js'
@@ -20,6 +21,7 @@ export interface VerifyRunnerDeps {
   now: () => number
   newId: () => string
   verifyMeta: Map<string, number>
+  failures?: FailureService
   logger?: Logger
 }
 
@@ -178,6 +180,18 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
             diffStat,
             ...(retryable ? {} : { retryable: false }),
           }
+    if (result.exitCode !== 0) {
+      deps.failures?.record({
+        workspaceId: current.workspaceId,
+        taskId: current.id,
+        sessionId: null,
+        attempt: current.retryCount,
+        stage: 'verify',
+        message: result.output,
+        retryable,
+        affectedPaths: snapshot?.files.map((file) => file.path) ?? [],
+      })
+    }
     const outcome = deps.applyTransition(taskId, event)
     if (!outcome.ok) {
       deps.verifyMeta.delete(reviewId)

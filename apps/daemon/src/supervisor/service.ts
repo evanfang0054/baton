@@ -11,11 +11,13 @@ import {
   type AppError,
   type Engine as EngineValue,
   type Review,
+  type Strength,
   type SupervisorMessage,
   type SupervisorMessagesResponse,
   type SupervisorSendInput,
   type SupervisorStatusResponse,
   type Task,
+  type TaskAction,
   type TaskDetail,
   type TaskOrigin,
   type TaskTransitionEvent,
@@ -46,18 +48,22 @@ import {
 } from '../db/acceptance-repository.js'
 import type { Db } from '../db/types.js'
 import type { EventStore } from '../db/event-store.js'
+import type { FailureService } from '../failures/service.js'
 import { appError, isAppError } from '../errors.js'
 import type { Logger } from '../log.js'
 import type { TaskService } from '../runtime/task-service.js'
 import type { TransitionOutcome } from '../runtime/types.js'
 import { buildWsFrame } from '../ws/hub.js'
 import { canvasOverviewXml, nodeTitle } from './canvas-summary.js'
+import type { createSupervisorActionService } from './actions.js'
+import type { loadWorkspacePolicy } from './autonomy.js'
 import { loadSupervisorConfig, type SupervisorConfig } from './config.js'
 import { createAiSdkSupervisorEngine, type SupervisorEngine } from './engine.js'
 import { buildVerifierPrompt, parseVerdict } from './observe.js'
 import { parseAcceptanceReport, type ParsedAcceptanceReport } from './acceptance-parse.js'
 import { PROMPT_VERSION, REPORT_PROMPT, SUPERVISOR_PROMPT } from './prompt.js'
 import { createSupervisorStore } from './store.js'
+import { createContextDigest } from './context-digest.js'
 import { xmlEscape } from './xml.js'
 import {
   bindTools,
@@ -94,6 +100,16 @@ export interface SupervisorServiceDeps {
   claudeMaxBudgetUsd: number
   verifierBudgetUsd: number
   killSwitch: () => boolean
+  actions?: ReturnType<typeof createSupervisorActionService>
+  failures?: FailureService
+  remindAttention?: (input: {
+    workspaceId: string
+    taskId: string
+    kind: 'review' | 'failed'
+    reason: string
+  }) => void
+  loadPolicy?: (workspaceId: string) => ReturnType<typeof loadWorkspacePolicy>
+  requireMandate?: (taskId: string, action: TaskAction, strength: Strength) => AppError | null
   engine?: SupervisorEngine
   now: () => number
   newId: () => string
@@ -215,6 +231,9 @@ export function guardAcceptanceClaims(
 
 export function createSupervisorService(deps: SupervisorServiceDeps) {
   const store = createSupervisorStore({ db: deps.db, now: deps.now, newId: deps.newId })
+  const contextDigest = deps.failures
+    ? createContextDigest({ db: deps.db, failures: deps.failures, now: deps.now })
+    : undefined
   const tools = createSupervisorTools({
     db: deps.db,
     workspacesRoot: deps.workspacesRoot,
@@ -228,6 +247,26 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     replyToTask: deps.replyToTask,
     injectContext: deps.injectContext,
     cancelTask: deps.cancelTask,
+    ...(deps.requireMandate ? { requireMandate: deps.requireMandate } : {}),
+    ...(deps.actions ? { actions: deps.actions } : {}),
+    assertAutomationAllowed: (workspaceId: string) => {
+      if (deps.killSwitch()) {
+        return appError('automation_paused', '自动化已暂停，需要你手动恢复')
+      }
+      const info = deps.loadPolicy?.(workspaceId)
+      if (info && !info.trusted) {
+        return appError('workspace_untrusted', '工作区尚未信任，不能执行恢复动作')
+      }
+      return null
+    },
+    ...(deps.loadPolicy
+      ? {
+          workspacePolicyVersion: (workspaceId: string) =>
+            deps.loadPolicy?.(workspaceId)?.policyVersion ?? '',
+        }
+      : {}),
+    ...(contextDigest ? { contextDigest } : {}),
+    ...(deps.failures ? { failures: deps.failures } : {}),
     ...(deps.logger ? { logger: deps.logger } : {}),
   })
   const policyVersion = supervisorPolicyVersion(SUPERVISOR_POLICY, PROMPT_VERSION)
@@ -389,6 +428,18 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
   function failAcceptanceRun(taskId: string, reviewId: string, summary: string): void {
     const bundle = getAcceptanceBundle(deps.db, taskId)
     if (!bundle?.run || bundle.run.reviewId !== reviewId || bundle.run.status !== 'running') return
+    const task = getTaskDetail(deps.db, taskId)?.task
+    if (task) {
+      deps.failures?.record({
+        workspaceId: task.workspaceId,
+        taskId: task.id,
+        sessionId: null,
+        attempt: task.retryCount,
+        stage: 'review',
+        message: summary,
+        retryable: true,
+      })
+    }
     const runId = bundle.run.id
     const at = deps.now()
     const event = deps.db.transaction((tx) => {
@@ -469,6 +520,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       verifyExitCode: review.verifyExitCode,
       diffStat: review.diffStat,
       isolatedWorktree: isolated,
+      ...(origin?.acceptanceSeed ? { acceptanceSeed: origin.acceptanceSeed } : {}),
     })
     const created = deps.taskService.createTask(
       {
@@ -852,6 +904,15 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         if (origin.reviewOfTaskId && origin.reviewOfReviewId) {
           failAcceptanceRun(origin.reviewOfTaskId, origin.reviewOfReviewId, '验收员任务执行失败')
         }
+        deps.failures?.record({
+          workspaceId: task.workspaceId,
+          taskId: task.id,
+          sessionId: listSessionsByTask(deps.db, task.id).at(-1)?.id ?? null,
+          attempt: task.retryCount,
+          stage: 'verifier',
+          message: `验收员任务「${task.title}」执行失败`,
+          retryable: true,
+        })
         notify(
           origin.threadId,
           `observe:verifier:${task.id}:failed:${task.updatedAt}`,
@@ -870,6 +931,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       const review = getReviewByTask(deps.db, task.id)
       if (!review) return
       dispatchVerifier(task, origin ?? null, review)
+      deps.remindAttention?.({
+        workspaceId: task.workspaceId,
+        taskId: task.id,
+        kind: 'review',
+        reason: `任务「${task.title}」等待你验收。`,
+      })
       return
     }
 
@@ -878,9 +945,42 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     if (input.status === 'failed') {
       notify(
         origin.threadId,
-        `observe:failed:${task.id}:${task.retryCount}`,
+        `observe:failed:${task.id}:${task.updatedAt}`,
         `任务「${task.title}」执行失败，需要你看一下任务详情。`,
       )
+      const policyInfo = deps.loadPolicy?.(task.workspaceId)
+      if (policyInfo) {
+        const mode = policyInfo.autoRetry(deps.killSwitch())
+        if (mode !== 'off') {
+          const proposed = deps.actions?.propose({
+            workspaceId: task.workspaceId,
+            threadId: origin.threadId,
+            taskId: task.id,
+            kind: 'retry',
+            strength: 'inferred',
+            mode: mode === 'auto' ? 'auto' : 'observe',
+            reason: `任务「${task.title}」执行失败，建议重试。`,
+            payload: { taskId: task.id },
+            policyVersion: policyInfo.policyVersion,
+            mandateVersion: origin.mandateVersion ?? null,
+            dedupeKey: `retry:${task.id}:${task.updatedAt}:${Math.floor(deps.now() / 86_400_000)}`,
+          })
+          if (mode === 'auto' && proposed?.ok) {
+            deps.actions?.decide({
+              workspaceId: task.workspaceId,
+              actionId: proposed.action.id,
+              actor: 'system',
+              decision: 'apply',
+            })
+          }
+        }
+      }
+      deps.remindAttention?.({
+        workspaceId: task.workspaceId,
+        taskId: task.id,
+        kind: 'failed',
+        reason: `任务「${task.title}」执行失败，需要你决定。`,
+      })
       return
     }
 
@@ -991,6 +1091,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           input.assistantMessageId,
           input.threadId,
         ),
+        get_task_failure: wrapTool(
+          'get_task_failure',
+          bound.get_task_failure,
+          input.assistantMessageId,
+          input.threadId,
+        ),
         create_task: wrapTool(
           'create_task',
           bound.create_task,
@@ -1036,6 +1142,24 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         create_tasks: wrapTool(
           'create_tasks',
           bound.create_tasks,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        plan_tasks: wrapTool(
+          'plan_tasks',
+          bound.plan_tasks,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        batch_tasks: wrapTool(
+          'batch_tasks',
+          bound.batch_tasks,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        decide_action: wrapTool(
+          'decide_action',
+          bound.decide_action,
           input.assistantMessageId,
           input.threadId,
         ),

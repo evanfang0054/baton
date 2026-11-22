@@ -1,16 +1,28 @@
-import { canAcceptUserInput } from '@baton/core'
-import { Node } from '@baton/protocol'
+import {
+  DEFAULT_TASK_ACTIONS,
+  buildMandate,
+  buildTaskOrigin,
+  canAcceptUserInput,
+  templateById,
+  validateMandate,
+  validatePlanApply,
+} from '@baton/core'
+import { Node, TaskOrigin } from '@baton/protocol'
 import type {
   AppError,
   ApprovalDecideInput,
   ClientMessage,
   ContextInjection,
   Engine,
+  PlanApplyResult,
   ReviewDecideInput,
+  Strength,
+  SupervisorAction,
+  TaskAction,
   TaskTransitionEvent,
 } from '@baton/protocol'
 import { randomUUID } from 'node:crypto'
-import { createDigestService } from '../automation/digest.js'
+import { createDigestService, type DigestServiceDeps } from '../automation/digest.js'
 import { getAcceptanceResponse, type AcceptanceResponse } from '../acceptance/report-service.js'
 import { createDigestScheduler, createTimeoutSchedule } from '../automation/scheduler.js'
 import { createAutomationService } from '../automation/service.js'
@@ -30,7 +42,10 @@ import {
   getReviewByTask,
   getSession,
   getSetting,
+  getSupervisorMessageByTrigger,
   getTask,
+  getTaskDetail,
+  getWorkspace,
   hasTaskForNode,
   insertAudit,
   insertNode,
@@ -40,6 +55,7 @@ import {
   ungroupChildren,
   updateApprovalResponse,
   updateNode,
+  updateTaskOrigin,
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError, isAppError, toAppError } from '../errors.js'
@@ -61,6 +77,11 @@ import { loadPolicy } from '../workspace/policy.js'
 import { isValidImageSrc } from '../workspace/image-src.js'
 import { resolveWorkspaceDir } from '../workspace/resolver.js'
 import { createSupervisorService } from '../supervisor/service.js'
+import { createSupervisorActionService } from '../supervisor/actions.js'
+import { createTargetResolver } from '../supervisor/target.js'
+import { loadWorkspacePolicy } from '../supervisor/autonomy.js'
+import { PROMPT_VERSION } from '../supervisor/prompt.js'
+import { createFailureService } from '../failures/service.js'
 import type { SupervisorEngine } from '../supervisor/engine.js'
 import type { RuntimeHooks, StartSessionInput, TransitionOutcome } from './types.js'
 
@@ -219,14 +240,15 @@ export function createRuntime(deps: RuntimeDeps) {
     ...(deps.logger ? { logger: deps.logger } : {}),
     onPolicyChanged: () => rescheduleDigest(),
   })
-  const digest = createDigestService({
+  const digestDeps: DigestServiceDeps = {
     db: deps.db,
     config: deps.config,
     eventStore,
     broadcast: deps.broadcast,
     now,
     newId,
-  })
+  }
+  const digest = createDigestService(digestDeps)
   const digestScheduler = createDigestScheduler({
     listWorkspaces: () =>
       listWorkspaces(deps.db).map((workspace) => {
@@ -248,6 +270,73 @@ export function createRuntime(deps: RuntimeDeps) {
   rescheduleDigest = () => digestScheduler.reschedule()
   const defaultEngine: Engine =
     deps.engines && deps.engines.get('claude-sdk').status === 'unavailable' ? 'fake' : 'claude-sdk'
+
+  function requireMandate(taskId: string, action: TaskAction, strength: Strength): AppError | null {
+    const detail = getTaskDetail(deps.db, taskId)
+    if (!detail) return appError('task_not_found', 'task not found', { taskId })
+    const origin = detail.task.origin
+    if (!origin && strength === 'inferred') {
+      return appError('mandate_revoked', 'task has no mandate', { reason: 'missing_mandate' })
+    }
+    if (!origin) return null
+    const info = loadWorkspacePolicy(deps.db, deps.config, detail.task.workspaceId)
+    if (!info) {
+      return appError('workspace_not_found', 'workspace not found', {
+        workspaceId: detail.task.workspaceId,
+      })
+    }
+    const result = validateMandate({
+      origin,
+      requestedAction: action,
+      requestedStrength: strength,
+      currentPolicyVersion: info.policyVersion,
+      gate: {
+        workspaceTrusted: info.trusted,
+        killSwitch: automationState.isKillSwitchOn(),
+        autonomy: info.policy.autonomy.mode,
+        capability:
+          action === 'retry' ||
+          action === 'reopen' ||
+          action === 'enqueue' ||
+          action === 'apply_plan'
+            ? info.policy.autonomy.autoRetry
+            : info.policy.autonomy.attentionReminder,
+      },
+    })
+    return result.ok ? null : appError('mandate_revoked', 'task mandate revoked', result.detail)
+  }
+
+  function remindAttention(input: {
+    workspaceId: string
+    taskId: string
+    kind: 'review' | 'failed'
+    reason: string
+  }): void {
+    const info = loadWorkspacePolicy(deps.db, deps.config, input.workspaceId)
+    if (!info) return
+    const mode = info.attentionReminder(automationState.isKillSwitchOn())
+    if (mode !== 'auto') return
+    const day = Math.floor(now() / 86_400_000)
+    const proposed = actions.propose({
+      workspaceId: input.workspaceId,
+      taskId: input.taskId,
+      kind: 'attention_reminder',
+      strength: 'inferred',
+      mode: 'auto',
+      reason: input.reason,
+      payload: { taskId: input.taskId, attentionKind: input.kind },
+      policyVersion: info.policyVersion,
+      dedupeKey: `attention:${input.taskId}:${input.kind}:${day}`,
+    })
+    if (proposed.ok) {
+      actions.decide({
+        workspaceId: input.workspaceId,
+        actionId: proposed.action.id,
+        actor: 'system',
+        decision: 'apply',
+      })
+    }
+  }
 
   function replyToTask(taskId: string, text: string): CommandOutcome {
     const task = getTask(deps.db, taskId)
@@ -281,6 +370,146 @@ export function createRuntime(deps: RuntimeDeps) {
     return ackFromOutcome(applyTransition(task.id, { type: 'user_input', text }))
   }
 
+  const failures = createFailureService({
+    db: deps.db,
+    now,
+    newId,
+    workspaceRoot: (workspaceId) => {
+      const workspace = getWorkspace(deps.db, workspaceId)
+      return workspace ? resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath) : null
+    },
+  })
+
+  function planSourceText(nodeId: string): string | undefined {
+    const node = getNode(deps.db, nodeId)
+    return node?.type === 'text' ? node.data.content : undefined
+  }
+
+  function applyPlan(
+    action: SupervisorAction,
+  ): { ok: true; result: PlanApplyResult } | { ok: false; error: AppError } {
+    const checked = validatePlanApply({
+      action,
+      now: now(),
+      currentPolicyVersion:
+        loadWorkspacePolicy(deps.db, deps.config, action.workspaceId)?.policyVersion ?? '',
+    })
+    if (!checked.ok) return { ok: false, error: appError(checked.code, checked.message) }
+    const payload = checked.payload
+    const sourceText =
+      payload.source.nodeIds.length > 0
+        ? planSourceText(payload.source.nodeIds[0]!)
+        : getSupervisorMessageByTrigger(deps.db, action.threadId ?? '', payload.triggerId)?.content
+    if (!sourceText?.trim()) {
+      return { ok: false, error: appError('plan_invalid', 'plan source text is missing') }
+    }
+    const createdTaskIds: string[] = []
+    const failed: PlanApplyResult['failed'] = []
+    const resolver = createTargetResolver({
+      db: deps.db,
+      defaultEngine,
+      now,
+      newId,
+    })
+    // 计划里的多条任务通常共用一个 Agent；按 target/agentTitle 复用，避免建出同名节点。
+    const sharedTargets = new Map<
+      string,
+      { id: string; title: string; engine: Engine; created: boolean }
+    >()
+    payload.items.forEach((item, index) => {
+      try {
+        const targetKey = item.targetNodeId ?? `agent:${item.agentTitle ?? item.title}`
+        let target = sharedTargets.get(targetKey)
+        if (!target) {
+          target = resolver.resolveAgentTarget(
+            {
+              workspaceId: action.workspaceId,
+              selection: { contextNodeIds: [], agentCandidates: [] },
+              memo: {},
+            },
+            {
+              title: item.title,
+              ...(item.targetNodeId ? { targetNodeId: item.targetNodeId } : {}),
+              ...(item.agentTitle ? { agentTitle: item.agentTitle } : {}),
+              ...(item.engine ? { engine: item.engine } : {}),
+            },
+          )
+          sharedTargets.set(targetKey, target)
+        }
+        const template = templateById(item.templateId)
+        const origin = buildTaskOrigin({
+          source: 'supervisor-chat',
+          triggerId: payload.triggerId,
+          threadId: action.threadId ?? `plan:${action.id}`,
+          workspaceId: action.workspaceId,
+          targetNodeId: target.id,
+          contextNodeIds: item.contextNodeIds,
+          policyVersion: action.policyVersion,
+          promptVersion: PROMPT_VERSION,
+          createdAt: now(),
+          ...(item.templateId ? { templateId: item.templateId } : {}),
+          ...(template?.acceptanceSeed ? { acceptanceSeed: template.acceptanceSeed } : {}),
+        })
+        const sourceNodeId = payload.source.nodeIds[index]
+        const itemPrompt = sourceNodeId ? (planSourceText(sourceNodeId) ?? sourceText) : sourceText
+        const created = taskService.createTask(
+          {
+            workspaceId: action.workspaceId,
+            nodeId: target.id,
+            title: item.title,
+            prompt: itemPrompt,
+            contextNodeIds: item.contextNodeIds,
+            engine: resolver.resolveEngine(item.engine ?? undefined, target),
+            workspaceMode: 'main',
+            dangerouslySkipPermissions: false,
+            ...(item.budgetUsd !== null ? { budgetUsd: item.budgetUsd } : {}),
+          },
+          {
+            origin,
+            audit: {
+              actor: 'human',
+              action: 'supervisor.plan.apply',
+              detail: { actionId: action.id, index, templateId: item.templateId },
+            },
+          },
+        )
+        if (created.ok) createdTaskIds.push(created.taskId)
+        else failed.push({ index, code: created.error.code, message: created.error.message })
+      } catch (error) {
+        const appErr = isAppError(error) ? error : toAppError(error)
+        failed.push({ index, code: appErr.code, message: appErr.message })
+      }
+    })
+    if (createdTaskIds.length === 0) {
+      return {
+        ok: false,
+        error: appError('action_not_applicable', 'no plan item could be created', { failed }),
+      }
+    }
+    return { ok: true, result: { createdTaskIds, failed } }
+  }
+
+  const actions = createSupervisorActionService({
+    db: deps.db,
+    now,
+    newId,
+    policyVersion: (workspaceId) =>
+      loadWorkspacePolicy(deps.db, deps.config, workspaceId)?.policyVersion ?? '',
+    requireMandate: (taskId, action, strength) => requireMandate(taskId, action, strength),
+    applyTransition: (taskId, event) =>
+      transitionRunnerHolder.value
+        ? transitionRunnerHolder.value.applyTransition(taskId, event)
+        : { ok: false, error: appError('runtime_not_ready', 'transition runner is not ready') },
+    enqueueTask: (taskId) => {
+      const outcome = enqueue(taskId)
+      return outcome.ok ? { ok: true, status: outcome.status } : { ok: false, error: outcome.error }
+    },
+    generateDigest: (workspaceId) => digest.generate(workspaceId, 'attention'),
+    applyPlan,
+  })
+  digestDeps.actions = actions
+  digestDeps.failures = failures
+
   const supervisor = createSupervisorService({
     db: deps.db,
     eventStore,
@@ -305,6 +534,11 @@ export function createRuntime(deps: RuntimeDeps) {
     claudeMaxBudgetUsd: deps.config.claudeMaxBudgetUsd,
     verifierBudgetUsd: deps.config.verifierBudgetUsd,
     killSwitch: () => automationState.isKillSwitchOn(),
+    actions,
+    failures,
+    remindAttention,
+    loadPolicy: (workspaceId) => loadWorkspacePolicy(deps.db, deps.config, workspaceId),
+    requireMandate: (taskId, action, strength) => requireMandate(taskId, action, strength),
     ...(deps.supervisorEngine ? { engine: deps.supervisorEngine } : {}),
     now,
     newId,
@@ -337,6 +571,7 @@ export function createRuntime(deps: RuntimeDeps) {
       now,
       newId,
       verifyMeta,
+      failures,
       ...(deps.logger ? { logger: deps.logger } : {}),
     })
   }
@@ -574,17 +809,23 @@ export function createRuntime(deps: RuntimeDeps) {
           ? { ok: true, ack: { taskId: result.taskId } }
           : { ok: false, error: result.error }
       }
-      case 'task.enqueue':
+      case 'task.enqueue': {
+        const mandate = requireMandate(message.payload.taskId, 'enqueue', 'explicit')
+        if (mandate) return { ok: false, error: mandate }
         return ackFromOutcome(enqueue(message.payload.taskId))
+      }
       case 'task.cancel':
         return ackFromOutcome(cancel(message.payload.taskId, message.payload.reason))
-      case 'task.retry':
+      case 'task.retry': {
+        const mandate = requireMandate(message.payload.taskId, 'retry', 'explicit')
+        if (mandate) return { ok: false, error: mandate }
         return ackFromOutcome(
           applyTransition(message.payload.taskId, {
             type: 'retry',
             ...(message.payload.note ? { note: message.payload.note } : {}),
           }),
         )
+      }
       case 'task.set_budget': {
         const result = handleTaskSetBudget(
           {
@@ -598,13 +839,16 @@ export function createRuntime(deps: RuntimeDeps) {
         )
         return result.ok ? { ok: true, ack: result.ack } : { ok: false, error: result.error }
       }
-      case 'task.reopen':
+      case 'task.reopen': {
+        const mandate = requireMandate(message.payload.taskId, 'reopen', 'explicit')
+        if (mandate) return { ok: false, error: mandate }
         return ackFromOutcome(
           applyTransition(message.payload.taskId, {
             type: 'reopen',
             ...(message.payload.note ? { note: message.payload.note } : {}),
           }),
         )
+      }
       case 'task.handoff': {
         const result = createHandoffNode(
           {
@@ -906,6 +1150,92 @@ export function createRuntime(deps: RuntimeDeps) {
       }
       case 'supervisor.send':
         return supervisor.send(message.payload)
+      case 'supervisor.action.decide': {
+        const result = actions.decide({
+          workspaceId: message.payload.workspaceId,
+          actionId: message.payload.actionId,
+          actor: 'human',
+          decision: message.payload.decision,
+        })
+        return result.ok
+          ? {
+              ok: true,
+              ack: {
+                actionId: result.action.id,
+                status: result.action.status,
+                result: result.action.result,
+              },
+            }
+          : { ok: false, error: result.error }
+      }
+      case 'task.reauthorize': {
+        const detail = getTaskDetail(deps.db, message.payload.taskId)
+        if (!detail) {
+          return {
+            ok: false,
+            error: appError('task_not_found', 'task not found', {
+              taskId: message.payload.taskId,
+            }),
+          }
+        }
+        const task = detail.task
+        if (!task.nodeId) {
+          return {
+            ok: false,
+            error: appError('task_not_applicable', 'task has no node to authorize', {
+              taskId: task.id,
+            }),
+          }
+        }
+        const info = loadWorkspacePolicy(deps.db, deps.config, task.workspaceId)
+        if (!info) {
+          return {
+            ok: false,
+            error: appError('workspace_not_found', 'workspace not found', {
+              workspaceId: task.workspaceId,
+            }),
+          }
+        }
+        const mandate = buildMandate({
+          strength: 'explicit',
+          allowedActions: DEFAULT_TASK_ACTIONS,
+          policyVersion: info.policyVersion,
+          promptVersion: PROMPT_VERSION,
+        })
+        const nextOrigin = TaskOrigin.parse({
+          ...(task.origin ??
+            buildTaskOrigin({
+              source: 'canvas',
+              triggerId: `reauthorize:${task.id}`,
+              threadId: `reauthorize:${task.id}`,
+              workspaceId: task.workspaceId,
+              targetNodeId: task.nodeId,
+              contextNodeIds: task.context?.included.map((item) => item.id) ?? [],
+              policyVersion: info.policyVersion,
+              promptVersion: PROMPT_VERSION,
+              createdAt: now(),
+            })),
+          ...mandate,
+        })
+        deps.db.transaction((tx) => {
+          updateTaskOrigin(tx, task.id, JSON.stringify(nextOrigin), now())
+          insertAudit(tx, {
+            id: newId(),
+            ts: now(),
+            actor: 'human',
+            action: 'supervisor.mandate.reauthorize',
+            detail: {
+              taskId: task.id,
+              workspaceId: task.workspaceId,
+              mandateVersion: mandate.mandateVersion,
+            },
+          })
+        })
+        return {
+          ok: true,
+          ack: { taskId: task.id, mandateVersion: mandate.mandateVersion },
+        }
+      }
       case 'resume': {
         const result = replay(message.payload.sinceSeq)
         const cursor = result.rows.at(-1)?.ordinal ?? eventStore.maxOrdinal()
@@ -1047,10 +1377,11 @@ export function createRuntime(deps: RuntimeDeps) {
       now,
       newId,
       killSwitch: () => automationState.isKillSwitchOn(),
+      failures,
     })
   }
 
-  return { ...runtime, scheduler: created, supervisor, automation, digest }
+  return { ...runtime, scheduler: created, supervisor, automation, digest, actions, failures }
 }
 
 export type Runtime = ReturnType<typeof createRuntime>

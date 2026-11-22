@@ -146,6 +146,8 @@ const fixtures = [
       targetNodeId: 'a1',
     },
   ],
+  ['supervisor.action.decide', { workspaceId: 'w1', actionId: 'a1', decision: 'apply' }],
+  ['task.reauthorize', { taskId: 't1' }],
 ] as const
 
 describe('ClientMessage', () => {
@@ -320,6 +322,18 @@ describe('ClientMessage', () => {
         ts: 1,
         type: 'node.update',
         payload: { patch: { x: 1 } },
+      }),
+    ).toThrow()
+  })
+
+  it('rejects an unknown supervisor action decision', () => {
+    expect(() =>
+      ClientMessage.parse({
+        v: 1,
+        id: 'c1',
+        ts: 1,
+        type: 'supervisor.action.decide',
+        payload: { workspaceId: 'w1', actionId: 'a1', decision: 'execute' },
       }),
     ).toThrow()
   })

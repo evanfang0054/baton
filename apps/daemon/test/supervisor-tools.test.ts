@@ -11,6 +11,7 @@ import {
   insertAcceptanceRun,
 } from '../src/db/acceptance-repository.js'
 import { createTaskService } from '../src/runtime/task-service.js'
+import { createFailureService } from '../src/failures/service.js'
 import { createSupervisorTools, type ToolContext } from '../src/supervisor/tools.js'
 import { createTestDb, seedTask, seedTextNode, type TestDb } from './helpers/db.js'
 
@@ -59,6 +60,17 @@ function setup() {
   const transitions: Array<{ taskId: string; type: string }> = []
   const replies: Array<{ taskId: string; text: string }> = []
   const injected: unknown[] = []
+  const decisions: Array<{ actionId: string; decision: string }> = []
+  let automationBlocked: string | null = null
+  const failures = createFailureService({
+    db: database.db,
+    now: () => 10,
+    newId: (() => {
+      let index = 0
+      return () => `failure-${++index}`
+    })(),
+    workspaceRoot: () => root,
+  })
   const tools = createSupervisorTools({
     db: database.db,
     workspacesRoot: root,
@@ -115,8 +127,31 @@ function setup() {
       injected.push(input)
       return { ok: true, taskId: input.taskId, seq: 1, truncated: false, dropped: 0 }
     },
+    actions: {
+      propose: () => ({ ok: false, error: appError('unused', 'unused') }),
+      decide: (input) => {
+        decisions.push({ actionId: input.actionId, decision: input.decision })
+        return { ok: true, action: {} as never }
+      },
+    },
+    assertAutomationAllowed: () =>
+      automationBlocked ? appError(automationBlocked, 'automation blocked') : null,
+    failures,
   })
-  return { database, seeded, tools, root, transitions, replies, injected }
+  return {
+    database,
+    seeded,
+    tools,
+    root,
+    transitions,
+    replies,
+    injected,
+    decisions,
+    failures,
+    blockAutomation: (code: string | null) => {
+      automationBlocked = code
+    },
+  }
 }
 
 function ctx(seeded: ReturnType<typeof seedTask>): ToolContext {
@@ -334,6 +369,15 @@ describe('supervisor tools', () => {
     )) as { status: string }
     expect(reopen.status).toBe('queued')
     expect(transitions.at(-1)).toEqual({ taskId: seeded.taskId, type: 'reopen' })
+  })
+
+  it('blocks model recovery actions when automation is paused', async () => {
+    const { seeded, tools, blockAutomation, transitions } = setup()
+    blockAutomation('automation_paused')
+    await expect(
+      tools.enqueue_task.execute({ taskId: seeded.taskId }, ctx(seeded)),
+    ).rejects.toMatchObject({ code: 'automation_paused' })
+    expect(transitions).toHaveLength(0)
   })
 
   it('requires confirmation before cancelling a running task', async () => {
@@ -866,10 +910,62 @@ describe('supervisor tools', () => {
     ])
   })
 
+  it('resolves a unique task id prefix', async () => {
+    const { seeded, tools } = setup()
+    const detail = (await tools.get_task.execute(
+      { taskId: seeded.taskId.slice(0, 8) },
+      ctx(seeded),
+    )) as { task: { id: string } }
+    expect(detail.task.id).toBe(seeded.taskId)
+  })
+
+  it('rejects an id prefix that is too short', async () => {
+    const { seeded, tools } = setup()
+    await expect(
+      tools.get_task.execute({ taskId: seeded.taskId.slice(0, 3) }, ctx(seeded)),
+    ).rejects.toMatchObject({ code: 'task_not_found' })
+  })
+
   it('hides tasks that belong to another workspace', async () => {
     const { seeded, tools } = setup()
     await expect(
       tools.get_task.execute({ taskId: seeded.taskId }, { ...ctx(seeded), workspaceId: 'other' }),
     ).rejects.toMatchObject({ code: 'task_not_found' })
+  })
+
+  it('reads failure summaries and exposes lastFailure in get_task', async () => {
+    const { seeded, tools, failures } = setup()
+    failures.record({
+      workspaceId: seeded.workspaceId,
+      taskId: seeded.taskId,
+      sessionId: seeded.sessionId,
+      attempt: 0,
+      stage: 'verify',
+      message: 'pnpm test failed at <workspace>/src/login.ts',
+      retryable: true,
+      affectedPaths: ['src/login.ts'],
+    })
+    const detail = (await tools.get_task.execute({ taskId: seeded.taskId }, ctx(seeded))) as {
+      lastFailure: { stage: string; summary: string } | null
+    }
+    expect(detail.lastFailure?.stage).toBe('verify')
+
+    const result = (await tools.get_task_failure.execute(
+      { taskId: seeded.taskId, limit: 3 },
+      ctx(seeded),
+    )) as { failures: Array<{ stage: string; lastError: string }> }
+    expect(result.failures[0]?.stage).toBe('verify')
+    expect(result.failures[0]?.lastError).toContain('<workspace>/src/login.ts')
+  })
+
+  it('decide_action can only ignore', async () => {
+    const { seeded, tools, decisions } = setup()
+    await expect(
+      tools.decide_action.execute({ actionId: 'a1', decision: 'apply' }, ctx(seeded)),
+    ).rejects.toMatchObject({ code: 'supervisor_action_forbidden' })
+    expect(decisions).toEqual([])
+
+    await tools.decide_action.execute({ actionId: 'a1', decision: 'ignore' }, ctx(seeded))
+    expect(decisions).toEqual([{ actionId: 'a1', decision: 'ignore' }])
   })
 })

@@ -47,4 +47,27 @@ describe('digest service', () => {
     const secondPayload = second?.payload as { windowStart: number; windowEnd: number }
     expect(secondPayload.windowStart).toBe(firstPayload.windowEnd)
   })
+
+  it('adds one attention item per task and does not advance the window for attention digests', () => {
+    const handle = setup()
+    handle.database.raw
+      .prepare(
+        "update task set status='waiting_input', waiting_reason='approval', updated_at=10 where id=?",
+      )
+      .run(handle.seeded.taskId)
+    const first = handle.runtime.digest.generate(handle.seeded.workspaceId, 'manual')
+    const firstPayload = first?.payload as {
+      windowEnd: number
+      attention: { items: Array<{ kind: string }>; counts: { approval: number } }
+    }
+    expect(firstPayload.attention.items.map((item) => item.kind)).toEqual(['approval'])
+    expect(firstPayload.attention.counts.approval).toBe(1)
+
+    const attention = handle.runtime.digest.generate(handle.seeded.workspaceId, 'attention')
+    const attentionPayload = attention?.payload as { windowStart: number; windowEnd: number }
+    expect(attentionPayload.windowStart).toBe(firstPayload.windowEnd)
+    expect(
+      getSetting(handle.database.db, `digest:last:${handle.seeded.workspaceId}`),
+    ).toMatchObject({ at: firstPayload.windowEnd })
+  })
 })

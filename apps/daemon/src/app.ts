@@ -79,6 +79,7 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
     logger: deps.logger,
     now: deps.now,
     newId: deps.newId,
+    failures: deps.runtime.failures,
   })
   registerReviewRoutes(app, { db: deps.db })
   registerAutomationRoutes(app, {
@@ -93,6 +94,7 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
     policyVersion: supervisorPolicyVersion(SUPERVISOR_POLICY, PROMPT_VERSION),
     history: (workspaceId, limit, before) =>
       deps.runtime.supervisor.history(workspaceId, limit, before),
+    actions: deps.runtime.actions,
   })
 
   await attachWs(app, config, deps.runtime, deps.hub)

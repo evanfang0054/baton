@@ -10,8 +10,12 @@ describe('supervisor policy', () => {
       'list_tasks',
       'get_task',
       'get_task_history',
+      'get_task_failure',
       'create_task',
       'create_tasks',
+      'plan_tasks',
+      'batch_tasks',
+      'decide_action',
       'enqueue_task',
       'retry_task',
       'reopen_task',
@@ -24,6 +28,7 @@ describe('supervisor policy', () => {
       'update_node',
       'inject_context',
     ])
+    expect(SUPERVISOR_POLICY.allowedTools).toHaveLength(21)
     expect(supervisorPolicyVersion(SUPERVISOR_POLICY, 'v1')).toMatch(/^[a-f0-9]{12}$/)
   })
 

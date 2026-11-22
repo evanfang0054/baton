@@ -2,6 +2,17 @@
 
 exports[`buildDigest > summarizes ready, blocked, dropped and changes without prompt 1`] = `
 {
+  "attention": {
+    "counts": {
+      "approval": 0,
+      "budget": 0,
+      "failed": 0,
+      "reply": 0,
+      "review": 0,
+      "stale": 0,
+    },
+    "items": [],
+  },
   "blocked": [
     {
       "attention": "needs_approval",

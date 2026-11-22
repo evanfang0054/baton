@@ -1,10 +1,12 @@
 import type { SupervisorMessage as SupervisorMessageRecord, ToolCallRecord } from '@baton/protocol'
 import {
+  PlanToolResult,
   SupervisorHandoffResult,
   SupervisorTaskCard as SupervisorTaskCardSchema,
 } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { AlertTriangle } from 'lucide-react'
+import { SupervisorPlanCard } from './SupervisorPlanCard'
 import { SupervisorTaskCard } from './SupervisorTaskCard'
 import { SupervisorToolCard, type SupervisorToolView } from './SupervisorToolCard'
 import { toPlainText } from './supervisor-model'
@@ -65,6 +67,11 @@ export function SupervisorMessage({
     .map((call) => SupervisorHandoffResult.safeParse(call.result))
     .flatMap((parsed) => (parsed.success ? [parsed.data] : []))
 
+  const planResults = message.toolCalls
+    .filter((call) => call.name === 'plan_tasks' && call.ok)
+    .map((call) => PlanToolResult.safeParse(call.result))
+    .flatMap((parsed) => (parsed.success ? [parsed.data] : []))
+
   return (
     <article className="flex gap-3">
       <span className="w-9 shrink-0 pt-0.5 text-xs text-muted">{roleLabels[message.role]}</span>
@@ -103,6 +110,14 @@ export function SupervisorMessage({
         ) : null}
         {uniqueCards.map((card) => (
           <SupervisorTaskCard key={card.taskId} card={card} />
+        ))}
+        {planResults.map((result) => (
+          <SupervisorPlanCard
+            key={result.actionId}
+            actionId={result.actionId}
+            plan={result.plan}
+            initialStatus={result.status}
+          />
         ))}
         {handoffEntries.map(({ task: card, handoff, startError }) => (
           <div key={`handoff-${card.taskId}`} className="flex flex-col gap-1">

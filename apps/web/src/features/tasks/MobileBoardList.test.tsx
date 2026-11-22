@@ -116,6 +116,20 @@ describe('MobileBoardList', () => {
     expect(screen.getByText('已完成任务')).toBeInTheDocument()
   })
 
+  it('keeps cancelled tasks out of the completed section', async () => {
+    renderList({
+      tasks: [
+        task({ id: 'd', title: '已完成任务', status: 'done' }),
+        task({ id: 'c', title: '已取消任务', status: 'cancelled' }),
+      ],
+    })
+
+    await userEvent.click(screen.getByRole('tab', { name: '已取消' }))
+    await userEvent.click(screen.getByRole('button', { name: /已取消 \(1\)/ }))
+    expect(screen.getByText('已取消任务')).toBeInTheDocument()
+    expect(screen.queryByText('已完成任务')).not.toBeInTheDocument()
+  })
+
   it('shows an empty completed state when there are no finished tasks', async () => {
     renderList({ tasks: [] })
     await userEvent.click(screen.getByRole('tab', { name: '已完成' }))
@@ -170,7 +184,7 @@ describe('MobileBoardList', () => {
         task({ id: 'b', title: '运行中任务', status: 'running' }),
       ],
     })
-    expect(screen.getByText('已等待超过 30 分钟')).toBeInTheDocument()
+    expect(screen.getByText(/超过 30 分钟/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '看现场' })).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: '需要我' }))

@@ -92,6 +92,13 @@
       "when": 1795248958254,
       "tag": "0012_m6_3_acceptance_evidence",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1795320592173,
+      "tag": "0013_m6_5_supervisor_autonomy",
+      "breakpoints": true
     }
   ]
 }

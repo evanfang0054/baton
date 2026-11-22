@@ -1,4 +1,4 @@
-import type { ApprovalDecision } from '@baton/protocol'
+import { VERIFY_SKIPPED, type ApprovalDecision } from '@baton/protocol'
 import { useQuery } from '@tanstack/react-query'
 import { getTaskAutomation } from '../../lib/api'
 import { queryKeys } from '../../lib/query'
@@ -57,7 +57,12 @@ export function TaskAutomationCard({ taskId }: { taskId: string }) {
         {denied > 0 ? <span>自动拒绝 {denied} 次</span> : null}
         <span>自动重试 {data.retryCount} 次</span>
         {data.lastVerifyExitCode !== null ? (
-          <span>最近验收退出码 {data.lastVerifyExitCode}</span>
+          <span>
+            最近验收{' '}
+            {data.lastVerifyExitCode === VERIFY_SKIPPED
+              ? '未执行'
+              : `退出码 ${data.lastVerifyExitCode}`}
+          </span>
         ) : null}
         <span className="text-muted">策略版本 {shortVersion(data.lastPolicyVersion)}</span>
       </p>

@@ -43,6 +43,7 @@ import {
   review,
   session,
   setting,
+  supervisorMessage,
   task,
   workspace,
   wsEvent,
@@ -724,6 +725,11 @@ export function updateTaskTitle(
   db.update(task).set({ title, updatedAt }).where(eq(task.id, id)).run()
 }
 
+/** 人重新授权时写入新的 origin 快照；不改任务状态。 */
+export function updateTaskOrigin(tx: Tx, id: string, originJson: string, updatedAt: number): void {
+  tx.update(task).set({ originJson, updatedAt }).where(eq(task.id, id)).run()
+}
+
 export function updateTaskBudget(tx: Tx, id: string, budgetUsd: number, updatedAt: number): void {
   tx.update(task).set({ budgetUsd, updatedAt }).where(eq(task.id, id)).run()
 }
@@ -909,6 +915,17 @@ export function listSessionsByTask(db: Pick<Db, 'select'>, taskId: string): Sess
     .select()
     .from(session)
     .where(eq(session.taskId, taskId))
+    .orderBy(asc(session.startedAt))
+    .all()
+    .map(toSession)
+}
+
+export function listSessionsByTasks(db: Db, taskIds: string[]): Session[] {
+  if (taskIds.length === 0) return []
+  return db
+    .select()
+    .from(session)
+    .where(inArray(session.taskId, taskIds))
     .orderBy(asc(session.startedAt))
     .all()
     .map(toSession)
@@ -1301,4 +1318,20 @@ export function listAudit(
     .limit(filter.limit)
     .all()
     .map(toAudit)
+}
+
+/** 计划应用时取回原始用户消息，避免把计划文本再塞进 action payload。 */
+export function getSupervisorMessageByTrigger(
+  db: Db,
+  threadId: string,
+  triggerId: string,
+): { content: string } | null {
+  const row = db
+    .select({ content: supervisorMessage.content })
+    .from(supervisorMessage)
+    .where(
+      and(eq(supervisorMessage.threadId, threadId), eq(supervisorMessage.triggerId, triggerId)),
+    )
+    .get()
+  return row ?? null
 }

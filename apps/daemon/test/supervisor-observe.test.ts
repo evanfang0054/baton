@@ -52,6 +52,21 @@ describe('buildVerifierPrompt', () => {
     expect(prompt).toContain('<verifier_task>')
     expect(prompt).toContain('不修改文件')
   })
+
+  it('appends the acceptance seed only to the verifier prompt', () => {
+    const prompt = buildVerifierPrompt({
+      title: '修复登录',
+      taskId: 't1',
+      prompt: '<task>修复登录</task>',
+      workerOutput: '已修复',
+      verifyExitCode: 0,
+      diffStat: null,
+      acceptanceSeed: ['复现步骤可执行', '失败现象消失'],
+    })
+    expect(prompt).toContain('<acceptance_seed>')
+    expect(prompt).toContain('- 复现步骤可执行')
+    expect(prompt).not.toContain('<task>修复登录</task>\n- 复现步骤可执行')
+  })
 })
 
 describe('parseAcceptanceReport', () => {

@@ -224,6 +224,19 @@ function FlowCanvas({
   const savedViewport = useRef<Viewport | null>(null)
   const sceneWasActive = useRef(false)
   const sceneActive = sceneTaskId !== null
+  const initialFitKey = useRef<string | null>(null)
+  useEffect(() => {
+    if (!canvas || sceneActive || nodes.length === 0) return
+    const viewport = canvas.canvas.viewport
+    // 历史数据的 viewport 都是初始值；此时补一次 fitView，避免节点落在视口外。
+    if (viewport.x !== 0 || viewport.y !== 0 || viewport.zoom !== 1) return
+    if (initialFitKey.current === canvas.canvas.id) return
+    initialFitKey.current = canvas.canvas.id
+    const timer = window.setTimeout(() => {
+      void fitView({ padding: 0.2, duration: 0 })
+    }, 50)
+    return () => window.clearTimeout(timer)
+  }, [canvas, fitView, nodes.length, sceneActive])
   useEffect(() => {
     if (sceneActive && !sceneWasActive.current) {
       savedViewport.current = getViewport()

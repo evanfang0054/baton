@@ -1,6 +1,11 @@
 import { canInjectContext } from '@baton/core'
 import type { TaskScene } from '@baton/core'
-import type { TaskAcceptanceSummary, TaskBudgetSummary, TaskDetailResponse } from '@baton/protocol'
+import {
+  VERIFY_SKIPPED,
+  type TaskAcceptanceSummary,
+  type TaskBudgetSummary,
+  type TaskDetailResponse,
+} from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { StatusChip } from '../tasks/StatusChip'
 import { WaitingTime } from '../tasks/WaitingTime'
@@ -38,7 +43,12 @@ export function TaskSceneBar({
         {scene.missingNodeIds.length > 0 ? ` · ${scene.missingNodeIds.length} 个已失效` : ''}
       </span>
       {detail.review ? (
-        <span className="text-muted">verify {detail.review.verifyExitCode}</span>
+        <span className="text-muted">
+          verify{' '}
+          {detail.review.verifyExitCode === VERIFY_SKIPPED
+            ? '未执行'
+            : detail.review.verifyExitCode}
+        </span>
       ) : null}
       <span className="text-muted">
         {acceptance ? `AC ${acceptance.counts.pass}/${acceptance.counts.total}` : 'AC —'}

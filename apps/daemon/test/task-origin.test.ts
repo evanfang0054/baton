@@ -1,3 +1,4 @@
+import { buildTaskOrigin } from '@baton/core'
 import { TaskOrigin } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
 import { getTaskDetail } from '../src/db/repositories.js'
@@ -40,5 +41,23 @@ describe('task origin', () => {
     expect(invalid?.task.origin).toBeNull()
     expect(invalid?.originInvalid).toBe(true)
     database.raw.close()
+  })
+
+  it('builds a mandate snapshot for new tasks', () => {
+    const origin = buildTaskOrigin({
+      source: 'supervisor-chat',
+      triggerId: 't1',
+      threadId: 'th1',
+      workspaceId: 'w1',
+      targetNodeId: 'a1',
+      contextNodeIds: [],
+      policyVersion: 'p1',
+      promptVersion: 'v1',
+      createdAt: 1,
+    })
+    expect(origin.scope).toBe('task')
+    expect(origin.strength).toBe('explicit')
+    expect(origin.allowedActions).toContain('retry')
+    expect(origin.mandateVersion).toMatch(/^[0-9a-f]{12}$/)
   })
 })

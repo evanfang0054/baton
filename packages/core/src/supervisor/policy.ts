@@ -13,8 +13,12 @@ export const SUPERVISOR_POLICY: SupervisorPolicy = {
     'list_tasks',
     'get_task',
     'get_task_history',
+    'get_task_failure',
     'create_task',
     'create_tasks',
+    'plan_tasks',
+    'batch_tasks',
+    'decide_action',
     'enqueue_task',
     'retry_task',
     'reopen_task',
@@ -33,7 +37,7 @@ export const SUPERVISOR_POLICY: SupervisorPolicy = {
 }
 
 /** 纯函数指纹，不依赖 Node crypto，避免 web 侧导入 core 时被打包进 polyfill。 */
-function shortHash(input: string): string {
+export function supervisorShortHash(input: string): string {
   let h1 = 0x811c9dc5
   let h2 = 0x1000193
   for (let index = 0; index < input.length; index += 1) {
@@ -47,5 +51,5 @@ function shortHash(input: string): string {
 }
 
 export function supervisorPolicyVersion(policy: SupervisorPolicy, promptVersion: string): string {
-  return shortHash(JSON.stringify({ ...policy, promptVersion })).slice(0, 12)
+  return supervisorShortHash(JSON.stringify({ ...policy, promptVersion })).slice(0, 12)
 }

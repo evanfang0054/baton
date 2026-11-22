@@ -106,6 +106,7 @@ const sceneDetail: TaskDetailResponse = {
     verifierCostUsd: 0,
     turns: 0,
   },
+  lastFailure: null,
 }
 
 afterEach(() => {
