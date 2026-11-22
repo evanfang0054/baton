@@ -338,3 +338,56 @@ export const setting = sqliteTable('setting', {
   valueJson: text('value_json').notNull(),
   updatedAt: integer('updated_at').notNull(),
 })
+
+export const supervisorAction = sqliteTable(
+  'supervisor_action',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id),
+    threadId: text('thread_id'),
+    taskId: text('task_id'),
+    kind: text('kind').notNull(),
+    status: text('status').notNull(),
+    strength: text('strength').notNull(),
+    mode: text('mode').notNull(),
+    reason: text('reason').notNull(),
+    payloadJson: text('payload_json').notNull(),
+    resultJson: text('result_json'),
+    policyVersion: text('policy_version').notNull(),
+    mandateVersion: text('mandate_version'),
+    dedupeKey: text('dedupe_key').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    appliedAt: integer('applied_at'),
+    ignoredAt: integer('ignored_at'),
+  },
+  (t) => [
+    uniqueIndex('supervisor_action_dedupe_idx').on(t.dedupeKey),
+    index('supervisor_action_status_idx').on(t.workspaceId, t.status, t.createdAt),
+  ],
+)
+
+export const taskFailure = sqliteTable(
+  'task_failure',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => task.id),
+    sessionId: text('session_id'),
+    attempt: integer('attempt').notNull(),
+    stage: text('stage').notNull(),
+    lastError: text('last_error').notNull(),
+    retryable: integer('retryable', { mode: 'boolean' }).notNull(),
+    affectedPathsJson: text('affected_paths_json'),
+    summary: text('summary').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [index('task_failure_task_idx').on(t.taskId, t.createdAt)],
+)
