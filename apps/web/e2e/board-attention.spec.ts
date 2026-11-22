@@ -69,9 +69,9 @@ test('needs me filter, stale and review card', async ({ page }) => {
   })
 
   await page.goto('/?workspace=w1')
-  await page.getByRole('button', { name: '展开看板' }).click()
+  await page.getByRole('button', { name: '任务', exact: true }).click()
 
-  const board = page.getByTestId('task-board-overlay')
+  const board = page.getByTestId('task-board')
   await board.getByRole('button', { name: '需要我' }).click()
   await expect(board.getByText('待验收任务')).toBeVisible()
   await expect(board.getByText('运行中')).toHaveCount(0)
@@ -83,6 +83,6 @@ test('needs me filter, stale and review card', async ({ page }) => {
   await page.getByRole('button', { name: '通过' }).click()
 
   await expect.poll(() => commands.some((command) => command.type === 'review.decide')).toBe(true)
-  await page.getByRole('button', { name: '展开看板' }).click()
-  await expect(page.getByTestId('task-board-overlay').getByText('待验收任务')).toHaveCount(0)
+  await page.getByRole('button', { name: '任务', exact: true }).click()
+  await expect(page.getByTestId('task-board').getByText('待验收任务')).toHaveCount(0)
 })

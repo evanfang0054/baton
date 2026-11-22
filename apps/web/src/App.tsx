@@ -128,7 +128,7 @@ export function App() {
   const workspaceCanvas = useQuery({
     queryKey: queryKeys.canvas(activeWorkspaceId ?? ''),
     queryFn: () => getCanvas(activeWorkspaceId!),
-    enabled: Boolean(activeWorkspaceId && (showWorkspace || isMobile)),
+    enabled: Boolean(activeWorkspaceId),
   })
   const automation = useQuery({
     queryKey: queryKeys.automation(activeWorkspaceId ?? ''),
@@ -141,7 +141,9 @@ export function App() {
     enabled: Boolean(activeWorkspaceId),
   })
 
-  const canvasForContext = showWorkspace ? workspaceCanvas : deliveryCanvas
+  const hasNoDeliveries =
+    Boolean(activeWorkspaceId) && !deliveries.isLoading && (deliveries.data?.length ?? 0) === 0
+  const canvasForContext = showWorkspace || hasNoDeliveries ? workspaceCanvas : deliveryCanvas
   const canvasNodes = canvasForContext.data?.nodes ?? []
   const contextNodes = useMemo(
     () => canvasNodes.filter((node) => contextNodeIds.includes(node.id)),
@@ -563,7 +565,7 @@ export function App() {
                   onOpenScene={openTask}
                   onClose={() => setShowTasks(false)}
                 />
-              ) : showWorkspace ? (
+              ) : showWorkspace || hasNoDeliveries ? (
                 <CanvasPanel
                   ref={canvasRef}
                   canvas={workspaceCanvas.data ?? null}
@@ -639,7 +641,7 @@ export function App() {
           onOpenChange={setDeliveryDialogOpen}
           onCreated={selectDelivery}
         />
-        {overlay?.kind === 'stage' ? (
+        {!isMobile && overlay?.kind === 'stage' ? (
           <StageSceneOverlay taskId={overlay.taskId} onClose={() => setOverlay(null)} />
         ) : null}
         {overlay?.kind === 'artifact'
@@ -688,7 +690,7 @@ export function App() {
             }}
           />
         ) : null}
-        {showWorkspace && selectedNode && activeWorkspaceId ? (
+        {(showWorkspace || hasNoDeliveries) && selectedNode && activeWorkspaceId ? (
           <Overlay title="节点" onClose={() => setSelectedNode(null)} width="min(720px, 92vw)">
             <NodePanel
               key={selectedNode.id}

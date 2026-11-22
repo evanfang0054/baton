@@ -80,8 +80,8 @@ test('long press drags tasks into valid status columns', async ({ page }) => {
   })
 
   await page.goto('/?workspace=w1')
-  await page.getByRole('button', { name: '展开看板' }).click()
-  const board = page.getByTestId('task-board-overlay')
+  await page.getByRole('button', { name: '任务', exact: true }).click()
+  const board = page.getByTestId('task-board')
 
   await dragAfterLongPress(
     page,

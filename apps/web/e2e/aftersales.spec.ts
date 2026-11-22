@@ -167,7 +167,7 @@ test('retries a failed task with a note', async ({ page }) => {
   await mockWorkspace(page, sent, 'failed')
   await page.goto('/?workspace=w1&task=t1')
 
-  await page.getByRole('button', { name: '重试' }).click()
+  await page.getByRole('dialog', { name: '阶段现场' }).getByRole('button', { name: '重试' }).click()
   await page.getByLabel('重试备注').fill('再试一次')
   await page.getByRole('button', { name: '确认重试' }).click()
 

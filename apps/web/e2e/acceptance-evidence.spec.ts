@@ -100,8 +100,8 @@ test('budget card raises the budget and continues', async ({ page }) => {
   })
 
   await page.goto('/?workspace=w1')
-  await page.getByRole('button', { name: '展开看板' }).click()
-  await page.getByTestId('task-board-overlay').getByText('超预算任务').click()
+  await page.getByRole('button', { name: '任务', exact: true }).click()
+  await page.getByTestId('task-board').getByText('超预算任务').click()
   await expect(page.getByText('预算已用完')).toBeVisible()
   await page.getByLabel('新预算').fill('3')
   await page.getByRole('button', { name: '提额并继续' }).click()

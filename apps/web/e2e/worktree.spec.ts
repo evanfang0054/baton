@@ -152,6 +152,8 @@ test('keeps the worktree info but hides cleanup on mobile', async ({ page }) => 
   await mockWorkspace(page, state)
   await page.goto('/?workspace=w1&task=t1')
 
-  await expect(page.getByText('独立工作树 · baton/t1')).toBeVisible()
+  await expect(
+    page.getByTestId('mobile-task-scroll').getByText('独立工作树 · baton/t1'),
+  ).toBeVisible()
   await expect(page.getByRole('button', { name: '清理工作树' })).toHaveCount(0)
 })

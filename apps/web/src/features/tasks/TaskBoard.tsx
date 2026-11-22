@@ -541,6 +541,7 @@ export function TaskBoard({
   if (pinned) {
     return (
       <div
+        data-testid="task-board"
         className={
           compact
             ? 'w-[min(420px,72vw)] shrink-0 border-r border-separator'

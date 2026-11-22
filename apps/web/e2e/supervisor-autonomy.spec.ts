@@ -346,8 +346,8 @@ test('observe proposal applies only through the human digest action', async ({ p
   await page.getByRole('button', { name: '应用建议' }).click()
   await expect.poll(() => commands).toContain('supervisor.action.decide')
   await expect(page.getByLabel('需要你决定')).toHaveCount(0)
-  await page.getByRole('button', { name: '展开看板' }).click()
-  await expect(page.getByTestId('task-board-overlay').getByText('重试中的登录修复')).toBeVisible()
+  await page.getByRole('button', { name: '任务', exact: true }).click()
+  await expect(page.getByTestId('task-board').getByText('重试中的登录修复')).toBeVisible()
 })
 
 test('mandate_revoked asks for reauthorize before retrying again', async ({ page }) => {
