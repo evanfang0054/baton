@@ -71,6 +71,7 @@
 - [M6-2 上下文再注入与轻验收证据](contracts/M6-2-context-injection.contract.md)
 - [M6-3 验收证据与放权护栏](contracts/M6-3-acceptance-evidence.contract.md)
 - [M6-5 总管自治与注意力](contracts/M6-5-supervisor-autonomy.contract.md)
+- [M7 交付工作台与 SOP 流程](contracts/M7-delivery-playbook.contract.md)
 
 ## 现行 plan
 
