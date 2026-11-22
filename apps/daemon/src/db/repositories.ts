@@ -724,6 +724,11 @@ export function updateTaskTitle(
   db.update(task).set({ title, updatedAt }).where(eq(task.id, id)).run()
 }
 
+/** 人重新授权时写入新的 origin 快照；不改任务状态。 */
+export function updateTaskOrigin(tx: Tx, id: string, originJson: string, updatedAt: number): void {
+  tx.update(task).set({ originJson, updatedAt }).where(eq(task.id, id)).run()
+}
+
 export function updateTaskBudget(tx: Tx, id: string, budgetUsd: number, updatedAt: number): void {
   tx.update(task).set({ budgetUsd, updatedAt }).where(eq(task.id, id)).run()
 }

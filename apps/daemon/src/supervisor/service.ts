@@ -11,11 +11,13 @@ import {
   type AppError,
   type Engine as EngineValue,
   type Review,
+  type Strength,
   type SupervisorMessage,
   type SupervisorMessagesResponse,
   type SupervisorSendInput,
   type SupervisorStatusResponse,
   type Task,
+  type TaskAction,
   type TaskDetail,
   type TaskOrigin,
   type TaskTransitionEvent,
@@ -52,6 +54,8 @@ import type { TaskService } from '../runtime/task-service.js'
 import type { TransitionOutcome } from '../runtime/types.js'
 import { buildWsFrame } from '../ws/hub.js'
 import { canvasOverviewXml, nodeTitle } from './canvas-summary.js'
+import type { createSupervisorActionService } from './actions.js'
+import type { loadWorkspacePolicy } from './autonomy.js'
 import { loadSupervisorConfig, type SupervisorConfig } from './config.js'
 import { createAiSdkSupervisorEngine, type SupervisorEngine } from './engine.js'
 import { buildVerifierPrompt, parseVerdict } from './observe.js'
@@ -94,6 +98,9 @@ export interface SupervisorServiceDeps {
   claudeMaxBudgetUsd: number
   verifierBudgetUsd: number
   killSwitch: () => boolean
+  actions?: ReturnType<typeof createSupervisorActionService>
+  loadPolicy?: (workspaceId: string) => ReturnType<typeof loadWorkspacePolicy>
+  requireMandate?: (taskId: string, action: TaskAction, strength: Strength) => AppError | null
   engine?: SupervisorEngine
   now: () => number
   newId: () => string
@@ -228,6 +235,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     replyToTask: deps.replyToTask,
     injectContext: deps.injectContext,
     cancelTask: deps.cancelTask,
+    ...(deps.requireMandate ? { requireMandate: deps.requireMandate } : {}),
     ...(deps.logger ? { logger: deps.logger } : {}),
   })
   const policyVersion = supervisorPolicyVersion(SUPERVISOR_POLICY, PROMPT_VERSION)
@@ -881,6 +889,33 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         `observe:failed:${task.id}:${task.retryCount}`,
         `任务「${task.title}」执行失败，需要你看一下任务详情。`,
       )
+      const policyInfo = deps.loadPolicy?.(task.workspaceId)
+      if (policyInfo) {
+        const mode = policyInfo.autoRetry(deps.killSwitch())
+        if (mode !== 'off') {
+          const proposed = deps.actions?.propose({
+            workspaceId: task.workspaceId,
+            threadId: origin.threadId,
+            taskId: task.id,
+            kind: 'retry',
+            strength: 'inferred',
+            mode: mode === 'auto' ? 'auto' : 'observe',
+            reason: `任务「${task.title}」执行失败，建议重试。`,
+            payload: { taskId: task.id },
+            policyVersion: policyInfo.policyVersion,
+            mandateVersion: origin.mandateVersion ?? null,
+            dedupeKey: `retry:${task.id}:${task.retryCount}:${Math.floor(deps.now() / 86_400_000)}`,
+          })
+          if (mode === 'auto' && proposed?.ok) {
+            deps.actions?.decide({
+              workspaceId: task.workspaceId,
+              actionId: proposed.action.id,
+              actor: 'system',
+              decision: 'apply',
+            })
+          }
+        }
+      }
       return
     }
 

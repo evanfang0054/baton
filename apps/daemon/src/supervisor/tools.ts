@@ -15,9 +15,11 @@ import {
   type Actor,
   type AppError,
   type Engine as EngineValue,
+  type Strength,
   type SupervisorTaskCard as SupervisorTaskCardValue,
   type Task,
   type TaskAcceptanceSummary,
+  type TaskAction,
   type TaskTransitionEvent,
 } from '@baton/protocol'
 import { z } from 'zod'
@@ -286,6 +288,8 @@ export interface SupervisorToolsDeps {
     | { ok: true; taskId: string; seq: number; truncated: boolean; dropped: number }
     | { ok: false; error: AppError }
   cancelTask: (taskId: string, reason?: string) => TransitionOutcome
+  /** 主动恢复动作前按当前 policy 重新校验；显式用户指令也会检查 allowedActions。 */
+  requireMandate?: (taskId: string, action: TaskAction, strength: Strength) => AppError | null
   logger?: Logger
 }
 
@@ -1233,6 +1237,8 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             status: detail.task.status,
           })
         }
+        const mandate = deps.requireMandate?.(detail.task.id, 'enqueue', 'explicit')
+        if (mandate) throw mandate
         const outcome = deps.enqueueTask(detail.task.id)
         if (!outcome.ok) throw outcome.error
         return { taskId: detail.task.id, status: outcome.status }
@@ -1251,6 +1257,8 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             status: task.status,
           })
         }
+        const mandate = deps.requireMandate?.(task.id, 'retry', 'explicit')
+        if (mandate) throw mandate
         const result = transitionResult(
           deps.applyTransition(task.id, {
             type: 'retry',
@@ -1275,6 +1283,8 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             status: task.status,
           })
         }
+        const mandate = deps.requireMandate?.(task.id, 'reopen', 'explicit')
+        if (mandate) throw mandate
         const result = transitionResult(
           deps.applyTransition(task.id, {
             type: 'reopen',

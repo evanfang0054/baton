@@ -93,6 +93,7 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
     policyVersion: supervisorPolicyVersion(SUPERVISOR_POLICY, PROMPT_VERSION),
     history: (workspaceId, limit, before) =>
       deps.runtime.supervisor.history(workspaceId, limit, before),
+    actions: deps.runtime.actions,
   })
 
   await attachWs(app, config, deps.runtime, deps.hub)
