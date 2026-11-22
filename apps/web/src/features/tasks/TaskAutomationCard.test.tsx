@@ -39,7 +39,7 @@ describe('TaskAutomationCard', () => {
 
     expect(await screen.findByText('自动批准 1 次')).toBeInTheDocument()
     expect(screen.getByText('自动重试 1 次')).toBeInTheDocument()
-    expect(screen.getByText('最近验收退出码 1')).toBeInTheDocument()
+    expect(screen.getByText(/最近验收.*退出码 1/)).toBeInTheDocument()
     expect(screen.getByText('自动批准 · Bash · low')).toBeInTheDocument()
     expect(screen.queryByText(/SECRET/)).not.toBeInTheDocument()
   })

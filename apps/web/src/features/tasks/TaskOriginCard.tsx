@@ -32,16 +32,24 @@ export function TaskOriginCard({
       <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
         <dt className="text-muted">渠道</dt>
         <dd className="text-foreground">{sourceLabels[origin.source]}</dd>
-        <dt className="text-muted">触发</dt>
-        <dd className="break-all font-mono text-muted">{origin.triggerId}</dd>
-        <dt className="text-muted">策略</dt>
-        <dd className="break-all font-mono text-muted">{origin.policyVersion}</dd>
-        <dt className="text-muted">提示词</dt>
-        <dd className="break-all font-mono text-muted">{origin.promptVersion}</dd>
+        <dt className="text-muted">触发 ID</dt>
+        <dd className="break-all font-mono text-muted" title={origin.triggerId}>
+          {origin.triggerId}
+        </dd>
+        <dt className="text-muted">策略版本</dt>
+        <dd className="break-all font-mono text-muted" title={origin.policyVersion}>
+          {origin.policyVersion}
+        </dd>
+        <dt className="text-muted">提示词版本</dt>
+        <dd className="break-all font-mono text-muted" title={origin.promptVersion}>
+          {origin.promptVersion}
+        </dd>
         {origin.reviewOfTaskId ? (
           <>
             <dt className="text-muted">验收对象</dt>
-            <dd className="break-all font-mono text-muted">{origin.reviewOfTaskId}</dd>
+            <dd className="break-all font-mono text-muted" title={origin.reviewOfTaskId}>
+              {origin.reviewOfTaskId}
+            </dd>
           </>
         ) : null}
       </dl>

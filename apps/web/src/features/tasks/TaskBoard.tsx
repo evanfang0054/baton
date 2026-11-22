@@ -4,9 +4,9 @@ import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
 import { useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCommand } from '../../lib/command-context'
-import { BOARD_COLUMNS, groupTasks, type BoardColumnId } from './columns'
+import { BOARD_COLUMNS, groupTasks, statusColumn, type BoardColumnId } from './columns'
 import { TaskBoardFilters, filterTasks, type TaskFilter } from './TaskBoardFilters'
 import { TaskCard } from './TaskCard'
 
@@ -43,6 +43,39 @@ export function TaskBoard({
   const [filter, setFilter] = useState<TaskFilter>('all')
   const [query, setQuery] = useState('')
   const visibleTasks = useMemo(() => filterTasks(tasks, { filter, query }), [filter, query, tasks])
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const scrollKeyRef = useRef<string | null>(null)
+
+  // 窄屏时 7 列放不下；展开看板后把视口带到“最该看的那一列”，
+  // 避免用户只看到一排空列，以为任务丢了。只在打开或切换选中任务时执行，
+  // 不跟随任务流更新反复抢横向滚动。
+  useEffect(() => {
+    if (!expanded && !pinned) {
+      scrollKeyRef.current = null
+      return
+    }
+    const key = `${selectedTaskId ?? '__first__'}|${filter}|${query}`
+    if (scrollKeyRef.current === key) return
+    scrollKeyRef.current = key
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    const preferred = selectedTaskId
+      ? visibleTasks.find((task) => task.id === selectedTaskId)
+      : visibleTasks[0]
+    if (!preferred) {
+      scroller.scrollLeft = 0
+      return
+    }
+    const column = statusColumn(preferred.status)
+    const target = scroller.querySelector<HTMLElement>(`[data-column="${column}"]`)
+    if (!target) return
+    const left = Math.max(0, target.offsetLeft - 12)
+    if (typeof scroller.scrollTo === 'function') {
+      scroller.scrollTo({ left, behavior: 'smooth' })
+    } else {
+      scroller.scrollLeft = left
+    }
+  }, [expanded, filter, pinned, query, selectedTaskId, visibleTasks])
 
   const todoTasks = visibleTasks.filter((task) => task.status === 'todo')
   // 任务列表或 workspace 变化后，选择集里可能留下已不在当前看板的 id；提交前必须收敛。
@@ -153,7 +186,7 @@ export function TaskBoard({
           仅待办任务可开工，已选 {activeSelected.size} / 上限 {BATCH_LIMIT}。
         </p>
       ) : null}
-      <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto p-3">
+      <div ref={scrollerRef} className="flex min-h-0 flex-1 gap-3 overflow-x-auto p-3">
         {BOARD_COLUMNS.map((column) => (
           <BoardColumn
             key={column.id}
@@ -190,11 +223,7 @@ export function TaskBoard({
   return (
     <div
       data-testid="task-board-overlay"
-      className={
-        compact
-          ? 'fixed bottom-0 left-16 top-14 z-30 w-[min(760px,88vw)] border-r border-separator shadow-overlay'
-          : 'fixed bottom-0 left-16 top-14 z-30 w-[min(960px,72vw)] border-r border-separator shadow-overlay'
-      }
+      className="fixed top-14 bottom-0 right-0 left-16 z-30 border-t border-separator shadow-overlay"
     >
       {board}
     </div>
@@ -225,7 +254,7 @@ function BoardColumn({
   onOpenScene?: (taskId: string) => void
 }) {
   return (
-    <div className="flex w-70 shrink-0 flex-col gap-2" data-column={column}>
+    <div className="flex min-w-[168px] flex-1 flex-col gap-2" data-column={column}>
       <div className="flex items-center justify-between text-xs text-muted">
         <span className="font-medium text-foreground">{label}</span>
         <span>{tasks.length + unplanned.length}</span>

@@ -167,30 +167,39 @@ export function CreateTaskForm({
         {contextNodes.length > 0 ? (
           <p className="text-xs text-muted">连线依赖会自动包含，可在任务详情核对。</p>
         ) : null}
-        <Input
-          aria-label="任务标题"
-          placeholder="任务标题"
-          value={title}
-          onChange={(event) => {
-            setTitleEdited(true)
-            setTitle(event.target.value)
-          }}
-          fullWidth
-        />
-        <TextArea
-          aria-label="任务说明"
-          placeholder="告诉 Agent 要做什么"
-          value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
-          fullWidth
-        />
-        <Input
-          aria-label="验收命令"
-          placeholder="验收命令（可选）"
-          value={verifyCommand}
-          onChange={(event) => setVerifyCommand(event.target.value)}
-          fullWidth
-        />
+        <label className="flex flex-col gap-1 text-xs text-muted">
+          <span>任务标题</span>
+          <Input
+            aria-label="任务标题"
+            placeholder="一句话说明要做什么"
+            value={title}
+            onChange={(event) => {
+              setTitleEdited(true)
+              setTitle(event.target.value)
+            }}
+            fullWidth
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted">
+          <span>任务说明</span>
+          <TextArea
+            aria-label="任务说明"
+            placeholder="告诉 Agent 要做什么、验收标准是什么"
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            fullWidth
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted">
+          <span>验收命令（可选）</span>
+          <Input
+            aria-label="验收命令"
+            placeholder="例如 pnpm test"
+            value={verifyCommand}
+            onChange={(event) => setVerifyCommand(event.target.value)}
+            fullWidth
+          />
+        </label>
         <label className="flex items-start gap-2 text-xs text-muted">
           <input
             type="checkbox"
@@ -230,6 +239,9 @@ export function CreateTaskForm({
           </select>
           {selectedEngine?.reason ? <span>{engineReasonText(selectedEngine.reason)}</span> : null}
         </label>
+        <p className="text-xs text-muted">
+          任务进入待验收后，总管会派验收 Agent 做初步检查，消耗额外预算；最终通过或打回仍由你决定。
+        </p>
         <label className="flex items-start gap-2 text-xs text-muted">
           <input
             type="checkbox"

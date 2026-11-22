@@ -5,21 +5,20 @@ import { MobileMoreMenu } from './MobileMoreMenu'
 
 describe('MobileMoreMenu', () => {
   it('opens actions from the more menu', async () => {
-    const onOpenSettings = vi.fn()
+    const onOpenTask = vi.fn()
     render(
       <MobileMoreMenu
         open
         onOpenChange={() => {}}
-        onOpenSettings={onOpenSettings}
-        onOpenTask={() => {}}
+        onOpenTask={onOpenTask}
         onOpenNodes={() => {}}
         onCreateWorkspace={() => {}}
         automationSlot={<div>自动化区</div>}
         trustSlot={<div>信任区</div>}
       />,
     )
-    await userEvent.click(screen.getByRole('button', { name: '自动化设置' }))
-    expect(onOpenSettings).toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: '新建任务' }))
+    expect(onOpenTask).toHaveBeenCalled()
     expect(screen.getByText('自动化区')).toBeInTheDocument()
     expect(screen.getByText('信任区')).toBeInTheDocument()
   })

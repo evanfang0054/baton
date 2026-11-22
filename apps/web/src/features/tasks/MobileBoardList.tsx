@@ -11,7 +11,7 @@ import { filterTasks } from './TaskBoardFilters'
 import { TaskCard } from './TaskCard'
 import { WaitingTime } from './WaitingTime'
 
-type Filter = 'all' | 'attention' | 'active' | 'todo' | 'done'
+type Filter = 'all' | 'attention' | 'active' | 'todo' | 'done' | 'cancelled'
 
 const FILTERS: Array<{ id: Filter; label: string }> = [
   { id: 'all', label: '全部' },
@@ -19,6 +19,7 @@ const FILTERS: Array<{ id: Filter; label: string }> = [
   { id: 'active', label: '进行中' },
   { id: 'todo', label: '待办' },
   { id: 'done', label: '已完成' },
+  { id: 'cancelled', label: '已取消' },
 ]
 
 const ATTENTION_GROUPS: Array<{ id: Attention; label: string }> = [
@@ -107,6 +108,7 @@ export function MobileBoardList({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [batching, setBatching] = useState(false)
   const [doneOpen, setDoneOpen] = useState(false)
+  const [closedOpen, setClosedOpen] = useState(false)
 
   const visibleTasks = useMemo(
     () =>
@@ -171,6 +173,7 @@ export function MobileBoardList({
   const showActive = filter === 'all' || filter === 'active'
   const showTodo = filter === 'all' || filter === 'todo'
   const showDone = filter === 'all' || filter === 'done'
+  const showClosed = filter === 'all' || filter === 'cancelled'
 
   return (
     <div
@@ -323,43 +326,91 @@ export function MobileBoardList({
       ) : null}
 
       {showDone ? (
-        <section className="mb-4" data-mobile-section="已完成">
-          <button
-            type="button"
-            aria-expanded={doneOpen}
-            onClick={() => setDoneOpen((open) => !open)}
-            className="flex min-h-11 w-full items-center justify-between rounded-lg border border-separator px-3 text-left text-xs font-medium text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          >
-            <span>已完成 ({grouped.done.length + grouped.closed.length})</span>
-            <span>{doneOpen ? '收起' : '展开'}</span>
-          </button>
-          {doneOpen ? (
-            grouped.done.length + grouped.closed.length === 0 ? (
-              <p className="mt-2 rounded-lg border border-dashed border-separator p-3 text-xs text-muted">
-                没有已完成任务
-              </p>
-            ) : (
-              <div className="mt-2 flex flex-col gap-2">
-                {[...grouped.done, ...grouped.closed].map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    selected={selecting ? selected.has(task.id) : task.id === selectedTaskId}
-                    selectable={false}
-                    stale={isStale(task.waitingSince, Date.now())}
-                    onSelect={onSelectTask}
-                    onToggle={toggle}
-                  />
-                ))}
-              </div>
-            )
-          ) : null}
-        </section>
+        <FinishedSection
+          title="已完成"
+          tasks={grouped.done}
+          empty="没有已完成任务"
+          open={doneOpen}
+          onToggle={() => setDoneOpen((open) => !open)}
+          selectedTaskId={selectedTaskId}
+          onSelectTask={onSelectTask}
+          onToggleTask={toggle}
+        />
+      ) : null}
+
+      {showClosed ? (
+        <FinishedSection
+          title="已取消"
+          tasks={grouped.closed}
+          empty="没有已取消任务"
+          open={closedOpen}
+          onToggle={() => setClosedOpen((open) => !open)}
+          selectedTaskId={selectedTaskId}
+          onSelectTask={onSelectTask}
+          onToggleTask={toggle}
+        />
       ) : null}
 
       {!selecting ? (
         <p className="mt-4 text-xs text-muted">待办任务可进入“选择待办”批量开工。</p>
       ) : null}
     </div>
+  )
+}
+
+function FinishedSection({
+  title,
+  tasks,
+  empty,
+  open,
+  onToggle,
+  selectedTaskId,
+  onSelectTask,
+  onToggleTask,
+}: {
+  title: string
+  tasks: TaskSummary[]
+  empty: string
+  open: boolean
+  onToggle: () => void
+  selectedTaskId: string | null
+  onSelectTask: (taskId: string) => void
+  onToggleTask: (taskId: string) => void
+}) {
+  return (
+    <section className="mb-4" data-mobile-section={title}>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={onToggle}
+        className="flex min-h-11 w-full items-center justify-between rounded-lg border border-separator px-3 text-left text-xs font-medium text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        <span>
+          {title} ({tasks.length})
+        </span>
+        <span>{open ? '收起' : '展开'}</span>
+      </button>
+      {open ? (
+        tasks.length === 0 ? (
+          <p className="mt-2 rounded-lg border border-dashed border-separator p-3 text-xs text-muted">
+            {empty}
+          </p>
+        ) : (
+          <div className="mt-2 flex flex-col gap-2">
+            {tasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                selected={task.id === selectedTaskId}
+                selectable={false}
+                stale={isStale(task.waitingSince, Date.now())}
+                onSelect={onSelectTask}
+                onToggle={onToggleTask}
+              />
+            ))}
+          </div>
+        )
+      ) : null}
+    </section>
   )
 }

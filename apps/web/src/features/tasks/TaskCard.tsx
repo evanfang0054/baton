@@ -45,7 +45,8 @@ export function TaskCard({
     <>
       <div className="flex items-start justify-between gap-2">
         <span className="line-clamp-2 text-sm font-medium">{task.title}</span>
-        <AttentionBadge attention={task.attention} />
+        {/* 「待验收」已经由 StatusChip 表达，attention badge 不再重复同一句话。 */}
+        {task.attention === 'needs_review' ? null : <AttentionBadge attention={task.attention} />}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
         <StatusChip status={task.status} />
@@ -72,11 +73,15 @@ export function TaskCard({
         ) : null}
       </div>
       {task.waitingSince ? (
-        <div className="mt-2">
+        <div className="mt-2 flex flex-wrap items-center gap-1">
           <WaitingTime since={task.waitingSince} />
+          {isTaskStale ? (
+            <span className="inline-flex items-center gap-1 text-xs text-warning">
+              <Clock size={12} aria-hidden="true" />· 超过 30 分钟
+            </span>
+          ) : null}
         </div>
-      ) : null}
-      {isTaskStale ? (
+      ) : isTaskStale ? (
         <p className="mt-2 flex items-center gap-1 text-xs text-warning">
           <Clock size={12} aria-hidden="true" />
           已等待超过 30 分钟

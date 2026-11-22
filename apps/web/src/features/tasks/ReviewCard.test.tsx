@@ -76,7 +76,7 @@ describe('ReviewCard', () => {
     )
   })
 
-  it('requires confirmation when verify failed and sends an optional reason', async () => {
+  it('requires confirmation when verify failed and sends a required reason', async () => {
     const send = vi.fn().mockResolvedValue(undefined)
     render(
       <CommandProvider send={send}>
@@ -90,15 +90,42 @@ describe('ReviewCard', () => {
     expect(screen.getByText('本次 $0.42 · 3 turns')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '通过' }))
     expect(send).not.toHaveBeenCalled()
-    expect(screen.getByText('仍有验收项未通过，仍要通过吗？')).toBeInTheDocument()
+    expect(screen.getByText('校验未通过，仍要通过吗？')).toBeInTheDocument()
+    const confirm = screen.getByRole('button', { name: '确认通过' })
+    expect(confirm).toBeDisabled()
+    expect(screen.getByText('通过前请填写通过理由。')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('通过理由'), { target: { value: '已知问题，先合' } })
-    fireEvent.click(screen.getByRole('button', { name: '确认通过' }))
+    expect(confirm).not.toBeDisabled()
+    fireEvent.click(confirm)
     await waitFor(() =>
       expect(send).toHaveBeenCalledWith({
         type: 'review.decide',
         payload: { reviewId: 'r1', decision: 'approve', overrideReason: '已知问题，先合' },
       }),
     )
+  })
+
+  it('asks for a reason when there are no acceptance items', () => {
+    render(
+      <CommandProvider send={vi.fn()}>
+        <ReviewCard
+          review={review}
+          acceptance={{
+            contractId: 'ac1',
+            version: 1,
+            revision: 0,
+            status: 'draft',
+            counts: { total: 0, pass: 0, fail: 0, pending: 0, waived: 0 },
+            verdict: 'incomplete',
+            topFailures: [],
+          }}
+          onDone={vi.fn()}
+        />
+      </CommandProvider>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: '通过' }))
+    expect(screen.getByText('还没有验收项，仍要直接通过吗？')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '确认通过' })).toBeDisabled()
   })
 
   it('attaches the current canvas selection when rejecting', async () => {
