@@ -4,7 +4,7 @@ spec_topic: m6-5-supervisor-autonomy
 task_count: 3
 estimated_phases: [tests, verification, documentation]
 dod: "Playwright 五条主链路、ego-lite 真实 Claude 证据、docs 索引与 contract 收口、pnpm verify:full 与 pack:check 全绿"
-status: planned
+status: completed
 depends_on: [2026-11-22-m6-5-governance.md, 2026-11-22-m6-5-attention-failure.md, 2026-11-22-m6-5-plan-templates-batch.md]
 ---
 
@@ -279,3 +279,10 @@ git commit -m "docs(m6-5): 收口总管自治验收"
 - ego-lite + 真实 Claude 至少走通 observe、计划、reauthorize、失败摘要、kill switch 五条中的全部；证据脱敏。
 - `pnpm verify:full`、`pnpm pack:check`、`pnpm check:boundaries`、`pnpm check:protocol`、`pnpm format:check` 全绿。
 - Contract DoD 只勾选有证据的条目；未完成项在最终回复中明确列出。
+
+## 实施记录（2026-11-22）
+
+- D1：`2955e02 test(web): 覆盖 M6-5 五条主链路`
+- D2：真实 Claude + ego-lite 完成 observe/plan/reauthorize/failure/kill switch；证据 `docs/evidence/2026-11-22-m6-5/`，`fc9a452 docs(m6-5): 增加真实链路验收证据`
+- D2 期间修复：任务详情只返回失败摘要字段（`79e63f7`）、策略变更后显式动作也需重新授权（`bca444d`）、开工授权失效时也提供重新授权（`584abd2`）
+- D3：`pnpm verify:full` 51 条 Playwright 全绿；`pnpm pack:check`、`pnpm check:boundaries`、`pnpm check:protocol`、`pnpm format:check` 全绿。

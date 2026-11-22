@@ -35,6 +35,7 @@
 - [2026-11-21 M6-1 任务现场 v0 设计](specs/2026-11-21-m6-task-scene-design.md)
 - [2026-11-21 M6-2 上下文再注入与轻验收证据设计](specs/2026-11-21-m6-2-context-injection-design.md)
 - [2026-11-21 M6-3 验收证据与放权护栏设计](specs/2026-11-21-m6-3-acceptance-evidence-design.md)
+- [2026-11-22 M6-5 总管自治与注意力设计](specs/2026-11-22-m6-5-supervisor-autonomy-design.md)
 
 ## 现行 ADR
 
@@ -67,6 +68,7 @@
 - [M6-1 任务现场](contracts/M6-1-task-scene.contract.md)
 - [M6-2 上下文再注入与轻验收证据](contracts/M6-2-context-injection.contract.md)
 - [M6-3 验收证据与放权护栏](contracts/M6-3-acceptance-evidence.contract.md)
+- [M6-5 总管自治与注意力](contracts/M6-5-supervisor-autonomy.contract.md)
 
 ## 现行 plan
 
@@ -122,6 +124,10 @@
 - [M6-3 daemon 护栏实施计划](plans/2026-11-21-m6-3-daemon-guardrails.md)
 - [M6-3 web 任务实施计划](plans/2026-11-21-m6-3-tasks-web.md)
 - [M6-3 画布与验收实施计划](plans/2026-11-21-m6-3-canvas-acceptance.md)
+- [M6-5 治理底座实施计划](plans/2026-11-22-m6-5-governance.md)
+- [M6-5 注意力与失败摘要实施计划](plans/2026-11-22-m6-5-attention-failure.md)
+- [M6-5 计划、模板与批量实施计划](plans/2026-11-22-m6-5-plan-templates-batch.md)
+- [M6-5 验收收口实施计划](plans/2026-11-22-m6-5-acceptance.md)
 
 ## 验收证据
 
@@ -135,6 +141,7 @@
 - [M6-1 任务现场验收](evidence/2026-11-21-m6-task-scene/README.md)
 - [M6-2 上下文再注入验收](evidence/2026-11-21-m6-2-context-injection/README.md)
 - [M6-3 验收证据真实链路](evidence/2026-11-21-m6-3-acceptance/README.md)
+- [M6-5 总管自治与注意力真实链路](evidence/2026-11-22-m6-5/README.md)
 
 ## 约定
 
