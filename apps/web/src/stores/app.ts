@@ -14,6 +14,7 @@ export type DeliveryView = 'canvas' | 'board'
 export type AppOverlay =
   | { kind: 'stage'; taskId: string }
   | { kind: 'artifact'; deliveryId: string; artifactId: string }
+  | { kind: 'drawing'; deliveryId: string; artifactId: string }
   | { kind: 'annotations'; deliveryId: string }
   | { kind: 'acceptance'; deliveryId: string }
 

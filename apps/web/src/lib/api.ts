@@ -24,7 +24,10 @@ import {
   TaskHistoryResponse,
   TaskListResponse,
   AnnotationListResponse,
+  ArtifactCreateInput,
   ArtifactListResponse,
+  ArtifactResponse,
+  ArtifactSaveInput,
   WorkspaceBrowseResponse,
   WorkspaceCapabilitiesResponse,
   WorkspaceCreateInput,
@@ -191,16 +194,59 @@ export async function listArtifacts(deliveryId: string) {
   ).artifacts
 }
 
-export function artifactContentUrl(deliveryId: string, artifactId: string): string {
-  return `/api/deliveries/${encodeURIComponent(deliveryId)}/artifacts/${encodeURIComponent(artifactId)}/content`
+export function artifactContentUrl(
+  deliveryId: string,
+  artifactId: string,
+  variant?: 'preview' | 'source' | 'svg',
+): string {
+  const suffix = variant ? `?variant=${variant}` : ''
+  return `/api/deliveries/${encodeURIComponent(deliveryId)}/artifacts/${encodeURIComponent(artifactId)}/content${suffix}`
 }
 
-export async function fetchArtifactText(deliveryId: string, artifactId: string): Promise<string> {
-  const response = await fetch(artifactContentUrl(deliveryId, artifactId), {
+export async function fetchArtifactText(
+  deliveryId: string,
+  artifactId: string,
+  variant?: 'preview' | 'source' | 'svg',
+): Promise<string> {
+  const response = await fetch(artifactContentUrl(deliveryId, artifactId, variant), {
     credentials: 'same-origin',
   })
   if (!response.ok) throw new ApiError(response.status, 'http_error', 'artifact content failed')
   return response.text()
+}
+
+export async function createArtifactDraft(
+  deliveryId: string,
+  stageKey: string,
+  input: ArtifactCreateInput,
+) {
+  return ArtifactResponse.parse(
+    await request(
+      `/api/deliveries/${encodeURIComponent(deliveryId)}/stages/${encodeURIComponent(stageKey)}/artifacts`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      },
+    ),
+  ).artifact
+}
+
+export async function saveArtifact(
+  deliveryId: string,
+  artifactId: string,
+  input: ArtifactSaveInput,
+) {
+  return ArtifactResponse.parse(
+    await request(
+      `/api/deliveries/${encodeURIComponent(deliveryId)}/artifacts/${encodeURIComponent(artifactId)}`,
+      {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      },
+    ),
+  ).artifact
 }
 
 export async function listAnnotations(

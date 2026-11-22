@@ -250,12 +250,22 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
     return updated
   }
 
-  function readArtifactContent(artifactId: string): { artifact: Artifact; data: Buffer } {
+  function readArtifactContent(
+    artifactId: string,
+    variant: 'preview' | 'source' | 'svg' = 'preview',
+  ): { artifact: Artifact; data: Buffer } {
     const artifact = getArtifact(deps.db, artifactId)
     if (!artifact) throw appError('artifact_not_found', 'artifact not found')
     const workspacePath = workspacePathOf(deps.db, deps.config, artifact.deliveryId)
     if (!workspacePath) throw appError('workspace_not_found', 'workspace not found')
-    const target = resolveWithin(workspacePath, artifact.path)
+    const rel =
+      variant === 'source'
+        ? artifact.sourcePath
+        : variant === 'svg'
+          ? artifact.svgPath
+          : artifact.path
+    if (!rel) throw appError('artifact_not_found', `artifact ${variant} not found`)
+    const target = resolveWithin(workspacePath, rel)
     if (!existsSync(target)) throw appError('artifact_not_found', 'artifact file not found')
     return { artifact, data: readFileSync(target) }
   }

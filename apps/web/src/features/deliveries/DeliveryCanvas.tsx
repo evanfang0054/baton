@@ -23,7 +23,9 @@ export function DeliveryCanvas({
   onSelectNodes,
   onOpenTask,
   onOpenArtifact,
+  onOpenDrawing,
   onOpenAnnotations,
+  onCreateDrawing,
 }: {
   workspaceId: string
   delivery: DeliveryDetail
@@ -35,7 +37,9 @@ export function DeliveryCanvas({
   onSelectNodes: (nodes: Array<Pick<Node, 'id' | 'type'>>) => void
   onOpenTask: (taskId: string) => void
   onOpenArtifact: (artifact: Artifact) => void
+  onOpenDrawing: (artifact: Artifact) => void
   onOpenAnnotations: () => void
+  onCreateDrawing: () => void
 }) {
   const canvasRef = useRef<CanvasPanelHandle>(null)
   const currentStage = useMemo(
@@ -69,6 +73,11 @@ export function DeliveryCanvas({
           if (node.type === 'artifact') {
             const artifact = artifacts.find((item) => item.id === node.data.artifactId)
             if (artifact) onOpenArtifact(artifact)
+            return
+          }
+          if (node.type === 'drawing') {
+            const artifact = artifacts.find((item) => item.id === node.data.artifactId)
+            if (artifact) onOpenDrawing(artifact)
             return
           }
           if (node.type === 'agent') {
@@ -123,6 +132,9 @@ export function DeliveryCanvas({
             ) : null}
             <Button size="sm" variant="tertiary" onPress={onOpenAnnotations}>
               标注 {delivery.openAnnotationCount}
+            </Button>
+            <Button size="sm" variant="tertiary" onPress={onCreateDrawing}>
+              新建画板
             </Button>
           </div>
           <p className="mt-1 text-[10px] text-muted">工作区 {workspaceId.slice(0, 8)}</p>

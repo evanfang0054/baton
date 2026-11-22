@@ -14,6 +14,7 @@ import { DeliveryCanvas } from './features/deliveries/DeliveryCanvas'
 import { DeliveryRail } from './features/deliveries/DeliveryRail'
 import { AnnotationListOverlay } from './features/overlays/AnnotationListOverlay'
 import { ArtifactViewerOverlay } from './features/overlays/ArtifactViewerOverlay'
+import { DrawingEditorOverlay } from './features/overlays/DrawingEditorOverlay'
 import { Overlay } from './features/overlays/Overlay'
 import { StageSceneOverlay } from './features/overlays/StageSceneOverlay'
 import { RealtimeProvider } from './features/realtime/RealtimeProvider'
@@ -37,6 +38,7 @@ import {
   getAutomation,
   getCanvas,
   getDelivery,
+  createArtifactDraft,
   listArtifacts,
   listDeliveries,
   listNotices,
@@ -45,6 +47,7 @@ import {
   setKillSwitch,
   UnauthorizedError,
 } from './lib/api'
+import { useCommand } from './lib/command-context'
 import { queryKeys } from './lib/query'
 import { readUrlState, writeUrlState } from './lib/url'
 import { useViewport } from './lib/use-viewport'
@@ -82,6 +85,7 @@ export function App() {
   const viewport = useViewport()
   const isMobile = viewport === 'mobile'
   const queryClient = useQueryClient()
+  const send = useCommand()
   const canvasRef = useRef<import('./features/canvas/CanvasPanel').CanvasPanelHandle>(null)
   const [trustDialogOpen, setTrustDialogOpen] = useState(false)
   const [trustPromptedFor, setTrustPromptedFor] = useState<string | null>(null)
@@ -237,6 +241,48 @@ export function App() {
   }
   const openAnnotations = () => {
     if (activeDeliveryId) setOverlay({ kind: 'annotations', deliveryId: activeDeliveryId })
+  }
+  const createDrawing = async () => {
+    if (!activeDeliveryId || !deliveryCanvas.data) return
+    const stageKey = delivery.data?.currentStageKey ?? delivery.data?.stages[0]?.key
+    if (!stageKey) return
+    try {
+      const artifact = await createArtifactDraft(activeDeliveryId, stageKey, {
+        stageKey,
+        kind: 'drawing',
+        name: `drawing-${Date.now()}.png`,
+      })
+      const group = deliveryCanvas.data.nodes.find(
+        (node) => node.type === 'group' && node.data.stageKey === stageKey,
+      )
+      await send({
+        type: 'node.create',
+        payload: {
+          canvasId: deliveryCanvas.data.canvas.id,
+          node: {
+            type: 'drawing',
+            x: (group?.x ?? 0) + 40,
+            y: (group?.y ?? 0) + 80,
+            w: 320,
+            h: 200,
+            groupId: group?.id ?? null,
+            data: {
+              artifactId: artifact.id,
+              title: artifact.name,
+              thumbnailPath: null,
+              status: 'draft',
+            },
+          },
+        },
+      })
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.deliveryCanvas(activeWorkspaceId ?? '', activeDeliveryId),
+      })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.artifacts(activeDeliveryId) })
+      setOverlay({ kind: 'drawing', deliveryId: activeDeliveryId, artifactId: artifact.id })
+    } catch (cause) {
+      toast.danger(cause instanceof Error ? cause.message : '创建画板失败')
+    }
   }
   const selectDelivery = (deliveryId: string) => {
     setDelivery(deliveryId)
@@ -538,7 +584,15 @@ export function App() {
                   onSelectNodes={setSelection}
                   onOpenTask={openTask}
                   onOpenArtifact={(artifact) => openArtifact(artifact.id)}
+                  onOpenDrawing={(artifact) =>
+                    setOverlay({
+                      kind: 'drawing',
+                      deliveryId: artifact.deliveryId,
+                      artifactId: artifact.id,
+                    })
+                  }
                   onOpenAnnotations={openAnnotations}
+                  onCreateDrawing={() => void createDrawing()}
                 />
               ) : (
                 <DeliveryBoard
@@ -581,6 +635,26 @@ export function App() {
                   deliveryId={overlay.deliveryId}
                   artifact={artifact}
                   onClose={() => setOverlay(null)}
+                />
+              ) : null
+            })()
+          : null}
+        {overlay?.kind === 'drawing'
+          ? (() => {
+              const artifact = (artifacts.data ?? []).find((item) => item.id === overlay.artifactId)
+              return artifact ? (
+                <DrawingEditorOverlay
+                  deliveryId={overlay.deliveryId}
+                  artifact={artifact}
+                  onClose={() => setOverlay(null)}
+                  onSaved={() => {
+                    void queryClient.invalidateQueries({
+                      queryKey: queryKeys.artifacts(overlay.deliveryId),
+                    })
+                    void queryClient.invalidateQueries({
+                      queryKey: queryKeys.delivery(overlay.deliveryId),
+                    })
+                  }}
                 />
               ) : null
             })()

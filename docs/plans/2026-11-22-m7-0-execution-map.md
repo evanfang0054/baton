@@ -52,4 +52,5 @@ M7-1 → M7-2 → M7-3 → M7-4a → M7-4b → M7-5 → M7-6
 - M7-1 plan：已完成并验证（`pnpm verify` 全绿）；分支 `feat/m7-1-protocol-core`。
 - M7-2 plan：已完成并验证（`pnpm verify` 全绿，daemon 442 tests）；分支 `feat/m7-2-daemon-delivery`。
 - M7-3 plan：已完成并验证（`pnpm verify` 全绿，web 301 tests）；分支 `feat/m7-3-web-shell-board-canvas`。
-- M7-4 ~ M7-6：未创建；下一步 M7-4a Excalidraw 画板。
+- M7-4a plan：进行中；drawing artifact/节点/懒加载编辑器/保存链路已落，剩余 bundle 断言与 Playwright。分支 `feat/m7-4a-excalidraw`。
+- M7-4b ~ M7-6：未开始。

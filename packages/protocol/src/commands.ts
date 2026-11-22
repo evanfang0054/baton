@@ -3,6 +3,8 @@ import { Id, Timestamp } from './common.js'
 import {
   AcceptanceItemStatus,
   AgentNode,
+  ArtifactNode,
+  DrawingNode,
   FileNode,
   GroupNode,
   ImageNode,
@@ -180,6 +182,14 @@ export const NodeCreateValue = z.discriminatedUnion('type', [
   NodeCreateBase.extend({
     type: z.literal('group'),
     data: GroupNode.shape.data,
+  }),
+  NodeCreateBase.extend({
+    type: z.literal('artifact'),
+    data: ArtifactNode.shape.data,
+  }),
+  NodeCreateBase.extend({
+    type: z.literal('drawing'),
+    data: DrawingNode.shape.data,
   }),
 ])
 export type NodeCreateValue = z.infer<typeof NodeCreateValue>

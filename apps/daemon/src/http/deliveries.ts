@@ -94,7 +94,9 @@ export function registerDeliveryRoutes(app: FastifyInstance, deps: DeliveryRoute
 
   app.get('/api/deliveries/:deliveryId/artifacts/:artifactId/content', async (req, reply) => {
     const { artifactId } = req.params as { artifactId: string }
-    const { artifact, data } = deps.artifacts.readArtifactContent(artifactId)
+    const { variant } = req.query as { variant?: string }
+    const selected = variant === 'source' || variant === 'svg' ? variant : ('preview' as const)
+    const { artifact, data } = deps.artifacts.readArtifactContent(artifactId, selected)
     return reply
       .header('content-type', artifact.mime ?? 'application/octet-stream')
       .header('content-length', String(data.length))
