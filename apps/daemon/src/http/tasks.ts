@@ -103,6 +103,7 @@ export function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesDeps): 
     const task = detail.task
     const review = getReviewByTask(deps.db, task.id)
     const acceptance = listAcceptanceSummaries(deps.db, [task.id]).get(task.id) ?? null
+    const lastFailure = deps.failures?.latest(task.id) ?? null
     return TaskDetailResponse.parse({
       task,
       contextInvalid: detail.contextInvalid,
@@ -114,7 +115,17 @@ export function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesDeps): 
       attention: attentionFor(task.status, task.waitingReason),
       acceptance,
       budget: getTaskBudgetSummary(deps.db, task, deps.config),
-      lastFailure: deps.failures?.latest(task.id) ?? null,
+      // 任务详情只暴露摘要字段；TaskFailure 的 id/attempt 等账本字段不外泄。
+      lastFailure: lastFailure
+        ? {
+            stage: lastFailure.stage,
+            lastError: lastFailure.lastError,
+            retryable: lastFailure.retryable,
+            affectedPaths: lastFailure.affectedPaths,
+            summary: lastFailure.summary,
+            createdAt: lastFailure.createdAt,
+          }
+        : null,
     })
   })
 

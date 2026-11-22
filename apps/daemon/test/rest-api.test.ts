@@ -228,6 +228,35 @@ describe('REST API', () => {
     expect(missing.statusCode).toBe(404)
   })
 
+  it('returns only the failure summary in task detail', async () => {
+    const { app, handle } = await setup()
+    handle.database.raw
+      .prepare(
+        `insert into task_failure (
+           id, workspace_id, task_id, session_id, attempt, stage, last_error,
+           retryable, affected_paths_json, summary, created_at
+         ) values ('f1', ?, ?, null, 0, 'verify', 'exit 3', 1, '["src/login.ts"]', '校验未通过', 7)`,
+      )
+      .run(handle.seeded.workspaceId, handle.seeded.taskId)
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${handle.seeded.taskId}`,
+      headers: auth,
+    })
+    expect(response.statusCode).toBe(200)
+    const body = response.json() as { lastFailure: Record<string, unknown> }
+    expect(body.lastFailure).toEqual({
+      stage: 'verify',
+      lastError: 'exit 3',
+      retryable: true,
+      affectedPaths: ['src/login.ts'],
+      summary: '校验未通过',
+      createdAt: 7,
+    })
+    expect(body.lastFailure).not.toHaveProperty('id')
+  })
+
   it('returns needs_review for review tasks', async () => {
     const { app, handle } = await setup()
     handle.database.db.transaction((tx) =>
