@@ -54,7 +54,7 @@ describe('migrateDb', () => {
     const db2 = openDb(file)
     migrateDb(db2)
     expect(schema(db2)).toEqual(before)
-    expect(before.filter((row) => row.type === 'table')).toHaveLength(21)
+    expect(before.filter((row) => row.type === 'table')).toHaveLength(24)
     expect(
       before
         .filter((row) => row.type === 'index')
@@ -68,9 +68,16 @@ describe('migrateDb', () => {
       'acceptance_run_contract_idx',
       'acceptance_run_review_idx',
       'acceptance_run_task_created_idx',
+      'annotation_delivery_idx',
+      'annotation_task_idx',
       'approval_session_request_idx',
+      'artifact_delivery_idx',
+      'artifact_name_idx',
       'audit_action_ts_idx',
       'audit_ts_idx',
+      'canvas_delivery_idx',
+      'delivery_canvas_idx',
+      'delivery_workspace_idx',
       'edge_unique_idx',
       'event_ordinal_idx',
       'event_session_seq_idx',
@@ -85,6 +92,7 @@ describe('migrateDb', () => {
       'supervisor_message_thread_idx',
       'supervisor_message_trigger_idx',
       'supervisor_thread_workspace_idx',
+      'task_delivery_idx',
       'task_failure_task_idx',
       'task_status_idx',
       'task_workspace_idx',
@@ -95,6 +103,12 @@ describe('migrateDb', () => {
     ])
     expect(columns(db2, 'review').find((column) => column.name === 'verdict')?.notnull).toBe(0)
     expect(columns(db2, 'event').find((column) => column.name === 'ordinal')?.notnull).toBe(1)
+    expect(columns(db2, 'canvas').find((column) => column.name === 'delivery_id')?.notnull).toBe(0)
+    expect(columns(db2, 'task').find((column) => column.name === 'delivery_id')?.notnull).toBe(0)
+    expect(columns(db2, 'task').find((column) => column.name === 'stage_key')?.notnull).toBe(0)
+    expect(
+      columns(db2, 'task').find((column) => column.name === 'annotation_ids_json')?.notnull,
+    ).toBe(0)
     db2.close()
   })
 

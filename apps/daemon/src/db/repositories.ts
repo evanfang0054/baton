@@ -118,6 +118,8 @@ function toTask(row: typeof task.$inferSelect): Task {
     dangerouslySkipPermissions: row.dangerouslySkipPermissions,
     budgetUsd: row.budgetUsd ?? null,
     enqueuedAt: row.enqueuedAt ?? null,
+    deliveryId: row.deliveryId ?? null,
+    stageKey: row.stageKey ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   })
@@ -619,8 +621,20 @@ export function getTaskDetail(
     }
   }
 
+  let annotationIds: string[] = []
+  if (row.annotationIdsJson) {
+    try {
+      const parsed = JSON.parse(row.annotationIdsJson) as unknown
+      if (Array.isArray(parsed)) {
+        annotationIds = parsed.filter((id): id is string => typeof id === 'string')
+      }
+    } catch {
+      annotationIds = []
+    }
+  }
+
   return {
-    task: TaskDetail.parse({ ...base, context, origin }),
+    task: TaskDetail.parse({ ...base, context, origin, annotationIds }),
     contextInvalid,
     originInvalid,
   }
@@ -656,9 +670,12 @@ export function listQueuedTasksByEnqueuedAt(db: Db): Task[] {
 
 export function insertTask(
   tx: Tx,
-  input: Omit<Task, 'enqueuedAt' | 'budgetUsd'> & {
+  input: Omit<Task, 'enqueuedAt' | 'budgetUsd' | 'deliveryId' | 'stageKey'> & {
     enqueuedAt?: number | null
     budgetUsd?: number | null
+    deliveryId?: string | null
+    stageKey?: string | null
+    annotationIds?: string[]
   },
   contextJson: string | null = null,
   originJson: string | null = null,
@@ -683,6 +700,9 @@ export function insertTask(
       contextJson,
       originJson,
       enqueuedAt: input.enqueuedAt ?? null,
+      deliveryId: input.deliveryId ?? null,
+      stageKey: input.stageKey ?? null,
+      annotationIdsJson: input.annotationIds?.length ? JSON.stringify(input.annotationIds) : null,
       createdAt: input.createdAt,
       updatedAt: input.updatedAt,
     })

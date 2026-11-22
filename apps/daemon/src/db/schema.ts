@@ -10,13 +10,18 @@ export const workspace = sqliteTable('workspace', {
   createdAt: integer('created_at').notNull(),
 })
 
-export const canvas = sqliteTable('canvas', {
-  id: text('id').primaryKey(),
-  workspaceId: text('workspace_id')
-    .notNull()
-    .references(() => workspace.id),
-  viewportJson: text('viewport_json').notNull().default('{}'),
-})
+export const canvas = sqliteTable(
+  'canvas',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id),
+    deliveryId: text('delivery_id'),
+    viewportJson: text('viewport_json').notNull().default('{}'),
+  },
+  (t) => [uniqueIndex('canvas_delivery_idx').on(t.deliveryId)],
+)
 
 export const node = sqliteTable(
   'node',
@@ -82,10 +87,17 @@ export const task = sqliteTable(
     originJson: text('origin_json'),
     policyJson: text('policy_json'),
     enqueuedAt: integer('enqueued_at'),
+    deliveryId: text('delivery_id'),
+    stageKey: text('stage_key'),
+    annotationIdsJson: text('annotation_ids_json'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
-  (t) => [index('task_status_idx').on(t.status), index('task_workspace_idx').on(t.workspaceId)],
+  (t) => [
+    index('task_status_idx').on(t.status),
+    index('task_workspace_idx').on(t.workspaceId),
+    index('task_delivery_idx').on(t.deliveryId, t.stageKey),
+  ],
 )
 
 export const supervisorThread = sqliteTable(
@@ -390,4 +402,89 @@ export const taskFailure = sqliteTable(
     createdAt: integer('created_at').notNull(),
   },
   (t) => [index('task_failure_task_idx').on(t.taskId, t.createdAt)],
+)
+
+export const delivery = sqliteTable(
+  'delivery',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id),
+    canvasId: text('canvas_id')
+      .notNull()
+      .references(() => canvas.id),
+    title: text('title').notNull(),
+    goal: text('goal').notNull(),
+    playbookId: text('playbook_id').notNull(),
+    playbookVersion: integer('playbook_version').notNull(),
+    playbookJson: text('playbook_json').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+    cancelledAt: integer('cancelled_at'),
+  },
+  (t) => [
+    uniqueIndex('delivery_canvas_idx').on(t.canvasId),
+    index('delivery_workspace_idx').on(t.workspaceId, t.createdAt),
+  ],
+)
+
+export const artifact = sqliteTable(
+  'artifact',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id),
+    deliveryId: text('delivery_id')
+      .notNull()
+      .references(() => delivery.id),
+    stageKey: text('stage_key').notNull(),
+    taskId: text('task_id').references(() => task.id),
+    kind: text('kind').notNull(),
+    name: text('name').notNull(),
+    path: text('path').notNull(),
+    sourcePath: text('source_path'),
+    svgPath: text('svg_path'),
+    mime: text('mime'),
+    size: integer('size').notNull(),
+    sha256: text('sha256').notNull(),
+    version: integer('version').notNull().default(1),
+    status: text('status').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('artifact_name_idx').on(t.deliveryId, t.stageKey, t.name),
+    index('artifact_delivery_idx').on(t.deliveryId, t.stageKey, t.createdAt),
+  ],
+)
+
+export const annotation = sqliteTable(
+  'annotation',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id),
+    deliveryId: text('delivery_id')
+      .notNull()
+      .references(() => delivery.id),
+    stageKey: text('stage_key').notNull(),
+    targetNodeIdsJson: text('target_node_ids_json').notNull().default('[]'),
+    targetArtifactId: text('target_artifact_id').references(() => artifact.id),
+    note: text('note').notNull().default(''),
+    strokesJson: text('strokes_json').notNull(),
+    bboxJson: text('bbox_json').notNull(),
+    imagePath: text('image_path').notNull(),
+    status: text('status').notNull(),
+    taskId: text('task_id').references(() => task.id),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+    resolvedAt: integer('resolved_at'),
+  },
+  (t) => [
+    index('annotation_delivery_idx').on(t.deliveryId, t.stageKey, t.status, t.createdAt),
+    index('annotation_task_idx').on(t.taskId),
+  ],
 )
