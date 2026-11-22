@@ -16,6 +16,8 @@ export interface VerifierPromptInput {
   diffStat: DiffStat | null
   /** worktree 任务的验收员直接运行在目标的隔离 worktree 中。 */
   isolatedWorktree?: boolean
+  /** 模板验收建议只进验收员 prompt，不拼进任务 prompt。 */
+  acceptanceSeed?: string[]
 }
 
 function diffLine(diffStat: DiffStat | null): string {
@@ -32,6 +34,11 @@ export function buildVerifierPrompt(input: VerifierPromptInput): string {
   const title = xmlEscape(input.title)
   const targetPrompt = xmlEscape(input.prompt.slice(0, 2000))
   const workerOutput = xmlEscape(input.workerOutput.slice(-4000) || '（没有文本输出）')
+  const seed = input.acceptanceSeed ?? []
+  const seedBlock =
+    seed.length > 0
+      ? `\n<acceptance_seed>\n${seed.map((item) => `- ${xmlEscape(item)}`).join('\n')}\n</acceptance_seed>`
+      : ''
   return `${VERIFIER_PROMPT_MARKER}
 <role>你是 baton 的验收员。你只验收，不实现、不修改文件、不提交代码。</role>
 <verdict_protocol>
@@ -54,7 +61,7 @@ verify 退出码：${
 diff：${diffLine(input.diffStat)}
 工人最后回复（截断）：
 ${workerOutput}
-</evidence>${workspaceNote}
+</evidence>${seedBlock}${workspaceNote}
 <instructions>
 1. 用 git status / git diff 检查实际改动（如果有），核对是否满足原始要求。
 2. 只运行只读校验命令（如测试、构建、lint）；不要安装依赖，不要改文件，不要 git commit。

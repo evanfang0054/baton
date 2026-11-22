@@ -112,6 +112,7 @@ export interface SupervisorToolset {
   create_tasks: SupervisorTool
   plan_tasks: SupervisorTool
   batch_tasks: SupervisorTool
+  decide_action: SupervisorTool
   handoff_task: SupervisorTool
   create_text: SupervisorTool
   create_agent: SupervisorTool
@@ -141,6 +142,7 @@ export interface BoundToolset {
   create_tasks: BoundTool
   plan_tasks: BoundTool
   batch_tasks: BoundTool
+  decide_action: BoundTool
   handoff_task: BoundTool
   create_text: BoundTool
   create_agent: BoundTool
@@ -170,6 +172,7 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     create_tasks: bind(tools.create_tasks),
     plan_tasks: bind(tools.plan_tasks),
     batch_tasks: bind(tools.batch_tasks),
+    decide_action: bind(tools.decide_action),
     handoff_task: bind(tools.handoff_task),
     create_text: bind(tools.create_text),
     create_agent: bind(tools.create_agent),
@@ -278,6 +281,13 @@ const batchTasksInput = z
   })
   .strict()
 
+const decideActionInput = z
+  .object({
+    actionId: z.string().min(1),
+    decision: z.literal('ignore'),
+  })
+  .strict()
+
 const handoffTaskInput = z.object({
   fromTaskId: z.string().min(1),
   toNodeId: z.string().min(1).optional(),
@@ -331,9 +341,15 @@ export interface SupervisorActionsPort {
     mandateVersion?: string | null
     dedupeKey: string
     expiresAt?: number
-  }):
+  }  ):
     | { ok: true; action: SupervisorAction; duplicate: boolean }
     | { ok: false; error: AppError }
+  decide(input: {
+    workspaceId: string
+    actionId: string
+    actor: 'human' | 'supervisor' | 'system'
+    decision: 'apply' | 'ignore'
+  }): { ok: true; action: SupervisorAction } | { ok: false; error: AppError }
 }
 
 export interface SupervisorToolsDeps {
@@ -360,6 +376,8 @@ export interface SupervisorToolsDeps {
   /** 主动恢复动作前按当前 policy 重新校验；显式用户指令也会检查 allowedActions。 */
   requireMandate?: (taskId: string, action: TaskAction, strength: Strength) => AppError | null
   actions?: SupervisorActionsPort
+  /** 计划写入动作账本时必须用 workspace policy 指纹，apply 时才能同源校验。 */
+  workspacePolicyVersion?: (workspaceId: string) => string
   contextDigest?: (workspaceId: string, items: PlanItem[]) => PlanContextItem[]
   failures?: FailureService
   logger?: Logger
@@ -1251,7 +1269,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           mode: 'observe',
           reason: `计划：${items.length} 个任务，等待你确认`,
           payload: built.payload,
-          policyVersion: ctx.policyVersion,
+          policyVersion: deps.workspacePolicyVersion?.(ctx.workspaceId) ?? ctx.policyVersion,
           dedupeKey: `plan:${ctx.threadId}:${ctx.triggerId}:${supervisorShortHash(
             JSON.stringify(built.payload),
           )}`,
@@ -1369,6 +1387,32 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           failed: results.filter((item) => !item.ok).length,
         })
         return { dryRun: false, action: parsed.action, items: results, skipped }
+      },
+    },
+
+    decide_action: {
+      description:
+        '总管只能忽略自己提出的动作；计划应用只能由人通过计划卡触发，模型不能 apply。',
+      parameters: decideActionInput,
+      async execute(input, ctx) {
+        if ((input as { decision?: unknown } | null)?.decision === 'apply') {
+          throw appError('supervisor_action_forbidden', 'supervisor cannot apply actions')
+        }
+        const parsed = decideActionInput.parse(input)
+        if (!deps.actions) {
+          throw appError('action_not_available', 'supervisor actions are not wired')
+        }
+        const decided = deps.actions.decide({
+          workspaceId: ctx.workspaceId,
+          actionId: parsed.actionId,
+          actor: 'supervisor',
+          decision: parsed.decision,
+        })
+        if (!decided.ok) throw decided.error
+        return {
+          actionId: decided.action.id,
+          status: decided.action.status,
+        }
       },
     },
 

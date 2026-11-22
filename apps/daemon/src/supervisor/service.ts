@@ -249,6 +249,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     cancelTask: deps.cancelTask,
     ...(deps.requireMandate ? { requireMandate: deps.requireMandate } : {}),
     ...(deps.actions ? { actions: deps.actions } : {}),
+    ...(deps.loadPolicy
+      ? {
+          workspacePolicyVersion: (workspaceId: string) =>
+            deps.loadPolicy?.(workspaceId)?.policyVersion ?? '',
+        }
+      : {}),
     ...(contextDigest ? { contextDigest } : {}),
     ...(deps.failures ? { failures: deps.failures } : {}),
     ...(deps.logger ? { logger: deps.logger } : {}),
@@ -504,6 +510,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       verifyExitCode: review.verifyExitCode,
       diffStat: review.diffStat,
       isolatedWorktree: isolated,
+      ...(origin?.acceptanceSeed ? { acceptanceSeed: origin.acceptanceSeed } : {}),
     })
     const created = deps.taskService.createTask(
       {
@@ -1137,6 +1144,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         batch_tasks: wrapTool(
           'batch_tasks',
           bound.batch_tasks,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        decide_action: wrapTool(
+          'decide_action',
+          bound.decide_action,
           input.assistantMessageId,
           input.threadId,
         ),

@@ -43,6 +43,7 @@ import {
   review,
   session,
   setting,
+  supervisorMessage,
   task,
   workspace,
   wsEvent,
@@ -1317,4 +1318,20 @@ export function listAudit(
     .limit(filter.limit)
     .all()
     .map(toAudit)
+}
+
+/** 计划应用时取回原始用户消息，避免把计划文本再塞进 action payload。 */
+export function getSupervisorMessageByTrigger(
+  db: Db,
+  threadId: string,
+  triggerId: string,
+): { content: string } | null {
+  const row = db
+    .select({ content: supervisorMessage.content })
+    .from(supervisorMessage)
+    .where(
+      and(eq(supervisorMessage.threadId, threadId), eq(supervisorMessage.triggerId, triggerId)),
+    )
+    .get()
+  return row ?? null
 }

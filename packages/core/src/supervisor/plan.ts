@@ -37,7 +37,8 @@ export function validatePlanApply(input: {
   action: SupervisorAction
   now: number
   currentPolicyVersion: string
-  targetExists: (nodeId: string) => boolean
+  /** 可选；plan apply 可把失效目标留给逐条失败，从而保留部分成功。 */
+  targetExists?: (nodeId: string) => boolean
 }): PlanValidation {
   if (input.action.kind !== 'triage_plan') {
     return { ok: false, code: 'action_not_applicable', message: 'action is not a plan' }
@@ -53,7 +54,7 @@ export function validatePlanApply(input: {
     return { ok: false, code: 'plan_invalid', message: 'plan must contain 1-6 valid items' }
   }
   for (const item of parsed.data.items) {
-    if (item.targetNodeId && !input.targetExists(item.targetNodeId)) {
+    if (item.targetNodeId && input.targetExists && !input.targetExists(item.targetNodeId)) {
       return { ok: false, code: 'action_not_applicable', message: 'target node no longer exists' }
     }
   }

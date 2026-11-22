@@ -8,6 +8,7 @@ import {
 import {
   SupervisorAction,
   type AppError,
+  type PlanApplyResult,
   type Strength,
   type SupervisorActionKind,
   type TaskAction,
@@ -40,6 +41,9 @@ export interface SupervisorActionServiceDeps {
   ) => TransitionOutcome
   enqueueTask: (taskId: string) => EnqueueTaskResult
   generateDigest?: (workspaceId: string, trigger: 'attention') => unknown | null
+  applyPlan?: (
+    action: SupervisorAction,
+  ) => { ok: true; result: PlanApplyResult } | { ok: false; error: AppError }
 }
 
 export type ActionServiceResult<T> = ({ ok: true } & T) | { ok: false; error: AppError }
@@ -184,6 +188,23 @@ export function createSupervisorActionService(deps: SupervisorActionServiceDeps)
     if (action.kind === 'attention_reminder') {
       deps.generateDigest?.(action.workspaceId, 'attention')
       return { ok: true, result: { generated: true } }
+    }
+    if (action.kind === 'triage_plan') {
+      if (!deps.applyPlan) {
+        return {
+          ok: false,
+          error: appError('action_not_applicable', 'plan apply is not wired'),
+        }
+      }
+      const applied = deps.applyPlan(action)
+      if (!applied.ok) return applied
+      if (applied.result.createdTaskIds.length === 0) {
+        return {
+          ok: false,
+          error: appError('action_not_applicable', 'no task was created', applied.result),
+        }
+      }
+      return { ok: true, result: applied.result }
     }
     if (action.kind !== 'retry' && action.kind !== 'reopen') {
       return {

@@ -3,7 +3,9 @@ import {
   buildMandate,
   buildTaskOrigin,
   canAcceptUserInput,
+  templateById,
   validateMandate,
+  validatePlanApply,
 } from '@baton/core'
 import { Node, TaskOrigin } from '@baton/protocol'
 import type {
@@ -12,6 +14,7 @@ import type {
   ClientMessage,
   ContextInjection,
   Engine,
+  PlanApplyResult,
   ReviewDecideInput,
   Strength,
   TaskAction,
@@ -38,6 +41,7 @@ import {
   getReviewByTask,
   getSession,
   getSetting,
+  getSupervisorMessageByTrigger,
   getTask,
   getTaskDetail,
   getWorkspace,
@@ -73,6 +77,7 @@ import { isValidImageSrc } from '../workspace/image-src.js'
 import { resolveWorkspaceDir } from '../workspace/resolver.js'
 import { createSupervisorService } from '../supervisor/service.js'
 import { createSupervisorActionService } from '../supervisor/actions.js'
+import { createTargetResolver } from '../supervisor/target.js'
 import { loadWorkspacePolicy } from '../supervisor/autonomy.js'
 import { PROMPT_VERSION } from '../supervisor/prompt.js'
 import { createFailureService } from '../failures/service.js'
@@ -374,6 +379,104 @@ export function createRuntime(deps: RuntimeDeps) {
     },
   })
 
+  function planSourceText(nodeId: string): string | undefined {
+    const node = getNode(deps.db, nodeId)
+    return node?.type === 'text' ? node.data.content : undefined
+  }
+
+  function applyPlan(
+    action: import('@baton/protocol').SupervisorAction,
+  ): { ok: true; result: PlanApplyResult } | { ok: false; error: AppError } {
+    const checked = validatePlanApply({
+      action,
+      now: now(),
+      currentPolicyVersion:
+        loadWorkspacePolicy(deps.db, deps.config, action.workspaceId)?.policyVersion ?? '',
+    })
+    if (!checked.ok) return { ok: false, error: appError(checked.code, checked.message) }
+    const payload = checked.payload
+    const sourceText =
+      payload.source.nodeIds.length > 0
+        ? planSourceText(payload.source.nodeIds[0]!)
+        : getSupervisorMessageByTrigger(deps.db, action.threadId ?? '', payload.triggerId)?.content
+    if (!sourceText?.trim()) {
+      return { ok: false, error: appError('plan_invalid', 'plan source text is missing') }
+    }
+    const createdTaskIds: string[] = []
+    const failed: PlanApplyResult['failed'] = []
+    const resolver = createTargetResolver({
+      db: deps.db,
+      defaultEngine,
+      now,
+      newId,
+    })
+    payload.items.forEach((item, index) => {
+      try {
+        const target = resolver.resolveAgentTarget(
+          {
+            workspaceId: action.workspaceId,
+            selection: { contextNodeIds: [], agentCandidates: [] },
+            memo: {},
+          },
+          {
+            title: item.title,
+            ...(item.targetNodeId ? { targetNodeId: item.targetNodeId } : {}),
+            ...(item.agentTitle ? { agentTitle: item.agentTitle } : {}),
+          },
+        )
+        const template = templateById(item.templateId)
+        const origin = buildTaskOrigin({
+          source: 'supervisor-chat',
+          triggerId: payload.triggerId,
+          threadId: action.threadId ?? `plan:${action.id}`,
+          workspaceId: action.workspaceId,
+          targetNodeId: target.id,
+          contextNodeIds: item.contextNodeIds,
+          policyVersion: action.policyVersion,
+          promptVersion: PROMPT_VERSION,
+          createdAt: now(),
+          ...(item.templateId ? { templateId: item.templateId } : {}),
+          ...(template?.acceptanceSeed ? { acceptanceSeed: template.acceptanceSeed } : {}),
+        })
+        const sourceNodeId = payload.source.nodeIds[index]
+        const itemPrompt = sourceNodeId ? (planSourceText(sourceNodeId) ?? sourceText) : sourceText
+        const created = taskService.createTask(
+          {
+            workspaceId: action.workspaceId,
+            nodeId: target.id,
+            title: item.title,
+            prompt: itemPrompt,
+            contextNodeIds: item.contextNodeIds,
+            engine: resolver.resolveEngine(item.engine ?? undefined, target),
+            workspaceMode: 'main',
+            dangerouslySkipPermissions: false,
+            ...(item.budgetUsd !== null ? { budgetUsd: item.budgetUsd } : {}),
+          },
+          {
+            origin,
+            audit: {
+              actor: 'human',
+              action: 'supervisor.plan.apply',
+              detail: { actionId: action.id, index, templateId: item.templateId },
+            },
+          },
+        )
+        if (created.ok) createdTaskIds.push(created.taskId)
+        else failed.push({ index, code: created.error.code, message: created.error.message })
+      } catch (error) {
+        const appErr = isAppError(error) ? error : toAppError(error)
+        failed.push({ index, code: appErr.code, message: appErr.message })
+      }
+    })
+    if (createdTaskIds.length === 0) {
+      return {
+        ok: false,
+        error: appError('action_not_applicable', 'no plan item could be created', { failed }),
+      }
+    }
+    return { ok: true, result: { createdTaskIds, failed } }
+  }
+
   const actions = createSupervisorActionService({
     db: deps.db,
     now,
@@ -390,6 +493,7 @@ export function createRuntime(deps: RuntimeDeps) {
       return outcome.ok ? { ok: true, status: outcome.status } : { ok: false, error: outcome.error }
     },
     generateDigest: (workspaceId) => digest.generate(workspaceId, 'attention'),
+    applyPlan,
   })
   digestDeps.actions = actions
   digestDeps.failures = failures

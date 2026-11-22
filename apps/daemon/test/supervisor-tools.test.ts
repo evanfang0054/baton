@@ -60,6 +60,7 @@ function setup() {
   const transitions: Array<{ taskId: string; type: string }> = []
   const replies: Array<{ taskId: string; text: string }> = []
   const injected: unknown[] = []
+  const decisions: Array<{ actionId: string; decision: string }> = []
   const failures = createFailureService({
     db: database.db,
     now: () => 10,
@@ -125,9 +126,16 @@ function setup() {
       injected.push(input)
       return { ok: true, taskId: input.taskId, seq: 1, truncated: false, dropped: 0 }
     },
+    actions: {
+      propose: () => ({ ok: false, error: appError('unused', 'unused') }),
+      decide: (input) => {
+        decisions.push({ actionId: input.actionId, decision: input.decision })
+        return { ok: true, action: {} as never }
+      },
+    },
     failures,
   })
-  return { database, seeded, tools, root, transitions, replies, injected, failures }
+  return { database, seeded, tools, root, transitions, replies, injected, decisions, failures }
 }
 
 function ctx(seeded: ReturnType<typeof seedTask>): ToolContext {
@@ -923,5 +931,16 @@ describe('supervisor tools', () => {
     )) as { failures: Array<{ stage: string; lastError: string }> }
     expect(result.failures[0]?.stage).toBe('verify')
     expect(result.failures[0]?.lastError).toContain('<workspace>/src/login.ts')
+  })
+
+  it('decide_action can only ignore', async () => {
+    const { seeded, tools, decisions } = setup()
+    await expect(
+      tools.decide_action.execute({ actionId: 'a1', decision: 'apply' }, ctx(seeded)),
+    ).rejects.toMatchObject({ code: 'supervisor_action_forbidden' })
+    expect(decisions).toEqual([])
+
+    await tools.decide_action.execute({ actionId: 'a1', decision: 'ignore' }, ctx(seeded))
+    expect(decisions).toEqual([{ actionId: 'a1', decision: 'ignore' }])
   })
 })
