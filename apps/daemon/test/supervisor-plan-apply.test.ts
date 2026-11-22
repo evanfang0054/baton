@@ -77,6 +77,15 @@ describe('plan apply', () => {
     expect(result.failed).toHaveLength(1)
     expect(result.failed[0]?.index).toBe(1)
 
+    const created = handle.database.raw
+      .prepare('select status, origin_json from task where id = ?')
+      .get(result.createdTaskIds[0]!) as { status: string; origin_json: string }
+    expect(created.status).toBe('todo')
+    expect(JSON.parse(created.origin_json)).toMatchObject({
+      templateId: 'bugfix',
+      acceptanceSeed: ['复现步骤可执行', '失败现象消失', '相关回归点通过'],
+    })
+
     const again = handle.runtime.handleCommand({
       v: 1,
       id: 'p2',
@@ -89,8 +98,64 @@ describe('plan apply', () => {
       },
     })
     expect(again.ok).toBe(true)
-    expect(
-      handle.database.raw.prepare('select count(*) as count from task').get(),
-    ).toEqual({ count: 2 })
+    expect(handle.database.raw.prepare('select count(*) as count from task').get()).toEqual({
+      count: 2,
+    })
+  })
+
+  it('refuses a plan whose target no longer exists', async () => {
+    const handle = createTestRuntime({ trusted: true })
+    handles.push(handle)
+    const policyVersion = loadWorkspacePolicy(
+      handle.database.db,
+      handle.config,
+      handle.seeded.workspaceId,
+    )!.policyVersion
+    const proposed = handle.runtime.actions.propose({
+      workspaceId: handle.seeded.workspaceId,
+      threadId: 'th1',
+      taskId: null,
+      kind: 'triage_plan',
+      strength: 'inferred',
+      mode: 'observe',
+      reason: '计划',
+      payload: {
+        triggerId: 'trigger-2',
+        source: { nodeIds: ['text-1'] },
+        templateId: null,
+        contextDigest: [],
+        items: [
+          {
+            title: '目标已失效',
+            templateId: null,
+            targetNodeId: 'missing-node',
+            agentTitle: null,
+            contextNodeIds: [],
+            engine: null,
+            budgetUsd: null,
+          },
+        ],
+      },
+      policyVersion,
+      dedupeKey: 'plan:apply:missing',
+    })
+    if (!proposed.ok) throw new Error(proposed.error.message)
+
+    const decided = handle.runtime.handleCommand({
+      v: 1,
+      id: 'p3',
+      ts: 1,
+      type: 'supervisor.action.decide',
+      payload: {
+        workspaceId: handle.seeded.workspaceId,
+        actionId: proposed.action.id,
+        decision: 'apply',
+      },
+    })
+    expect(decided).toMatchObject({ ok: false, error: { code: 'action_not_applicable' } })
+    expect(handle.runtime.actions.get(proposed.action.id)?.status).toBe('failed')
+    expect(handle.database.raw.prepare('select count(*) as count from task').get()).toEqual({
+      count: 1,
+    })
   })
 })

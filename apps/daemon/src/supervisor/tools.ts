@@ -34,13 +34,11 @@ import { getAcceptanceResponse } from '../acceptance/report-service.js'
 import { getTaskBudgetSummary } from '../budget/service.js'
 import { listAcceptanceSummaries } from '../db/acceptance-repository.js'
 import {
-  getCanvasByWorkspace,
   getNode,
   getReviewByTask,
   getTask,
   getTaskDetail,
   insertAudit,
-  insertNode,
   listEdges,
   listNodes,
   listApprovalsByTask,
@@ -62,7 +60,7 @@ import { ASK_USER_QUESTION_TOOL, readQuestions } from '../runtime/questions.js'
 import type { TaskService } from '../runtime/task-service.js'
 import type { TransitionOutcome } from '../runtime/types.js'
 import { nodeSummary, textTitle } from './canvas-summary.js'
-import { createTargetResolver, type TargetContext } from './target.js'
+import { createTargetResolver } from './target.js'
 
 export interface AgentCandidate {
   id: string
@@ -341,9 +339,7 @@ export interface SupervisorActionsPort {
     mandateVersion?: string | null
     dedupeKey: string
     expiresAt?: number
-  }  ):
-    | { ok: true; action: SupervisorAction; duplicate: boolean }
-    | { ok: false; error: AppError }
+  }): { ok: true; action: SupervisorAction; duplicate: boolean } | { ok: false; error: AppError }
   decide(input: {
     workspaceId: string
     actionId: string
@@ -1194,24 +1190,17 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         const nodeIds =
           parsed.source.nodeIds.length > 0 ? parsed.source.nodeIds : ctx.selection.contextNodeIds
         const nodes = nodeIds.map((id) => getNode(deps.db, id))
-        if (
-          nodes.some(
-            (node) => !node || node.canvasId !== canvas.id || node.type !== 'text',
-          )
-        ) {
+        if (nodes.some((node) => !node || node.canvasId !== canvas.id || node.type !== 'text')) {
           throw appError('plan_invalid', 'source nodes must be text nodes on this canvas', {
             nodeIds,
           })
         }
         const textNodes = nodes.filter(
-          (node): node is NonNullable<typeof node> & { data: { content: string } } =>
-            Boolean(node),
+          (node): node is NonNullable<typeof node> & { data: { content: string } } => Boolean(node),
         )
         const text =
           parsed.source.text ??
-          (textNodes.length > 0
-            ? textNodes.map((node) => node.data.content).join('\n')
-            : ctx.text)
+          (textNodes.length > 0 ? textNodes.map((node) => node.data.content).join('\n') : ctx.text)
         const templateId = parsed.template ?? matchTemplate(text)
         const candidateTexts =
           textNodes.length > 0
@@ -1321,9 +1310,8 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             items.push({ taskId: task.id, title: task.title, status: task.status })
           }
         }
-        const requiresConfirmation = parsed.action === 'cancel' && skipped.some(
-          (item) => item.reason === 'running',
-        )
+        const requiresConfirmation =
+          parsed.action === 'cancel' && skipped.some((item) => item.reason === 'running')
         if (parsed.dryRun || !parsed.confirm) {
           return {
             dryRun: true,
@@ -1391,8 +1379,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     },
 
     decide_action: {
-      description:
-        '总管只能忽略自己提出的动作；计划应用只能由人通过计划卡触发，模型不能 apply。',
+      description: '总管只能忽略自己提出的动作；计划应用只能由人通过计划卡触发，模型不能 apply。',
       parameters: decideActionInput,
       async execute(input, ctx) {
         if ((input as { decision?: unknown } | null)?.decision === 'apply') {

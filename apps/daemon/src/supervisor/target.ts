@@ -141,5 +141,12 @@ export function createTargetResolver(deps: TargetResolverDeps) {
     return target.engine
   }
 
-  return { canvasFor, insertCanvasNode, createAgentNode, resolveAgentTarget, resolveContext, resolveEngine }
+  return {
+    canvasFor,
+    insertCanvasNode,
+    createAgentNode,
+    resolveAgentTarget,
+    resolveContext,
+    resolveEngine,
+  }
 }

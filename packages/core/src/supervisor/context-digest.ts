@@ -20,6 +20,8 @@ export function buildTaskContextDigest(input: {
     }
   }
   return [...byTask.values()]
-    .sort((a, b) => SOURCE_RANK[b.source] - SOURCE_RANK[a.source] || a.taskId.localeCompare(b.taskId))
+    .sort(
+      (a, b) => SOURCE_RANK[b.source] - SOURCE_RANK[a.source] || a.taskId.localeCompare(b.taskId),
+    )
     .slice(0, input.max ?? 5)
 }

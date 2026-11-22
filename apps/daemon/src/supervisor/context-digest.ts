@@ -5,11 +5,7 @@ import type { Db } from '../db/types.js'
 import type { FailureService } from '../failures/service.js'
 
 /** 建单上下文摘要：只读任务元数据与失败摘要，不含 transcript/文件正文。 */
-export function createContextDigest(deps: {
-  db: Db
-  failures: FailureService
-  now: () => number
-}) {
+export function createContextDigest(deps: { db: Db; failures: FailureService; now: () => number }) {
   return function buildContextDigest(workspaceId: string, items: PlanItem[]): PlanContextItem[] {
     const tasks = listTasks(deps.db, { workspaceId })
     const failures = deps.failures.latestByTaskIds(tasks.map((task) => task.id))
@@ -41,8 +37,7 @@ export function createContextDigest(deps: {
         })
       }
       const isHandoff =
-        handoffByTask.has(task.id) ||
-        [...handoffNodeIds].some((nodeId) => includedIds.has(nodeId))
+        handoffByTask.has(task.id) || [...handoffNodeIds].some((nodeId) => includedIds.has(nodeId))
       if (isHandoff) {
         candidates.push({
           taskId: task.id,
