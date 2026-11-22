@@ -4,7 +4,7 @@ spec_topic: m6-5-supervisor-autonomy
 task_count: 6
 estimated_phases: [tests, implementation, verification]
 dod: "4 个模板、plan_tasks 预览、human-only plan apply、batch_tasks/dryRun、建单上下文摘要、工具面 21、计划卡；pnpm verify 全绿"
-status: planned
+status: completed
 depends_on: [2026-11-22-m6-5-governance.md, 2026-11-22-m6-5-attention-failure.md]
 ---
 
@@ -1795,3 +1795,13 @@ git commit -m "docs(m6-5): 完成计划模板与批量计划"
 - 建单上下文摘要最多 5 条，不含 transcript/文件正文。
 - 工具面 21 个全部接线，prompt 长度不超过 3,705 字符。
 - 计划卡可应用/忽略，过期/失败/部分失败有明确文案。
+
+## 实施记录（2026-11-22）
+
+- C1：`d325857 feat(core): 增加计划模板与上下文摘要`
+- C2：`7c81ea0 feat(daemon): 增加计划预览与批量干跑`
+- C3：`99a0986 feat(daemon): 计划应用与只读决策工具`
+- C4：`76e23cf feat(daemon): 接线 21 个管家工具`
+- C5：`0b50dc7 feat(web): 增加计划确认卡`
+- C6：Playwright 计划链路通过；`pnpm verify` 全绿（87 个 daemon 测试文件 / 403 条用例，63 个 web 测试文件 / 280 条用例）。
+- 边界检查：计划只写 `proposed`；apply 只由 human WS 触发，模型 `decide_action` 只能 ignore；重复 apply 幂等；部分失败写入 `result.failed[]`；`acceptanceSeed` 只进 verifier prompt；建单上下文摘要最多 5 条且不含 transcript/文件正文。
