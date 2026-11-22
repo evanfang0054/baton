@@ -215,6 +215,17 @@ export function TaskActions({
           {action.error}
         </p>
       ) : null}
+      {action.errorCode === 'mandate_revoked' ? (
+        <Button
+          variant="secondary"
+          size="sm"
+          className="mt-2"
+          isDisabled={action.pending}
+          onPress={() => action.run({ type: 'task.reauthorize', payload: { taskId } })}
+        >
+          重新授权并继续
+        </Button>
+      ) : null}
     </section>
   )
 }

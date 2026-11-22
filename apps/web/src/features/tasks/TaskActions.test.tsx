@@ -126,4 +126,21 @@ describe('TaskActions', () => {
       }),
     )
   })
+
+  it('offers reauthorize when enqueue is revoked', async () => {
+    const send = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error('授权已失效'), { code: 'mandate_revoked' }))
+      .mockResolvedValue(undefined)
+    renderActions('todo', send)
+    fireEvent.click(screen.getByRole('button', { name: '立即开工' }))
+    const reauthorize = await screen.findByRole('button', { name: '重新授权并继续' })
+    fireEvent.click(reauthorize)
+    await waitFor(() =>
+      expect(send).toHaveBeenLastCalledWith({
+        type: 'task.reauthorize',
+        payload: { taskId: 't1' },
+      }),
+    )
+  })
 })
