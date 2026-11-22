@@ -59,6 +59,18 @@ describe('validateMandate', () => {
     })
   })
 
+  it('rejects explicit retries after the policy changes', () => {
+    expect(
+      validateMandate({
+        origin: origin(),
+        requestedAction: 'retry',
+        requestedStrength: 'explicit',
+        currentPolicyVersion: 'policy-2',
+        gate,
+      }),
+    ).toMatchObject({ ok: false, detail: { reason: 'policy_changed' } })
+  })
+
   it('rejects inferred actions when policy changed or autonomy is not auto', () => {
     expect(
       validateMandate({

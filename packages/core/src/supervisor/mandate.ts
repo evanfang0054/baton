@@ -108,7 +108,8 @@ export function validateMandate(input: {
     promptVersion: origin.promptVersion,
   }).mandateVersion
   if (origin.mandateVersion !== expected) return revoked('mandate_version_mismatch')
-  if (inferred && origin.policyVersion !== input.currentPolicyVersion) {
+  // 显式动作也要按当前 policy 重新校验；策略变化后必须由人重新授权。
+  if (origin.policyVersion !== input.currentPolicyVersion) {
     return revoked('policy_changed')
   }
   return { ok: true }
