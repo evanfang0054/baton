@@ -9,6 +9,7 @@ import { getAutomation, listAudit, setKillSwitch, updateAutomationPolicy } from 
 import { queryKeys } from '../../lib/query'
 
 type Risk = 'low' | 'medium'
+type AutonomyMode = 'off' | 'observe' | 'auto'
 
 export function AutomationSettingsDialog({
   workspaceId,
@@ -36,6 +37,9 @@ export function AutomationSettingsDialog({
   const [retryMax, setRetryMax] = useState(2)
   const [risk, setRisk] = useState<Risk>('low')
   const [delegatedAuthority, setDelegatedAuthority] = useState(false)
+  const [autonomyMode, setAutonomyMode] = useState<AutonomyMode>('observe')
+  const [autoRetry, setAutoRetry] = useState<AutonomyMode>('off')
+  const [attentionReminder, setAttentionReminder] = useState<AutonomyMode>('observe')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [restoring, setRestoring] = useState(false)
@@ -54,6 +58,9 @@ export function AutomationSettingsDialog({
     setRetryMax(summary.data.policy.autopilot.retryMax)
     setDelegatedAuthority(summary.data.policy.autopilot.delegatedAuthority)
     setRisk(summary.data.policy.approval.autoApproveMaxRisk === 'medium' ? 'medium' : 'low')
+    setAutonomyMode(summary.data.policy.autonomy.mode)
+    setAutoRetry(summary.data.policy.autonomy.autoRetry)
+    setAttentionReminder(summary.data.policy.autonomy.attentionReminder)
     setError(null)
   }, [open, summary.data])
 
@@ -78,6 +85,18 @@ export function AutomationSettingsDialog({
       approval.autoApproveMaxRisk = risk
     }
     if (Object.keys(approval).length > 0) patch.approval = approval
+
+    const autonomy: {
+      mode?: AutonomyMode
+      autoRetry?: AutonomyMode
+      attentionReminder?: AutonomyMode
+    } = {}
+    if (autonomyMode !== current.policy.autonomy.mode) autonomy.mode = autonomyMode
+    if (autoRetry !== current.policy.autonomy.autoRetry) autonomy.autoRetry = autoRetry
+    if (attentionReminder !== current.policy.autonomy.attentionReminder) {
+      autonomy.attentionReminder = attentionReminder
+    }
+    if (Object.keys(autonomy).length > 0) patch.autonomy = autonomy
   }
   const hasChanges = Object.keys(patch).length > 0
 
@@ -183,6 +202,54 @@ export function AutomationSettingsDialog({
                     总管全权只对总管创建的任务生效：除 deny 规则外，所有工具（含高风险
                     Bash）都会自动批准。每次自动决定写入审计，kill switch 可随时停止。
                   </p>
+                  <section className="flex flex-col gap-2 rounded-md border border-separator p-2">
+                    <h3 className="text-sm font-medium text-foreground">总管自治</h3>
+                    <label className="flex items-center justify-between gap-2 text-sm">
+                      <span>全局模式</span>
+                      <select
+                        aria-label="总管全局模式"
+                        value={autonomyMode}
+                        onChange={(event) => setAutonomyMode(event.target.value as AutonomyMode)}
+                        className="h-9 rounded-lg border border-separator bg-surface px-2 text-sm"
+                      >
+                        <option value="off">off</option>
+                        <option value="observe">observe</option>
+                        <option value="auto">auto</option>
+                      </select>
+                    </label>
+                    <label className="flex items-center justify-between gap-2 text-sm">
+                      <span>失败自动重试</span>
+                      <select
+                        aria-label="失败自动重试"
+                        value={autoRetry}
+                        onChange={(event) => setAutoRetry(event.target.value as AutonomyMode)}
+                        className="h-9 rounded-lg border border-separator bg-surface px-2 text-sm"
+                      >
+                        <option value="off">off</option>
+                        <option value="observe">observe</option>
+                        <option value="auto">auto</option>
+                      </select>
+                    </label>
+                    <label className="flex items-center justify-between gap-2 text-sm">
+                      <span>注意力提醒</span>
+                      <select
+                        aria-label="注意力提醒"
+                        value={attentionReminder}
+                        onChange={(event) =>
+                          setAttentionReminder(event.target.value as AutonomyMode)
+                        }
+                        className="h-9 rounded-lg border border-separator bg-surface px-2 text-sm"
+                      >
+                        <option value="off">off</option>
+                        <option value="observe">observe</option>
+                        <option value="auto">auto</option>
+                      </select>
+                    </label>
+                    <p className="text-xs text-muted">
+                      修改只影响新提议；已提议的动作仍可应用或忽略。kill switch 下 auto
+                      停止，observe 仍记录。
+                    </p>
+                  </section>
                   <p className="text-xs text-muted">
                     总管任务进入待验收时会派一个新的验收 Agent
                     做初步检查；初步结论只作建议，任务仍会停在待验收，最终通过或打回由你决定。

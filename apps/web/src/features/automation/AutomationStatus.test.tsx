@@ -18,6 +18,7 @@ function summary(overrides: Partial<AutomationSummary> = {}): AutomationSummary 
         delegatedAuthority: false,
         maxAutoApprovalsPerTask: 10,
       },
+      autonomy: { mode: 'observe', autoRetry: 'off', attentionReminder: 'observe' },
     },
     policyVersion: 'abc123abc123',
     killSwitch: false,
@@ -78,6 +79,7 @@ describe('AutomationStatus', () => {
               delegatedAuthority: false,
               maxAutoApprovalsPerTask: 10,
             },
+            autonomy: { mode: 'observe', autoRetry: 'off', attentionReminder: 'observe' },
           },
         })}
         onPause={() => {}}

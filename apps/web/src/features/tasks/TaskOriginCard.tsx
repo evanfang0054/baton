@@ -44,6 +44,28 @@ export function TaskOriginCard({
         <dd className="break-all font-mono text-muted" title={origin.promptVersion}>
           {origin.promptVersion}
         </dd>
+        {origin.strength ? (
+          <>
+            <dt className="text-muted">授权强度</dt>
+            <dd className="text-foreground">
+              {origin.strength === 'explicit' ? '明确授权' : '推断授权'}
+            </dd>
+          </>
+        ) : null}
+        {origin.allowedActions?.length ? (
+          <>
+            <dt className="text-muted">允许动作</dt>
+            <dd className="text-foreground">{origin.allowedActions.join('、')}</dd>
+          </>
+        ) : null}
+        {origin.mandateVersion ? (
+          <>
+            <dt className="text-muted">授权版本</dt>
+            <dd className="break-all font-mono text-muted" title={origin.mandateVersion}>
+              {origin.mandateVersion}
+            </dd>
+          </>
+        ) : null}
         {origin.reviewOfTaskId ? (
           <>
             <dt className="text-muted">验收对象</dt>

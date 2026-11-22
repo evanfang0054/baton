@@ -28,6 +28,7 @@ function summary(overrides: Partial<AutomationSummary> = {}): AutomationSummary 
         delegatedAuthority: false,
         maxAutoApprovalsPerTask: 10,
       },
+      autonomy: { mode: 'observe', autoRetry: 'off', attentionReminder: 'observe' },
     },
     policyVersion: 'abc123abc123',
     killSwitch: false,
@@ -128,5 +129,23 @@ describe('AutomationSettingsDialog', () => {
 
     expect(await screen.findByText('自动化已被环境变量强制暂停。')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '恢复自动化' })).not.toBeInTheDocument()
+  })
+
+  it('saves the global autonomy mode and two capability switches', async () => {
+    vi.mocked(getAutomation).mockResolvedValue(summary())
+    vi.mocked(listAudit).mockResolvedValue([])
+    vi.mocked(updateAutomationPolicy).mockResolvedValue(summary())
+    wrap()
+
+    await userEvent.selectOptions(await screen.findByLabelText('总管全局模式'), 'auto')
+    await userEvent.selectOptions(screen.getByLabelText('失败自动重试'), 'observe')
+    await userEvent.selectOptions(screen.getByLabelText('注意力提醒'), 'auto')
+    await userEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() =>
+      expect(updateAutomationPolicy).toHaveBeenCalledWith('w1', {
+        autonomy: { mode: 'auto', autoRetry: 'observe', attentionReminder: 'auto' },
+      }),
+    )
   })
 })
