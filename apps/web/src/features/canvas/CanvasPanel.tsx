@@ -5,7 +5,16 @@ import {
   groupBounds,
   type CanvasNodeMove,
 } from '@baton/core'
-import type { CanvasResponse, NodeCreateValue, ReviewView, TaskSummary } from '@baton/protocol'
+import type {
+  Artifact,
+  CanvasResponse,
+  DeliverySummary,
+  NodeCreateValue,
+  Node as ProtocolNode,
+  ReviewView,
+  StageSummary,
+  TaskSummary,
+} from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -66,6 +75,7 @@ export type { CanvasAddType } from './model'
 
 export interface CanvasPanelHandle {
   addNode: (type: CanvasAddType) => void
+  focusNode: (nodeId: string) => void
 }
 
 interface CanvasPanelProps {
@@ -74,6 +84,11 @@ interface CanvasPanelProps {
   selectedNodeId: string | null
   onSelectNode: (nodeId: string | null) => void
   onSelectNodes: (nodes: SelectionNode[]) => void
+  onOpenTask?: (taskId: string) => void
+  onOpenNode?: (node: ProtocolNode) => void
+  delivery?: DeliverySummary | null
+  stages?: StageSummary[]
+  artifacts?: Artifact[]
 }
 
 const nodeTypes = {
@@ -110,6 +125,11 @@ function FlowCanvas({
   selectedNodeId,
   onSelectNode,
   onSelectNodes,
+  onOpenTask,
+  onOpenNode,
+  delivery,
+  stages,
+  artifacts,
   handleRef,
 }: CanvasPanelProps & {
   handleRef: ForwardedRef<CanvasPanelHandle>
@@ -131,7 +151,6 @@ function FlowCanvas({
   const sceneTaskId = useAppStore((state) => state.sceneTaskId)
   const setSceneTask = useAppStore((state) => state.setSceneTask)
   const setTask = useAppStore((state) => state.setTask)
-  const setRightPanel = useAppStore((state) => state.setRightPanel)
 
   const sceneDetail = useQuery({
     queryKey: queryKeys.task(sceneTaskId ?? ''),
@@ -167,8 +186,11 @@ function FlowCanvas({
       reviewDetails,
       workspaceId: canvas.canvas.workspaceId,
       injectedNodeIds,
+      delivery: delivery ?? null,
+      stages,
+      artifacts,
     })
-  }, [canvas, injectedNodeIds, reviewDetails, scene, tasks])
+  }, [artifacts, canvas, delivery, injectedNodeIds, reviewDetails, scene, stages, tasks])
   const hiddenNodeIds = useMemo(
     () => new Set(flowNodes.filter((node) => node.hidden).map((node) => node.id)),
     [flowNodes],
@@ -520,7 +542,14 @@ function FlowCanvas({
     setSceneTask(null)
   }, [setSceneTask])
 
-  useImperativeHandle(handleRef, () => ({ addNode }), [addNode])
+  const focusNode = useCallback(
+    (nodeId: string) => {
+      const node = flowNodes.find((item) => item.id === nodeId)
+      if (node) void fitView({ nodes: [node], duration: 300, padding: 0.3 })
+    },
+    [fitView, flowNodes],
+  )
+  useImperativeHandle(handleRef, () => ({ addNode, focusNode }), [addNode, focusNode])
 
   const handleDrop = useCallback(
     async (event: ReactDragEvent<HTMLElement>) => {
@@ -642,15 +671,18 @@ function FlowCanvas({
       },
       openTask: (taskId: string) => {
         onSelectNode(null)
-        setTask(taskId)
-        setRightPanel('task')
+        if (onOpenTask) {
+          onOpenTask(taskId)
+        } else {
+          setTask(taskId)
+        }
         // review 卡上的“查看证据”直接定位到验收区块；普通打开也会落到同一位置。
         window.setTimeout(() => {
           document.querySelector('[data-section="acceptance"]')?.scrollIntoView({ block: 'start' })
         }, 50)
       },
     }),
-    [onSelectNode, sceneActive, setRightPanel, setTask, updateNode],
+    [onOpenTask, onSelectNode, sceneActive, setTask, updateNode],
   )
 
   if (!canvas) {
@@ -779,6 +811,10 @@ function FlowCanvas({
             // Cmd/Ctrl/Shift 点击是多选/反选，不要覆盖单选面板状态。
             if (event.metaKey || event.ctrlKey || event.shiftKey) return
             onSelectNode(node.id)
+          }}
+          onNodeDoubleClick={(_, node) => {
+            if (sceneActive) return
+            if (onOpenNode) onOpenNode(node.data.node)
           }}
           onSelectionChange={({ nodes: selected }) => {
             // 现场允许选中节点用于投喂；布局写操作仍由 sceneActive 关闭。

@@ -71,6 +71,7 @@ export const DeliverySummary = z.object({
     done: z.number().int().nonnegative(),
     total: z.number().int().nonnegative(),
   }),
+  stages: z.array(StageSummary).default([]),
   attention: Attention,
   waitingSince: Timestamp.nullable(),
   openAnnotationCount: z.number().int().nonnegative(),

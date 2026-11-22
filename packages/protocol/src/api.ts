@@ -112,7 +112,7 @@ export type EngineStatus = z.infer<typeof EngineStatus>
 export const EngineListResponse = z.object({ engines: z.array(EngineStatus) })
 export type EngineListResponse = z.infer<typeof EngineListResponse>
 
-export const CanvasQuery = z.object({ workspaceId: Id })
+export const CanvasQuery = z.object({ workspaceId: Id, deliveryId: Id.optional() })
 export type CanvasQuery = z.infer<typeof CanvasQuery>
 
 export const CanvasResponse = z.object({

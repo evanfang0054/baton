@@ -5,9 +5,7 @@ import { useAppStore } from '../../stores/app'
 
 export function SupervisorTaskCard({ card }: { card: SupervisorTaskCardData }) {
   const openTask = () => {
-    const state = useAppStore.getState()
-    state.setTask(card.taskId)
-    state.setRightPanel('task')
+    useAppStore.getState().openStage(card.taskId)
   }
   return (
     <section

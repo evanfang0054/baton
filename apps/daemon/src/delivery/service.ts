@@ -312,6 +312,7 @@ function buildSummaries(
         done: stages.filter((stage) => stage.status === 'done').length,
         total: stages.length,
       },
+      stages,
       attention,
       waitingSince: waiting.length > 0 ? Math.min(...waiting) : null,
       openAnnotationCount: annotations.filter((item) => item.status === 'open').length,
@@ -356,7 +357,11 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
     try {
       const result = deps.db.transaction((tx) => {
         tx.insert(canvasTable)
-          .values({ id: canvasId, workspaceId: workspace.id, viewportJson: '{}' })
+          .values({
+            id: canvasId,
+            workspaceId: workspace.id,
+            viewportJson: JSON.stringify({ x: 0, y: 0, zoom: 1 }),
+          })
           .run()
         const delivery: Delivery = {
           id: deliveryId,

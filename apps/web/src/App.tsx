@@ -5,18 +5,25 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AutomationSettingsDialog } from './features/automation/AutomationSettingsDialog'
 import { AutomationStatus } from './features/automation/AutomationStatus'
-import { ConnectionStatus } from './features/shared/ConnectionStatus'
-import { MobileNav } from './features/shared/MobileNav'
-import { MobileMoreMenu } from './features/shared/MobileMoreMenu'
-import { CanvasPanel, type CanvasPanelHandle } from './features/canvas/CanvasPanel'
+import { CanvasPanel } from './features/canvas/CanvasPanel'
 import { MobileNodeManager } from './features/canvas/MobileNodeManager'
 import { NodePanel } from './features/canvas/NodePanel'
+import { CreateDeliveryDialog } from './features/deliveries/CreateDeliveryDialog'
+import { DeliveryBoard } from './features/deliveries/DeliveryBoard'
+import { DeliveryCanvas } from './features/deliveries/DeliveryCanvas'
+import { DeliveryRail } from './features/deliveries/DeliveryRail'
+import { AnnotationListOverlay } from './features/overlays/AnnotationListOverlay'
+import { ArtifactViewerOverlay } from './features/overlays/ArtifactViewerOverlay'
+import { Overlay } from './features/overlays/Overlay'
+import { StageSceneOverlay } from './features/overlays/StageSceneOverlay'
 import { RealtimeProvider } from './features/realtime/RealtimeProvider'
 import { RightPanel } from './features/right-panel/RightPanel'
+import { ConnectionStatus } from './features/shared/ConnectionStatus'
+import { MobileMoreMenu } from './features/shared/MobileMoreMenu'
+import { MobileNav } from './features/shared/MobileNav'
 import { DigestCard } from './features/supervisor/DigestCard'
 import { SupervisorPanel } from './features/supervisor/SupervisorPanel'
 import type { SupervisorTargetAgent } from './features/supervisor/supervisor-model'
-import { BoardRail } from './features/tasks/BoardRail'
 import { MobileBoardList } from './features/tasks/MobileBoardList'
 import { MobileCreateTaskForm } from './features/tasks/MobileCreateTaskForm'
 import { MobileTaskDetail } from './features/tasks/MobileTaskDetail'
@@ -29,6 +36,9 @@ import { WorkspaceTrustDialog } from './features/workspaces/WorkspaceTrustDialog
 import {
   getAutomation,
   getCanvas,
+  getDelivery,
+  listArtifacts,
+  listDeliveries,
   listNotices,
   listTasks,
   listWorkspaces,
@@ -45,41 +55,34 @@ const authBannerClass = [
   'px-4 py-2 text-sm text-warning',
 ].join(' ')
 
-function isEditableTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false
-  return (
-    target.isContentEditable ||
-    target.tagName === 'INPUT' ||
-    target.tagName === 'TEXTAREA' ||
-    target.tagName === 'SELECT'
-  )
-}
+const viewButtonClass = [
+  'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+].join(' ')
 
 export function App() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId)
   const activeTaskId = useAppStore((state) => state.activeTaskId)
+  const activeDeliveryId = useAppStore((state) => state.activeDeliveryId)
+  const overlay = useAppStore((state) => state.overlay)
+  const rightPanelCollapsed = useAppStore((state) => state.rightPanelCollapsed)
   const selectedNodeId = useAppStore((state) => state.selectedNodeId)
   const selectedNodeIds = useAppStore((state) => state.selectedNodeIds)
-  const sceneTaskId = useAppStore((state) => state.sceneTaskId)
   const contextNodeIds = useAppStore((state) => state.contextNodeIds)
-  const boardExpanded = useAppStore((state) => state.boardExpanded)
-  const boardPinned = useAppStore((state) => state.boardPinned)
-  const rightPanel = useAppStore((state) => state.rightPanel)
   const mobileTab = useAppStore((state) => state.mobileTab)
   const wsStatus = useAppStore((state) => state.wsStatus)
   const setWorkspace = useAppStore((state) => state.setWorkspace)
   const setTask = useAppStore((state) => state.setTask)
+  const setDelivery = useAppStore((state) => state.setDelivery)
+  const setOverlay = useAppStore((state) => state.setOverlay)
+  const setRightPanelCollapsed = useAppStore((state) => state.setRightPanelCollapsed)
   const setSelectedNode = useAppStore((state) => state.setSelectedNode)
   const setSelection = useAppStore((state) => state.setSelection)
-  const setSceneTask = useAppStore((state) => state.setSceneTask)
-  const setBoardExpanded = useAppStore((state) => state.setBoardExpanded)
-  const setBoardPinned = useAppStore((state) => state.setBoardPinned)
-  const setRightPanel = useAppStore((state) => state.setRightPanel)
   const setMobileTab = useAppStore((state) => state.setMobileTab)
   const viewport = useViewport()
   const isMobile = viewport === 'mobile'
   const queryClient = useQueryClient()
-  const canvasRef = useRef<CanvasPanelHandle>(null)
+  const canvasRef = useRef<import('./features/canvas/CanvasPanel').CanvasPanelHandle>(null)
   const [trustDialogOpen, setTrustDialogOpen] = useState(false)
   const [trustPromptedFor, setTrustPromptedFor] = useState<string | null>(null)
   const [automationSettingsOpen, setAutomationSettingsOpen] = useState(false)
@@ -87,6 +90,9 @@ export function App() {
   const [mobileTaskFormOpen, setMobileTaskFormOpen] = useState(false)
   const [mobileNodesOpen, setMobileNodesOpen] = useState(false)
   const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false)
+  const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false)
+  const [showTasks, setShowTasks] = useState(false)
+  const [showWorkspace, setShowWorkspace] = useState(false)
 
   const workspaces = useQuery({ queryKey: queryKeys.workspaces, queryFn: listWorkspaces })
   const tasks = useQuery({
@@ -94,10 +100,30 @@ export function App() {
     queryFn: () => listTasks(activeWorkspaceId!),
     enabled: Boolean(activeWorkspaceId),
   })
-  const canvas = useQuery({
+  const deliveries = useQuery({
+    queryKey: queryKeys.deliveries(activeWorkspaceId ?? ''),
+    queryFn: () => listDeliveries(activeWorkspaceId!),
+    enabled: Boolean(activeWorkspaceId),
+  })
+  const delivery = useQuery({
+    queryKey: queryKeys.delivery(activeDeliveryId ?? ''),
+    queryFn: () => getDelivery(activeDeliveryId!),
+    enabled: Boolean(activeDeliveryId),
+  })
+  const deliveryCanvas = useQuery({
+    queryKey: queryKeys.deliveryCanvas(activeWorkspaceId ?? '', activeDeliveryId ?? ''),
+    queryFn: () => getCanvas(activeWorkspaceId!, activeDeliveryId!),
+    enabled: Boolean(activeWorkspaceId && activeDeliveryId),
+  })
+  const artifacts = useQuery({
+    queryKey: queryKeys.artifacts(activeDeliveryId ?? ''),
+    queryFn: () => listArtifacts(activeDeliveryId!),
+    enabled: Boolean(activeDeliveryId),
+  })
+  const workspaceCanvas = useQuery({
     queryKey: queryKeys.canvas(activeWorkspaceId ?? ''),
     queryFn: () => getCanvas(activeWorkspaceId!),
-    enabled: Boolean(activeWorkspaceId),
+    enabled: Boolean(activeWorkspaceId && (showWorkspace || isMobile)),
   })
   const automation = useQuery({
     queryKey: queryKeys.automation(activeWorkspaceId ?? ''),
@@ -109,18 +135,20 @@ export function App() {
     queryFn: () => listNotices(activeWorkspaceId!, { kind: 'digest', limit: 5 }),
     enabled: Boolean(activeWorkspaceId),
   })
+
+  const canvasForContext = showWorkspace ? workspaceCanvas : deliveryCanvas
+  const canvasNodes = canvasForContext.data?.nodes ?? []
   const contextNodes = useMemo(
-    () => (canvas.data?.nodes ?? []).filter((node) => contextNodeIds.includes(node.id)),
-    [canvas.data?.nodes, contextNodeIds],
+    () => canvasNodes.filter((node) => contextNodeIds.includes(node.id)),
+    [canvasNodes, contextNodeIds],
   )
-  // 选中里恰好一个 Agent 时作为默认目标；纯 Agent 或多 Agent 交给总管追问。
   const targetAgent = useMemo<SupervisorTargetAgent | null>(() => {
-    const nodes = (canvas.data?.nodes ?? []).filter((node) => selectedNodeIds.includes(node.id))
+    const nodes = canvasNodes.filter((node) => selectedNodeIds.includes(node.id))
     const agents = nodes.filter((node) => node.type === 'agent')
     const agent = agents.length === 1 ? agents[0] : null
     if (!agent || agent.type !== 'agent') return null
     return { id: agent.id, title: agent.data.title }
-  }, [canvas.data?.nodes, selectedNodeIds])
+  }, [canvasNodes, selectedNodeIds])
   const counts = useMemo(() => {
     const list = tasks.data ?? []
     return {
@@ -140,37 +168,48 @@ export function App() {
     }
   }, [tasks.data])
 
-  const selectedNode = canvas.data?.nodes.find((node) => node.id === selectedNodeId) ?? null
+  const selectedNode = canvasNodes.find((node) => node.id === selectedNodeId) ?? null
   const activeWorkspace =
     workspaces.data?.find((workspace) => workspace.id === activeWorkspaceId) ?? null
   const nodeTask = selectedNode && tasks.data?.find((task) => task.nodeId === selectedNode.id)
   const unauthorized =
     wsStatus === 'unauthorized' ||
-    [workspaces.error, tasks.error, canvas.error].some(
+    [workspaces.error, tasks.error, deliveries.error].some(
       (error) => error instanceof UnauthorizedError,
     )
+  const deliveryTasks = (tasks.data ?? []).filter(
+    (task) => activeDeliveryId && task.deliveryId === activeDeliveryId,
+  )
 
   useEffect(() => {
     if (activeWorkspaceId) return
     const url = readUrlState()
     if (url.workspaceId) {
       setWorkspace(url.workspaceId)
+      if (url.deliveryId) setDelivery(url.deliveryId)
+      if (url.deliveryId && url.artifactId) {
+        setOverlay({ kind: 'artifact', deliveryId: url.deliveryId, artifactId: url.artifactId })
+      } else if (url.deliveryId && url.annotationId) {
+        setOverlay({ kind: 'annotations', deliveryId: url.deliveryId })
+      }
       if (url.taskId) {
         setTask(url.taskId)
-        setRightPanel('task')
+        setOverlay({ kind: 'stage', taskId: url.taskId })
       }
     } else if (workspaces.data?.[0]) {
       setWorkspace(workspaces.data[0].id)
     }
-  }, [activeWorkspaceId, setRightPanel, setTask, setWorkspace, workspaces.data])
+  }, [activeWorkspaceId, setDelivery, setOverlay, setTask, setWorkspace, workspaces.data])
 
   useEffect(() => {
     if (!activeWorkspaceId) return
     writeUrlState({
       workspaceId: activeWorkspaceId,
-      taskId: activeTaskId,
+      deliveryId: activeDeliveryId,
+      taskId: overlay?.kind === 'stage' ? overlay.taskId : activeTaskId,
+      artifactId: overlay?.kind === 'artifact' ? overlay.artifactId : null,
     })
-  }, [activeWorkspaceId, activeTaskId])
+  }, [activeDeliveryId, activeTaskId, activeWorkspaceId, overlay])
 
   useEffect(() => {
     if (!activeWorkspace || activeWorkspace.trusted) return
@@ -179,35 +218,36 @@ export function App() {
     setTrustDialogOpen(true)
   }, [activeWorkspace, trustPromptedFor])
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() === 'b' && !isEditableTarget(event.target)) {
-        const state = useAppStore.getState()
-        if (state.boardPinned) {
-          setBoardPinned(false)
-          setBoardExpanded(false)
-        } else {
-          setBoardExpanded(!state.boardExpanded)
-        }
-      }
-      if (event.key === 'Escape') {
-        setBoardExpanded(false)
-        setBoardPinned(false)
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [setBoardExpanded, setBoardPinned])
-
   const pauseAutomation = async () => {
     try {
       await setKillSwitch(true)
-      // kill switch 是全局开关，所有工作区的自动化摘要都可能变化。
       await queryClient.invalidateQueries({ queryKey: ['automation'] })
       toast.success('自动化已暂停')
     } catch (cause) {
       toast.danger(cause instanceof Error ? cause.message : '暂停自动化失败')
     }
+  }
+
+  const openTask = (taskId: string) => {
+    setTask(taskId)
+    setOverlay({ kind: 'stage', taskId })
+  }
+  const openArtifact = (artifactId: string) => {
+    if (activeDeliveryId) setOverlay({ kind: 'artifact', deliveryId: activeDeliveryId, artifactId })
+  }
+  const openAnnotations = () => {
+    if (activeDeliveryId) setOverlay({ kind: 'annotations', deliveryId: activeDeliveryId })
+  }
+  const selectDelivery = (deliveryId: string) => {
+    setDelivery(deliveryId)
+    setShowTasks(false)
+    setShowWorkspace(false)
+    setOverlay(null)
+  }
+  const goBoard = () => {
+    setDelivery(null)
+    setShowTasks(false)
+    setShowWorkspace(false)
   }
 
   const headerClass =
@@ -228,7 +268,7 @@ export function App() {
             activeWorkspaceId={activeWorkspaceId}
             onSelect={(id) => {
               setWorkspace(id)
-              writeUrlState({ workspaceId: id, taskId: null })
+              writeUrlState({ workspaceId: id })
             }}
           />
           {activeWorkspaceId ? <ConnectionStatus compact={isMobile} /> : null}
@@ -260,6 +300,37 @@ export function App() {
             />
           ) : null}
           <div className="ml-auto flex items-center gap-2">
+            {!isMobile ? (
+              <div className="flex items-center gap-1 rounded-lg border border-separator p-0.5">
+                <button
+                  type="button"
+                  className={`${viewButtonClass} ${!showTasks && !showWorkspace ? 'bg-default text-foreground' : 'text-muted'}`}
+                  onClick={goBoard}
+                  aria-pressed={!showTasks && !showWorkspace}
+                >
+                  交付
+                </button>
+                <button
+                  type="button"
+                  className={`${viewButtonClass} ${showTasks ? 'bg-default text-foreground' : 'text-muted'}`}
+                  onClick={() => setShowTasks(true)}
+                  aria-pressed={showTasks}
+                >
+                  任务
+                </button>
+                <button
+                  type="button"
+                  className={`${viewButtonClass} ${showWorkspace ? 'bg-default text-foreground' : 'text-muted'}`}
+                  onClick={() => {
+                    setShowWorkspace(true)
+                    setShowTasks(false)
+                  }}
+                  aria-pressed={showWorkspace}
+                >
+                  工作区画布
+                </button>
+              </div>
+            ) : null}
             {isMobile ? (
               <Button variant="secondary" onPress={() => setMobileMoreOpen(true)}>
                 更多
@@ -274,19 +345,10 @@ export function App() {
               />
             ) : null}
             {!isMobile ? (
-              <Button
-                variant="secondary"
-                isDisabled={!canvas.data}
-                onPress={() => canvasRef.current?.addNode('agent')}
-              >
-                新建 Agent 节点
-              </Button>
-            ) : null}
-            {!isMobile ? (
               <CreateWorkspaceDialog
                 onCreated={(id) => {
                   setWorkspace(id)
-                  writeUrlState({ workspaceId: id, taskId: null })
+                  writeUrlState({ workspaceId: id })
                 }}
               />
             ) : null}
@@ -312,14 +374,12 @@ export function App() {
                 selectedTaskId={activeTaskId}
                 onSelectTask={(id) => {
                   setTask(id)
-                  setRightPanel('task')
                   writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
                 }}
                 onOpenSupervisor={() => setMobileTab('supervisor')}
                 onCreateTask={() => setMobileTaskFormOpen(true)}
               />
             ) : null}
-
             {mobileTab === 'supervisor' ? (
               <div className="min-h-0 flex-1 pb-[calc(4rem+env(safe-area-inset-bottom))]">
                 <SupervisorPanel
@@ -327,11 +387,10 @@ export function App() {
                   contextNodes={contextNodes}
                   targetAgent={targetAgent}
                   mobile
-                  nodes={canvas.data?.nodes ?? []}
+                  nodes={canvasNodes}
                 />
               </div>
             ) : null}
-
             {mobileTab === 'digest' ? (
               <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-[calc(6rem+env(safe-area-inset-bottom))]">
                 <DigestCard
@@ -343,7 +402,6 @@ export function App() {
                 />
               </div>
             ) : null}
-
             <MobileNav
               tab={mobileTab}
               onChange={setMobileTab}
@@ -355,19 +413,17 @@ export function App() {
               }
               unread={notices.data?.notices[0]?.readAt === null}
             />
-
             {activeTaskId ? (
               <MobileTaskDetail
                 onClose={() => {
                   setTask(null)
-                  setRightPanel('supervisor')
-                  writeUrlState({ workspaceId: activeWorkspaceId, taskId: null })
+                  setMobileTab('supervisor')
+                  writeUrlState({ workspaceId: activeWorkspaceId })
                 }}
               >
                 <TaskDetailPanel mobile />
               </MobileTaskDetail>
             ) : null}
-
             <MobileMoreMenu
               open={mobileMoreOpen}
               onOpenChange={setMobileMoreOpen}
@@ -408,13 +464,12 @@ export function App() {
                 )
               }
             />
-
-            {mobileTaskFormOpen && activeWorkspaceId && canvas.data ? (
+            {mobileTaskFormOpen && activeWorkspaceId && workspaceCanvas.data ? (
               <MobileCreateTaskForm
                 workspaceId={activeWorkspaceId}
-                canvasId={canvas.data.canvas.id}
+                canvasId={workspaceCanvas.data.canvas.id}
                 workspaceTrusted={activeWorkspace?.trusted ?? false}
-                nodes={canvas.data.nodes}
+                nodes={workspaceCanvas.data.nodes}
                 onCreated={(taskId) => {
                   setMobileTaskFormOpen(false)
                   setTask(taskId)
@@ -423,19 +478,17 @@ export function App() {
                 onCancel={() => setMobileTaskFormOpen(false)}
               />
             ) : null}
-
-            {mobileNodesOpen && canvas.data ? (
+            {mobileNodesOpen && workspaceCanvas.data ? (
               <MobileNodeManager
-                canvasId={canvas.data.canvas.id}
-                nodes={canvas.data.nodes}
+                canvasId={workspaceCanvas.data.canvas.id}
+                nodes={workspaceCanvas.data.nodes}
                 onClose={() => setMobileNodesOpen(false)}
               />
             ) : null}
-
             <CreateWorkspaceDialog
               onCreated={(id) => {
                 setWorkspace(id)
-                writeUrlState({ workspaceId: id, taskId: null })
+                writeUrlState({ workspaceId: id })
               }}
               open={createWorkspaceOpen}
               onOpenChange={setCreateWorkspaceOpen}
@@ -443,115 +496,127 @@ export function App() {
             />
           </div>
         ) : (
-          <div
-            className={
-              viewport === 'compact' ? 'relative flex min-h-0 flex-1' : 'flex min-h-0 flex-1'
-            }
-          >
-            <BoardRail
-              counts={counts}
-              total={counts.total}
-              expanded={boardExpanded}
-              onToggle={() => {
-                if (boardPinned) {
-                  setBoardPinned(false)
-                  setBoardExpanded(false)
-                } else {
-                  setBoardExpanded(!boardExpanded)
-                }
-              }}
-              pinned={boardPinned}
-              onTogglePin={() => setBoardPinned(!boardPinned)}
+          <div className="flex min-h-0 flex-1">
+            <DeliveryRail
+              deliveries={deliveries.data ?? []}
+              activeDeliveryId={activeDeliveryId}
+              onCreate={() => setDeliveryDialogOpen(true)}
+              onSelect={selectDelivery}
+              onOpenBoard={goBoard}
             />
-            <TaskBoard
-              tasks={tasks.data ?? []}
-              agentNodes={canvas.data?.nodes ?? []}
-              selectedTaskId={activeTaskId}
-              expanded={boardExpanded}
-              pinned={boardPinned}
-              compact={viewport === 'compact'}
-              onSelectTask={(id) => {
-                setSelectedNode(null)
-                setTask(id)
-                setRightPanel('task')
-                setBoardExpanded(false)
-                writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
-              }}
-              onOpenScene={(id) => {
-                setSceneTask(id)
-                setTask(id)
-                setSelectedNode(null)
-                setRightPanel('task')
-                setBoardExpanded(false)
-                writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
-              }}
-              onClose={() => {
-                setBoardExpanded(false)
-                setBoardPinned(false)
-              }}
-            />
-            <main className="relative min-w-0 flex-1">
-              <CanvasPanel
-                ref={canvasRef}
-                canvas={canvas.data ?? null}
-                tasks={tasks.data ?? []}
-                selectedNodeId={selectedNodeId}
-                onSelectNode={(id) => {
-                  setSelectedNode(id)
-                  setRightPanel(id ? 'node' : 'supervisor')
-                  if (id) setTask(null)
-                }}
-                onSelectNodes={setSelection}
-              />
+            <main className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+              {showTasks ? (
+                <TaskBoard
+                  tasks={tasks.data ?? []}
+                  agentNodes={workspaceCanvas.data?.nodes ?? []}
+                  selectedTaskId={activeTaskId}
+                  expanded
+                  pinned
+                  onSelectTask={openTask}
+                  onOpenScene={openTask}
+                  onClose={() => setShowTasks(false)}
+                />
+              ) : showWorkspace ? (
+                <CanvasPanel
+                  ref={canvasRef}
+                  canvas={workspaceCanvas.data ?? null}
+                  tasks={tasks.data ?? []}
+                  selectedNodeId={selectedNodeId}
+                  onSelectNode={(id) => setSelectedNode(id)}
+                  onSelectNodes={setSelection}
+                  onOpenTask={openTask}
+                />
+              ) : activeDeliveryId && delivery.data ? (
+                <DeliveryCanvas
+                  workspaceId={activeWorkspaceId ?? ''}
+                  delivery={delivery.data}
+                  canvas={deliveryCanvas.data ?? null}
+                  tasks={deliveryTasks}
+                  artifacts={artifacts.data ?? []}
+                  selectedNodeId={selectedNodeId}
+                  onSelectNode={setSelectedNode}
+                  onSelectNodes={setSelection}
+                  onOpenTask={openTask}
+                  onOpenArtifact={(artifact) => openArtifact(artifact.id)}
+                  onOpenAnnotations={openAnnotations}
+                />
+              ) : (
+                <DeliveryBoard
+                  deliveries={deliveries.data ?? []}
+                  onSelect={selectDelivery}
+                  onOpenTaskView={() => setShowTasks(true)}
+                />
+              )}
             </main>
             <RightPanel
               compact={viewport === 'compact'}
-              mode={rightPanel}
-              onModeChange={setRightPanel}
-              hasTask={Boolean(activeTaskId)}
-              hasNode={Boolean(selectedNode) && sceneTaskId === null}
+              collapsed={rightPanelCollapsed}
+              onToggleCollapsed={() => setRightPanelCollapsed(!rightPanelCollapsed)}
               hasUnreadNotice={notices.data?.notices[0]?.readAt === null}
               supervisor={
                 <SupervisorPanel
                   workspaceId={activeWorkspaceId}
                   contextNodes={contextNodes}
                   targetAgent={targetAgent}
+                  nodes={canvasNodes}
                 />
-              }
-              task={<TaskDetailPanel />}
-              node={
-                selectedNode && activeWorkspaceId ? (
-                  <NodePanel
-                    key={selectedNode.id}
-                    node={selectedNode}
-                    task={nodeTask ?? null}
-                    workspaceId={activeWorkspaceId}
-                    workspaceTrusted={activeWorkspace?.trusted ?? false}
-                    contextNodes={contextNodes}
-                    groupChildCount={
-                      canvas.data?.nodes.filter((node) => node.groupId === selectedNode.id)
-                        .length ?? 0
-                    }
-                    onOpenTask={(id) => {
-                      setSelectedNode(null)
-                      setTask(id)
-                      setRightPanel('task')
-                      writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
-                    }}
-                    onDeleted={() => {
-                      setSelectedNode(null)
-                      setRightPanel('supervisor')
-                    }}
-                    onClose={() => {
-                      setSelectedNode(null)
-                      setRightPanel('supervisor')
-                    }}
-                  />
-                ) : null
               }
             />
           </div>
         )}
+        <CreateDeliveryDialog
+          workspaceId={activeWorkspaceId ?? ''}
+          open={deliveryDialogOpen && Boolean(activeWorkspaceId)}
+          onOpenChange={setDeliveryDialogOpen}
+          onCreated={selectDelivery}
+        />
+        {overlay?.kind === 'stage' ? (
+          <StageSceneOverlay taskId={overlay.taskId} onClose={() => setOverlay(null)} />
+        ) : null}
+        {overlay?.kind === 'artifact'
+          ? (() => {
+              const artifact = (artifacts.data ?? []).find((item) => item.id === overlay.artifactId)
+              return artifact ? (
+                <ArtifactViewerOverlay
+                  deliveryId={overlay.deliveryId}
+                  artifact={artifact}
+                  onClose={() => setOverlay(null)}
+                />
+              ) : null
+            })()
+          : null}
+        {overlay?.kind === 'annotations' && delivery.data ? (
+          <AnnotationListOverlay
+            annotations={delivery.data.annotations}
+            onClose={() => setOverlay(null)}
+            onLocate={(annotation) => {
+              const nodeId = annotation.targetNodeIds[0]
+              if (nodeId) setSelectedNode(nodeId)
+              setOverlay(null)
+            }}
+          />
+        ) : null}
+        {showWorkspace && selectedNode && activeWorkspaceId ? (
+          <Overlay title="节点" onClose={() => setSelectedNode(null)} width="min(720px, 92vw)">
+            <NodePanel
+              key={selectedNode.id}
+              node={selectedNode}
+              task={nodeTask ?? null}
+              workspaceId={activeWorkspaceId}
+              workspaceTrusted={activeWorkspace?.trusted ?? false}
+              contextNodes={contextNodes}
+              groupChildCount={
+                canvasNodes.filter((node) => node.groupId === selectedNode.id).length
+              }
+              onOpenTask={(id) => {
+                setSelectedNode(null)
+                openTask(id)
+              }}
+              onDeleted={() => setSelectedNode(null)}
+              onClose={() => setSelectedNode(null)}
+            />
+          </Overlay>
+        ) : null}
       </div>
     </RealtimeProvider>
   )

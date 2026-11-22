@@ -142,7 +142,10 @@ export function getCanvasByDelivery(db: Db, deliveryId: string): Canvas | null {
   return {
     id: row.id,
     workspaceId: row.workspaceId,
-    viewport: parseJson(row.viewportJson, { x: 0, y: 0, zoom: 1 }),
+    viewport: (() => {
+      const parsed = parseJson<Partial<Canvas['viewport']>>(row.viewportJson, {})
+      return { x: parsed.x ?? 0, y: parsed.y ?? 0, zoom: parsed.zoom ?? 1 }
+    })(),
   }
 }
 

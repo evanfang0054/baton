@@ -1,4 +1,5 @@
 import { ChevronDown, ChevronRight, CircleCheck, FolderOpen } from 'lucide-react'
+import { STAGE_STATUS_LABELS, formatWaiting } from '../../deliveries/delivery-labels'
 import { useCanvasActions } from '../actions'
 import type { CanvasFlowNodeProps } from './NodeShell'
 
@@ -6,6 +7,8 @@ export function GroupNode({ data, selected }: CanvasFlowNodeProps) {
   const group = data.node.type === 'group' ? data.node.data : null
   const actions = useCanvasActions()
   if (!group) return null
+  const stage = data.stage ?? null
+  const label = stage ? `${stage.ordinal} ${stage.label}` : group.label
 
   return (
     <div
@@ -13,9 +16,24 @@ export function GroupNode({ data, selected }: CanvasFlowNodeProps) {
         selected ? 'border-accent' : 'border-separator'
       } ${data.dimmed ? 'pointer-events-none opacity-25' : ''}`}
     >
-      <div className="flex items-center gap-2 text-xs">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
         <FolderOpen size={14} aria-hidden="true" className="shrink-0 text-muted" />
-        <span className="min-w-0 flex-1 truncate font-medium text-foreground">{group.label}</span>
+        <span className="min-w-0 flex-1 truncate font-medium text-foreground">{label}</span>
+        {stage ? (
+          <>
+            <span className="shrink-0 rounded bg-default px-1.5 py-0.5 text-[10px] text-foreground">
+              {STAGE_STATUS_LABELS[stage.status]}
+            </span>
+            <span className="shrink-0 text-[10px] text-muted">
+              {stage.artifactCount} 产物 · {stage.openAnnotationCount} 标注
+            </span>
+            {stage.waitingSince ? (
+              <span className="shrink-0 text-[10px] text-warning">
+                等待 {formatWaiting(stage.waitingSince)}
+              </span>
+            ) : null}
+          </>
+        ) : null}
         {data.injected ? (
           <span className="inline-flex shrink-0 items-center gap-1 rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">
             <CircleCheck size={12} aria-hidden="true" />

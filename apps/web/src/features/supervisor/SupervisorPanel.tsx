@@ -135,8 +135,7 @@ export function SupervisorPanel({
           onOpenTask={(taskId) => {
             const state = useAppStore.getState()
             state.setSelectedNode(null)
-            state.setTask(taskId)
-            state.setRightPanel('task')
+            state.openStage(taskId)
           }}
           onDecideAction={async (actionId, decision) => {
             await send({

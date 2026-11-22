@@ -103,7 +103,7 @@ describe('SupervisorPanel', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '打开任务' }))
     expect(useAppStore.getState().activeTaskId).toBe('t1')
-    expect(useAppStore.getState().rightPanel).toBe('task')
+    expect(useAppStore.getState().overlay).toEqual({ kind: 'stage', taskId: 't1' })
   })
 
   it('retries a failed turn with the previous user message', async () => {

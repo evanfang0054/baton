@@ -44,6 +44,19 @@ describe('delivery REST', () => {
     expect(detail.statusCode).toBe(200)
     expect((detail.json() as { delivery: { stages: unknown[] } }).delivery.stages).toHaveLength(4)
 
+    const canvas = await app.inject({
+      method: 'GET',
+      url: `/api/canvas?workspaceId=${handle.seeded.workspaceId}&deliveryId=${deliveryId}`,
+    })
+    expect(canvas.statusCode, canvas.body).toBe(200)
+    const canvasBody = canvas.json() as {
+      canvas: { id: string }
+      nodes: Array<{ type: string; data?: { stageKey?: string } }>
+    }
+    expect(canvasBody.canvas.id).toBe(getCanvasByDelivery(handle.database.db, deliveryId)?.id)
+    expect(canvasBody.nodes.filter((node) => node.data?.stageKey)).toHaveLength(4)
+    expect(listNodes(handle.database.db, canvasBody.canvas.id).length).toBeGreaterThan(0)
+
     const enqueue = await app.inject({
       method: 'POST',
       url: `/api/deliveries/${deliveryId}/enqueue`,

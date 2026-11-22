@@ -22,7 +22,7 @@ describe('Root', () => {
   it('renders the app alongside the toast region', async () => {
     render(<Root />)
     expect(await screen.findByText('baton')).toBeInTheDocument()
-    expect(screen.getByTestId('board-rail')).toBeInTheDocument()
+    expect(await screen.findByLabelText('交付列表')).toBeInTheDocument()
     expect(screen.getByTestId('right-panel')).toBeInTheDocument()
 
     const tree = Root() as unknown as ReactElement<{
