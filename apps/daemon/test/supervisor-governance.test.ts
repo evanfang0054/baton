@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { buildMandate } from '@baton/core'
 import type { TaskOrigin } from '@baton/protocol'
 import { afterEach, describe, expect, it } from 'vitest'
+import { listNotices } from '../src/db/repositories.js'
 import { createTestRuntime, type TestRuntimeHandle } from './helpers/runtime.js'
 
 const handles: TestRuntimeHandle[] = []
@@ -98,5 +99,34 @@ describe('M6-5 governance', () => {
     })
     expect(handle.runtime.getTask(taskId)?.status).toBe('failed')
     expect(handle.runtime.actions.listProposed(handle.seeded.workspaceId)).toHaveLength(1)
+  })
+
+  it('attentionReminder auto generates a digest with the failure item', () => {
+    const { handle, taskId } = setup()
+    handle.database.raw
+      .prepare('update task set origin_json = ? where id = ?')
+      .run(JSON.stringify(origin(handle, ['retry', 'reopen', 'enqueue'])), taskId)
+    mkdirSync(join(handle.root, handle.seeded.relPath, '.baton'), { recursive: true })
+    writeFileSync(
+      join(handle.root, handle.seeded.relPath, '.baton', 'policy.json'),
+      JSON.stringify({
+        autonomy: { mode: 'auto', autoRetry: 'off', attentionReminder: 'auto' },
+      }),
+    )
+
+    handle.runtime.supervisor.observeTask({
+      taskId,
+      status: 'failed',
+      waitingReason: null,
+    })
+    const notices = listNotices(handle.database.db, {
+      workspaceId: handle.seeded.workspaceId,
+      kind: 'digest',
+      limit: 5,
+    })
+    expect(notices).toHaveLength(1)
+    expect(notices[0]?.payload).toMatchObject({
+      attention: { items: [{ kind: 'failed' }] },
+    })
   })
 })

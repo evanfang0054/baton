@@ -101,6 +101,12 @@ export interface SupervisorServiceDeps {
   killSwitch: () => boolean
   actions?: ReturnType<typeof createSupervisorActionService>
   failures?: FailureService
+  remindAttention?: (input: {
+    workspaceId: string
+    taskId: string
+    kind: 'review' | 'failed'
+    reason: string
+  }) => void
   loadPolicy?: (workspaceId: string) => ReturnType<typeof loadWorkspacePolicy>
   requireMandate?: (taskId: string, action: TaskAction, strength: Strength) => AppError | null
   engine?: SupervisorEngine
@@ -902,6 +908,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       const review = getReviewByTask(deps.db, task.id)
       if (!review) return
       dispatchVerifier(task, origin ?? null, review)
+      deps.remindAttention?.({
+        workspaceId: task.workspaceId,
+        taskId: task.id,
+        kind: 'review',
+        reason: `任务「${task.title}」等待你验收。`,
+      })
       return
     }
 
@@ -940,6 +952,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           }
         }
       }
+      deps.remindAttention?.({
+        workspaceId: task.workspaceId,
+        taskId: task.id,
+        kind: 'failed',
+        reason: `任务「${task.title}」执行失败，需要你决定。`,
+      })
       return
     }
 

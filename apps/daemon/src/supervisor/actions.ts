@@ -39,6 +39,7 @@ export interface SupervisorActionServiceDeps {
     event: { type: 'retry' | 'reopen'; note?: string },
   ) => TransitionOutcome
   enqueueTask: (taskId: string) => EnqueueTaskResult
+  generateDigest?: (workspaceId: string, trigger: 'attention') => unknown | null
 }
 
 export type ActionServiceResult<T> = ({ ok: true } & T) | { ok: false; error: AppError }
@@ -180,6 +181,10 @@ export function createSupervisorActionService(deps: SupervisorActionServiceDeps)
     actor: 'human' | 'supervisor' | 'system',
   ): { ok: true; result: unknown } | { ok: false; error: AppError } {
     const payload = action.payload as { taskId?: string; note?: string }
+    if (action.kind === 'attention_reminder') {
+      deps.generateDigest?.(action.workspaceId, 'attention')
+      return { ok: true, result: { generated: true } }
+    }
     if (action.kind !== 'retry' && action.kind !== 'reopen') {
       return {
         ok: false,

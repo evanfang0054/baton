@@ -919,6 +919,17 @@ export function listSessionsByTask(db: Pick<Db, 'select'>, taskId: string): Sess
     .map(toSession)
 }
 
+export function listSessionsByTasks(db: Db, taskIds: string[]): Session[] {
+  if (taskIds.length === 0) return []
+  return db
+    .select()
+    .from(session)
+    .where(inArray(session.taskId, taskIds))
+    .orderBy(asc(session.startedAt))
+    .all()
+    .map(toSession)
+}
+
 export function listReviewsByTask(db: Db, taskId: string): ReviewView[] {
   return db
     .select()

@@ -18,7 +18,7 @@ import type {
   TaskTransitionEvent,
 } from '@baton/protocol'
 import { randomUUID } from 'node:crypto'
-import { createDigestService } from '../automation/digest.js'
+import { createDigestService, type DigestServiceDeps } from '../automation/digest.js'
 import { getAcceptanceResponse, type AcceptanceResponse } from '../acceptance/report-service.js'
 import { createDigestScheduler, createTimeoutSchedule } from '../automation/scheduler.js'
 import { createAutomationService } from '../automation/service.js'
@@ -234,14 +234,15 @@ export function createRuntime(deps: RuntimeDeps) {
     ...(deps.logger ? { logger: deps.logger } : {}),
     onPolicyChanged: () => rescheduleDigest(),
   })
-  const digest = createDigestService({
+  const digestDeps: DigestServiceDeps = {
     db: deps.db,
     config: deps.config,
     eventStore,
     broadcast: deps.broadcast,
     now,
     newId,
-  })
+  }
+  const digest = createDigestService(digestDeps)
   const digestScheduler = createDigestScheduler({
     listWorkspaces: () =>
       listWorkspaces(deps.db).map((workspace) => {
@@ -297,6 +298,38 @@ export function createRuntime(deps: RuntimeDeps) {
       },
     })
     return result.ok ? null : appError('mandate_revoked', 'task mandate revoked', result.detail)
+  }
+
+  function remindAttention(input: {
+    workspaceId: string
+    taskId: string
+    kind: 'review' | 'failed'
+    reason: string
+  }): void {
+    const info = loadWorkspacePolicy(deps.db, deps.config, input.workspaceId)
+    if (!info) return
+    const mode = info.attentionReminder(automationState.isKillSwitchOn())
+    if (mode !== 'auto') return
+    const day = Math.floor(now() / 86_400_000)
+    const proposed = actions.propose({
+      workspaceId: input.workspaceId,
+      taskId: input.taskId,
+      kind: 'attention_reminder',
+      strength: 'inferred',
+      mode: 'auto',
+      reason: input.reason,
+      payload: { taskId: input.taskId, attentionKind: input.kind },
+      policyVersion: info.policyVersion,
+      dedupeKey: `attention:${input.taskId}:${input.kind}:${day}`,
+    })
+    if (proposed.ok) {
+      actions.decide({
+        workspaceId: input.workspaceId,
+        actionId: proposed.action.id,
+        actor: 'system',
+        decision: 'apply',
+      })
+    }
   }
 
   function replyToTask(taskId: string, text: string): CommandOutcome {
@@ -356,7 +389,10 @@ export function createRuntime(deps: RuntimeDeps) {
       const outcome = enqueue(taskId)
       return outcome.ok ? { ok: true, status: outcome.status } : { ok: false, error: outcome.error }
     },
+    generateDigest: (workspaceId) => digest.generate(workspaceId, 'attention'),
   })
+  digestDeps.actions = actions
+  digestDeps.failures = failures
 
   const supervisor = createSupervisorService({
     db: deps.db,
@@ -384,6 +420,7 @@ export function createRuntime(deps: RuntimeDeps) {
     killSwitch: () => automationState.isKillSwitchOn(),
     actions,
     failures,
+    remindAttention,
     loadPolicy: (workspaceId) => loadWorkspacePolicy(deps.db, deps.config, workspaceId),
     requireMandate: (taskId, action, strength) => requireMandate(taskId, action, strength),
     ...(deps.supervisorEngine ? { engine: deps.supervisorEngine } : {}),

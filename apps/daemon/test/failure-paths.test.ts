@@ -127,7 +127,7 @@ describe('failure paths', () => {
       type: 'task.create',
       id: 'f1',
       ts: 1,
-      payload: createTaskPayload(handle, 'node -e "process.exit(0)"'),
+      payload: createPayload(handle, 'node -e "process.exit(0)"'),
     })
     const createdAck = await ws.next('ack')
     const taskId = (createdAck.payload as { data: { taskId: string } }).data.taskId
