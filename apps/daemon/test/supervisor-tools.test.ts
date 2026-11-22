@@ -176,14 +176,20 @@ describe('supervisor tools', () => {
   it('creates a todo task with origin and audit, never enqueues', async () => {
     const { database, seeded, tools } = setup()
     const result = (await tools.create_task.execute(
-      { title: '登录页暗黑模式', targetNodeId: seeded.nodeId, contextNodeIds: ['text-1'] },
+      {
+        title: '登录页暗黑模式',
+        prompt: '给登录页增加暗黑模式并保持现有布局',
+        targetNodeId: seeded.nodeId,
+        contextNodeIds: ['text-1'],
+      },
       ctx(seeded),
     )) as { taskId: string; status: string; contextCount: number }
 
     expect(result).toMatchObject({ taskId: 'task-new', status: 'todo', contextCount: 1 })
     const task = getTask(database.db, 'task-new')
     expect(task?.status).toBe('todo')
-    expect(task?.prompt).toContain('<task>')
+    expect(task?.prompt).toContain('给登录页增加暗黑模式并保持现有布局')
+    expect(task?.prompt).not.toContain('给这个 Agent 建个任务')
     expect(database.raw.prepare('select count(*) as n from session').get()).toEqual({ n: 0 })
     expect(database.raw.prepare('select count(*) as n from audit').get()).toEqual({ n: 1 })
     const row = database.raw
@@ -195,6 +201,13 @@ describe('supervisor tools', () => {
       threadId: 'th1',
       policyVersion: 'p1',
     })
+  })
+
+  it('requires an explicit prompt instead of reusing the trigger text', async () => {
+    const { seeded, tools } = setup()
+    await expect(
+      tools.create_task.execute({ title: '没有任务指令' }, ctx(seeded)),
+    ).rejects.toBeInstanceOf(Error)
   })
 
   it('filters tasks by q and status in the current workspace', async () => {
@@ -505,6 +518,7 @@ describe('supervisor tools', () => {
     await tools.create_task.execute(
       {
         title: '隔离改动',
+        prompt: '在隔离分支完成登录页暗黑模式',
         targetNodeId: seeded.nodeId,
         contextNodeIds: [],
         workspaceMode: 'worktree',
@@ -660,7 +674,10 @@ describe('supervisor tools', () => {
       ...ctx(seeded),
       selection: { contextNodeIds: [], agentCandidates: [] },
     }
-    const result = (await tools.create_task.execute({ title: '自动派活', start: true }, bare)) as {
+    const result = (await tools.create_task.execute(
+      { title: '自动派活', prompt: '完成自动派活验证', start: true },
+      bare,
+    )) as {
       taskId: string
       status: string
       target: { id: string }
@@ -677,9 +694,9 @@ describe('supervisor tools', () => {
   it('updates a todo task title and starts it on a follow-up call', async () => {
     const { database, seeded, tools } = setup()
     const context = ctx(seeded)
-    await tools.create_task.execute({ title: '文档助手' }, context)
+    await tools.create_task.execute({ title: '文档助手', prompt: '整理文档' }, context)
     const second = (await tools.create_task.execute(
-      { title: '给 README 增加用法说明', start: true },
+      { title: '给 README 增加用法说明', prompt: '给 README 增加用法说明', start: true },
       context,
     )) as { title: string; status: string }
 
@@ -700,7 +717,12 @@ describe('supervisor tools', () => {
     const { seeded, tools } = setup()
     await expect(
       tools.create_task.execute(
-        { title: 'x', targetNodeId: seeded.nodeId, contextNodeIds: ['other'] },
+        {
+          title: 'x',
+          prompt: '测试无效上下文',
+          targetNodeId: seeded.nodeId,
+          contextNodeIds: ['other'],
+        },
         ctx(seeded),
       ),
     ).rejects.toMatchObject({ code: 'supervisor_context_invalid' })

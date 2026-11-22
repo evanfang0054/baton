@@ -211,6 +211,8 @@ const getTaskFailureInput = z.object({
 
 const createTaskInput = z.object({
   title: z.string().min(1).max(80),
+  // 任务指令必须由总管显式给全：用户只说“可以/继续”时，不能把确认词当成任务内容。
+  prompt: z.string().trim().min(1).max(16_384),
   agentTitle: z.string().min(1).max(80).optional(),
   targetNodeId: z.string().min(1).optional(),
   contextNodeIds: z.array(z.string().min(1)).max(40).optional(),
@@ -956,7 +958,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
 
     create_task: {
       description:
-        '创建任务；没有目标 Agent 时会自动创建一个 Agent 节点。只有用户明确要求隔离/worktree 时才传 workspaceMode=worktree。start=true 时立即开工。',
+        '创建任务；prompt 必填，写清要执行的具体工作（用户只回复“可以/继续”时，结合上一轮请求补全，不能把确认词当任务）。没有目标 Agent 时会自动创建一个 Agent 节点。只有用户明确要求隔离/worktree 时才传 workspaceMode=worktree。start=true 时立即开工。',
       parameters: createTaskInput,
       async execute(input, ctx) {
         const parsed = createTaskInput.parse(input)
@@ -997,7 +999,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
 
         const created = createTaskForTool(ctx, {
           title: parsed.title,
-          prompt: ctx.text,
+          prompt: parsed.prompt,
           target,
           contextNodeIds,
           engine,

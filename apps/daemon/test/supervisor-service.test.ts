@@ -128,6 +128,7 @@ describe('supervisor service', () => {
         onDelta('正在建任务')
         const result = await tools.create_task.execute({
           title: '登录页暗黑模式',
+          prompt: '给登录页增加暗黑模式',
           contextNodeIds: ['text-1'],
         })
         return {
@@ -368,6 +369,45 @@ describe('supervisor service', () => {
 
     const last = service.history(seeded.workspaceId, 50).messages.at(-1)
     expect(last?.content).toContain('执行失败')
+  })
+
+  it('includes the blocked reason in the waiting notification', async () => {
+    const engine: SupervisorEngine = {
+      async run() {
+        throw new Error('unused')
+      },
+      async summarize({ prompt }) {
+        return prompt
+      },
+    }
+    const { database, seeded, service, drain } = setup(engine)
+    seedSupervisorReview(database, seeded)
+    database.raw
+      .prepare(
+        "insert into session (id, task_id, adapter, status, started_at) values ('sess-blocked', ?, 'claude-sdk', 'waiting_input', 1)",
+      )
+      .run(seeded.taskId)
+    database.raw
+      .prepare(
+        "insert into event (id, session_id, ordinal, seq, type, payload_json, ts) values ('evt-blocked', 'sess-blocked', 1, 1, 'CUSTOM', ?, 1)",
+      )
+      .run(
+        JSON.stringify({
+          type: 'CUSTOM',
+          name: 'session.outcome',
+          value: { outcome: 'blocked', reason: '缺少实际需求，请告诉我要做什么' },
+        }),
+      )
+
+    service.observeTask({
+      taskId: seeded.taskId,
+      status: 'waiting_input',
+      waitingReason: 'question',
+    })
+    await drain()
+
+    const last = service.history(seeded.workspaceId, 50).messages.at(-1)
+    expect(last?.content).toContain('缺少实际需求，请告诉我要做什么')
   })
 
   function seedSupervisorReview(database: TestDb, seeded: ReturnType<typeof seedTask>) {

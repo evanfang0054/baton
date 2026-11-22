@@ -985,10 +985,14 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     }
 
     if (input.status === 'waiting_input' && input.waitingReason !== 'approval') {
+      const session = listSessionsByTask(deps.db, task.id).at(-1)
+      const blockedReason = session ? getSessionOutcomeReason(deps.db, session.id) : null
       notify(
         origin.threadId,
         `observe:waiting:${task.id}:${input.waitingReason ?? 'unknown'}:${task.updatedAt}`,
-        `任务「${task.title}」停下等待输入（${input.waitingReason ?? '未知原因'}）。`,
+        `任务「${task.title}」停下等待输入（${input.waitingReason ?? '未知原因'}）${
+          blockedReason ? `：${blockedReason}` : '。'
+        }`,
       )
     }
   }

@@ -69,4 +69,5 @@
 - 证据：`docs/evidence/2026-11-22-m6-5/README.md`
 - 测试说明：仓库没有名为 `ScriptedSupervisorEngine` 的既有 harness；daemon 集成使用真实临时 DB + mock OpenAI-compatible 引擎 + fake/真实 Claude 各一条链路覆盖同等范围。
 - 注意力分类口径：预算停任务的 `attention=needs_approval` 是状态机派生值；为避免 `budget` 语义丢失，实现让 `waitingReason=budget` 直接归类为 budget，其余多原因合并仍遵循 spec 的审批 > 回复 > 验收 > 失败 > 预算 > stale。
+- 任务指令口径：`create_task.prompt` 必填，总管必须把用户请求补全为自包含的任务指令；用户只回复“可以/继续”时，结合上一轮请求写清楚要做什么，不能把确认词当成任务内容。等待输入通知与任务详情会展示 worker 上报的 blocked/dropped 原因，避免只显示“待处理”而没有原因。
 - 保留边界：总管仍不能 approve/reject、不能执行命令、不能读 transcript；计划 apply 只由人触发。
