@@ -24,6 +24,9 @@ import {
   TaskHistoryResponse,
   TaskListResponse,
   AnnotationListResponse,
+  AnnotationCreateInput,
+  AnnotationResponse,
+  AnnotationUpdateInput,
   ArtifactCreateInput,
   ArtifactListResponse,
   ArtifactResponse,
@@ -262,6 +265,33 @@ export async function listAnnotations(
       `/api/deliveries/${encodeURIComponent(deliveryId)}/annotations${query ? `?${query}` : ''}`,
     ),
   ).annotations
+}
+
+export async function createAnnotation(deliveryId: string, input: AnnotationCreateInput) {
+  return AnnotationResponse.parse(
+    await request(`/api/deliveries/${encodeURIComponent(deliveryId)}/annotations`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    }),
+  ).annotation
+}
+
+export async function updateAnnotation(
+  deliveryId: string,
+  annotationId: string,
+  input: AnnotationUpdateInput,
+) {
+  return AnnotationResponse.parse(
+    await request(
+      `/api/deliveries/${encodeURIComponent(deliveryId)}/annotations/${encodeURIComponent(annotationId)}`,
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      },
+    ),
+  ).annotation
 }
 
 export async function getTask(taskId: string) {

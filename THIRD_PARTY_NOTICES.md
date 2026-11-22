@@ -30,6 +30,8 @@ baton 以 MIT 许可发布。运行时会依赖下列第三方组件，其许可
 | `react` / `react-dom` | MIT | 前端运行时 |
 | `react-markdown` / `remark-gfm` | MIT | 产物 Markdown 渲染（GFM） |
 | `@excalidraw/excalidraw` | MIT | 交付画板编辑器（独立 lazy chunk） |
+| `perfect-freehand` | MIT | 快速标注笔迹轮廓 |
+| `html-to-image` | MIT | 标注合成图 |
 | `@tanstack/react-query` | MIT | 服务端状态与缓存 |
 | `@tanstack/react-virtual` | MIT | transcript 长列表虚拟滚动 |
 | `zustand` | MIT | 客户端 UI 状态 |

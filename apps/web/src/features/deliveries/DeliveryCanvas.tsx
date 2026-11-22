@@ -1,6 +1,7 @@
 import type { Artifact, CanvasResponse, DeliveryDetail, Node, TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { QuickAnnotationLayer } from '../annotations/QuickAnnotationLayer'
 import { CanvasPanel, type CanvasPanelHandle } from '../canvas/CanvasPanel'
 import { DELIVERY_STATUS_LABELS, STAGE_STATUS_LABELS, formatWaiting } from './delivery-labels'
 
@@ -26,6 +27,7 @@ export function DeliveryCanvas({
   onOpenDrawing,
   onOpenAnnotations,
   onCreateDrawing,
+  onAnnotationsChanged,
 }: {
   workspaceId: string
   delivery: DeliveryDetail
@@ -40,8 +42,10 @@ export function DeliveryCanvas({
   onOpenDrawing: (artifact: Artifact) => void
   onOpenAnnotations: () => void
   onCreateDrawing: () => void
+  onAnnotationsChanged: () => void
 }) {
   const canvasRef = useRef<CanvasPanelHandle>(null)
+  const [annotating, setAnnotating] = useState(false)
   const currentStage = useMemo(
     () => delivery.stages.find((stage) => stage.key === delivery.currentStageKey) ?? null,
     [delivery.currentStageKey, delivery.stages],
@@ -136,10 +140,26 @@ export function DeliveryCanvas({
             <Button size="sm" variant="tertiary" onPress={onCreateDrawing}>
               新建画板
             </Button>
+            <Button
+              size="sm"
+              variant={annotating ? 'primary' : 'tertiary'}
+              onPress={() => setAnnotating(!annotating)}
+            >
+              快速标注
+            </Button>
           </div>
           <p className="mt-1 text-[10px] text-muted">工作区 {workspaceId.slice(0, 8)}</p>
         </div>
       </div>
+      {annotating ? (
+        <QuickAnnotationLayer
+          deliveryId={delivery.id}
+          stageKey={currentStage?.key ?? delivery.stages[0]?.key ?? 'requirement'}
+          annotations={delivery.annotations}
+          onClose={() => setAnnotating(false)}
+          onSaved={onAnnotationsChanged}
+        />
+      ) : null}
     </section>
   )
 }

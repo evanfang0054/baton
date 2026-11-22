@@ -593,6 +593,15 @@ export function App() {
                   }
                   onOpenAnnotations={openAnnotations}
                   onCreateDrawing={() => void createDrawing()}
+                  onAnnotationsChanged={() => {
+                    if (!activeDeliveryId) return
+                    void queryClient.invalidateQueries({
+                      queryKey: queryKeys.delivery(activeDeliveryId),
+                    })
+                    void queryClient.invalidateQueries({
+                      queryKey: queryKeys.deliveries(activeWorkspaceId ?? ''),
+                    })
+                  }}
                 />
               ) : (
                 <DeliveryBoard

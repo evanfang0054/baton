@@ -19,8 +19,9 @@
     "check:protocol": "node scripts/check-protocol-duplicates.mjs",
     "check:secrets": "bash scripts/check-secrets.sh",
     "pack:check": "node scripts/pack-check.mjs",
+    "check:bundles": "node scripts/check-web-bundles.mjs",
     "bench:m1-7a": "tsx scripts/bench-m1-7a.ts",
-    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm check:boundaries && pnpm check:boundaries:selftest && pnpm check:protocol && pnpm test && pnpm build",
+    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm check:boundaries && pnpm check:boundaries:selftest && pnpm check:protocol && pnpm test && pnpm build && pnpm check:bundles",
     "verify:full": "pnpm verify && pnpm exec playwright test"
   },
   "devDependencies": {
