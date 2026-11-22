@@ -32,6 +32,7 @@ import { TaskOriginCard } from './TaskOriginCard'
 import { Transcript } from './Transcript'
 import { WorktreeCard } from './WorktreeCard'
 import { sessionStatusLabel } from './labels'
+import { latestBlockedOutcome } from './transcript-model'
 
 export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId)
@@ -249,6 +250,7 @@ function DetailContent({
   showActions: boolean
 }) {
   const task = detail.task
+  const blockedOutcome = latestBlockedOutcome(events)
   const pendingApprovals = [...detail.approvals].reverse().filter((item) => item.decision === null)
   const needsApproval = detail.attention === 'needs_approval'
   const [historyDiffReviewId, setHistoryDiffReviewId] = useState<string | null>(null)
@@ -378,7 +380,22 @@ function DetailContent({
       ) : null}
 
       {task.status === 'waiting_input' && detail.attention === 'needs_reply' ? (
-        <ReplyComposer taskId={task.id} onDone={onDone} />
+        <div className="flex shrink-0 flex-col gap-2">
+          {blockedOutcome ? (
+            <section
+              aria-label="等待你回复的原因"
+              className="rounded-lg border border-warning bg-warning/10 p-3"
+            >
+              <h3 className="text-xs font-medium text-warning">
+                {blockedOutcome.outcome === 'blocked' ? 'Agent 需要你回复' : '任务已停止'}
+              </h3>
+              <p className="mt-1 whitespace-pre-wrap break-words text-xs text-foreground">
+                {blockedOutcome.reason}
+              </p>
+            </section>
+          ) : null}
+          <ReplyComposer taskId={task.id} onDone={onDone} />
+        </div>
       ) : null}
 
       {task.status === 'review' ? (

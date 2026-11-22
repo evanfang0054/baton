@@ -458,6 +458,57 @@ describe('TaskDetailPanel', () => {
     expect(screen.queryByText('需要授权')).not.toBeInTheDocument()
   })
 
+  it('shows the blocked reason above the reply composer', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url === '/api/tasks/t1') {
+          return Response.json(
+            detail({
+              task: { ...baseTask, status: 'waiting_input', waitingReason: 'question' },
+              attention: 'needs_reply',
+            }),
+          )
+        }
+        if (url === '/api/tasks/t1/automation') {
+          return Response.json({
+            taskId: 't1',
+            retryCount: 0,
+            lastVerifyExitCode: null,
+            lastPolicyVersion: null,
+            autoDecisions: [],
+          })
+        }
+        if (url.startsWith('/api/sessions/s1/events')) {
+          return Response.json({
+            sessionId: 's1',
+            events: [
+              {
+                seq: 1,
+                ts: 10,
+                type: 'CUSTOM',
+                payload: {
+                  type: 'CUSTOM',
+                  name: 'session.outcome',
+                  value: { outcome: 'blocked', reason: '缺少具体任务，请说明要做什么' },
+                },
+              },
+            ],
+            nextSeq: 1,
+            hasMore: false,
+          })
+        }
+        throw new Error(`unexpected fetch ${url}`)
+      }),
+    )
+    renderPanel()
+
+    expect(await screen.findByText('Agent 需要你回复')).toBeInTheDocument()
+    expect(screen.getByText('缺少具体任务，请说明要做什么')).toBeInTheDocument()
+    expect(screen.getByLabelText('回复内容')).toBeInTheDocument()
+  })
+
   it('loads the next page of session events', async () => {
     const urls: string[] = []
     vi.stubGlobal(

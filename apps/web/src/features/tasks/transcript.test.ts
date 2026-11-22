@@ -1,6 +1,6 @@
 import type { SessionEventRecord } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
-import { buildTranscript } from './transcript-model'
+import { buildTranscript, latestBlockedOutcome } from './transcript-model'
 
 function event(seq: number, type: string, payload: unknown, ts = seq): SessionEventRecord {
   return { seq, type, payload, ts }
@@ -117,5 +117,35 @@ describe('buildTranscript', () => {
       event(2, 'TEXT_MESSAGE_CONTENT', null),
     ])
     expect(entries).toEqual([])
+  })
+})
+
+describe('latestBlockedOutcome', () => {
+  const outcome = (seq: number, value: unknown) =>
+    event(seq, 'CUSTOM', { type: 'CUSTOM', name: 'session.outcome', value })
+
+  it('returns the latest blocked reason', () => {
+    expect(
+      latestBlockedOutcome([
+        outcome(1, { outcome: 'blocked', reason: '缺少任务内容' }),
+        event(2, 'TEXT_MESSAGE_CONTENT', { type: 'TEXT_MESSAGE_CONTENT', delta: '继续' }),
+        outcome(3, { outcome: 'blocked', reason: '用户回复 ok 仍缺少需求' }),
+      ]),
+    ).toEqual({ outcome: 'blocked', reason: '用户回复 ok 仍缺少需求' })
+  })
+
+  it('ignores stale blocked reasons once a newer outcome exists', () => {
+    expect(
+      latestBlockedOutcome([
+        outcome(1, { outcome: 'blocked', reason: '缺少任务内容' }),
+        outcome(2, { outcome: 'ready' }),
+      ]),
+    ).toBeNull()
+  })
+
+  it('ignores non-blocked outcomes and malformed payloads', () => {
+    expect(latestBlockedOutcome([outcome(1, { outcome: 'ready', reason: '完成' })])).toBeNull()
+    expect(latestBlockedOutcome([event(1, 'CUSTOM', null)])).toBeNull()
+    expect(latestBlockedOutcome([])).toBeNull()
   })
 })
