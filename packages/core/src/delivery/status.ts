@@ -1,0 +1,41 @@
+import type { DeliveryStatus, StageStatus, TaskStatus } from '@baton/protocol'
+
+export function deriveStageStatus(taskStatus: TaskStatus | null): StageStatus {
+  if (taskStatus === null || taskStatus === 'todo') return 'pending'
+  if (taskStatus === 'queued' || taskStatus === 'running' || taskStatus === 'verifying') {
+    return 'running'
+  }
+  if (taskStatus === 'waiting_input' || taskStatus === 'review') return 'waiting_person'
+  if (taskStatus === 'done') return 'done'
+  if (taskStatus === 'failed') return 'failed'
+  return 'cancelled'
+}
+
+export function deriveDeliveryStatus(input: {
+  cancelled: boolean
+  stages: Array<{ key: string; status: StageStatus }>
+}): DeliveryStatus {
+  if (input.cancelled) return 'cancelled'
+  const statuses = input.stages.map((stage) => stage.status)
+  if (statuses.length > 0 && statuses.every((status) => status === 'done')) return 'done'
+  if (statuses.some((status) => status === 'waiting_person')) return 'waiting_person'
+  if (
+    statuses.some(
+      (status, index) => status === 'pending' && index > 0 && statuses[index - 1] === 'done',
+    )
+  ) {
+    return 'waiting_person'
+  }
+  if (statuses.some((status) => status === 'running')) return 'running'
+  if (statuses.some((status) => status === 'failed')) return 'blocked'
+  if (statuses.every((status) => status === 'pending')) return 'draft'
+  return 'running'
+}
+
+export function deriveCurrentStageKey(
+  stages: Array<{ key: string; status: StageStatus }>,
+): string | null {
+  return (
+    stages.find((stage) => stage.status !== 'done' && stage.status !== 'cancelled')?.key ?? null
+  )
+}
