@@ -3,7 +3,7 @@ import type { TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
 import { AlertTriangle, BadgeCheck, Clock } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { AttentionBadge } from './AttentionBadge'
 import { StatusChip } from './StatusChip'
 import { WaitingTime } from './WaitingTime'
@@ -13,9 +13,12 @@ interface TaskCardProps {
   selected?: boolean
   selectable?: boolean
   stale?: boolean
+  draggable?: boolean
+  dragging?: boolean
   onSelect: (taskId: string) => void
   onToggle?: (taskId: string) => void
   onOpenScene?: (taskId: string) => void
+  onDragPointerDown?: (event: ReactPointerEvent<HTMLDivElement>, task: TaskSummary) => void
 }
 
 const cardClass = [
@@ -28,9 +31,12 @@ export function TaskCard({
   selected = false,
   selectable = false,
   stale = false,
+  draggable = false,
+  dragging = false,
   onSelect,
   onToggle,
   onOpenScene,
+  onDragPointerDown,
 }: TaskCardProps) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -91,8 +97,19 @@ export function TaskCard({
   )
 
   if (!selectable) {
+    const dragClass = draggable ? 'cursor-grab select-none active:cursor-grabbing' : ''
     return (
-      <div className={`${cardClass} ${border}`}>
+      <div
+        data-testid={`task-card-${task.id}`}
+        data-dragging={dragging ? 'true' : undefined}
+        className={`${cardClass} ${border} ${dragClass} ${dragging ? 'opacity-40' : ''}`}
+        style={draggable ? { touchAction: 'pan-y' } : undefined}
+        title={draggable ? '长按后拖拽到其他列可更改状态' : undefined}
+        onPointerDown={
+          draggable && onDragPointerDown ? (event) => onDragPointerDown(event, task) : undefined
+        }
+        onContextMenu={dragging ? (event) => event.preventDefault() : undefined}
+      >
         <button
           type="button"
           aria-current={selected ? 'true' : undefined}
@@ -114,11 +131,21 @@ export function TaskCard({
 
   // 只有待办任务能被批量开工；其他状态保持只读，避免误触。
   if (task.status !== 'todo') {
-    return <div className={`${cardClass} border-separator opacity-60`}>{body}</div>
+    return (
+      <div
+        data-testid={`task-card-${task.id}`}
+        className={`${cardClass} border-separator opacity-60`}
+      >
+        {body}
+      </div>
+    )
   }
 
   return (
-    <label className={`${cardClass} ${border} flex cursor-pointer items-start gap-2`}>
+    <label
+      data-testid={`task-card-${task.id}`}
+      className={`${cardClass} ${border} flex cursor-pointer items-start gap-2`}
+    >
       <input
         type="checkbox"
         aria-label={`选择 ${task.title}`}
