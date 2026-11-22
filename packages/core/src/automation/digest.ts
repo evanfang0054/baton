@@ -1,7 +1,6 @@
 import type { DigestReport, DigestTaskRef, Task } from '@baton/protocol'
 import { attentionFor } from '../state-machine/attention.js'
 import { boardColumn, waitingSinceFor } from '../tasks/board.js'
-
 export interface DigestInput {
   workspaceId: string
   now: number
@@ -110,6 +109,10 @@ export function buildDigest(input: DigestInput): DigestReport {
       autoDenied: input.autoDecisions.filter(
         (decision) => decision.decision === 'deny' && decision.decidedAt >= input.windowStart,
       ).length,
+    },
+    attention: {
+      items: [],
+      counts: { approval: 0, reply: 0, review: 0, failed: 0, budget: 0, stale: 0 },
     },
     oldestWaiting,
   }
