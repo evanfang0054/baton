@@ -5,6 +5,8 @@ import type {
   FailureSummary,
   TaskStatus,
 } from '@baton/protocol'
+import { AttentionItem as AttentionItemSchema } from '@baton/protocol'
+import { isStale } from '../tasks/board.js'
 
 export interface AttentionCandidate {
   taskId: string
@@ -30,19 +32,19 @@ const PRIORITY: Record<AttentionKind, number> = {
 }
 
 function kindFor(task: AttentionCandidate, now: number): AttentionKind | null {
+  if (task.waitingReason === 'budget') return 'budget'
   if (task.attention === 'needs_approval' || task.waitingReason === 'approval') return 'approval'
   if (
     task.attention === 'needs_reply' ||
     task.waitingReason === 'question' ||
-    task.waitingReason === 'stalled' ||
     task.waitingReason === 'dropped'
   ) {
     return 'reply'
   }
   if (task.status === 'review' || task.attention === 'needs_review') return 'review'
   if (task.status === 'failed' || (task.acceptance?.counts.fail ?? 0) > 0) return 'failed'
-  if (task.budget?.overBudget || task.waitingReason === 'budget') return 'budget'
-  if (task.waitingSince !== null && task.waitingSince <= now - 30 * 60_000) return 'stale'
+  if (task.budget?.overBudget) return 'budget'
+  if (task.waitingReason === 'stalled' || isStale(task.waitingSince, now)) return 'stale'
   return null
 }
 
@@ -52,7 +54,9 @@ function reasonFor(kind: AttentionKind, task: AttentionCandidate): string {
   if (kind === 'review') return '等待你验收'
   if (kind === 'budget') return '超出预算，等你决定'
   if (kind === 'stale') return '已等待超过 30 分钟'
-  return task.lastFailure?.summary || '执行失败，等你决定'
+  const text = task.lastFailure?.summary.trim() ?? ''
+  if (!text) return '执行失败，等你决定'
+  return text.length > 200 ? `${text.slice(0, 199)}…` : text
 }
 
 function actionFor(kind: AttentionKind, task: AttentionCandidate): AttentionItem['action'] {
@@ -88,15 +92,17 @@ export function buildAttentionItems(input: {
       return b.task.updatedAt - a.task.updatedAt
     })
     .slice(0, input.limit ?? 20)
-    .map(({ kind, task }) => ({
-      taskId: task.taskId,
-      title: task.title,
-      kind,
-      reason: reasonFor(kind, task),
-      waitingSince: task.waitingSince,
-      proposalId: kind === 'failed' ? task.proposalId : null,
-      action: actionFor(kind, task),
-    }))
+    .map(({ kind, task }) =>
+      AttentionItemSchema.parse({
+        taskId: task.taskId,
+        title: task.title,
+        kind,
+        reason: reasonFor(kind, task),
+        waitingSince: task.waitingSince,
+        proposalId: kind === 'failed' ? task.proposalId : null,
+        action: actionFor(kind, task),
+      }),
+    )
   const counts: AttentionCounts = {
     approval: 0,
     reply: 0,

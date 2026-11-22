@@ -3,7 +3,13 @@ import type { FailureStage, FailureSummary } from '@baton/protocol'
 export function normalizeAffectedPaths(paths: string[]): string[] {
   return paths
     .map((path) => path.replaceAll('\\', '/').trim())
-    .filter((path) => path.length > 0 && !path.startsWith('/') && !path.startsWith('..'))
+    .filter(
+      (path) =>
+        path.length > 0 &&
+        !path.startsWith('/') &&
+        !path.startsWith('..') &&
+        !/^[A-Za-z]:\//.test(path),
+    )
     .slice(0, 20)
     .map((path) => path.slice(0, 500))
 }
@@ -18,6 +24,10 @@ export function sanitizeFailureText(input: {
     text = text.split(input.workspaceRoot).join('<workspace>')
   }
   text = text.replace(/\/(?:Users|home)\/[^/\s]+\//g, '<workspace>/')
+  text = text.replace(
+    /[A-Za-z]:[\\/](?:Users|Documents and Settings)[\\/][^\\/\s]+/gi,
+    '<workspace>',
+  )
   text = text.replace(/\b(token|apiKey|secret|authorization)\s*[:=]\s*\S+/gi, '$1=<redacted>')
   const max = input.max ?? 2000
   return text.length > max ? text.slice(0, max) : text

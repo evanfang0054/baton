@@ -28,4 +28,21 @@ describe('failure summary', () => {
     expect(summary.affectedPaths).toHaveLength(20)
     expect(normalizeAffectedPaths(['src/a.ts', '../x', '/tmp/y'])).toEqual(['src/a.ts'])
   })
+
+  it('drops and redacts Windows absolute paths', () => {
+    const summary = buildFailureSummary({
+      stage: 'run',
+      message: 'failed at C:\\Users\\alice\\demo\\src\\login.ts',
+      retryable: true,
+      affectedPaths: [
+        'src/login.ts',
+        'C:\\Users\\alice\\demo\\src\\login.ts',
+        '\\\\host\\share\\secret.ts',
+      ],
+      now: 1,
+    })
+    expect(summary.lastError).toContain('<workspace>')
+    expect(summary.lastError).not.toContain('alice')
+    expect(summary.affectedPaths).toEqual(['src/login.ts'])
+  })
 })

@@ -1,3 +1,4 @@
+import { AttentionItem } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
 import { buildAttentionItems } from '../src/supervisor/attention.js'
 
@@ -126,5 +127,73 @@ describe('buildAttentionItems', () => {
       items: [],
       counts: { approval: 0, reply: 0, review: 0, failed: 0, budget: 0, stale: 0 },
     })
+  })
+
+  it('truncates long failure reasons to the schema limit', () => {
+    const result = buildAttentionItems({
+      now,
+      tasks: [
+        {
+          taskId: 't1',
+          title: '失败',
+          status: 'failed',
+          attention: 'none',
+          waitingReason: null,
+          waitingSince: null,
+          updatedAt: now,
+          acceptance: null,
+          budget: null,
+          proposalId: null,
+          lastFailure: { stage: 'verify', summary: 'x'.repeat(2000) },
+        },
+      ],
+    })
+    expect(result.items[0]?.reason).toHaveLength(200)
+    expect(AttentionItem.safeParse(result.items[0]).success).toBe(true)
+  })
+
+  it('classifies waiting on budget before approval', () => {
+    const result = buildAttentionItems({
+      now,
+      tasks: [
+        {
+          taskId: 't1',
+          title: '等预算',
+          status: 'waiting_input',
+          attention: 'needs_approval',
+          waitingReason: 'budget',
+          waitingSince: now - 60_000,
+          updatedAt: now - 60_000,
+          acceptance: null,
+          budget: null,
+          proposalId: null,
+          lastFailure: null,
+        },
+      ],
+    })
+    expect(result.items[0]?.kind).toBe('budget')
+    expect(result.counts.budget).toBe(1)
+  })
+
+  it('classifies stalled tasks as stale', () => {
+    const result = buildAttentionItems({
+      now,
+      tasks: [
+        {
+          taskId: 't1',
+          title: '停滞',
+          status: 'waiting_input',
+          attention: 'needs_attention',
+          waitingReason: 'stalled',
+          waitingSince: now - 31 * 60_000,
+          updatedAt: now - 31 * 60_000,
+          acceptance: null,
+          budget: null,
+          proposalId: null,
+          lastFailure: null,
+        },
+      ],
+    })
+    expect(result.items[0]?.kind).toBe('stale')
   })
 })
