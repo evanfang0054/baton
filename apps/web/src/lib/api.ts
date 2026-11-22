@@ -10,6 +10,7 @@ import {
   NoticeListResponse,
   ReviewDiffResponse,
   SessionEventsResponse,
+  SupervisorActionResponse,
   SupervisorMessagesResponse,
   SupervisorStatusResponse,
   TaskAutomationSummary,
@@ -158,6 +159,12 @@ export async function getSupervisorMessages(workspaceId: string, before?: string
   const query = new URLSearchParams({ workspaceId, limit: String(limit) })
   if (before) query.set('before', before)
   return SupervisorMessagesResponse.parse(await request(`/api/supervisor/messages?${query}`))
+}
+
+export async function getSupervisorAction(actionId: string) {
+  return SupervisorActionResponse.parse(
+    await request(`/api/supervisor/actions/${encodeURIComponent(actionId)}`),
+  )
 }
 
 export async function getAutomation(workspaceId: string) {

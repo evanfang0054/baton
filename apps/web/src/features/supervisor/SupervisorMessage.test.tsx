@@ -1,6 +1,8 @@
 import type { SupervisorMessage as SupervisorMessageRecord } from '@baton/protocol'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { CommandProvider } from '../../lib/command-context'
 import { SupervisorMessage } from './SupervisorMessage'
 
 const message: SupervisorMessageRecord = {
@@ -128,5 +130,53 @@ describe('SupervisorMessage', () => {
     expect(screen.getByText('跟进：登录页改造')).toBeVisible()
     expect(screen.getByText(/交接自《登录页改造》/)).toBeVisible()
     expect(screen.getByText(/变更文件在主工作区不可读/)).toBeVisible()
+  })
+
+  it('renders a plan card from plan_tasks', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <CommandProvider send={() => Promise.resolve(undefined)}>
+          <SupervisorMessage
+            message={{
+              ...message,
+              id: 'm-plan',
+              content: '这是计划，请确认。',
+              toolCalls: [
+                {
+                  id: 'tc-plan',
+                  name: 'plan_tasks',
+                  args: {},
+                  ok: true,
+                  result: {
+                    actionId: 'a1',
+                    status: 'proposed',
+                    plan: {
+                      triggerId: 'trigger-1',
+                      source: { nodeIds: ['n1'] },
+                      templateId: 'bugfix',
+                      contextDigest: [],
+                      items: [
+                        {
+                          title: '修复登录',
+                          templateId: 'bugfix',
+                          targetNodeId: null,
+                          agentTitle: 'Agent 1',
+                          contextNodeIds: ['n1'],
+                          engine: null,
+                          budgetUsd: null,
+                        },
+                      ],
+                    },
+                  },
+                },
+              ],
+            }}
+          />
+        </CommandProvider>
+      </QueryClientProvider>,
+    )
+    expect(screen.getByText('计划：1 个任务')).toBeVisible()
+    expect(screen.getByRole('button', { name: '应用全部' })).toBeVisible()
   })
 })
