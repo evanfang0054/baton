@@ -50,4 +50,5 @@ M7-1 → M7-2 → M7-3 → M7-4a → M7-4b → M7-5 → M7-6
 
 - M7 spec / ADR / contract：已完成并提交。
 - M7-1 plan：已完成并验证（`pnpm verify` 全绿）；分支 `feat/m7-1-protocol-core`。
-- M7-2 ~ M7-6：未创建；等前一个 plan 通过确认门后再写，避免一次堆 7 个 active plan。
+- M7-2 plan：已创建，进行中；分支 `feat/m7-2-daemon-delivery`。
+- M7-3 ~ M7-6：未创建；等前一个 plan 通过确认门后再写，避免一次堆 7 个 active plan。

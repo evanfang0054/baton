@@ -133,6 +133,7 @@
 - [M6-5 验收收口实施计划](plans/2026-11-22-m6-5-acceptance.md)
 - [M7 交付工作台执行图](plans/2026-11-22-m7-0-execution-map.md)
 - [M7-1 protocol + core + migration 0015 实施计划](plans/2026-11-22-m7-1-protocol-core-migration.md)
+- [M7-2 daemon 交付、产物与标注实施计划](plans/2026-11-22-m7-2-daemon-delivery-artifact-annotation.md)
 
 ## 验收证据
 
