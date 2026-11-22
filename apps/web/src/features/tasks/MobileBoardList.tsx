@@ -31,6 +31,12 @@ const ATTENTION_GROUPS: Array<{ id: Attention; label: string }> = [
 
 const BATCH_LIMIT = 20
 
+const SECTION_TOGGLE_CLASS = [
+  'flex min-h-11 w-full items-center justify-between rounded-lg border border-separator px-3',
+  'text-left text-xs font-medium text-muted',
+  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+].join(' ')
+
 function oldestWaitingSince(tasks: TaskSummary[]): number | null {
   return tasks.reduce<number | null>((oldest, task) => {
     if (!task.waitingSince) return oldest
@@ -383,7 +389,7 @@ function FinishedSection({
         type="button"
         aria-expanded={open}
         onClick={onToggle}
-        className="flex min-h-11 w-full items-center justify-between rounded-lg border border-separator px-3 text-left text-xs font-medium text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className={SECTION_TOGGLE_CLASS}
       >
         <span>
           {title} ({tasks.length})

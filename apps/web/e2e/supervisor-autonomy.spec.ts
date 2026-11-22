@@ -406,7 +406,7 @@ test('task detail shows the failure summary without transcript text', async ({ p
   await mockShell(page, { tasks: () => [failedTask] })
   await page.goto('/?workspace=w1&task=t1')
   await expect(page.getByLabel('最近失败')).toBeVisible()
-  await expect(page.getByText('verify', { exact: true })).toBeVisible()
+  await expect(page.getByText('自动校验', { exact: true })).toBeVisible()
   await expect(page.getByText('自动校验未通过')).toBeVisible()
   await expect(page.getByText('src/login.ts', { exact: true })).toBeVisible()
   await expect(page.getByText('SECRET_TRANSCRIPT_SHOULD_NOT_APPEAR')).toHaveCount(0)

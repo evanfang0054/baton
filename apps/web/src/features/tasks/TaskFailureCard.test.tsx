@@ -17,7 +17,7 @@ describe('TaskFailureCard', () => {
       />,
     )
     expect(screen.getByText('最近失败')).toBeVisible()
-    expect(screen.getByText('verify')).toBeVisible()
+    expect(screen.getByText('自动校验')).toBeVisible()
     expect(screen.getByText('自动校验未通过')).toBeVisible()
     expect(screen.getByText('src/login.ts')).toBeVisible()
     expect(screen.getByText('可重试')).toBeVisible()

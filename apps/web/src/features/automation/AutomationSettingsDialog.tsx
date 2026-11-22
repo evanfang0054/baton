@@ -11,6 +11,12 @@ import { queryKeys } from '../../lib/query'
 type Risk = 'low' | 'medium'
 type AutonomyMode = 'off' | 'observe' | 'auto'
 
+const AUTONOMY_OPTIONS: { value: AutonomyMode; label: string }[] = [
+  { value: 'off', label: '关闭' },
+  { value: 'observe', label: '仅观察' },
+  { value: 'auto', label: '自动' },
+]
+
 export function AutomationSettingsDialog({
   workspaceId,
   open,
@@ -212,9 +218,11 @@ export function AutomationSettingsDialog({
                         onChange={(event) => setAutonomyMode(event.target.value as AutonomyMode)}
                         className="h-9 rounded-lg border border-separator bg-surface px-2 text-sm"
                       >
-                        <option value="off">off</option>
-                        <option value="observe">observe</option>
-                        <option value="auto">auto</option>
+                        {AUTONOMY_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <label className="flex items-center justify-between gap-2 text-sm">
@@ -225,9 +233,11 @@ export function AutomationSettingsDialog({
                         onChange={(event) => setAutoRetry(event.target.value as AutonomyMode)}
                         className="h-9 rounded-lg border border-separator bg-surface px-2 text-sm"
                       >
-                        <option value="off">off</option>
-                        <option value="observe">observe</option>
-                        <option value="auto">auto</option>
+                        {AUTONOMY_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <label className="flex items-center justify-between gap-2 text-sm">
@@ -240,9 +250,11 @@ export function AutomationSettingsDialog({
                         }
                         className="h-9 rounded-lg border border-separator bg-surface px-2 text-sm"
                       >
-                        <option value="off">off</option>
-                        <option value="observe">observe</option>
-                        <option value="auto">auto</option>
+                        {AUTONOMY_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <p className="text-xs text-muted">
@@ -273,8 +285,8 @@ export function AutomationSettingsDialog({
                       onChange={(event) => setRisk(event.target.value as Risk)}
                       className="h-9 rounded-lg border border-separator bg-surface px-2 text-sm"
                     >
-                      <option value="low">low</option>
-                      <option value="medium">medium</option>
+                      <option value="low">低风险</option>
+                      <option value="medium">中风险</option>
                     </select>
                   </label>
                   <p className="text-xs text-muted">

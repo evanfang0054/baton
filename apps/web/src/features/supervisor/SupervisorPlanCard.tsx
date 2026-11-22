@@ -46,7 +46,14 @@ export function SupervisorPlanCard({
 
   if (status === 'expired') return <p className="text-xs text-danger">计划已过期</p>
   if (status === 'ignored') return <p className="text-xs text-muted">计划已忽略</p>
-  if (status === 'failed') return <p className="text-xs text-danger">计划应用失败</p>
+  if (status === 'failed') {
+    const failure = result as { error?: { message?: string } } | null | undefined
+    return (
+      <p className="text-xs text-danger">
+        计划应用失败{failure?.error?.message ? `：${failure.error.message}` : ''}
+      </p>
+    )
+  }
 
   return (
     <section
