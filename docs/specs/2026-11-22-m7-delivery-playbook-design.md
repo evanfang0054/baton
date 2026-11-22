@@ -3,7 +3,7 @@ spec_topic: m7-delivery-playbook
 decision_summary: "M7 交付工作台：一条需求一块画布、4 阶段 playbook、产物 files-first、标注一等上下文、Excalidraw 画板 + 快速标注、右栏只留总管；终端/子代理后置"
 design_approved: true
 user_approved_at: 2026-11-22T22:37:27+08:00
-gates: [design-approved]
+gates: [design-approved, user-review-passed]
 spec_ref: 2026-11-16-baton-architecture-design.md
 domain_terms:
   [
@@ -30,7 +30,7 @@ domain_terms:
 
 ## 0. 文档信息
 
-- **状态**：设计已获用户逐项确认（2026-11-22）；UI v3 已确认“右栏只留总管，其余画布化”；spec 待用户审阅；尚未实现。
+- **状态**：设计已获用户逐项确认（2026-11-22）；UI v3 已确认“右栏只留总管，其余画布化”；spec 已获用户审阅通过（2026-11-22）；尚未实现。
 - **范围**：`packages/protocol/**`、`packages/core/**`、`apps/daemon/**`、`apps/web/**`、数据库 migration 0015、测试与 `docs/**`。
 - **预期不改**：任务状态列表与转移语义；`task.status` 单写者；`assembleContext` 的预算/深度/敏感路径规则；`node`/`edge` 表既有列；现有 22 个总管工具的行为；审批、提问、verify、diff、worktree、AC 的既有语义。
 - **不在范围**：xterm/终端/子代理树/PTY 接管；外部 Source（GitHub/飞书）；自动 PR/关单；视觉回归；多人协作；一阶段多 worker；DAG；Codex/zsh；artifact 历史版本；标注线程/协作；移动端画布。
