@@ -4,7 +4,7 @@ spec_topic: m7-delivery-playbook
 task_count: 10
 estimated_phases: [tests, implementation, verification]
 dod: "protocol entities + core playbook/status/prompt/layout + migration 0015 + node/task 兼容；protocol/core/daemon 测试通过；pnpm verify 全绿"
-status: active
+status: completed
 depends_on: []
 ---
 
