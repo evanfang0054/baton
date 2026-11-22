@@ -866,6 +866,22 @@ describe('supervisor tools', () => {
     ])
   })
 
+  it('resolves a unique task id prefix', async () => {
+    const { seeded, tools } = setup()
+    const detail = (await tools.get_task.execute(
+      { taskId: seeded.taskId.slice(0, 8) },
+      ctx(seeded),
+    )) as { task: { id: string } }
+    expect(detail.task.id).toBe(seeded.taskId)
+  })
+
+  it('rejects an id prefix that is too short', async () => {
+    const { seeded, tools } = setup()
+    await expect(
+      tools.get_task.execute({ taskId: seeded.taskId.slice(0, 3) }, ctx(seeded)),
+    ).rejects.toMatchObject({ code: 'task_not_found' })
+  })
+
   it('hides tasks that belong to another workspace', async () => {
     const { seeded, tools } = setup()
     await expect(

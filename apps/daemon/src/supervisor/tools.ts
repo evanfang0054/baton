@@ -475,8 +475,40 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     return target.engine
   }
 
+  // 总管消息里经常只引用短 ID；严格全量 ID 会让模型把 "3ac390ff" 直接回填成 taskId。
+  // 允许唯一前缀，并在歧义时返回候选，避免用户看到无法理解的 tool 失败。
+  const TASK_ID_PREFIX_MIN = 4
+  function resolveTaskId(workspaceId: string, input: string): string {
+    const candidate = input.trim()
+    const exact = getTask(deps.db, candidate)
+    if (exact) {
+      if (exact.workspaceId !== workspaceId) {
+        throw appError('task_not_found', `task not found: ${candidate}`, { taskId: candidate })
+      }
+      return exact.id
+    }
+    if (candidate.length >= TASK_ID_PREFIX_MIN) {
+      const prefix = candidate.toLowerCase()
+      const matches = listTasks(deps.db, { workspaceId }).filter((task) =>
+        task.id.toLowerCase().startsWith(prefix),
+      )
+      if (matches.length === 1) return matches[0]!.id
+      if (matches.length > 1) {
+        throw appError(
+          'task_id_ambiguous',
+          `task id "${candidate}" matches ${matches.length} tasks; use a longer prefix`,
+          {
+            taskId: candidate,
+            candidates: matches.slice(0, 5).map((task) => ({ id: task.id, title: task.title })),
+          },
+        )
+      }
+    }
+    throw appError('task_not_found', `task not found: ${candidate}`, { taskId: candidate })
+  }
+
   function requireTask(ctx: ToolContext, taskId: string): Task {
-    const task = getTask(deps.db, taskId)
+    const task = getTask(deps.db, resolveTaskId(ctx.workspaceId, taskId))
     if (!task || task.workspaceId !== ctx.workspaceId) {
       throw appError('task_not_found', 'task not found', { taskId })
     }
@@ -653,9 +685,9 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       parameters: getTaskInput,
       async execute(input, ctx) {
         const parsed = getTaskInput.parse(input)
-        const detail = getTaskDetail(deps.db, parsed.taskId)
+        const detail = getTaskDetail(deps.db, resolveTaskId(ctx.workspaceId, parsed.taskId))
         // 总管只能看到当前 workspace 的任务，避免跨工作区读取。
-        if (!detail || detail.task.workspaceId !== ctx.workspaceId) {
+        if (!detail) {
           throw appError('task_not_found', 'task not found', { taskId: parsed.taskId })
         }
         const task = detail.task
@@ -745,20 +777,16 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       parameters: getTaskHistoryInput,
       async execute(input, ctx) {
         const parsed = getTaskHistoryInput.parse(input)
-        const detail = getTaskDetail(deps.db, parsed.taskId)
-        if (!detail || detail.task.workspaceId !== ctx.workspaceId) {
+        const taskId = resolveTaskId(ctx.workspaceId, parsed.taskId)
+        const detail = getTaskDetail(deps.db, taskId)
+        if (!detail) {
           throw appError('task_not_found', 'task not found', { taskId: parsed.taskId })
         }
-        const history = listTaskStatusHistory(
-          deps.db,
-          parsed.taskId,
-          parsed.limit,
-          parsed.beforeOrdinal,
-        )
+        const history = listTaskStatusHistory(deps.db, taskId, parsed.limit, parsed.beforeOrdinal)
         return {
-          taskId: parsed.taskId,
+          taskId,
           statusEvents: history.items,
-          sessions: listSessionsByTask(deps.db, parsed.taskId)
+          sessions: listSessionsByTask(deps.db, taskId)
             .slice(-20)
             .map((session) => ({
               id: session.id,
@@ -767,7 +795,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
               startedAt: session.startedAt,
               endedAt: session.endedAt,
             })),
-          reviews: listReviewsByTask(deps.db, parsed.taskId)
+          reviews: listReviewsByTask(deps.db, taskId)
             .slice(0, 20)
             .map((review) => ({
               id: review.id,
@@ -1191,8 +1219,9 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       parameters: enqueueTaskInput,
       async execute(input, ctx) {
         const parsed = enqueueTaskInput.parse(input)
-        const detail = getTaskDetail(deps.db, parsed.taskId)
-        if (!detail || detail.task.workspaceId !== ctx.workspaceId) {
+        const taskId = resolveTaskId(ctx.workspaceId, parsed.taskId)
+        const detail = getTaskDetail(deps.db, taskId)
+        if (!detail) {
           throw appError('task_not_found', 'task not found', { taskId: parsed.taskId })
         }
         if (detail.task.status === 'queued' || detail.task.status === 'running') {
@@ -1204,9 +1233,9 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             status: detail.task.status,
           })
         }
-        const outcome = deps.enqueueTask(parsed.taskId)
+        const outcome = deps.enqueueTask(detail.task.id)
         if (!outcome.ok) throw outcome.error
-        return { taskId: parsed.taskId, status: outcome.status }
+        return { taskId: detail.task.id, status: outcome.status }
       },
     },
 
