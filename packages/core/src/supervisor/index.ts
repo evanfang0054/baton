@@ -1,2 +1,5 @@
 export * from './origin.js'
 export * from './policy.js'
+export * from './autonomy.js'
+export * from './mandate.js'
+export * from './action.js'
