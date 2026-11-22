@@ -4,7 +4,7 @@ spec_topic: m6-5-supervisor-autonomy
 task_count: 6
 estimated_phases: [tests, implementation, verification]
 dod: "task_failure 写入与保留、get_task_failure/lastFailure、buildAttentionItems、digest 需要你决定、attentionReminder 三档、DigestCard 与最近失败卡；pnpm verify 全绿"
-status: planned
+status: completed
 depends_on: [2026-11-22-m6-5-governance.md]
 ---
 
@@ -1544,3 +1544,13 @@ git commit -m "docs(m6-5): 完成注意力与失败摘要计划"
 - digest 只列需要人的任务，一个任务一条，counts 等于 items 长度，最多 20。
 - `attentionReminder`：off 不主动生成、observe 等下一次 digest、auto 立即生成且 24h 去重。
 - DigestCard 无事项时安静；失败建议可应用，approve/reject/取消运行中只打开任务。
+
+## 实施记录（2026-11-22）
+
+- B1：`b68f957 feat(protocol): 增加注意力与失败摘要协议`
+- B2：`8c12ce1 feat(core): 增加注意力合并与失败脱敏`
+- B3：`107e3e3 feat(daemon): 写入脱敏失败摘要`
+- B4：`f5f98dc feat(daemon): 收敛 digest 注意力`
+- B5：`a7e1eea feat(web): 展示需要你决定与最近失败`
+- B6：`7dd4366 fix(web): 补齐 lastFailure fixtures 与工具白名单`
+- B6 验证：`pnpm verify` 全绿；failures/digest 无 transcript 读取、无本机绝对路径；`buildAttentionItems` 的 counts 总和等于 `items.length` 且最多 20。
