@@ -1,7 +1,7 @@
 import type { Node as ProtocolNode, SupervisorMessage } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { getSupervisorMessages, getSupervisorStatus } from '../../lib/api'
@@ -29,6 +29,7 @@ export function SupervisorPanel({
   nodes?: ProtocolNode[]
 }) {
   const send = useCommand()
+  const queryClient = useQueryClient()
   const stream = useSupervisorStream()
   const [olderMessages, setOlderMessages] = useState<SupervisorMessage[]>([])
   const [olderBefore, setOlderBefore] = useState<string | null>(null)
@@ -136,6 +137,14 @@ export function SupervisorPanel({
             state.setSelectedNode(null)
             state.setTask(taskId)
             state.setRightPanel('task')
+          }}
+          onDecideAction={async (actionId, decision) => {
+            await send({
+              type: 'supervisor.action.decide',
+              payload: { workspaceId, actionId, decision },
+            })
+            await queryClient.invalidateQueries({ queryKey: queryKeys.notices(workspaceId) })
+            await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
           }}
         />
       ) : null}

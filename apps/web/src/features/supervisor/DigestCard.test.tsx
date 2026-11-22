@@ -129,4 +129,43 @@ describe('DigestCard', () => {
     wrap(<DigestCard notice={notice} onRead={() => {}} />)
     expect(screen.getByLabelText('未读')).toBeInTheDocument()
   })
+
+  it('renders one attention item and applies a safe retry proposal', async () => {
+    const onDecideAction = vi.fn().mockResolvedValue(undefined)
+    wrap(
+      <DigestCard
+        notice={{
+          ...notice,
+          payload: {
+            ...(notice.payload as Record<string, unknown>),
+            attention: {
+              items: [
+                {
+                  taskId: 't1',
+                  title: '登录页修复',
+                  kind: 'failed',
+                  reason: '任务失败，建议重试',
+                  waitingSince: 10,
+                  proposalId: 'a1',
+                  action: { type: 'apply_proposal', proposalId: 'a1' },
+                },
+              ],
+              counts: { approval: 0, reply: 0, review: 0, failed: 1, budget: 0, stale: 0 },
+            },
+          },
+        }}
+        onDecideAction={onDecideAction}
+        onOpenTask={() => {}}
+        onGenerate={() => {}}
+      />,
+    )
+    expect(screen.getByText('需要你决定')).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: '应用建议' }))
+    expect(onDecideAction).toHaveBeenCalledWith('a1', 'apply')
+  })
+
+  it('hides the attention group when there is nothing for the human', () => {
+    wrap(<DigestCard notice={notice} onOpenTask={() => {}} onGenerate={() => {}} />)
+    expect(screen.queryByText('需要你决定')).toBeNull()
+  })
 })

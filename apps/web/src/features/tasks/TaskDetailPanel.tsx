@@ -25,6 +25,7 @@ import { DiffViewer } from './DiffViewer'
 import { HandoffButton } from './HandoffButton'
 import { TaskActions } from './TaskActions'
 import { TaskAutomationCard } from './TaskAutomationCard'
+import { TaskFailureCard } from './TaskFailureCard'
 import { TaskHeader } from './TaskHeader'
 import { TaskHistory } from './TaskHistory'
 import { TaskOriginCard } from './TaskOriginCard'
@@ -321,6 +322,15 @@ function DetailContent({
       ) : (
         <TaskAutomationCard taskId={task.id} />
       )}
+      {detail.lastFailure ? (
+        mobile ? (
+          <MobileCollapsible title="最近失败">
+            <TaskFailureCard failure={detail.lastFailure} />
+          </MobileCollapsible>
+        ) : (
+          <TaskFailureCard failure={detail.lastFailure} />
+        )
+      ) : null}
 
       <WorktreeCard
         taskId={task.id}

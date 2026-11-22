@@ -1,4 +1,4 @@
-import type { DigestReport, Notice } from '@baton/protocol'
+import type { AttentionItem, DigestReport, Notice } from '@baton/protocol'
 import { DigestReport as DigestReportSchema } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react'
 import { generateDigest, listNotices, readNotice } from '../../lib/api'
 import { queryKeys } from '../../lib/query'
 import { StatusChip } from '../tasks/StatusChip'
+import { WaitingTime } from '../tasks/WaitingTime'
 
 function formatTime(ts: number) {
   return new Date(ts).toLocaleString('zh-CN', { hour12: false })
@@ -24,12 +25,14 @@ export function DigestCard({
   onRead,
   onOpenTask,
   onGenerate,
+  onDecideAction,
 }: {
   workspaceId?: string
   notice?: Notice
   onRead?: (noticeId: string) => void
   onOpenTask?: (taskId: string) => void
   onGenerate?: () => void
+  onDecideAction?: (actionId: string, decision: 'apply' | 'ignore') => Promise<void> | void
 }) {
   const queryClient = useQueryClient()
   const controlled = providedNotice !== undefined
@@ -160,6 +163,44 @@ export function DigestCard({
             {report.changes.failed} · 重试 {report.changes.retried} · 自动批准{' '}
             {report.changes.autoAllowed} · 自动拒绝 {report.changes.autoDenied}
           </p>
+          {report.attention.items.length > 0 ? (
+            <section
+              aria-label="需要你决定"
+              className="flex flex-col gap-1 rounded-md bg-default p-2"
+            >
+              <h4 className="text-xs font-semibold text-foreground">需要你决定</h4>
+              <ul className="flex flex-col gap-1">
+                {report.attention.items.map((item: AttentionItem) => (
+                  <li key={item.taskId} className="flex flex-col gap-1 rounded-md px-1 py-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-xs text-foreground">{item.title}</span>
+                      {item.waitingSince !== null ? (
+                        <WaitingTime since={item.waitingSince} />
+                      ) : null}
+                    </div>
+                    <p className="text-xs text-muted">{item.reason}</p>
+                    {item.action.type === 'apply_proposal' ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onPress={() => void onDecideAction?.(item.action.proposalId, 'apply')}
+                      >
+                        应用建议
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="tertiary"
+                        size="sm"
+                        onPress={() => onOpenTask?.(item.taskId)}
+                      >
+                        {item.action.type === 'open_review' ? '去验收' : '打开任务'}
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
           {report.oldestWaiting ? (
             <p className="text-xs text-muted">最久等待：{report.oldestWaiting.title}</p>
           ) : null}
