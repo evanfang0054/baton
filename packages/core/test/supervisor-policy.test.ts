@@ -28,6 +28,7 @@ describe('supervisor policy', () => {
       'update_node',
       'inject_context',
     ])
+    expect(SUPERVISOR_POLICY.allowedTools).toHaveLength(21)
     expect(supervisorPolicyVersion(SUPERVISOR_POLICY, 'v1')).toMatch(/^[a-f0-9]{12}$/)
   })
 
