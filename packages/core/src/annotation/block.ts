@@ -6,10 +6,6 @@ export type AnnotationContext = Pick<
   'id' | 'note' | 'targetNodeIds' | 'targetArtifactId' | 'bbox' | 'imagePath'
 > & { targetTitle?: string }
 
-function escapeText(value: string): string {
-  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-}
-
 export function buildAnnotationBlock(annotations: AnnotationContext[]): string {
   if (annotations.length === 0) return ''
   const lines = annotations.map((annotation) => {
