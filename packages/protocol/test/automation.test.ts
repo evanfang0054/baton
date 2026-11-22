@@ -170,4 +170,43 @@ describe('automation protocol', () => {
       }),
     ).toMatchObject({ retryCount: 1 })
   })
+
+  it('defaults digest attention for old notices', () => {
+    const parsed = DigestReport.parse({
+      workspaceId: 'w1',
+      windowStart: 0,
+      windowEnd: 1,
+      generatedAt: 1,
+      policyVersion: 'abc123abc123',
+      snapshot: {
+        total: 0,
+        unplanned: 0,
+        todo: 0,
+        running: 0,
+        waiting: 0,
+        review: 0,
+        done: 0,
+        closed: 0,
+        attention: { needsApproval: 0, needsReply: 0, needsAttention: 0, needsReview: 0 },
+      },
+      ready: [],
+      blocked: [],
+      dropped: [],
+      changes: {
+        created: 0,
+        updated: 0,
+        completed: 0,
+        failed: 0,
+        cancelled: 0,
+        retried: 0,
+        autoAllowed: 0,
+        autoDenied: 0,
+      },
+      oldestWaiting: null,
+    })
+    expect(parsed.attention).toEqual({
+      items: [],
+      counts: { approval: 0, reply: 0, review: 0, failed: 0, budget: 0, stale: 0 },
+    })
+  })
 })

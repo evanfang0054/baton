@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { Id, Timestamp } from './common.js'
 import { Attention, Engine, TaskStatus } from './enums.js'
 import { TaskStatusCause } from './events.js'
+import { FailureSummary } from './task-failure.js'
 import {
   AcceptanceContract,
   AcceptanceItems,
@@ -193,6 +194,7 @@ export const TaskDetailResponse = z.object({
   attention: Attention,
   acceptance: TaskAcceptanceSummary.nullable().default(null),
   budget: TaskBudgetSummary.nullable().default(null),
+  lastFailure: FailureSummary.nullable().default(null),
 })
 export type TaskDetailResponse = z.infer<typeof TaskDetailResponse>
 

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DigestAttention } from './attention.js'
 import { Id, Timestamp } from './common.js'
 import { ApprovalDecision, Attention, RiskLevel, TaskStatus } from './enums.js'
 import { AutonomyMode, PolicySchema } from './policy.js'
@@ -90,6 +91,10 @@ export const DigestReport = z.object({
     autoAllowed: z.number().int().nonnegative(),
     autoDenied: z.number().int().nonnegative(),
   }),
+  attention: DigestAttention.default(() => ({
+    items: [],
+    counts: { approval: 0, reply: 0, review: 0, failed: 0, budget: 0, stale: 0 },
+  })),
   oldestWaiting: DigestTaskRef.nullable(),
 })
 export type DigestReport = z.infer<typeof DigestReport>
