@@ -8,10 +8,15 @@ import {
   AcceptanceItems,
   AcceptanceReport,
   AcceptanceRun,
+  AnnotationBBox,
+  AnnotationStatus,
   AnnotationSummary,
   Approval,
+  Artifact,
+  ArtifactKind,
   Audit,
   Canvas,
+  DeliveryDetail,
   DeliverySummary,
   Edge,
   Event,
@@ -282,3 +287,84 @@ export const AuditListResponse = z.object({
   nextBefore: Timestamp.optional(),
 })
 export type AuditListResponse = z.infer<typeof AuditListResponse>
+
+export const DeliveryListQuery = z.object({ workspaceId: Id })
+export type DeliveryListQuery = z.infer<typeof DeliveryListQuery>
+
+export const DeliveryListResponse = z.object({ deliveries: z.array(DeliverySummary) })
+export type DeliveryListResponse = z.infer<typeof DeliveryListResponse>
+
+export const DeliveryCreateInput = z.object({
+  workspaceId: Id,
+  title: z.string().min(1).max(200),
+  goal: z.string().min(1).max(2000),
+  playbookId: z.string().min(1).max(64).optional(),
+  contextNodeIds: z.array(Id).max(40).default([]),
+  engine: Engine.default('claude-sdk'),
+  budgetUsd: z.number().finite().positive().optional(),
+})
+export type DeliveryCreateInput = z.infer<typeof DeliveryCreateInput>
+
+export const DeliveryCreateResponse = z.object({
+  delivery: DeliveryDetail,
+  taskId: Id,
+})
+export type DeliveryCreateResponse = z.infer<typeof DeliveryCreateResponse>
+
+export const DeliveryDetailResponse = z.object({ delivery: DeliveryDetail })
+export type DeliveryDetailResponse = z.infer<typeof DeliveryDetailResponse>
+
+export const DeliveryActionResponse = z.object({
+  taskId: Id,
+  ack: z.record(z.string(), z.unknown()).optional(),
+})
+export type DeliveryActionResponse = z.infer<typeof DeliveryActionResponse>
+
+export const ArtifactListResponse = z.object({ artifacts: z.array(Artifact) })
+export type ArtifactListResponse = z.infer<typeof ArtifactListResponse>
+
+export const ArtifactCreateInput = z.object({
+  stageKey: z.string().min(1).max(32),
+  kind: ArtifactKind,
+  name: z.string().min(1).max(120),
+})
+export type ArtifactCreateInput = z.infer<typeof ArtifactCreateInput>
+
+export const ArtifactSaveInput = z.object({
+  previewBase64: z.string().max(14_000_000).optional(),
+  sourceBase64: z.string().max(14_000_000).optional(),
+  svgBase64: z.string().max(14_000_000).optional(),
+})
+export type ArtifactSaveInput = z.infer<typeof ArtifactSaveInput>
+
+export const ArtifactResponse = z.object({ artifact: Artifact })
+export type ArtifactResponse = z.infer<typeof ArtifactResponse>
+
+export const AnnotationListQuery = z.object({
+  stageKey: z.string().min(1).max(32).optional(),
+  status: AnnotationStatus.optional(),
+})
+export type AnnotationListQuery = z.infer<typeof AnnotationListQuery>
+
+export const AnnotationListResponse = z.object({ annotations: z.array(AnnotationSummary) })
+export type AnnotationListResponse = z.infer<typeof AnnotationListResponse>
+
+export const AnnotationCreateInput = z.object({
+  stageKey: z.string().min(1).max(32),
+  targetNodeIds: z.array(Id).max(20).default([]),
+  targetArtifactId: Id.nullable().optional(),
+  note: z.string().max(2000).default(''),
+  strokesJson: z.string().min(2).max(2_000_000),
+  bbox: AnnotationBBox,
+  imageBase64: z.string().min(1).max(14_000_000),
+})
+export type AnnotationCreateInput = z.infer<typeof AnnotationCreateInput>
+
+export const AnnotationUpdateInput = z.object({
+  note: z.string().max(2000).optional(),
+  status: AnnotationStatus.optional(),
+})
+export type AnnotationUpdateInput = z.infer<typeof AnnotationUpdateInput>
+
+export const AnnotationResponse = z.object({ annotation: AnnotationSummary })
+export type AnnotationResponse = z.infer<typeof AnnotationResponse>

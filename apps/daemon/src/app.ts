@@ -5,12 +5,16 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import type { Config } from './config.js'
+import { createAnnotationService } from './annotation/service.js'
+import { createArtifactService } from './artifact/service.js'
+import { createDeliveryService } from './delivery/service.js'
 import type { Db } from './db/types.js'
 import { registerApiAuth } from './http/api-auth.js'
 import { registerAuditRoutes } from './http/audit.js'
 import { registerAuth } from './http/auth.js'
 import { registerAutomationRoutes } from './http/automation.js'
 import { registerCanvasRoutes } from './http/canvas.js'
+import { registerDeliveryRoutes } from './http/deliveries.js'
 import { registerEngineRoutes } from './http/engines.js'
 import { registerErrorHandler } from './http/errors.js'
 import { registerNoticeRoutes } from './http/notices.js'
@@ -71,6 +75,32 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
     onTrustChanged: () => deps.runtime.rescheduleDigest(),
   })
   registerCanvasRoutes(app, { db: deps.db })
+  const deliveries = createDeliveryService({
+    db: deps.db,
+    config,
+    now: deps.now,
+    newId: deps.newId,
+  })
+  const artifacts = createArtifactService({
+    db: deps.db,
+    config,
+    now: deps.now,
+    newId: deps.newId,
+  })
+  const annotations = createAnnotationService({
+    db: deps.db,
+    config,
+    now: deps.now,
+    newId: deps.newId,
+  })
+  registerDeliveryRoutes(app, {
+    deliveries,
+    artifacts,
+    annotations,
+    runtime: deps.runtime,
+    now: deps.now,
+    newId: deps.newId,
+  })
   registerUploadRoutes(app, { db: deps.db, config, newId: deps.newId })
   registerEngineRoutes(app, { engines: deps.engines })
   registerTaskRoutes(app, {

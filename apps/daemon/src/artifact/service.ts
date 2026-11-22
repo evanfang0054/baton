@@ -164,7 +164,7 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
       svgPath: null,
       mime: mimeOf(input.name),
       size: 0,
-      sha256: '',
+      sha256: '0'.repeat(64),
       version: 1,
       status: 'draft',
       createdAt: now,
