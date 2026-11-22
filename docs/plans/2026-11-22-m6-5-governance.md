@@ -4,7 +4,7 @@ spec_topic: m6-5-supervisor-autonomy
 task_count: 7
 estimated_phases: [tests, implementation, verification]
 dod: "migration 0013、observe gate、supervisor_action 状态机、Mandate revalidate、human-only task.reauthorize、自动化设置与任务详情重新授权；pnpm verify 全绿"
-status: planned
+status: completed
 depends_on: []
 ---
 
@@ -2262,3 +2262,14 @@ git commit -m "docs(m6-5): 完成治理底座计划"
 - `validateMandate` 覆盖 policy 变更、untrusted、kill switch、allowedActions、旧 origin。
 - `task.reauthorize` 只存在于 WS 命令，总管 toolset 没有该工具。
 - web 设置能保存 `autonomy`；`mandate_revoked` 后出现“重新授权并继续”。
+
+## 实施记录（2026-11-22）
+
+- A1：`078ccc2 feat(protocol): 增加 M6-5 自治与授权协议`
+- A2：`d490994 feat(daemon): 增加 M6-5 账本迁移 0013`
+- A3：`8833088 feat(core): 增加管家自治与 Mandate 纯函数`
+- A4：`204615f feat(daemon): 增加管家动作账本`
+- A5：`cbce368 feat(daemon): 接线管家 observe 与授权重校验`
+- A6：`8a1a250 feat(web): 增加管家自治设置与重新授权入口`
+- A7：`pnpm verify` 全绿；负空间与 human-only grep 通过。
+
