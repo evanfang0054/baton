@@ -117,7 +117,11 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
   return (
     <div
       data-testid="task-detail"
-      className={mobile ? 'flex min-h-0 flex-1 flex-col' : 'flex min-h-0 flex-1 flex-col gap-3 p-4'}
+      className={
+        mobile
+          ? 'flex min-h-0 flex-1 flex-col'
+          : 'flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4'
+      }
     >
       {!activeWorkspaceId ? (
         <p className="text-sm text-muted">尚未选择工作区</p>
@@ -436,7 +440,7 @@ function DetailContent({
         className={
           mobile
             ? 'flex h-[45vh] min-h-64 flex-col border-t border-separator pt-3'
-            : 'flex min-h-0 flex-1 flex-col border-t border-separator pt-3'
+            : 'flex min-h-64 flex-1 flex-col border-t border-separator pt-3'
         }
       >
         <div className="mb-2 flex shrink-0 items-center gap-2">
