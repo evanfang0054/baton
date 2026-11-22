@@ -11,6 +11,7 @@ import {
   insertAcceptanceRun,
 } from '../src/db/acceptance-repository.js'
 import { createTaskService } from '../src/runtime/task-service.js'
+import { createFailureService } from '../src/failures/service.js'
 import { createSupervisorTools, type ToolContext } from '../src/supervisor/tools.js'
 import { createTestDb, seedTask, seedTextNode, type TestDb } from './helpers/db.js'
 
@@ -59,6 +60,15 @@ function setup() {
   const transitions: Array<{ taskId: string; type: string }> = []
   const replies: Array<{ taskId: string; text: string }> = []
   const injected: unknown[] = []
+  const failures = createFailureService({
+    db: database.db,
+    now: () => 10,
+    newId: (() => {
+      let index = 0
+      return () => `failure-${++index}`
+    })(),
+    workspaceRoot: () => root,
+  })
   const tools = createSupervisorTools({
     db: database.db,
     workspacesRoot: root,
@@ -115,8 +125,9 @@ function setup() {
       injected.push(input)
       return { ok: true, taskId: input.taskId, seq: 1, truncated: false, dropped: 0 }
     },
+    failures,
   })
-  return { database, seeded, tools, root, transitions, replies, injected }
+  return { database, seeded, tools, root, transitions, replies, injected, failures }
 }
 
 function ctx(seeded: ReturnType<typeof seedTask>): ToolContext {
@@ -887,5 +898,30 @@ describe('supervisor tools', () => {
     await expect(
       tools.get_task.execute({ taskId: seeded.taskId }, { ...ctx(seeded), workspaceId: 'other' }),
     ).rejects.toMatchObject({ code: 'task_not_found' })
+  })
+
+  it('reads failure summaries and exposes lastFailure in get_task', async () => {
+    const { seeded, tools, failures } = setup()
+    failures.record({
+      workspaceId: seeded.workspaceId,
+      taskId: seeded.taskId,
+      sessionId: seeded.sessionId,
+      attempt: 0,
+      stage: 'verify',
+      message: 'pnpm test failed at <workspace>/src/login.ts',
+      retryable: true,
+      affectedPaths: ['src/login.ts'],
+    })
+    const detail = (await tools.get_task.execute({ taskId: seeded.taskId }, ctx(seeded))) as {
+      lastFailure: { stage: string; summary: string } | null
+    }
+    expect(detail.lastFailure?.stage).toBe('verify')
+
+    const result = (await tools.get_task_failure.execute(
+      { taskId: seeded.taskId, limit: 3 },
+      ctx(seeded),
+    )) as { failures: Array<{ stage: string; lastError: string }> }
+    expect(result.failures[0]?.stage).toBe('verify')
+    expect(result.failures[0]?.lastError).toContain('<workspace>/src/login.ts')
   })
 })

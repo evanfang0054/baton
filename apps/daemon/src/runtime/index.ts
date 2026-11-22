@@ -40,6 +40,7 @@ import {
   getSetting,
   getTask,
   getTaskDetail,
+  getWorkspace,
   hasTaskForNode,
   insertAudit,
   insertNode,
@@ -74,6 +75,7 @@ import { createSupervisorService } from '../supervisor/service.js'
 import { createSupervisorActionService } from '../supervisor/actions.js'
 import { loadWorkspacePolicy } from '../supervisor/autonomy.js'
 import { PROMPT_VERSION } from '../supervisor/prompt.js'
+import { createFailureService } from '../failures/service.js'
 import type { SupervisorEngine } from '../supervisor/engine.js'
 import type { RuntimeHooks, StartSessionInput, TransitionOutcome } from './types.js'
 
@@ -329,6 +331,16 @@ export function createRuntime(deps: RuntimeDeps) {
     return ackFromOutcome(applyTransition(task.id, { type: 'user_input', text }))
   }
 
+  const failures = createFailureService({
+    db: deps.db,
+    now,
+    newId,
+    workspaceRoot: (workspaceId) => {
+      const workspace = getWorkspace(deps.db, workspaceId)
+      return workspace ? resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath) : null
+    },
+  })
+
   const actions = createSupervisorActionService({
     db: deps.db,
     now,
@@ -371,6 +383,7 @@ export function createRuntime(deps: RuntimeDeps) {
     verifierBudgetUsd: deps.config.verifierBudgetUsd,
     killSwitch: () => automationState.isKillSwitchOn(),
     actions,
+    failures,
     loadPolicy: (workspaceId) => loadWorkspacePolicy(deps.db, deps.config, workspaceId),
     requireMandate: (taskId, action, strength) => requireMandate(taskId, action, strength),
     ...(deps.supervisorEngine ? { engine: deps.supervisorEngine } : {}),
@@ -405,6 +418,7 @@ export function createRuntime(deps: RuntimeDeps) {
       now,
       newId,
       verifyMeta,
+      failures,
       ...(deps.logger ? { logger: deps.logger } : {}),
     })
   }
@@ -1210,10 +1224,11 @@ export function createRuntime(deps: RuntimeDeps) {
       now,
       newId,
       killSwitch: () => automationState.isKillSwitchOn(),
+      failures,
     })
   }
 
-  return { ...runtime, scheduler: created, supervisor, automation, digest, actions }
+  return { ...runtime, scheduler: created, supervisor, automation, digest, actions, failures }
 }
 
 export type Runtime = ReturnType<typeof createRuntime>

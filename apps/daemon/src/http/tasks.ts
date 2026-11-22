@@ -31,6 +31,7 @@ import {
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
+import type { FailureService } from '../failures/service.js'
 import type { Logger } from '../log.js'
 import { resolveWorkspaceDir } from '../workspace/resolver.js'
 import { isInsideDataDir, removeWorktree } from '../workspace/worktree.js'
@@ -41,6 +42,7 @@ export interface TaskRoutesDeps {
   logger: Logger
   now: () => number
   newId: () => string
+  failures?: FailureService
 }
 
 export function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesDeps): void {
@@ -112,6 +114,7 @@ export function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesDeps): 
       attention: attentionFor(task.status, task.waitingReason),
       acceptance,
       budget: getTaskBudgetSummary(deps.db, task, deps.config),
+      lastFailure: deps.failures?.latest(task.id) ?? null,
     })
   })
 

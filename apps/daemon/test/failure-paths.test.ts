@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { FakeAdapter } from '@baton/adapters'
+import { createAdapterFactory } from '../src/runtime/adapter-factory.js'
 import type { TestApp } from './helpers/app.js'
 import type { TestRuntimeHandle } from './helpers/runtime.js'
 import { waitFor } from './helpers/async.js'
@@ -107,5 +109,33 @@ describe('failure paths', () => {
     })
     await ws.next('ack')
     await waitFor(() => handle.runtime.getTask(taskId)?.status === 'cancelled', 10_000)
+  })
+
+  it('records a worker failure summary without transcript', async () => {
+    const created = await createWsTestApp({
+      useSessionRunner: true,
+      useVerifyRunner: true,
+      adapters: createAdapterFactory({
+        fake: new FakeAdapter({ script: [{ kind: 'error', message: 'boom token=abc' }] }),
+      }),
+    })
+    apps.push(created)
+    clients.push(created.ws)
+    const { handle, ws } = created
+    ws.send({
+      v: 1,
+      type: 'task.create',
+      id: 'f1',
+      ts: 1,
+      payload: createTaskPayload(handle, 'node -e "process.exit(0)"'),
+    })
+    const createdAck = await ws.next('ack')
+    const taskId = (createdAck.payload as { data: { taskId: string } }).data.taskId
+    ws.send({ v: 1, type: 'task.enqueue', id: 'f2', ts: 1, payload: { taskId } })
+    await ws.next('ack')
+    await waitFor(() => handle.runtime.getTask(taskId)?.status === 'failed', 10_000)
+    const failure = handle.runtime.failures.latest(taskId)
+    expect(failure?.stage).toBe('run')
+    expect(failure?.lastError).not.toContain('abc')
   })
 })

@@ -76,6 +76,11 @@ export function createAiSdkSupervisorEngine(config: SupervisorConfig): Superviso
           inputSchema: tools.get_task_history.parameters,
           execute: (input) => tools.get_task_history.execute(input),
         }),
+        get_task_failure: tool({
+          description: tools.get_task_failure.description,
+          inputSchema: tools.get_task_failure.parameters,
+          execute: (input) => tools.get_task_failure.execute(input),
+        }),
         retry_task: tool({
           description: tools.retry_task.description,
           inputSchema: tools.retry_task.parameters,

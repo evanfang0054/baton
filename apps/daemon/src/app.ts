@@ -79,6 +79,7 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
     logger: deps.logger,
     now: deps.now,
     newId: deps.newId,
+    failures: deps.runtime.failures,
   })
   registerReviewRoutes(app, { db: deps.db })
   registerAutomationRoutes(app, {

@@ -47,6 +47,7 @@ import {
 } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
+import type { FailureService } from '../failures/service.js'
 import { createHandoffNode } from '../handoff/service.js'
 import type { Logger } from '../log.js'
 import { createEdge as createCanvasEdge } from '../runtime/edge-service.js'
@@ -92,6 +93,7 @@ export interface SupervisorToolset {
   list_tasks: SupervisorTool
   get_task: SupervisorTool
   get_task_history: SupervisorTool
+  get_task_failure: SupervisorTool
   create_task: SupervisorTool
   enqueue_task: SupervisorTool
   retry_task: SupervisorTool
@@ -118,6 +120,7 @@ export interface BoundToolset {
   list_tasks: BoundTool
   get_task: BoundTool
   get_task_history: BoundTool
+  get_task_failure: BoundTool
   create_task: BoundTool
   enqueue_task: BoundTool
   retry_task: BoundTool
@@ -144,6 +147,7 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     list_tasks: bind(tools.list_tasks),
     get_task: bind(tools.get_task),
     get_task_history: bind(tools.get_task_history),
+    get_task_failure: bind(tools.get_task_failure),
     create_task: bind(tools.create_task),
     enqueue_task: bind(tools.enqueue_task),
     retry_task: bind(tools.retry_task),
@@ -183,6 +187,11 @@ const getTaskHistoryInput = z.object({
   taskId: z.string().min(1),
   limit: z.number().int().min(1).max(50).default(20),
   beforeOrdinal: z.number().int().nonnegative().optional(),
+})
+
+const getTaskFailureInput = z.object({
+  taskId: z.string().min(1),
+  limit: z.number().int().min(1).max(20).default(3),
 })
 
 const createTaskInput = z.object({
@@ -290,6 +299,7 @@ export interface SupervisorToolsDeps {
   cancelTask: (taskId: string, reason?: string) => TransitionOutcome
   /** 主动恢复动作前按当前 policy 重新校验；显式用户指令也会检查 allowedActions。 */
   requireMandate?: (taskId: string, action: TaskAction, strength: Strength) => AppError | null
+  failures?: FailureService
   logger?: Logger
 }
 
@@ -770,6 +780,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             ok: injectable.ok,
             ...(injectable.reason ? { reason: injectable.reason } : {}),
           },
+          lastFailure: deps.failures?.latest(task.id) ?? null,
           pending: pendingForTask(deps.db, task),
         }
       },
@@ -812,6 +823,20 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           ...(history.nextBeforeOrdinal !== undefined
             ? { nextBeforeOrdinal: history.nextBeforeOrdinal }
             : {}),
+        }
+      },
+    },
+
+    get_task_failure: {
+      description:
+        '读取一个任务最近的结构化失败摘要；只返回脱敏的 stage/lastError/路径，不读 transcript。',
+      parameters: getTaskFailureInput,
+      async execute(input, ctx) {
+        const parsed = getTaskFailureInput.parse(input)
+        const taskId = resolveTaskId(ctx.workspaceId, parsed.taskId)
+        return {
+          taskId,
+          failures: deps.failures?.list(taskId, parsed.limit) ?? [],
         }
       },
     },

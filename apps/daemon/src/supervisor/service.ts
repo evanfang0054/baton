@@ -48,6 +48,7 @@ import {
 } from '../db/acceptance-repository.js'
 import type { Db } from '../db/types.js'
 import type { EventStore } from '../db/event-store.js'
+import type { FailureService } from '../failures/service.js'
 import { appError, isAppError } from '../errors.js'
 import type { Logger } from '../log.js'
 import type { TaskService } from '../runtime/task-service.js'
@@ -99,6 +100,7 @@ export interface SupervisorServiceDeps {
   verifierBudgetUsd: number
   killSwitch: () => boolean
   actions?: ReturnType<typeof createSupervisorActionService>
+  failures?: FailureService
   loadPolicy?: (workspaceId: string) => ReturnType<typeof loadWorkspacePolicy>
   requireMandate?: (taskId: string, action: TaskAction, strength: Strength) => AppError | null
   engine?: SupervisorEngine
@@ -236,6 +238,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     injectContext: deps.injectContext,
     cancelTask: deps.cancelTask,
     ...(deps.requireMandate ? { requireMandate: deps.requireMandate } : {}),
+    ...(deps.failures ? { failures: deps.failures } : {}),
     ...(deps.logger ? { logger: deps.logger } : {}),
   })
   const policyVersion = supervisorPolicyVersion(SUPERVISOR_POLICY, PROMPT_VERSION)
@@ -397,6 +400,18 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
   function failAcceptanceRun(taskId: string, reviewId: string, summary: string): void {
     const bundle = getAcceptanceBundle(deps.db, taskId)
     if (!bundle?.run || bundle.run.reviewId !== reviewId || bundle.run.status !== 'running') return
+    const task = getTaskDetail(deps.db, taskId)?.task
+    if (task) {
+      deps.failures?.record({
+        workspaceId: task.workspaceId,
+        taskId: task.id,
+        sessionId: null,
+        attempt: task.retryCount,
+        stage: 'review',
+        message: summary,
+        retryable: true,
+      })
+    }
     const runId = bundle.run.id
     const at = deps.now()
     const event = deps.db.transaction((tx) => {
@@ -860,6 +875,15 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         if (origin.reviewOfTaskId && origin.reviewOfReviewId) {
           failAcceptanceRun(origin.reviewOfTaskId, origin.reviewOfReviewId, '验收员任务执行失败')
         }
+        deps.failures?.record({
+          workspaceId: task.workspaceId,
+          taskId: task.id,
+          sessionId: listSessionsByTask(deps.db, task.id).at(-1)?.id ?? null,
+          attempt: task.retryCount,
+          stage: 'verifier',
+          message: `验收员任务「${task.title}」执行失败`,
+          retryable: true,
+        })
         notify(
           origin.threadId,
           `observe:verifier:${task.id}:failed:${task.updatedAt}`,
@@ -1023,6 +1047,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         get_task_history: wrapTool(
           'get_task_history',
           bound.get_task_history,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        get_task_failure: wrapTool(
+          'get_task_failure',
+          bound.get_task_failure,
           input.assistantMessageId,
           input.threadId,
         ),
