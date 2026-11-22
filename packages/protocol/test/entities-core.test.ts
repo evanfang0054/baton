@@ -129,6 +129,8 @@ describe('core entities', () => {
       dangerouslySkipPermissions: false,
       budgetUsd: null,
       enqueuedAt: null,
+      deliveryId: null,
+      stageKey: null,
       createdAt: 1,
       updatedAt: 1,
     }

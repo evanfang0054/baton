@@ -29,6 +29,9 @@ export const TaskCreateInput = z.object({
   verifyCommand: z.string().min(1).optional(),
   dangerouslySkipPermissions: z.boolean().default(false),
   budgetUsd: z.number().finite().positive().optional(),
+  deliveryId: Id.optional(),
+  stageKey: z.string().min(1).max(32).optional(),
+  annotationIds: z.array(Id).max(20).optional(),
 })
 export type TaskCreateInput = z.infer<typeof TaskCreateInput>
 

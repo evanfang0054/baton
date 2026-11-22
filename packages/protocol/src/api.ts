@@ -8,9 +8,11 @@ import {
   AcceptanceItems,
   AcceptanceReport,
   AcceptanceRun,
+  AnnotationSummary,
   Approval,
   Audit,
   Canvas,
+  DeliverySummary,
   Edge,
   Event,
   Node,
@@ -199,6 +201,8 @@ export const TaskDetailResponse = z.object({
     .object({ outcome: SessionOutcome, reason: z.string().nullable() })
     .nullable()
     .default(null),
+  annotations: z.array(AnnotationSummary).default([]),
+  delivery: DeliverySummary.nullable().default(null),
 })
 export type TaskDetailResponse = z.infer<typeof TaskDetailResponse>
 
