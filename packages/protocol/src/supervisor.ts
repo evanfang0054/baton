@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { Id, Timestamp } from './common.js'
 import { Engine, TaskStatus } from './enums.js'
 import { AppError } from './errors.js'
+import { TaskTemplateId } from './task-template.js'
 
 /**
  * supervisor-chat 是总管链路；supervisor-review 是总管派出的验收员任务。
@@ -142,6 +143,9 @@ export const TaskOrigin = z
     /** 验收员任务指向被验收的任务与那一轮 review，避免旧结论误批新尝试。 */
     reviewOfTaskId: Id.optional(),
     reviewOfReviewId: Id.optional(),
+    /** 建单时匹配到的模板；验收 seed 只进 verifier prompt，不拼进任务 prompt。 */
+    templateId: TaskTemplateId.optional(),
+    acceptanceSeed: z.array(z.string().min(1).max(200)).max(5).optional(),
     createdAt: Timestamp,
   })
   .strict()

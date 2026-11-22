@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { Id, Timestamp } from './common.js'
 import { Engine } from './enums.js'
 import { Strength } from './supervisor.js'
+import { TaskTemplateId } from './task-template.js'
 
 export const SupervisorActionKind = z.enum([
   'triage_plan',
@@ -22,9 +23,6 @@ export const SupervisorActionStatus = z.enum([
   'expired',
 ])
 export type SupervisorActionStatus = z.infer<typeof SupervisorActionStatus>
-
-export const TaskTemplateId = z.enum(['bugfix', 'feature', 'review', 'handoff'])
-export type TaskTemplateId = z.infer<typeof TaskTemplateId>
 
 export const PlanItem = z
   .object({
@@ -82,6 +80,15 @@ export const PlanApplyResult = z
   })
   .strict()
 export type PlanApplyResult = z.infer<typeof PlanApplyResult>
+
+export const PlanToolResult = z
+  .object({
+    actionId: Id,
+    status: SupervisorActionStatus,
+    plan: PlanPayload,
+  })
+  .strict()
+export type PlanToolResult = z.infer<typeof PlanToolResult>
 
 export const SupervisorAction = z
   .object({

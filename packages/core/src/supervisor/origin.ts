@@ -17,6 +17,8 @@ export interface BuildTaskOriginInput {
   allowedActions?: TaskAction[]
   reviewOfTaskId?: string
   reviewOfReviewId?: string
+  templateId?: TaskOrigin['templateId']
+  acceptanceSeed?: TaskOrigin['acceptanceSeed']
 }
 
 /** actor/source 由 host 注入；调用方不能从 LLM 参数里拼出来。 */
@@ -27,6 +29,8 @@ export function buildTaskOrigin(input: BuildTaskOriginInput): TaskOrigin {
     allowedActions = DEFAULT_TASK_ACTIONS,
     reviewOfTaskId,
     reviewOfReviewId,
+    templateId,
+    acceptanceSeed,
     ...origin
   } = input
   const mandate = buildMandate({
@@ -41,5 +45,7 @@ export function buildTaskOrigin(input: BuildTaskOriginInput): TaskOrigin {
     actor: { id: 'local-user', kind: actorKind, source: input.source },
     ...(reviewOfTaskId ? { reviewOfTaskId } : {}),
     ...(reviewOfReviewId ? { reviewOfReviewId } : {}),
+    ...(templateId ? { templateId } : {}),
+    ...(acceptanceSeed ? { acceptanceSeed } : {}),
   }
 }
