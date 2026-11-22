@@ -10,6 +10,7 @@ describe('supervisor policy', () => {
       'list_tasks',
       'get_task',
       'get_task_history',
+      'get_task_failure',
       'create_task',
       'create_tasks',
       'enqueue_task',

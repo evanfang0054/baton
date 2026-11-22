@@ -325,6 +325,7 @@ export function sceneDetail(): TaskDetailResponse {
     attention: 'needs_review',
     acceptance: acceptanceSummary(),
     budget: budgetSummary(),
+    lastFailure: null,
   }
 }
 

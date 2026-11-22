@@ -66,6 +66,7 @@ function detail(overrides: Partial<TaskDetailResponse> = {}): TaskDetailResponse
       verifierCostUsd: 0,
       turns: 0,
     },
+    lastFailure: null,
     ['contextInvalid']: false,
     ['originInvalid']: false,
     ...overrides,

@@ -170,34 +170,37 @@ export function DigestCard({
             >
               <h4 className="text-xs font-semibold text-foreground">需要你决定</h4>
               <ul className="flex flex-col gap-1">
-                {report.attention.items.map((item: AttentionItem) => (
-                  <li key={item.taskId} className="flex flex-col gap-1 rounded-md px-1 py-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-xs text-foreground">{item.title}</span>
-                      {item.waitingSince !== null ? (
-                        <WaitingTime since={item.waitingSince} />
-                      ) : null}
-                    </div>
-                    <p className="text-xs text-muted">{item.reason}</p>
-                    {item.action.type === 'apply_proposal' ? (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onPress={() => void onDecideAction?.(item.action.proposalId, 'apply')}
-                      >
-                        应用建议
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="tertiary"
-                        size="sm"
-                        onPress={() => onOpenTask?.(item.taskId)}
-                      >
-                        {item.action.type === 'open_review' ? '去验收' : '打开任务'}
-                      </Button>
-                    )}
-                  </li>
-                ))}
+                {report.attention.items.map((item: AttentionItem) => {
+                  const action = item.action
+                  return (
+                    <li key={item.taskId} className="flex flex-col gap-1 rounded-md px-1 py-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-xs text-foreground">{item.title}</span>
+                        {item.waitingSince !== null ? (
+                          <WaitingTime since={item.waitingSince} />
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-muted">{item.reason}</p>
+                      {action.type === 'apply_proposal' ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onPress={() => void onDecideAction?.(action.proposalId, 'apply')}
+                        >
+                          应用建议
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="tertiary"
+                          size="sm"
+                          onPress={() => onOpenTask?.(item.taskId)}
+                        >
+                          {action.type === 'open_review' ? '去验收' : '打开任务'}
+                        </Button>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             </section>
           ) : null}
