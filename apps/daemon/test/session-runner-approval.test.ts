@@ -11,7 +11,7 @@ import { createTestDb, seedTask } from './helpers/db.js'
 
 function approvalAdapter(approvals: Array<{ requestId: string; decision: string }>): AgentAdapter {
   return {
-    name: 'fake',
+    name: 'claude-sdk',
     async start(): Promise<AgentRun> {
       const events = (async function* (): AsyncGenerator<AgentEvent> {
         yield { type: EventType.RUN_STARTED, threadId: 'thread-1', runId: 'run-1' } as AgentEvent
@@ -44,7 +44,7 @@ function questionAdapter(
   denials: Array<{ requestId: string; decision: string; note?: string }> = [],
 ): AgentAdapter {
   return {
-    name: 'fake',
+    name: 'claude-sdk',
     async start(): Promise<AgentRun> {
       let release!: () => void
       const answered = new Promise<void>((resolve) => {
@@ -112,7 +112,7 @@ describe('session runner approval failures', () => {
       db: database.db,
       dataDir: process.cwd(),
       claudeMaxBudgetUsd: 2,
-      adapters: createAdapterFactory({ fake: approvalAdapter(approvals) }),
+      adapters: createAdapterFactory({ 'claude-sdk': approvalAdapter(approvals) }),
       eventStore,
       broadcast: () => {},
       killSwitch: () => false,
@@ -181,7 +181,7 @@ describe('session runner approval failures', () => {
       db: database.db,
       dataDir: process.cwd(),
       claudeMaxBudgetUsd: 2,
-      adapters: createAdapterFactory({ fake: approvalAdapter(approvals) }),
+      adapters: createAdapterFactory({ 'claude-sdk': approvalAdapter(approvals) }),
       eventStore,
       broadcast: () => {},
       killSwitch: () => false,
@@ -233,7 +233,7 @@ describe('session runner approval failures', () => {
       db: database.db,
       dataDir: process.cwd(),
       claudeMaxBudgetUsd: 2,
-      adapters: createAdapterFactory({ fake: questionAdapter(replies) }),
+      adapters: createAdapterFactory({ 'claude-sdk': questionAdapter(replies) }),
       eventStore,
       broadcast: () => {},
       killSwitch: () => false,
@@ -308,7 +308,7 @@ describe('session runner approval failures', () => {
       db: database.db,
       dataDir: process.cwd(),
       claudeMaxBudgetUsd: 2,
-      adapters: createAdapterFactory({ fake: questionAdapter(replies, denials) }),
+      adapters: createAdapterFactory({ 'claude-sdk': questionAdapter(replies, denials) }),
       eventStore,
       broadcast: () => {},
       killSwitch: () => false,

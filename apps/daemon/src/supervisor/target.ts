@@ -136,8 +136,6 @@ export function createTargetResolver(deps: TargetResolverDeps) {
   ): EngineValue {
     if (parsedEngine) return parsedEngine
     if (target.created) return deps.defaultEngine
-    // 用户手工建节点时默认是 fake（演示引擎）；总管派活默认用真实引擎。
-    if (target.engine === 'fake' && deps.defaultEngine !== 'fake') return deps.defaultEngine
     return target.engine
   }
 

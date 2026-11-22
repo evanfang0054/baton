@@ -468,14 +468,14 @@ describe('supervisor service', () => {
            id, workspace_id, node_id, title, prompt, status, engine, workspace_mode,
            branch, worktree_path, verify_command, retry_count, dangerously_skip_permissions,
            origin_json, created_at, updated_at
-         ) values ('verifier-1', ?, ?, '验收：demo', '<task>验收</task>', ?, 'fake',
+         ) values ('verifier-1', ?, ?, '验收：demo', '<task>验收</task>', ?, 'claude-sdk',
            'main', null, null, null, 0, 0, ?, 3, 3)`,
       )
       .run(seeded.workspaceId, seeded.nodeId, status, JSON.stringify(origin))
     database.raw
       .prepare(
         `insert into session (id, task_id, adapter, engine_session_id, status, started_at, ended_at)
-         values ('vs1', 'verifier-1', 'fake', null, 'ended', 3, 4)`,
+         values ('vs1', 'verifier-1', 'claude-sdk', null, 'ended', 3, 4)`,
       )
       .run()
     const events = ['验收完成，检查了 diff。', `\nVERDICT: ${verdict}`]

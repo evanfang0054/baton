@@ -103,7 +103,7 @@ describe('acceptance report service', () => {
     handle.database.raw
       .prepare(
         `insert into session (id, task_id, adapter, engine_session_id, status, cost_usd, turns, started_at, ended_at)
-         values ('verifier-session', ?, 'fake', null, 'ended', 0.125, 1, 2, 3)`,
+         values ('verifier-session', ?, 'claude-sdk', null, 'ended', 0.125, 1, 2, 3)`,
       )
       .run(verifier)
     handle.database.db.transaction((tx) =>

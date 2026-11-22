@@ -170,7 +170,7 @@ function ctx(seeded: ReturnType<typeof seedTask>): ToolContext {
     selection: {
       contextNodeIds: ['text-1'],
       targetNodeId: seeded.nodeId,
-      agentCandidates: [{ id: seeded.nodeId, title: 'agent', engine: 'fake' }],
+      agentCandidates: [{ id: seeded.nodeId, title: 'agent', engine: 'claude-sdk' }],
     },
     policyVersion: 'p1',
     promptVersion: 'v1',
@@ -247,7 +247,7 @@ describe('supervisor tools', () => {
       `insert into task (
          id, workspace_id, node_id, title, prompt, status, engine, workspace_mode,
          branch, worktree_path, verify_command, retry_count, created_at, updated_at
-       ) values (?, ?, ?, ?, 'p', ?, 'fake', 'main', null, null, null, 0, ?, ?)`,
+       ) values (?, ?, ?, ?, 'p', ?, 'claude-sdk', 'main', null, null, null, 0, ?, ?)`,
     )
     insert.run('task-login', seeded.workspaceId, seeded.nodeId, '登录页修复', 'todo', 3, 3)
     insert.run('task-home', seeded.workspaceId, seeded.nodeId, '首页登录入口', 'done', 2, 2)
@@ -275,7 +275,7 @@ describe('supervisor tools', () => {
       .prepare(
         'insert into session (id, task_id, adapter, status, started_at) values (?, ?, ?, ?, ?)',
       )
-      .run('sess-1', seeded.taskId, 'fake', 'waiting_input', 1)
+      .run('sess-1', seeded.taskId, 'claude-sdk', 'waiting_input', 1)
     database.db.transaction((tx) => {
       insertApproval(tx, {
         id: 'ap1',
@@ -304,7 +304,7 @@ describe('supervisor tools', () => {
       .prepare(
         'insert into session (id, task_id, adapter, status, started_at) values (?, ?, ?, ?, ?)',
       )
-      .run('sess-2', seeded.taskId, 'fake', 'waiting_input', 1)
+      .run('sess-2', seeded.taskId, 'claude-sdk', 'waiting_input', 1)
     database.db.transaction((tx) => {
       insertApproval(tx, {
         id: 'ap2',
@@ -787,7 +787,7 @@ describe('supervisor tools', () => {
     database.raw
       .prepare(
         `insert into session (id, task_id, adapter, status, cost_usd, turns, started_at, ended_at)
-         values ('sess-usage', ?, 'fake', 'ended', 1.2, 4, 1, 2)`,
+         values ('sess-usage', ?, 'claude-sdk', 'ended', 1.2, 4, 1, 2)`,
       )
       .run(seeded.taskId)
     database.db.transaction((tx) => {
@@ -894,7 +894,7 @@ describe('supervisor tools', () => {
     database.raw
       .prepare(
         `insert into session (id, task_id, adapter, status, cost_usd, turns, started_at)
-         values ('sess-over', ?, 'fake', 'running', 2.5, 3, 1)`,
+         values ('sess-over', ?, 'claude-sdk', 'running', 2.5, 3, 1)`,
       )
       .run(seeded.taskId)
 

@@ -14,7 +14,6 @@ import { preferredEngine } from './engine-preference'
 
 const engineNames: Record<Engine, string> = {
   'claude-sdk': 'Claude Code',
-  fake: '演示引擎（fake）',
   pty: 'PTY',
 }
 

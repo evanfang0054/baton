@@ -34,7 +34,7 @@ const task = {
   prompt: '<task>demo</task>',
   status: 'todo',
   waitingReason: null,
-  engine: 'fake',
+  engine: 'claude-sdk',
   workspaceMode: 'main',
   branch: null,
   worktreePath: null,
@@ -80,7 +80,7 @@ describe('REST DTO schemas', () => {
       EngineListResponse.parse({
         engines: [
           { engine: 'claude-sdk', status: 'unknown', reason: 'no auth signal' },
-          { engine: 'fake', status: 'available' },
+          { engine: 'claude-sdk', status: 'available' },
         ],
       }).engines,
     ).toHaveLength(2)

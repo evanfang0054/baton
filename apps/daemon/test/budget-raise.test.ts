@@ -1,4 +1,4 @@
-import { FakeAdapter } from '@baton/adapters'
+import { ScriptedAdapter } from './helpers/scripted-adapter.js'
 import type { AgentRun, StartInput } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
 import { listAudit } from '../src/db/repositories.js'
@@ -7,15 +7,15 @@ import { createTestRuntime, type TestRuntimeHandle } from './helpers/runtime.js'
 
 function setup() {
   const prompts: string[] = []
-  const fake = new FakeAdapter({ script: [{ kind: 'finish' }] })
+  const scripted = new ScriptedAdapter({ script: [{ kind: 'finish' }] })
   const handle = createTestRuntime({
     useSessionRunner: true,
     adapters: createAdapterFactory({
-      fake: {
-        name: 'fake',
+      'claude-sdk': {
+        name: 'claude-sdk',
         start: async (input: StartInput): Promise<AgentRun> => {
           prompts.push(input.prompt)
-          return fake.start(input)
+          return scripted.start(input)
         },
       },
     }),
@@ -28,7 +28,7 @@ async function waitForBudget(handle: TestRuntimeHandle): Promise<string> {
   handle.database.raw
     .prepare(
       `insert into session (id, task_id, adapter, status, cost_usd, turns, started_at, ended_at)
-       values (?, ?, 'fake', 'ended', 2, 2, 1, 2)`,
+       values (?, ?, 'claude-sdk', 'ended', 2, 2, 1, 2)`,
     )
     .run(`spent-${taskId}`, taskId)
   handle.runtime.applyTransition(taskId, { type: 'enqueue' })

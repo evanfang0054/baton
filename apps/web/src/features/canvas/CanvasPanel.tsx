@@ -472,7 +472,7 @@ function FlowCanvas({
         w: DEFAULT_SIZE.w,
         h: DEFAULT_SIZE.h,
         groupId: null,
-        data: { title: `Agent ${agentCount + 1}`, engine: 'fake', taskId: null },
+        data: { title: `Agent ${agentCount + 1}`, engine: 'claude-sdk', taskId: null },
       })
     },
     [canvas, centerPosition, createGroupFromSelection, createNode, sceneActive],

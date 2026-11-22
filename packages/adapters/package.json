@@ -8,8 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./claude": "./src/claude/index.ts",
-    "./claude-meta": "./src/claude/meta.ts",
-    "./fake": "./src/fake.ts"
+    "./claude-meta": "./src/claude/meta.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

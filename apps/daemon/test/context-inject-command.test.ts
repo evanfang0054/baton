@@ -1,4 +1,4 @@
-import { FakeAdapter } from '@baton/adapters'
+import { ScriptedAdapter } from './helpers/scripted-adapter.js'
 import { afterEach, describe, expect, it } from 'vitest'
 import { getTaskDetail } from '../src/db/repositories.js'
 import { createAdapterFactory } from '../src/runtime/adapter-factory.js'
@@ -89,7 +89,7 @@ describe('context.inject command', () => {
     const handle = createTestRuntime({
       useSessionRunner: true,
       adapters: createAdapterFactory({
-        fake: new FakeAdapter({
+        'claude-sdk': new ScriptedAdapter({
           script: [{ kind: 'pause', outcome: 'blocked' }, { kind: 'finish' }],
         }),
       }),

@@ -19,7 +19,7 @@ const baseTask: TaskDetailResponse['task'] = {
   prompt: '',
   status: 'todo',
   waitingReason: null,
-  engine: 'fake',
+  engine: 'claude-sdk',
   workspaceMode: 'main',
   branch: null,
   worktreePath: null,
@@ -40,7 +40,7 @@ function detail(overrides: Partial<TaskDetailResponse> = {}): TaskDetailResponse
       {
         id: 's1',
         taskId: 't1',
-        adapter: 'fake',
+        adapter: 'claude-sdk',
         engineSessionId: null,
         status: 'running',
         outcome: null,
@@ -286,7 +286,7 @@ describe('TaskDetailPanel', () => {
           {
             id: 's1',
             taskId: 't1',
-            adapter: 'fake',
+            adapter: 'claude-sdk',
             engineSessionId: null,
             status: 'ended',
             outcome: 'ready',

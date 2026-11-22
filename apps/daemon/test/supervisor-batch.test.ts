@@ -15,7 +15,7 @@ function setup() {
       `insert into task (
          id, workspace_id, node_id, title, prompt, status, engine, workspace_mode,
          retry_count, dangerously_skip_permissions, created_at, updated_at
-       ) values ('running-1', ?, ?, '运行中', 'p', 'running', 'fake', 'main', 0, 0, 1, 1)`,
+       ) values ('running-1', ?, ?, '运行中', 'p', 'running', 'claude-sdk', 'main', 0, 0, 1, 1)`,
     )
     .run(seeded.workspaceId, seeded.nodeId)
   const cancelled: string[] = []
@@ -32,7 +32,7 @@ function setup() {
     } as never,
     now: () => 1,
     newId: () => 'id',
-    defaultEngine: 'fake',
+    defaultEngine: 'claude-sdk',
     enqueueTask: () => ({ ok: false, error: { code: 'unused', message: 'unused' } as never }),
     applyTransition: () => ({
       ok: false,

@@ -25,7 +25,7 @@ const node = (
 const edge = (id: string, sourceId: string, targetId: string) =>
   Edge.parse({ id, canvasId: 'c1', sourceId, targetId, type: 'context' })
 
-const target = node('n4', 'agent', { title: 'Agent', engine: 'fake', taskId: null }, 0, 0)
+const target = node('n4', 'agent', { title: 'Agent', engine: 'claude-sdk', taskId: null }, 0, 0)
 const prd = node('n1', 'text', { content: 'PRD\n登录页需求：支持暗黑模式' }, 10, 10)
 const design = node('n2', 'image', { src: 'artifacts/design.png', alt: '设计稿' }, 20, 20)
 const spec = node('n3', 'file', { path: 'docs/login.md', name: 'login.md' }, 30, 30)
@@ -182,7 +182,13 @@ describe('assembleContext', () => {
     const depth2 = node('d1', 'text', { content: 'depth2' }, 0, 1)
     const depth1 = node('d2', 'text', { content: 'depth1' }, 0, 2)
     const selected = node('d3', 'text', { content: 'selected' }, 0, 3)
-    const otherAgent = node('a1', 'agent', { title: 'Other', engine: 'fake', taskId: null }, 0, 4)
+    const otherAgent = node(
+      'a1',
+      'agent',
+      { title: 'Other', engine: 'claude-sdk', taskId: null },
+      0,
+      4,
+    )
     const otherReview = node('r1', 'review', { taskId: 't2' }, 0, 5)
     const otherGroup = node('g1', 'group', { label: 'G2', collapsed: false }, 0, 6)
     const deepEdges = [
@@ -229,7 +235,7 @@ describe('assembleContext', () => {
     const agentChild = node(
       'ga',
       'agent',
-      { title: 'A', engine: 'fake', taskId: null },
+      { title: 'A', engine: 'claude-sdk', taskId: null },
       1,
       201,
       'g2',
@@ -296,7 +302,7 @@ describe('assembleContext', () => {
     const target3 = node(
       'target3',
       'agent',
-      { title: 'T3', engine: 'fake', taskId: null },
+      { title: 'T3', engine: 'claude-sdk', taskId: null },
       1,
       231,
       'g3',

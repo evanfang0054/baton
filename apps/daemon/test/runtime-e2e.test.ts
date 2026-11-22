@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { FakeAdapter } from '@baton/adapters'
+import { ScriptedAdapter } from './helpers/scripted-adapter.js'
 import type { TestApp } from './helpers/app.js'
 import type { TestRuntimeHandle } from './helpers/runtime.js'
 import { createAdapterFactory } from '../src/runtime/adapter-factory.js'
@@ -94,7 +94,7 @@ describe('M1-5 runtime e2e', () => {
       useSessionRunner: true,
       useVerifyRunner: true,
       adapters: createAdapterFactory({
-        fake: new FakeAdapter({
+        'claude-sdk': new ScriptedAdapter({
           script: [
             { kind: 'text', text: 'need a decision' },
             { kind: 'pause', outcome: 'blocked' },

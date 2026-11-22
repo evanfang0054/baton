@@ -107,7 +107,7 @@ export const ApprovalRequestEvent = ReplayableBase.extend({
 })
 export type ApprovalRequestEvent = z.infer<typeof ApprovalRequestEvent>
 
-/** 适配器与 daemon 共享的自定义事件契约：agent-fake 发出，session runner 解析。 */
+/** 适配器与 daemon 共享的自定义事件契约：测试脚本适配器发出，session runner 解析。 */
 export const APPROVAL_REQUEST_EVENT = 'approval.request'
 export const ApprovalRequestValue = z.object({
   requestId: z.string().min(1),

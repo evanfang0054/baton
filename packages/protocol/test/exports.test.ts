@@ -130,7 +130,7 @@ describe('protocol exports', () => {
 
   it('exports the AgentAdapter contract', async () => {
     const adapter: AgentAdapter = {
-      name: 'fake',
+      name: 'claude-sdk',
       async start(input: StartInput): Promise<AgentRun> {
         const snapshot: PolicySnapshot = input.policy
         expect(snapshot.approval.default).toBe('ask')
@@ -153,7 +153,7 @@ describe('protocol exports', () => {
       workspaceTrust: { projectSettings: false, projectHooks: false },
       bypassPermissions: false,
     })
-    expect(adapter.name).toBe('fake')
+    expect(adapter.name).toBe('claude-sdk')
     await run.dispose()
   })
 })

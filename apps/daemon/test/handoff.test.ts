@@ -105,7 +105,7 @@ function toolContext(seeded: SeededTask): ToolContext {
     selection: {
       contextNodeIds: [],
       targetNodeId: seeded.nodeId,
-      agentCandidates: [{ id: seeded.nodeId, title: 'agent', engine: 'fake' }],
+      agentCandidates: [{ id: seeded.nodeId, title: 'agent', engine: 'claude-sdk' }],
     },
     policyVersion: 'p1',
     promptVersion: 'v1',

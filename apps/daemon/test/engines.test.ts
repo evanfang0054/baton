@@ -17,13 +17,13 @@ afterEach(() => {
 })
 
 describe('engine registry', () => {
-  it('reports fake as always available and pty as unavailable', () => {
+  it('reports claude availability and pty as unavailable', () => {
     const registry = createEngineRegistry({
-      env: {},
+      env: { ANTHROPIC_API_KEY: 'set' },
       home: home(),
       sdkMeta: () => ({ available: true, version: 'test' }),
     })
-    expect(registry.get('fake')).toMatchObject({ status: 'available' })
+    expect(registry.get('claude-sdk')).toMatchObject({ status: 'available' })
     expect(registry.get('pty').status).toBe('unavailable')
   })
 

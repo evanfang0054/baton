@@ -31,7 +31,7 @@ beforeEach(() => {
       if (String(input) === '/api/engines') {
         return Response.json({
           engines: [
-            { engine: 'fake', status: 'available' },
+            { engine: 'claude-sdk', status: 'available' },
             { engine: 'claude-sdk', status: 'available' },
           ],
         })

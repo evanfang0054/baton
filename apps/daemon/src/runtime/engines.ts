@@ -57,7 +57,7 @@ export function createEngineRegistry(deps: EngineRegistryDeps = {}): EngineRegis
   }
 
   function compute(): EngineStatus[] {
-    return [claudeStatus(), { engine: 'fake', status: 'available' }]
+    return [claudeStatus()]
   }
 
   function list(): EngineStatus[] {

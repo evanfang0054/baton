@@ -12,7 +12,7 @@ const task: TaskSummary = {
   prompt: '<task>demo</task>',
   status: 'waiting_input',
   waitingReason: 'question',
-  engine: 'fake',
+  engine: 'claude-sdk',
   workspaceMode: 'main',
   branch: null,
   worktreePath: null,

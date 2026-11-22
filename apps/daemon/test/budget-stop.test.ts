@@ -1,21 +1,21 @@
-import { FakeAdapter } from '@baton/adapters'
+import { ScriptedAdapter } from './helpers/scripted-adapter.js'
 import type { AgentRun, StartInput } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
 import { getTask } from '../src/db/repositories.js'
 import { createAdapterFactory } from '../src/runtime/adapter-factory.js'
 import { createTestRuntime } from './helpers/runtime.js'
 
-function setup(script: ConstructorParameters<typeof FakeAdapter>[0]) {
+function setup(script: ConstructorParameters<typeof ScriptedAdapter>[0]) {
   const interrupts: string[] = []
   let seq = 0
-  const fake = new FakeAdapter(script)
+  const scripted = new ScriptedAdapter(script)
   const handle = createTestRuntime({
     useSessionRunner: true,
     adapters: createAdapterFactory({
-      fake: {
-        name: 'fake',
+      'claude-sdk': {
+        name: 'claude-sdk',
         start: async (input: StartInput): Promise<AgentRun> => {
-          const run = await fake.start(input)
+          const run = await scripted.start(input)
           const id = `run-${++seq}`
           return {
             ...run,

@@ -33,7 +33,7 @@ const canvasNodes = [
     w: 240,
     h: 120,
     groupId: null,
-    data: { title: 'Agent 1', engine: 'fake', taskId: null },
+    data: { title: 'Agent 1', engine: 'claude-sdk', taskId: null },
     createdAt: 1,
     updatedAt: 1,
   },
@@ -81,7 +81,7 @@ async function mockRest(page: Page, getMessages: () => unknown[]) {
     }
     if (path === '/api/tasks') return route.fulfill({ json: { tasks: [] } })
     if (path === '/api/engines') {
-      return route.fulfill({ json: { engines: [{ engine: 'fake', status: 'available' }] } })
+      return route.fulfill({ json: { engines: [{ engine: 'claude-sdk', status: 'available' }] } })
     }
     if (path === '/api/supervisor/status') {
       return route.fulfill({

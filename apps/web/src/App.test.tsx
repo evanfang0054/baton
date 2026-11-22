@@ -66,7 +66,7 @@ function stubTaskApi() {
     prompt: '',
     status: 'waiting_input',
     waitingReason: 'question',
-    engine: 'fake',
+    engine: 'claude-sdk',
     workspaceMode: 'main',
     branch: null,
     worktreePath: null,

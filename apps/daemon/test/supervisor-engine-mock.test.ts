@@ -121,7 +121,7 @@ function tools(): BoundToolset {
       execute: async (input) => ({
         taskId: 'task-1',
         title: (input as { title: string }).title,
-        target: { id: 'a1', title: 'Agent 1', engine: 'fake' },
+        target: { id: 'a1', title: 'Agent 1', engine: 'claude-sdk' },
         contextCount: 1,
         status: 'todo',
       }),

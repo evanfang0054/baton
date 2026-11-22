@@ -16,7 +16,7 @@ function task(overrides: Partial<TaskSummary>): TaskSummary {
     attention: 'none',
     waitingReason: null,
     waitingSince: null,
-    engine: 'fake',
+    engine: 'claude-sdk',
     retryCount: 0,
     createdAt: 1,
     updatedAt: 2,

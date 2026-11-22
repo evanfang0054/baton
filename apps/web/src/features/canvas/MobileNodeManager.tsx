@@ -57,7 +57,7 @@ export function MobileNodeManager({
   const [error, setError] = useState<string | null>(null)
 
   const engineOptions = engines.data ?? []
-  const defaultEngine = preferredEngine(engineOptions) ?? 'fake'
+  const defaultEngine = preferredEngine(engineOptions) ?? 'claude-sdk'
   const storedEngine = draft?.type === 'agent' ? draft.engine : null
   const effectiveEngine =
     storedEngine && engineOptions.some((entry) => entry.engine === storedEngine)

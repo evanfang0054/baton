@@ -34,7 +34,7 @@ export function createTaskPayload(
     title: 'demo',
     prompt: '把登录页改成暗黑模式',
     contextNodeIds: ['text-1'],
-    engine: 'fake',
+    engine: 'claude-sdk',
     workspaceMode: 'main',
     dangerouslySkipPermissions: false,
     ...overrides,

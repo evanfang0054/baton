@@ -7,7 +7,7 @@ import { NodePicker } from './NodePicker'
 function node(id: string, title: string, type: Node['type'] = 'text'): Node {
   const data =
     type === 'agent'
-      ? { title, engine: 'fake', taskId: null }
+      ? { title, engine: 'claude-sdk', taskId: null }
       : type === 'file'
         ? { name: title, path: 'src/file.txt' }
         : type === 'text'

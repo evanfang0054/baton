@@ -57,10 +57,7 @@ afterEach(() => {
 
 describe('CreateTaskForm', () => {
   it('requires a prompt and sends the task.create payload with the preferred engine', async () => {
-    stubEngines([
-      { engine: 'claude-sdk', status: 'unknown', reason: 'reusing local login' },
-      { engine: 'fake', status: 'available' },
-    ])
+    stubEngines([{ engine: 'claude-sdk', status: 'unknown', reason: 'reusing local login' }])
     const { send, onCreated } = renderForm()
     const submit = screen.getByRole('button', { name: '创建任务' })
     expect(submit).toBeDisabled()
@@ -94,15 +91,15 @@ describe('CreateTaskForm', () => {
   })
 
   it('disables skip permissions until the workspace is trusted', async () => {
-    stubEngines([{ engine: 'fake', status: 'available' }])
+    stubEngines([{ engine: 'claude-sdk', status: 'available' }])
     renderForm(vi.fn().mockResolvedValue({ taskId: 't1' }), false)
     expect(screen.getByLabelText('跳过权限确认')).toBeDisabled()
   })
 
   it('sends the bypass flag only for a trusted workspace', async () => {
-    stubEngines([{ engine: 'fake', status: 'available' }])
+    stubEngines([{ engine: 'claude-sdk', status: 'available' }])
     const { send } = renderForm(vi.fn().mockResolvedValue({ taskId: 't1' }), true)
-    await waitFor(() => expect(screen.getByLabelText('执行引擎')).toHaveValue('fake'))
+    await waitFor(() => expect(screen.getByLabelText('执行引擎')).toHaveValue('claude-sdk'))
     fireEvent.change(screen.getByLabelText('任务标题'), { target: { value: '演示任务' } })
     fireEvent.change(screen.getByLabelText('任务说明'), { target: { value: '请完成演示' } })
     fireEvent.click(screen.getByLabelText('跳过权限确认'))
@@ -119,9 +116,9 @@ describe('CreateTaskForm', () => {
   })
 
   it('follows node title changes until the user edits the task title', async () => {
-    stubEngines([{ engine: 'fake', status: 'available' }])
+    stubEngines([{ engine: 'claude-sdk', status: 'available' }])
     const { setDefaultTitle } = renderForm()
-    await waitFor(() => expect(screen.getByLabelText('执行引擎')).toHaveValue('fake'))
+    await waitFor(() => expect(screen.getByLabelText('执行引擎')).toHaveValue('claude-sdk'))
     expect(screen.getByLabelText('任务标题')).toHaveValue('Agent 1')
 
     setDefaultTitle('登录页 Agent')
@@ -132,18 +129,16 @@ describe('CreateTaskForm', () => {
     expect(screen.getByLabelText('任务标题')).toHaveValue('自定义标题')
   })
 
-  it('falls back to the demo engine when Claude is unavailable', async () => {
-    stubEngines([
-      { engine: 'claude-sdk', status: 'unavailable', reason: 'SDK missing' },
-      { engine: 'fake', status: 'available' },
-    ])
+  it('requires Claude to be available before creating a task', async () => {
+    stubEngines([{ engine: 'claude-sdk', status: 'unavailable', reason: 'SDK missing' }])
     renderForm()
-    await waitFor(() => expect(screen.getByLabelText('执行引擎')).toHaveValue('fake'))
-    expect(screen.getByRole('option', { name: /Claude Code/ })).toBeDisabled()
+    expect(await screen.findByRole('option', { name: /Claude Code/ })).toBeDisabled()
+    expect(screen.getByLabelText('执行引擎')).toHaveValue('')
+    expect(screen.getByRole('button', { name: '创建任务' })).toBeDisabled()
   })
 
   it('shows context chips and sends their ids', async () => {
-    stubEngines([{ engine: 'fake', status: 'available' }])
+    stubEngines([{ engine: 'claude-sdk', status: 'available' }])
     const send = vi.fn().mockResolvedValue({ taskId: 't1' })
     const contextNodes: ProtocolNode[] = [
       {
@@ -178,7 +173,7 @@ describe('CreateTaskForm', () => {
     expect(screen.getByText('a.md')).toBeInTheDocument()
     expect(screen.getByText('已选 2 个')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '清空' })).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByLabelText('执行引擎')).toHaveValue('fake'))
+    await waitFor(() => expect(screen.getByLabelText('执行引擎')).toHaveValue('claude-sdk'))
     fireEvent.change(screen.getByLabelText('任务说明'), { target: { value: '开始' } })
     fireEvent.click(screen.getByRole('button', { name: '创建任务' }))
     await waitFor(() =>
@@ -192,9 +187,9 @@ describe('CreateTaskForm', () => {
   })
 
   it('sends worktree mode when the toggle is on', async () => {
-    stubEngines([{ engine: 'fake', status: 'available' }])
+    stubEngines([{ engine: 'claude-sdk', status: 'available' }])
     const { send } = renderForm()
-    await waitFor(() => expect(screen.getByLabelText('执行引擎')).toHaveValue('fake'))
+    await waitFor(() => expect(screen.getByLabelText('执行引擎')).toHaveValue('claude-sdk'))
     fireEvent.change(screen.getByLabelText('任务说明'), { target: { value: '在独立工作树里做' } })
     fireEvent.click(screen.getByLabelText('使用独立工作树'))
     fireEvent.click(screen.getByRole('button', { name: '创建任务' }))

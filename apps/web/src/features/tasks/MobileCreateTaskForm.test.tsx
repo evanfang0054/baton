@@ -19,14 +19,7 @@ const agent = {
   groupId: null,
   createdAt: 1,
   updatedAt: 1,
-  data: { title: '主 Agent', engine: 'fake', taskId: null },
-} as Node
-
-const claudeAgent = {
-  ...agent,
-  id: 'a2',
-  x: 400,
-  data: { title: 'Claude Agent', engine: 'claude-sdk', taskId: null },
+  data: { title: '主 Agent', engine: 'claude-sdk', taskId: null },
 } as Node
 
 function stubEngines(engines: string[]) {
@@ -46,7 +39,7 @@ function stubEngines(engines: string[]) {
 beforeEach(() => {
   send.mockReset()
   send.mockResolvedValue({ taskId: 't1' })
-  stubEngines(['fake'])
+  stubEngines(['claude-sdk'])
 })
 
 afterEach(() => {
@@ -89,50 +82,12 @@ describe('MobileCreateTaskForm', () => {
             nodeId: 'a1',
             title: '移动任务',
             prompt: '做一件事',
-            engine: 'fake',
+            engine: 'claude-sdk',
           }),
         }),
       ),
     )
     expect(onCreated).toHaveBeenCalledWith('t1')
-  })
-
-  it('defaults to the agent engine instead of the preferred engine', async () => {
-    stubEngines(['fake', 'claude-sdk'])
-    renderForm([agent])
-    await screen.findByLabelText('任务标题')
-    await userEvent.type(screen.getByLabelText('任务 prompt'), '做一件事')
-    await userEvent.click(screen.getByRole('button', { name: '创建' }))
-
-    await waitFor(() =>
-      expect(send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'task.create',
-          payload: expect.objectContaining({ nodeId: 'a1', engine: 'fake' }),
-        }),
-      ),
-    )
-  })
-
-  it('switches engine when picking another agent', async () => {
-    stubEngines(['fake', 'claude-sdk'])
-    renderForm([agent, claudeAgent])
-    await screen.findByLabelText('任务标题')
-
-    await userEvent.click(screen.getByRole('button', { name: '主 Agent' }))
-    await userEvent.click(screen.getByRole('button', { name: /Claude Agent/ }))
-    await userEvent.click(screen.getByRole('button', { name: '确定' }))
-    await userEvent.type(screen.getByLabelText('任务 prompt'), '做一件事')
-    await userEvent.click(screen.getByRole('button', { name: '创建' }))
-
-    await waitFor(() =>
-      expect(send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'task.create',
-          payload: expect.objectContaining({ nodeId: 'a2', engine: 'claude-sdk' }),
-        }),
-      ),
-    )
   })
 
   it('retries a failed enqueue without creating a duplicate task', async () => {

@@ -10,7 +10,7 @@ import { createTestDb, seedTask } from './helpers/db.js'
 
 function approvalBurstAdapter(count: number, decisions: string[]): AgentAdapter {
   return {
-    name: 'fake',
+    name: 'claude-sdk',
     async start(): Promise<AgentRun> {
       let closed = false
       const gates = Array.from({ length: count }, () => {
@@ -97,7 +97,7 @@ function setup(count: number, cap: number) {
     db: database.db,
     dataDir: process.cwd(),
     claudeMaxBudgetUsd: 2,
-    adapters: createAdapterFactory({ fake: approvalBurstAdapter(count, decisions) }),
+    adapters: createAdapterFactory({ 'claude-sdk': approvalBurstAdapter(count, decisions) }),
     eventStore,
     broadcast: () => {},
     killSwitch: () => false,

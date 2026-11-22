@@ -29,7 +29,7 @@ describe('TaskHistory', () => {
         {
           id: 's1',
           taskId: 't1',
-          adapter: 'fake',
+          adapter: 'claude-sdk',
           engineSessionId: null,
           status: 'ended',
           outcome: 'ready',

@@ -38,7 +38,7 @@ export function MobileCreateTaskForm({
   const [agentId, setAgentId] = useState(agents[0]?.id ?? '')
   const [newAgent, setNewAgent] = useState(agents.length === 0)
   const [agentTitle, setAgentTitle] = useState('')
-  const [engine, setEngine] = useState<Engine>(agents[0]?.data.engine ?? 'fake')
+  const [engine, setEngine] = useState<Engine>(agents[0]?.data.engine ?? 'claude-sdk')
   const [contextIds, setContextIds] = useState<string[]>([])
   const [title, setTitle] = useState('')
   const [prompt, setPrompt] = useState('')
@@ -56,7 +56,7 @@ export function MobileCreateTaskForm({
   const defaultEngine = engines.data ? preferredEngine(engines.data) : null
   const effectiveEngine = engineOptions.some((entry) => entry.engine === engine)
     ? engine
-    : (defaultEngine ?? 'fake')
+    : (defaultEngine ?? 'claude-sdk')
   const selectedEngine = engineOptions.find((entry) => entry.engine === effectiveEngine)
   const disabled =
     !prompt.trim() ||

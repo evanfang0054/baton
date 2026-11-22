@@ -62,7 +62,7 @@ test('trusts a workspace and resolves an approval card', async ({ page }) => {
         json: {
           engines: [
             { engine: 'claude-sdk', status: 'unknown', reason: 'reusing local login' },
-            { engine: 'fake', status: 'available' },
+            { engine: 'claude-sdk', status: 'available' },
           ],
         },
       })

@@ -22,7 +22,7 @@ function task(id: string, title: string, overrides: Partial<TaskSummary> = {}): 
     prompt: '',
     status: 'todo',
     waitingReason: null,
-    engine: 'fake',
+    engine: 'claude-sdk',
     workspaceMode: 'main',
     branch: null,
     worktreePath: null,

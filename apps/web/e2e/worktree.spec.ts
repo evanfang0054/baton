@@ -43,7 +43,7 @@ async function mockWorkspace(page: Page, state: { worktreePath: string | null })
     if (path === '/api/workspaces/w1/capabilities')
       return route.fulfill({ json: { worktree: true } })
     if (path === '/api/engines') {
-      return route.fulfill({ json: { engines: [{ engine: 'fake', status: 'available' }] } })
+      return route.fulfill({ json: { engines: [{ engine: 'claude-sdk', status: 'available' }] } })
     }
     if (path === '/api/notices') return route.fulfill({ json: { notices: [] } })
     if (path === '/api/canvas') {
@@ -67,7 +67,7 @@ async function mockWorkspace(page: Page, state: { worktreePath: string | null })
               prompt: '',
               status: 'done',
               waitingReason: null,
-              engine: 'fake',
+              engine: 'claude-sdk',
               workspaceMode: 'worktree',
               branch: null,
               worktreePath: state.worktreePath,
@@ -95,7 +95,7 @@ async function mockWorkspace(page: Page, state: { worktreePath: string | null })
             prompt: '',
             status: 'done',
             waitingReason: null,
-            engine: 'fake',
+            engine: 'claude-sdk',
             workspaceMode: 'worktree',
             branch: null,
             worktreePath: state.worktreePath,

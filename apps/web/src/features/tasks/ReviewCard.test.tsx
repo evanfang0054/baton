@@ -158,7 +158,7 @@ describe('ReviewCard', () => {
       w: 320,
       h: 200,
       groupId: null,
-      data: { title: 'Agent 1', engine: 'fake', taskId: null },
+      data: { title: 'Agent 1', engine: 'claude-sdk', taskId: null },
       createdAt: 1,
       updatedAt: 1,
     }

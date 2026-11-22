@@ -15,7 +15,7 @@ const agent: ProtocolNode = {
   w: 320,
   h: 200,
   groupId: null,
-  data: { title: 'Agent 1', engine: 'fake', taskId: null },
+  data: { title: 'Agent 1', engine: 'claude-sdk', taskId: null },
   createdAt: 1,
   updatedAt: 1,
 }
@@ -28,7 +28,7 @@ const task: TaskSummary = {
   prompt: '',
   status: 'todo',
   waitingReason: null,
-  engine: 'fake',
+  engine: 'claude-sdk',
   workspaceMode: 'main',
   branch: null,
   worktreePath: null,

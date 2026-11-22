@@ -1,21 +1,21 @@
-import { FakeAdapter } from '@baton/adapters'
+import { ScriptedAdapter } from './helpers/scripted-adapter.js'
 import type { StartInput } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
 import { getTask } from '../src/db/repositories.js'
 import { createAdapterFactory } from '../src/runtime/adapter-factory.js'
 import { createTestRuntime } from './helpers/runtime.js'
 
-function setup(script: ConstructorParameters<typeof FakeAdapter>[0] = {}) {
+function setup(script: ConstructorParameters<typeof ScriptedAdapter>[0] = {}) {
   const seen: StartInput[] = []
-  const fake = new FakeAdapter(script)
+  const scripted = new ScriptedAdapter(script)
   const handle = createTestRuntime({
     useSessionRunner: true,
     adapters: createAdapterFactory({
-      fake: {
-        name: 'fake',
+      'claude-sdk': {
+        name: 'claude-sdk',
         start: (input) => {
           seen.push(input)
-          return fake.start(input)
+          return scripted.start(input)
         },
       },
     }),
@@ -44,7 +44,7 @@ describe('budget start guard', () => {
     handle.database.raw
       .prepare(
         `insert into session (id, task_id, adapter, status, cost_usd, turns, started_at, ended_at)
-         values ('spent-session', ?, 'fake', 'ended', 2.5, 3, 1, 2)`,
+         values ('spent-session', ?, 'claude-sdk', 'ended', 2.5, 3, 1, 2)`,
       )
       .run(taskId)
 
