@@ -171,7 +171,13 @@ export function createSupervisorActionService(deps: SupervisorActionServiceDeps)
     }
     const applied = applyAction(action, input.actor)
     if (!applied.ok) {
-      updateStatus(action, 'failed', now, input.actor)
+      updateStatus(action, 'failed', now, input.actor, {
+        error: {
+          code: applied.error.code,
+          message: applied.error.message,
+          ...(applied.error.details === undefined ? {} : { details: applied.error.details }),
+        },
+      })
       return { ok: false, error: applied.error }
     }
     return {
@@ -190,6 +196,12 @@ export function createSupervisorActionService(deps: SupervisorActionServiceDeps)
       return { ok: true, result: { generated: true } }
     }
     if (action.kind === 'triage_plan') {
+      if (actor !== 'human') {
+        return {
+          ok: false,
+          error: appError('supervisor_action_forbidden', 'only a human can apply a plan'),
+        }
+      }
       if (!deps.applyPlan) {
         return {
           ok: false,
@@ -209,7 +221,7 @@ export function createSupervisorActionService(deps: SupervisorActionServiceDeps)
     if (action.kind !== 'retry' && action.kind !== 'reopen') {
       return {
         ok: false,
-        error: appError('action_not_applicable', 'action kind is not implemented in Plan A'),
+        error: appError('action_not_applicable', 'action kind is not supported'),
       }
     }
     if (!payload.taskId) {

@@ -249,6 +249,16 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     cancelTask: deps.cancelTask,
     ...(deps.requireMandate ? { requireMandate: deps.requireMandate } : {}),
     ...(deps.actions ? { actions: deps.actions } : {}),
+    assertAutomationAllowed: (workspaceId: string) => {
+      if (deps.killSwitch()) {
+        return appError('automation_paused', '自动化已暂停，需要你手动恢复')
+      }
+      const info = deps.loadPolicy?.(workspaceId)
+      if (info && !info.trusted) {
+        return appError('workspace_untrusted', '工作区尚未信任，不能执行恢复动作')
+      }
+      return null
+    },
     ...(deps.loadPolicy
       ? {
           workspacePolicyVersion: (workspaceId: string) =>
@@ -935,7 +945,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     if (input.status === 'failed') {
       notify(
         origin.threadId,
-        `observe:failed:${task.id}:${task.retryCount}`,
+        `observe:failed:${task.id}:${task.updatedAt}`,
         `任务「${task.title}」执行失败，需要你看一下任务详情。`,
       )
       const policyInfo = deps.loadPolicy?.(task.workspaceId)
@@ -953,7 +963,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
             payload: { taskId: task.id },
             policyVersion: policyInfo.policyVersion,
             mandateVersion: origin.mandateVersion ?? null,
-            dedupeKey: `retry:${task.id}:${task.retryCount}:${Math.floor(deps.now() / 86_400_000)}`,
+            dedupeKey: `retry:${task.id}:${task.updatedAt}:${Math.floor(deps.now() / 86_400_000)}`,
           })
           if (mode === 'auto' && proposed?.ok) {
             deps.actions?.decide({

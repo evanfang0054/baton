@@ -372,6 +372,8 @@ export interface SupervisorToolsDeps {
   /** 主动恢复动作前按当前 policy 重新校验；显式用户指令也会检查 allowedActions。 */
   requireMandate?: (taskId: string, action: TaskAction, strength: Strength) => AppError | null
   actions?: SupervisorActionsPort
+  /** 模型发起的恢复动作必须先过 kill switch / workspace 信任闸门。 */
+  assertAutomationAllowed?: (workspaceId: string) => AppError | null
   /** 计划写入动作账本时必须用 workspace policy 指纹，apply 时才能同源校验。 */
   workspacePolicyVersion?: (workspaceId: string) => string
   contextDigest?: (workspaceId: string, items: PlanItem[]) => PlanContextItem[]
@@ -412,6 +414,11 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     now: deps.now,
     newId: deps.newId,
   })
+
+  function assertAutomationAllowed(ctx: ToolContext): void {
+    const blocked = deps.assertAutomationAllowed?.(ctx.workspaceId)
+    if (blocked) throw blocked
+  }
 
   function taskSummary(
     task: ReturnType<typeof listTasks>[number],
@@ -1322,6 +1329,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           }
         }
 
+        assertAutomationAllowed(ctx)
         const results: Array<{
           taskId: string
           ok: boolean
@@ -1487,6 +1495,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             status: detail.task.status,
           })
         }
+        assertAutomationAllowed(ctx)
         const mandate = deps.requireMandate?.(detail.task.id, 'enqueue', 'explicit')
         if (mandate) throw mandate
         const outcome = deps.enqueueTask(detail.task.id)
@@ -1507,6 +1516,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             status: task.status,
           })
         }
+        assertAutomationAllowed(ctx)
         const mandate = deps.requireMandate?.(task.id, 'retry', 'explicit')
         if (mandate) throw mandate
         const result = transitionResult(
@@ -1533,6 +1543,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             status: task.status,
           })
         }
+        assertAutomationAllowed(ctx)
         const mandate = deps.requireMandate?.(task.id, 'reopen', 'explicit')
         if (mandate) throw mandate
         const result = transitionResult(
@@ -1579,6 +1590,9 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             status: task.status,
           })
         }
+        assertAutomationAllowed(ctx)
+        const mandate = deps.requireMandate?.(task.id, 'cancel', 'explicit')
+        if (mandate) throw mandate
         const result = transitionResult(deps.cancelTask(task.id, parsed.reason))
         audit('supervisor.task.cancel', task.id, ctx, { hasReason: Boolean(parsed.reason) })
         return result

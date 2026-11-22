@@ -61,6 +61,7 @@ function setup() {
   const replies: Array<{ taskId: string; text: string }> = []
   const injected: unknown[] = []
   const decisions: Array<{ actionId: string; decision: string }> = []
+  let automationBlocked: string | null = null
   const failures = createFailureService({
     db: database.db,
     now: () => 10,
@@ -133,9 +134,24 @@ function setup() {
         return { ok: true, action: {} as never }
       },
     },
+    assertAutomationAllowed: () =>
+      automationBlocked ? appError(automationBlocked, 'automation blocked') : null,
     failures,
   })
-  return { database, seeded, tools, root, transitions, replies, injected, decisions, failures }
+  return {
+    database,
+    seeded,
+    tools,
+    root,
+    transitions,
+    replies,
+    injected,
+    decisions,
+    failures,
+    blockAutomation: (code: string | null) => {
+      automationBlocked = code
+    },
+  }
 }
 
 function ctx(seeded: ReturnType<typeof seedTask>): ToolContext {
@@ -353,6 +369,15 @@ describe('supervisor tools', () => {
     )) as { status: string }
     expect(reopen.status).toBe('queued')
     expect(transitions.at(-1)).toEqual({ taskId: seeded.taskId, type: 'reopen' })
+  })
+
+  it('blocks model recovery actions when automation is paused', async () => {
+    const { seeded, tools, blockAutomation, transitions } = setup()
+    blockAutomation('automation_paused')
+    await expect(
+      tools.enqueue_task.execute({ taskId: seeded.taskId }, ctx(seeded)),
+    ).rejects.toMatchObject({ code: 'automation_paused' })
+    expect(transitions).toHaveLength(0)
   })
 
   it('requires confirmation before cancelling a running task', async () => {

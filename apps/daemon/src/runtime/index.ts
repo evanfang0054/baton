@@ -17,6 +17,7 @@ import type {
   PlanApplyResult,
   ReviewDecideInput,
   Strength,
+  SupervisorAction,
   TaskAction,
   TaskTransitionEvent,
 } from '@baton/protocol'
@@ -385,7 +386,7 @@ export function createRuntime(deps: RuntimeDeps) {
   }
 
   function applyPlan(
-    action: import('@baton/protocol').SupervisorAction,
+    action: SupervisorAction,
   ): { ok: true; result: PlanApplyResult } | { ok: false; error: AppError } {
     const checked = validatePlanApply({
       action,
@@ -410,20 +411,31 @@ export function createRuntime(deps: RuntimeDeps) {
       now,
       newId,
     })
+    // 计划里的多条任务通常共用一个 Agent；按 target/agentTitle 复用，避免建出同名节点。
+    const sharedTargets = new Map<
+      string,
+      { id: string; title: string; engine: Engine; created: boolean }
+    >()
     payload.items.forEach((item, index) => {
       try {
-        const target = resolver.resolveAgentTarget(
-          {
-            workspaceId: action.workspaceId,
-            selection: { contextNodeIds: [], agentCandidates: [] },
-            memo: {},
-          },
-          {
-            title: item.title,
-            ...(item.targetNodeId ? { targetNodeId: item.targetNodeId } : {}),
-            ...(item.agentTitle ? { agentTitle: item.agentTitle } : {}),
-          },
-        )
+        const targetKey = item.targetNodeId ?? `agent:${item.agentTitle ?? item.title}`
+        let target = sharedTargets.get(targetKey)
+        if (!target) {
+          target = resolver.resolveAgentTarget(
+            {
+              workspaceId: action.workspaceId,
+              selection: { contextNodeIds: [], agentCandidates: [] },
+              memo: {},
+            },
+            {
+              title: item.title,
+              ...(item.targetNodeId ? { targetNodeId: item.targetNodeId } : {}),
+              ...(item.agentTitle ? { agentTitle: item.agentTitle } : {}),
+              ...(item.engine ? { engine: item.engine } : {}),
+            },
+          )
+          sharedTargets.set(targetKey, target)
+        }
         const template = templateById(item.templateId)
         const origin = buildTaskOrigin({
           source: 'supervisor-chat',

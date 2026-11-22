@@ -39,7 +39,9 @@ describe('migration 0013', () => {
       .run('w1', 'demo', 'demo', 1)
     raw
       .prepare(
-        "insert into task (id, workspace_id, title, prompt, status, engine, retry_count, dangerously_skip_permissions, created_at, updated_at) values ('t1','w1','t','p','failed','fake',0,0,1,1)",
+        `insert into task (id, workspace_id, title, prompt, status, engine, retry_count,
+          dangerously_skip_permissions, created_at, updated_at)
+         values ('t1','w1','t','p','failed','fake',0,0,1,1)`,
       )
       .run()
     raw
@@ -51,13 +53,17 @@ describe('migration 0013', () => {
 
     const tables = raw
       .prepare(
-        "select name from sqlite_master where type='table' and name in ('supervisor_action','task_failure') order by name",
+        `select name from sqlite_master where type='table'
+         and name in ('supervisor_action','task_failure') order by name`,
       )
       .all()
     expect(tables).toEqual([{ name: 'supervisor_action' }, { name: 'task_failure' }])
     const indexes = raw
       .prepare(
-        "select name from sqlite_master where type='index' and name in ('supervisor_action_dedupe_idx','supervisor_action_status_idx','task_failure_task_idx') order by name",
+        `select name from sqlite_master where type='index'
+         and name in ('supervisor_action_dedupe_idx','supervisor_action_status_idx',
+           'task_failure_task_idx')
+         order by name`,
       )
       .all()
     expect(indexes).toEqual([
