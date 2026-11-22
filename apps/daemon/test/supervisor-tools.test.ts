@@ -4,7 +4,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { appError } from '../src/errors.js'
-import { getNode, getTask, insertApproval, insertReview } from '../src/db/repositories.js'
+import {
+  getNode,
+  getTask,
+  insertApproval,
+  insertReview,
+  listNodes,
+} from '../src/db/repositories.js'
 import {
   insertAcceptanceContract,
   insertAcceptanceItems,
@@ -208,6 +214,31 @@ describe('supervisor tools', () => {
     await expect(
       tools.create_task.execute({ title: '没有任务指令' }, ctx(seeded)),
     ).rejects.toBeInstanceOf(Error)
+  })
+
+  it('arranges canvas nodes and is idempotent', async () => {
+    const { database, seeded, tools } = setup()
+    await tools.create_text.execute({ content: '资料 A' }, ctx(seeded))
+    await tools.create_text.execute({ content: '资料 B' }, ctx(seeded))
+
+    const first = (await tools.arrange_canvas.execute({}, ctx(seeded))) as {
+      moved: number
+      groups: number
+    }
+    expect(first.moved).toBeGreaterThan(0)
+    expect(first.groups).toBe(0)
+
+    const nodes = listNodes(database.db, seeded.canvasId)
+    expect(nodes.some((node) => node.x === 80 && node.y === 80)).toBe(true)
+    expect(new Set(nodes.map((node) => `${node.x},${node.y}`)).size).toBe(nodes.length)
+    expect(
+      database.raw
+        .prepare("select count(*) as n from audit where action = 'supervisor.canvas.arrange'")
+        .get(),
+    ).toEqual({ n: 1 })
+
+    const second = (await tools.arrange_canvas.execute({}, ctx(seeded))) as { moved: number }
+    expect(second.moved).toBe(0)
   })
 
   it('filters tasks by q and status in the current workspace', async () => {

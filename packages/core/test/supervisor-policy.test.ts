@@ -26,9 +26,10 @@ describe('supervisor policy', () => {
       'create_agent',
       'create_edge',
       'update_node',
+      'arrange_canvas',
       'inject_context',
     ])
-    expect(SUPERVISOR_POLICY.allowedTools).toHaveLength(21)
+    expect(SUPERVISOR_POLICY.allowedTools).toHaveLength(22)
     expect(supervisorPolicyVersion(SUPERVISOR_POLICY, 'v1')).toMatch(/^[a-f0-9]{12}$/)
   })
 

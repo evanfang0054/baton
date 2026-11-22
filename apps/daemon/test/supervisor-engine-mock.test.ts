@@ -114,6 +114,7 @@ function tools(): BoundToolset {
     create_agent: noop,
     create_edge: noop,
     update_node: noop,
+    arrange_canvas: noop,
     create_task: {
       description: 'create a todo task',
       parameters: z.object({ title: z.string().min(1) }),

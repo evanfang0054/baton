@@ -29,6 +29,7 @@ export const SUPERVISOR_POLICY: SupervisorPolicy = {
     'create_agent',
     'create_edge',
     'update_node',
+    'arrange_canvas',
     'inject_context',
   ],
   maxSteps: 4,
