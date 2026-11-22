@@ -3,7 +3,7 @@ spec_topic: m6-5-supervisor-autonomy
 decision_summary: "M6-5 总管自治与注意力：observe 档 + supervisor_action 账本 + Mandate revalidate + digest 注意力收敛 + 计划/模板/批量 dryRun；总管仍不 approve/reject、不读 transcript、不执行命令"
 design_approved: true
 user_approved_at: 2026-11-22T10:11:46+08:00
-gates: [design-approved]
+gates: [design-approved, user-review-passed]
 spec_ref: 2026-11-18-m2-supervisor-design.md
 domain_terms:
   [
@@ -30,7 +30,7 @@ domain_terms:
 
 ## 0. 文档信息
 
-- **状态**：设计已获用户逐项确认（2026-11-22）；本 spec 待用户审阅；尚未实现。
+- **状态**：设计已获用户逐项确认（2026-11-22）；spec 已获用户审阅通过（2026-11-22）；尚未实现。
 - **范围**：`packages/protocol/**`、`packages/core/**`、`apps/daemon/**`、`apps/web/**`、数据库 migration 0013、测试与 `docs/**`。
 - **预期不改**：任务状态列表与转移语义；`task.status` 单写者；AC 只能由验收员生成并由人编辑的语义；`assembleContext` 的预算/深度/敏感路径规则；`node`/`edge` 表结构；外部 Source 与 DAG。
 - **不在范围**：外部 Source（GitHub/飞书）、跨任务 DAG/任务依赖、自动验收/自动合并、总管直接执行命令或改代码、外部推送、独立注意力页面、模板编辑器、计划卡内联编辑、运行中 `context.inject`、多用户。
@@ -596,5 +596,5 @@ supervisor.action.decide {
 ## 16. 评审记录与后续
 
 - 2026-11-22：完成五轮 brainstorming；确认范围（M6-5a/b/c、DAG 与外部 Source 后置、自动验收/执行排除）、observe 默认、Mandate 扩展 origin、`supervisor_action` 账本、digest 注意力、计划预览、失败摘要、模板、dryRun、human-only apply 与 `task.reauthorize`。
-- 2026-11-22：设计分节确认；待用户审阅本 spec。
+- 2026-11-22：设计分节确认；用户审阅 spec 通过，进入 sprint contract 与实施计划。
 - 后续路线：M6-6 跨任务 DAG（单独 spec）、外部 Source（GitHub 先/飞书后）、模板编辑器、计划卡内联编辑、运行中上下文注入、SDK session resume。
