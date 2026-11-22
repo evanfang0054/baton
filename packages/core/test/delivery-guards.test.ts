@@ -48,7 +48,7 @@ describe('delivery guards', () => {
       ok: false,
       reason: 'done',
     })
-    expect(canCancelDelivery({ cancelledAt: null, statuses: ['running', 'pending'] })).toEqual({
+    expect(canCancelDelivery({ cancelledAt: null, statuses: ['running', 'todo'] })).toEqual({
       ok: true,
     })
   })
