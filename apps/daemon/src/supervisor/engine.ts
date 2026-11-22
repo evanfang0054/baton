@@ -136,6 +136,11 @@ export function createAiSdkSupervisorEngine(config: SupervisorConfig): Superviso
           inputSchema: tools.update_node.parameters,
           execute: (input) => tools.update_node.execute(input),
         }),
+        arrange_canvas: tool({
+          description: tools.arrange_canvas.description,
+          inputSchema: tools.arrange_canvas.parameters,
+          execute: (input) => tools.arrange_canvas.execute(input),
+        }),
       }
 
       const result = streamText({
