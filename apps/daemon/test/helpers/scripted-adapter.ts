@@ -13,8 +13,6 @@ import {
   type StartInput,
 } from '@baton/protocol'
 
-export { VERIFIER_PROMPT_MARKER }
-
 export type ScriptStep =
   | { kind: 'text'; text: string }
   | { kind: 'approval'; request: ApprovalRequest }
@@ -59,7 +57,7 @@ function event(value: unknown): AgentEvent {
 
 /**
  * 脚本化适配器：只产生 AG-UI 事件并接受控制调用，不读 DB、不发 WS、不使用定时器。
- * 用于 M1-5 的确定性集成测试；真实引擎接入见 M1-7。
+ * 仅供测试注入，产品装配里不存在这个实现。
  *
  * 生命周期约定：
  * - interrupt/dispose 后不再产生事件，send/approve 抛错；

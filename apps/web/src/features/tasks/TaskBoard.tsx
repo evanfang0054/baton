@@ -8,7 +8,8 @@ import { X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { getTask } from '../../lib/api'
 import { useCommand } from '../../lib/command-context'
-import { queryKeys } from '../../lib/query'
+import { invalidateTaskQueries } from '../../lib/query'
+import { needsAcceptanceOverride } from './acceptance-gate'
 import { BOARD_COLUMNS, groupTasks, statusColumn, type BoardColumnId } from './columns'
 import { isDroppable, taskDropAction } from './task-drag'
 import { TaskBoardFilters, filterTasks, type TaskFilter } from './TaskBoardFilters'
@@ -18,6 +19,23 @@ const BATCH_LIMIT = 20
 const LONG_PRESS_MS = 320
 const PRESS_MOVE_TOLERANCE = 8
 const EDGE_SCROLL_PX = 48
+
+const supportsRaf =
+  typeof requestAnimationFrame === 'function' && typeof cancelAnimationFrame === 'function'
+
+function scheduleFrame(callback: FrameRequestCallback): number {
+  return supportsRaf
+    ? requestAnimationFrame(callback)
+    : window.setTimeout(() => callback(performance.now()), 16)
+}
+
+function cancelFrame(handle: number): void {
+  if (supportsRaf) {
+    cancelAnimationFrame(handle)
+  } else {
+    window.clearTimeout(handle)
+  }
+}
 
 interface DragSession {
   task: TaskSummary
@@ -79,6 +97,9 @@ export function TaskBoard({
   const dragRef = useRef<DragSession | null>(null)
   const pressRef = useRef<PressSession | null>(null)
   const cleanupPressRef = useRef<(() => void) | null>(null)
+  // 指针移动可达 1000Hz；把预览和命中检测收敛到每帧一次。
+  const moveFrameRef = useRef<number | null>(null)
+  const pendingMoveRef = useRef<{ x: number; y: number } | null>(null)
   const suppressClickUntilRef = useRef(0)
   const [cancelTarget, setCancelTarget] = useState<TaskSummary | null>(null)
   const [dropPending, setDropPending] = useState(false)
@@ -174,10 +195,7 @@ export function TaskBoard({
   }
 
   const refreshTask = async (task: TaskSummary) => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(task.workspaceId) })
-    await queryClient.invalidateQueries({ queryKey: queryKeys.task(task.id) })
-    await queryClient.invalidateQueries({ queryKey: queryKeys.taskHistory(task.id) })
-    await queryClient.invalidateQueries({ queryKey: queryKeys.taskAcceptance(task.id) })
+    await invalidateTaskQueries(queryClient, task.id, task.workspaceId)
   }
 
   const applyDrop = async (task: TaskSummary, column: BoardColumnId) => {
@@ -205,12 +223,7 @@ export function TaskBoard({
           return
         }
         const acceptance = detail.acceptance
-        const acceptanceIssue =
-          !acceptance ||
-          acceptance.counts.total === 0 ||
-          acceptance.counts.fail > 0 ||
-          acceptance.counts.pending > 0
-        if (review.verifyExitCode !== 0 || acceptanceIssue) {
+        if (needsAcceptanceOverride(review, acceptance)) {
           toast.info('该任务需要填写通过理由，请在任务详情中通过验收')
           onSelectTask(task.id)
           return
@@ -292,6 +305,11 @@ export function TaskBoard({
       const press = pressRef.current
       if (press) window.clearTimeout(press.timer)
       pressRef.current = null
+      if (moveFrameRef.current !== null) {
+        cancelFrame(moveFrameRef.current)
+        moveFrameRef.current = null
+      }
+      pendingMoveRef.current = null
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', cancel)
@@ -301,6 +319,19 @@ export function TaskBoard({
     const move = (moveEvent: PointerEvent) => {
       const press = pressRef.current
       if (!press || moveEvent.pointerId !== press.pointerId) return
+      // pointerup 丢失（拖出窗口、系统手势取消）时的兜底：鼠标移动已无按键即视为松开。
+      if (moveEvent.pointerType === 'mouse' && moveEvent.buttons === 0) {
+        const wasActive = press.activated
+        const { clientX, clientY } = moveEvent
+        cleanup()
+        if (wasActive) {
+          finishDrag(clientX, clientY)
+        } else {
+          dragRef.current = null
+          setDrag(null)
+        }
+        return
+      }
       if (!press.activated) {
         if (
           Math.hypot(moveEvent.clientX - press.startX, moveEvent.clientY - press.startY) >
@@ -311,24 +342,32 @@ export function TaskBoard({
         return
       }
       moveEvent.preventDefault()
-      const current = dragRef.current
-      if (!current) return
-      const next: DragSession = {
-        ...current,
-        x: moveEvent.clientX,
-        y: moveEvent.clientY,
-        target: columnAtPoint(moveEvent.clientX, moveEvent.clientY),
-      }
-      dragRef.current = next
-      setDrag(next)
-      const scroller = scrollerRef.current
-      if (!scroller) return
-      const rect = scroller.getBoundingClientRect()
-      if (moveEvent.clientX < rect.left + EDGE_SCROLL_PX) {
-        scroller.scrollLeft -= 18
-      } else if (moveEvent.clientX > rect.right - EDGE_SCROLL_PX) {
-        scroller.scrollLeft += 18
-      }
+      pendingMoveRef.current = { x: moveEvent.clientX, y: moveEvent.clientY }
+      if (moveFrameRef.current !== null) return
+      moveFrameRef.current = scheduleFrame(() => {
+        moveFrameRef.current = null
+        const point = pendingMoveRef.current
+        pendingMoveRef.current = null
+        if (!point) return
+        const current = dragRef.current
+        if (!current) return
+        const next: DragSession = {
+          ...current,
+          x: point.x,
+          y: point.y,
+          target: columnAtPoint(point.x, point.y),
+        }
+        dragRef.current = next
+        setDrag(next)
+        const scroller = scrollerRef.current
+        if (!scroller) return
+        const rect = scroller.getBoundingClientRect()
+        if (point.x < rect.left + EDGE_SCROLL_PX) {
+          scroller.scrollLeft -= 18
+        } else if (point.x > rect.right - EDGE_SCROLL_PX) {
+          scroller.scrollLeft += 18
+        }
+      })
     }
     const up = (upEvent: PointerEvent) => {
       if (upEvent.pointerId !== pointerId) return

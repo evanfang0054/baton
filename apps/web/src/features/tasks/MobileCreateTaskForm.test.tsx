@@ -22,13 +22,15 @@ const agent = {
   data: { title: '主 Agent', engine: 'claude-sdk', taskId: null },
 } as Node
 
-function stubEngines(engines: string[]) {
+function stubEngines(engines: Array<string | { engine: string; status: string; reason?: string }>) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
       if (String(input) === '/api/engines') {
         return Response.json({
-          engines: engines.map((engine) => ({ engine, status: 'available' })),
+          engines: engines.map((entry) =>
+            typeof entry === 'string' ? { engine: entry, status: 'available' } : entry,
+          ),
         })
       }
       return Response.json({})
@@ -117,6 +119,16 @@ describe('MobileCreateTaskForm', () => {
     )
     renderForm([agent])
     await screen.findByText('引擎状态加载失败，请稍后重试')
+    await userEvent.type(screen.getByLabelText('任务 prompt'), '做一件事')
+    expect(screen.getByRole('button', { name: '创建' })).toBeDisabled()
+  })
+
+  it('explains when no engine is available', async () => {
+    stubEngines([{ engine: 'claude-sdk', status: 'unavailable', reason: 'SDK missing' }])
+    renderForm([agent])
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('没有可用引擎')
+    expect(screen.getByRole('alert')).toHaveTextContent('SDK missing')
     await userEvent.type(screen.getByLabelText('任务 prompt'), '做一件事')
     expect(screen.getByRole('button', { name: '创建' })).toBeDisabled()
   })

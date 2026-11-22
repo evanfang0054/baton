@@ -54,10 +54,15 @@ export function MobileCreateTaskForm({
 
   const engineOptions = engines.data ?? []
   const defaultEngine = engines.data ? preferredEngine(engines.data) : null
-  const effectiveEngine = engineOptions.some((entry) => entry.engine === engine)
+  const effectiveEngine = engineOptions.some(
+    (entry) => entry.engine === engine && entry.status !== 'unavailable',
+  )
     ? engine
     : (defaultEngine ?? 'claude-sdk')
   const selectedEngine = engineOptions.find((entry) => entry.engine === effectiveEngine)
+  const unavailableEngine = engineOptions.find((entry) => entry.status === 'unavailable')
+  const engineUnavailable =
+    Boolean(engines.data) && !engineOptions.some((entry) => entry.status !== 'unavailable')
   const disabled =
     !prompt.trim() ||
     pending ||
@@ -175,6 +180,7 @@ export function MobileCreateTaskForm({
                 onChange={(event) => setEngine(event.target.value as Engine)}
                 className="h-11 rounded-lg border border-separator bg-background px-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               >
+                {engineOptions.length === 0 ? <option value="">没有可用引擎</option> : null}
                 {engineOptions.map((entry) => (
                   <option
                     key={entry.engine}
@@ -196,6 +202,14 @@ export function MobileCreateTaskForm({
             </button>
           )}
         </section>
+        {engineUnavailable ? (
+          <p role="alert" className="mb-3 text-xs text-warning">
+            没有可用引擎
+            {unavailableEngine?.reason
+              ? `：${unavailableEngine.reason}`
+              : '。请检查 Claude Agent SDK 配置。'}
+          </p>
+        ) : null}
 
         <section className="mb-3 rounded-lg border border-separator p-3">
           <div className="mb-2 flex items-center justify-between">
@@ -266,6 +280,7 @@ export function MobileCreateTaskForm({
             onChange={(event) => setEngine(event.target.value as Engine)}
             className="h-11 rounded-lg border border-separator bg-background px-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
+            {engineOptions.length === 0 ? <option value="">没有可用引擎</option> : null}
             {engineOptions.map((entry) => (
               <option
                 key={entry.engine}

@@ -12,8 +12,14 @@
 - 从 `Engine` 枚举、引擎注册表、适配器工厂、默认引擎和前端引擎选择中移除 `fake`。
 - 删除 `packages/adapters/src/fake.ts` 与对应产品导出。
 - 保留确定性调度测试：把脚本化适配器移到 `apps/daemon/test/helpers/scripted-adapter.ts`，仅测试代码引用，不进入产品构建。
-- 新增 migration 0014，把历史 `task.engine`、`session.adapter`、Agent 节点数据以及相关 JSON 账本中的 `fake` 统一迁移为 `claude-sdk`。
+- 新增 migration 0014，把历史 `task.engine`、`session.adapter`、Agent 节点 `data.engine` 以及总管相关结构化 JSON 中的 `fake` 统一迁移为 `claude-sdk`。
+- `event`、`ws_event`、`audit`、`notice` 属于只追加账本，migration 不改写这些历史 payload；读取端遇到旧值时按 legacy `fake` 归一化，保留原始执行痕迹。
 - Claude SDK 不可用时不再静默回落；任务会以 `engine_unavailable` 明确失败。
+
+## 相关文档
+
+- 被取代的适配器/引擎描述：`docs/specs/2026-11-16-baton-architecture-design.md`（AgentAdapter、agent-fake 测试基础设施章节）
+- 迁移：`apps/daemon/migrations/0014_remove_fake_engine.sql`
 
 ## 后果
 

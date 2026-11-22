@@ -13,6 +13,7 @@ import {
   Review,
   ReviewView,
   Session,
+  SessionOutcome,
   SESSION_OUTCOME_EVENT,
   Task,
   TaskDetail,
@@ -23,7 +24,6 @@ import {
   type ApprovalRequest,
   type PreliminaryVerdict,
   type ReviewVerdict,
-  type SessionOutcome,
   type SessionStatus,
   type SessionEventRecord,
   type TaskStatus,
@@ -478,10 +478,14 @@ export function listSessionEvents(
 }
 
 /**
- * 取 worker 最后上报的 outcome reason。
- * 验收员有时只在 report_outcome 的 reason 里写结论，不写最后一条消息。
+ * 取 session 最后上报的 outcome。
+ * 事件页按 seq 升序分页，客户端只加载首批时看不到尾部的 outcome；
+ * 这里直接从数据库倒序取，任务详情用它展示阻塞原因。
  */
-export function getSessionOutcomeReason(db: Db, sessionId: string): string | null {
+export function getSessionLastOutcome(
+  db: Db,
+  sessionId: string,
+): { outcome: SessionOutcome; reason: string | null } | null {
   const rows = db
     .select({ payloadJson: event.payloadJson })
     .from(event)
@@ -496,14 +500,26 @@ export function getSessionOutcomeReason(db: Db, sessionId: string): string | nul
         value?: { outcome?: unknown; reason?: unknown }
       }
       if (payload.name !== SESSION_OUTCOME_EVENT) continue
-      if (typeof payload.value?.reason === 'string' && payload.value.reason.trim()) {
-        return payload.value.reason
-      }
+      const outcome = SessionOutcome.safeParse(payload.value?.outcome)
+      if (!outcome.success) continue
+      const reason =
+        typeof payload.value?.reason === 'string' && payload.value.reason.trim()
+          ? payload.value.reason
+          : null
+      return { outcome: outcome.data, reason }
     } catch {
       continue
     }
   }
   return null
+}
+
+/**
+ * 取 worker 最后上报的 outcome reason。
+ * 验收员有时只在 report_outcome 的 reason 里写结论，不写最后一条消息。
+ */
+export function getSessionOutcomeReason(db: Db, sessionId: string): string | null {
+  return getSessionLastOutcome(db, sessionId)?.reason ?? null
 }
 
 /**

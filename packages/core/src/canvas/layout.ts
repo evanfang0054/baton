@@ -1,10 +1,6 @@
-import type { Node } from '@baton/protocol'
+import type { Node, NodeMoveManyInput } from '@baton/protocol'
 
-export interface CanvasNodeMove {
-  nodeId: string
-  x: number
-  y: number
-}
+export type CanvasNodeMove = NodeMoveManyInput['moves'][number]
 
 const MARGIN = 80
 const GAP = 80
@@ -45,11 +41,21 @@ export function arrangeCanvasNodes(nodes: Node[]): CanvasNodeMove[] {
   }
 
   const units: LayoutUnit[] = []
+  const collectChildren = (groupId: string, seen: Set<string>): Node[] => {
+    const children: Node[] = []
+    for (const child of childrenByGroup.get(groupId) ?? []) {
+      if (seen.has(child.id)) continue
+      seen.add(child.id)
+      children.push(child)
+      if (child.type === 'group') children.push(...collectChildren(child.id, seen))
+    }
+    return children
+  }
   for (const node of nodes) {
     if (node.groupId && groupIds.has(node.groupId)) continue
     units.push({
       node,
-      children: node.type === 'group' ? (childrenByGroup.get(node.id) ?? []) : [],
+      children: node.type === 'group' ? collectChildren(node.id, new Set([node.id])) : [],
       x: node.x,
       y: node.y,
       w: node.w,

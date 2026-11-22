@@ -11,6 +11,7 @@ import { TextArea } from '@heroui/react/textarea'
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../../stores/app'
 import { nodeTitle } from '../canvas/node-title'
+import { needsAcceptanceOverride } from './acceptance-gate'
 import { DiffViewer } from './DiffViewer'
 import { useCommandAction } from './useCommandAction'
 import { verifyOutputClass } from './styles'
@@ -50,12 +51,7 @@ export function ReviewCard({
   const action = useCommandAction(onDone)
   const decided = review.verdict !== null
   const verifySkipped = review.verifyExitCode === VERIFY_SKIPPED
-  const acceptanceIssue =
-    !acceptance ||
-    acceptance.counts.total === 0 ||
-    acceptance.counts.fail > 0 ||
-    acceptance.counts.pending > 0
-  const needsOverride = review.verifyExitCode !== 0 || acceptanceIssue
+  const needsOverride = needsAcceptanceOverride(review, acceptance)
   const withContext = attachContext && attachable.length > 0
   const overridePrompt =
     acceptance && acceptance.counts.total === 0

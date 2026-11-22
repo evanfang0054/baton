@@ -29,7 +29,7 @@ function copyThrough(maxIdx: number): string {
 }
 
 describe('migration 0014', () => {
-  it('moves legacy fake engine rows to claude-sdk', () => {
+  it('moves structural fake engine rows and leaves append-only ledgers untouched', () => {
     const oldDir = copyThrough(13)
     const raw = openDb(':memory:')
     process.env.BATON_MIGRATIONS_DIR = oldDir
@@ -43,36 +43,171 @@ describe('migration 0014', () => {
     raw
       .prepare(
         `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
-         values ('n1', 'c1', 'agent', 0, 0, 320, 200, null, ?, 1, 1)`,
+         values ('a1', 'c1', 'agent', 0, 0, 320, 200, null, ?, 1, 1)`,
       )
       .run(JSON.stringify({ title: '旧 Agent', engine: 'fake', taskId: null }))
+    const textData = JSON.stringify({ content: '记录 "engine":"fake" 字面量' })
+    raw
+      .prepare(
+        `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
+         values ('t1', 'c1', 'text', 0, 0, 320, 200, null, ?, 1, 1)`,
+      )
+      .run(textData)
+    raw
+      .prepare(
+        `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
+         values ('bad', 'c1', 'agent', 0, 0, 320, 200, null, 'not-json', 1, 1)`,
+      )
+      .run()
     raw
       .prepare(
         `insert into task (id, workspace_id, title, prompt, status, engine, retry_count,
           dangerously_skip_permissions, created_at, updated_at)
-         values ('t1','w1','t','p','todo','fake',0,0,1,1)`,
+         values ('task1','w1','t','p','todo','fake',0,0,1,111)`,
       )
       .run()
     raw
       .prepare(
         `insert into session (id, task_id, adapter, engine_session_id, status, started_at)
-         values ('s1','t1','fake',null,'ended',1)`,
+         values ('s1','task1','fake',null,'ended',1)`,
       )
       .run()
+    raw
+      .prepare(
+        `insert into supervisor_thread (id, workspace_id, source, created_at, updated_at)
+         values ('th1','w1','supervisor-chat',1,1)`,
+      )
+      .run()
+    raw
+      .prepare(
+        `insert into supervisor_message (id, thread_id, role, content, tool_calls_json, status, created_at)
+         values ('m1','th1','assistant','x',?,'ok',1)`,
+      )
+      .run(
+        JSON.stringify([
+          {
+            id: 'c1',
+            name: 'create_task',
+            args: {},
+            ok: true,
+            result: { target: { engine: 'fake' } },
+          },
+        ]),
+      )
+    raw
+      .prepare(
+        `insert into supervisor_action (id, workspace_id, kind, status, strength, mode, reason,
+          payload_json, result_json, policy_version, dedupe_key, created_at, updated_at, expires_at)
+         values ('act1','w1','k','s','strong','auto','r',?,?,'v1','d1',1,1,2)`,
+      )
+      .run(
+        JSON.stringify({ target: { engine: 'fake' } }),
+        JSON.stringify({ engine: 'fake', note: 'fake news stays' }),
+      )
+    raw
+      .prepare(
+        `insert into supervisor_decision (id, thread_id, trigger_id, message_id, kind, strength,
+          mode, reason, tool_calls_json, created_at)
+         values ('dec1','th1','tr1','m1','k','strong','auto','r',?,1)`,
+      )
+      .run(JSON.stringify([{ name: 'create_task', args: { engine: 'fake' } }]))
+    const eventPayload = JSON.stringify({
+      sessionId: 's1',
+      seq: 1,
+      event: { type: 'CUSTOM', name: 'x', value: { engine: 'fake' } },
+    })
+    raw
+      .prepare(
+        `insert into event (id, session_id, ordinal, seq, type, payload_json, ts)
+         values ('e1','s1',1,1,'CUSTOM',?,1)`,
+      )
+      .run(eventPayload)
+    const wsPayload = JSON.stringify({ engine: 'fake' })
+    raw
+      .prepare(
+        `insert into ws_event (id, type, payload_json, ts)
+         values ('w1','x',?,1)`,
+      )
+      .run(wsPayload)
+    const auditDetail = JSON.stringify({ engine: 'fake' })
+    raw
+      .prepare(
+        `insert into audit (id, ts, actor, action, detail_json)
+         values ('a1',1,'user','x',?)`,
+      )
+      .run(auditDetail)
 
     process.env.BATON_MIGRATIONS_DIR = migrationsDir
     migrateDb(raw)
 
-    expect(raw.prepare("select engine from task where id='t1'").get()).toEqual({
+    expect(raw.prepare("select engine, updated_at from task where id='task1'").get()).toEqual({
       engine: 'claude-sdk',
+      updated_at: 111,
     })
     expect(raw.prepare("select adapter from session where id='s1'").get()).toEqual({
       adapter: 'claude-sdk',
     })
-    const node = raw.prepare("select data_json from node where id='n1'").get() as {
-      data_json: string
-    }
-    expect(JSON.parse(node.data_json)).toMatchObject({ engine: 'claude-sdk' })
+    expect(
+      JSON.parse(
+        (raw.prepare("select data_json from node where id='a1'").get() as { data_json: string })
+          .data_json,
+      ),
+    ).toMatchObject({ engine: 'claude-sdk' })
+    expect(
+      (raw.prepare("select data_json from node where id='t1'").get() as { data_json: string })
+        .data_json,
+    ).toBe(textData)
+    expect(
+      JSON.parse(
+        (
+          raw.prepare("select tool_calls_json from supervisor_message where id='m1'").get() as {
+            tool_calls_json: string
+          }
+        ).tool_calls_json,
+      )[0].result.target.engine,
+    ).toBe('claude-sdk')
+    expect(
+      (raw.prepare("select data_json from node where id='bad'").get() as { data_json: string })
+        .data_json,
+    ).toBe('not-json')
+    const action = raw
+      .prepare("select payload_json, result_json from supervisor_action where id='act1'")
+      .get() as { payload_json: string; result_json: string }
+    expect(JSON.parse(action.payload_json).target.engine).toBe('claude-sdk')
+    expect(JSON.parse(action.result_json)).toEqual({
+      engine: 'claude-sdk',
+      note: 'fake news stays',
+    })
+    expect(
+      JSON.parse(
+        (
+          raw.prepare("select tool_calls_json from supervisor_decision where id='dec1'").get() as {
+            tool_calls_json: string
+          }
+        ).tool_calls_json,
+      )[0].args.engine,
+    ).toBe('claude-sdk')
+    expect(
+      (
+        raw.prepare("select payload_json from event where id='e1'").get() as {
+          payload_json: string
+        }
+      ).payload_json,
+    ).toBe(eventPayload)
+    expect(
+      (
+        raw.prepare("select payload_json from ws_event where id='w1'").get() as {
+          payload_json: string
+        }
+      ).payload_json,
+    ).toBe(wsPayload)
+    expect(
+      (
+        raw.prepare("select detail_json from audit where id='a1'").get() as {
+          detail_json: string
+        }
+      ).detail_json,
+    ).toBe(auditDetail)
     raw.close()
   })
 })

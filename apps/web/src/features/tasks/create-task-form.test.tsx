@@ -134,6 +134,7 @@ describe('CreateTaskForm', () => {
     renderForm()
     expect(await screen.findByRole('option', { name: /Claude Code/ })).toBeDisabled()
     expect(screen.getByLabelText('执行引擎')).toHaveValue('')
+    expect(screen.getByRole('alert')).toHaveTextContent('没有可用引擎')
     expect(screen.getByRole('button', { name: '创建任务' })).toBeDisabled()
   })
 

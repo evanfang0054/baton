@@ -66,6 +66,19 @@ describe('arrangeCanvasNodes', () => {
     ])
   })
 
+  it('moves nested group subtrees with the outer group', () => {
+    const moves = arrangeCanvasNodes([
+      node('outer', 100, 100, { type: 'group' }),
+      node('inner', 150, 150, { type: 'group', groupId: 'outer' }),
+      node('leaf', 200, 200, { groupId: 'inner' }),
+    ])
+    expect(moves).toEqual([
+      { nodeId: 'outer', x: 80, y: 80 },
+      { nodeId: 'inner', x: 130, y: 130 },
+      { nodeId: 'leaf', x: 180, y: 180 },
+    ])
+  })
+
   it('returns no moves when the layout is already settled', () => {
     expect(arrangeCanvasNodes([node('a', 80, 80), node('b', 480, 80)])).toEqual([])
   })

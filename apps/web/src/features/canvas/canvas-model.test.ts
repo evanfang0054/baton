@@ -318,6 +318,31 @@ describe('canvas model', () => {
     ])
   })
 
+  it('includes nested group descendants in the move plan', () => {
+    const outer = groupNode('g1')
+    const inner: ProtocolNode = { ...groupNode('g2', false, 20, 30), groupId: 'g1' }
+    const leaf: ProtocolNode = { ...textNode, id: 'n3', groupId: 'g2', x: 25, y: 40 }
+    const flow = toFlowNodes([outer, inner, leaf], [])
+    const byId = new Map(flow.map((node) => [node.id, node]))
+    const nested = flow.map((node) => {
+      if (node.id === 'g2') {
+        return { ...node, parentId: 'g1', position: { x: 20, y: 30 } }
+      }
+      if (node.id === 'n3') {
+        return { ...node, parentId: 'g2', position: { x: 5, y: 10 } }
+      }
+      return node
+    })
+    const group = { ...byId.get('g1')!, position: { x: 100, y: 100 } }
+    const current = nested.map((node) => (node.id === 'g1' ? group : node))
+
+    expect(groupMovePlan(group, current)).toEqual([
+      { nodeId: 'g1', x: 100, y: 100 },
+      { nodeId: 'g2', x: 120, y: 130 },
+      { nodeId: 'n3', x: 125, y: 140 },
+    ])
+  })
+
   it('resolves the target group from the drop center', () => {
     const flow = toFlowNodes([groupNode('g1'), textNode], [])
     const node = flow.find((item) => item.id === 'n1')!

@@ -28,3 +28,17 @@ export function createQueryClient() {
     },
   })
 }
+
+/** 任务命令后统一刷新四类任务查询，避免各调用点漏键或顺序漂移。 */
+export async function invalidateTaskQueries(
+  client: QueryClient,
+  taskId: string,
+  workspaceId?: string,
+): Promise<void> {
+  await client.invalidateQueries({ queryKey: queryKeys.task(taskId) })
+  await client.invalidateQueries({ queryKey: queryKeys.taskHistory(taskId) })
+  await client.invalidateQueries({ queryKey: queryKeys.taskAcceptance(taskId) })
+  if (workspaceId) {
+    await client.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+  }
+}

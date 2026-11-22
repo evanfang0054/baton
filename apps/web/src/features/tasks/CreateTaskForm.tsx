@@ -95,6 +95,9 @@ export function CreateTaskForm({
   }, [defaultTitle, titleEdited])
 
   const selectedEngine = engines.data?.find((entry) => entry.engine === engine)
+  const unavailableEngine = engines.data?.find((entry) => entry.status === 'unavailable')
+  const hasAvailableEngine = engines.data?.some((entry) => entry.status !== 'unavailable') ?? false
+  const engineUnavailable = Boolean(engines.data) && !hasAvailableEngine
 
   const contextNodeIds = contextNodes.filter((node) => node.id !== nodeId).map((node) => node.id)
 
@@ -225,7 +228,9 @@ export function CreateTaskForm({
             className="h-8 rounded-lg border border-separator bg-background px-2 text-sm text-foreground"
             disabled={!engines.data || engines.isError}
           >
-            {!engine ? <option value="">加载引擎…</option> : null}
+            {!engine ? (
+              <option value="">{engineUnavailable ? '没有可用引擎' : '加载引擎…'}</option>
+            ) : null}
             {(engines.data ?? []).map((entry) => (
               <option
                 key={entry.engine}
@@ -236,7 +241,16 @@ export function CreateTaskForm({
               </option>
             ))}
           </select>
-          {selectedEngine?.reason ? <span>{engineReasonText(selectedEngine.reason)}</span> : null}
+          {engineUnavailable ? (
+            <span role="alert" className="text-warning">
+              没有可用引擎
+              {unavailableEngine?.reason
+                ? `：${engineReasonText(unavailableEngine.reason)}`
+                : '。请检查 Claude Agent SDK 配置。'}
+            </span>
+          ) : selectedEngine?.reason ? (
+            <span>{engineReasonText(selectedEngine.reason)}</span>
+          ) : null}
         </label>
         <p className="text-xs text-muted">
           任务进入待验收后，总管会派验收 Agent 做初步检查，消耗额外预算；最终通过或打回仍由你决定。

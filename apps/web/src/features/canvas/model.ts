@@ -216,20 +216,25 @@ function absolutePosition(
     : node.position
 }
 
-/** 整组拖动：group 和子节点一次提交绝对坐标。 */
+/** 整组拖动：group 和所有后代一次提交绝对坐标（嵌套分组也一样）。 */
 export function groupMovePlan(
   node: FlowNode<CanvasNodeData>,
   all: FlowNode<CanvasNodeData>[],
 ): Array<{ nodeId: string; x: number; y: number }> {
-  const children = all.filter((item) => item.parentId === node.id)
-  return [
-    { nodeId: node.id, x: node.position.x, y: node.position.y },
-    ...children.map((child) => ({
-      nodeId: child.id,
-      x: node.position.x + child.position.x,
-      y: node.position.y + child.position.y,
-    })),
-  ]
+  const plan = [{ nodeId: node.id, x: node.position.x, y: node.position.y }]
+  const seen = new Set([node.id])
+  const collect = (parent: FlowNode<CanvasNodeData>, parentX: number, parentY: number) => {
+    for (const child of all) {
+      if (child.parentId !== parent.id || seen.has(child.id)) continue
+      seen.add(child.id)
+      const x = parentX + child.position.x
+      const y = parentY + child.position.y
+      plan.push({ nodeId: child.id, x, y })
+      collect(child, x, y)
+    }
+  }
+  collect(node, node.position.x, node.position.y)
+  return plan
 }
 
 /** 普通节点拖动结束：落点中心决定归入哪个 group。 */

@@ -77,7 +77,13 @@ async function dragAfterLongPress(taskId: string) {
 function firePointer(
   name: 'pointerdown' | 'pointermove' | 'pointerup',
   target: Element | Window,
-  init: { pointerId: number; clientX: number; clientY: number },
+  init: {
+    pointerId: number
+    clientX: number
+    clientY: number
+    pointerType?: string
+    buttons?: number
+  },
 ) {
   // jsdom 不实现 PointerEvent；手动补上拖拽逻辑需要的坐标和 pointerId。
   const event = new Event(name, { bubbles: true, cancelable: true })
@@ -86,6 +92,8 @@ function firePointer(
     clientX: { value: init.clientX },
     clientY: { value: init.clientY },
     button: { value: 0 },
+    pointerType: { value: init.pointerType ?? 'mouse' },
+    buttons: { value: init.buttons ?? 1 },
   })
   fireEvent(target, event)
 }
@@ -107,6 +115,25 @@ describe('TaskBoard drag and drop', () => {
 
     await waitFor(() =>
       expect(send).toHaveBeenCalledWith({ type: 'task.enqueue', payload: { taskId: 't1' } }),
+    )
+  })
+
+  it('recovers when pointerup is lost and the mouse button is already released', async () => {
+    renderBoard([task('t3', 'C')])
+    pointAt('running')
+    const card = screen.getByTestId('task-card-t3')
+    firePointer('pointerdown', card, { pointerId: 1, clientX: 10, clientY: 10 })
+    await new Promise((resolve) => setTimeout(resolve, 340))
+    firePointer('pointermove', window, {
+      pointerId: 1,
+      clientX: 220,
+      clientY: 20,
+      pointerType: 'mouse',
+      buttons: 0,
+    })
+
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({ type: 'task.enqueue', payload: { taskId: 't3' } }),
     )
   })
 

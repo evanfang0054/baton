@@ -16,6 +16,7 @@ import {
   getReviewByTask,
   getTask,
   getTaskDetail,
+  getSessionLastOutcome,
   getWorkspace,
   hasOtherWorktreeReference,
   hasReviewDiff,
@@ -104,17 +105,21 @@ export function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesDeps): 
     const review = getReviewByTask(deps.db, task.id)
     const acceptance = listAcceptanceSummaries(deps.db, [task.id]).get(task.id) ?? null
     const lastFailure = deps.failures?.latest(task.id) ?? null
+    const sessions = listSessionsByTask(deps.db, task.id)
+    const lastSession = sessions.at(-1)
+    const lastOutcome = lastSession ? getSessionLastOutcome(deps.db, lastSession.id) : null
     return TaskDetailResponse.parse({
       task,
       contextInvalid: detail.contextInvalid,
       originInvalid: detail.originInvalid,
-      sessions: listSessionsByTask(deps.db, task.id),
+      sessions,
       approvals: listApprovalsByTask(deps.db, task.id),
       review: review ? { ...review, diffAvailable: hasReviewDiff(deps.db, review.id) } : null,
       waitingSince: waitingSinceFor(task),
       attention: attentionFor(task.status, task.waitingReason),
       acceptance,
       budget: getTaskBudgetSummary(deps.db, task, deps.config),
+      ...(lastOutcome ? { lastOutcome } : {}),
       // 任务详情只暴露摘要字段；TaskFailure 的 id/attempt 等账本字段不外泄。
       lastFailure: lastFailure
         ? {

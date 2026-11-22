@@ -107,6 +107,7 @@ const sceneDetail: TaskDetailResponse = {
     turns: 0,
   },
   lastFailure: null,
+  lastOutcome: null,
 }
 
 afterEach(() => {

@@ -60,10 +60,7 @@ test('trusts a workspace and resolves an approval card', async ({ page }) => {
     if (path === '/api/engines') {
       return route.fulfill({
         json: {
-          engines: [
-            { engine: 'claude-sdk', status: 'unknown', reason: 'reusing local login' },
-            { engine: 'claude-sdk', status: 'available' },
-          ],
+          engines: [{ engine: 'claude-sdk', status: 'unknown', reason: 'reusing local login' }],
         },
       })
     }

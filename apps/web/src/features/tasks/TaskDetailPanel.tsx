@@ -10,7 +10,7 @@ import { Button } from '@heroui/react/button'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState, type ReactNode } from 'react'
 import { ApiError, getTaskAcceptance, getTask, listSessionEvents } from '../../lib/api'
-import { queryKeys } from '../../lib/query'
+import { invalidateTaskQueries, queryKeys } from '../../lib/query'
 import { useAppStore } from '../../stores/app'
 import { mergeSessionPage } from '../realtime/session-cache'
 import { AcceptanceEditor } from './AcceptanceEditor'
@@ -99,12 +99,7 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
   const onDone = useCallback(async () => {
     const taskId = detail.data?.task.id
     if (!taskId) return
-    await queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
-    await queryClient.invalidateQueries({ queryKey: queryKeys.taskAcceptance(taskId) })
-    await queryClient.invalidateQueries({ queryKey: queryKeys.taskHistory(taskId) })
-    if (activeWorkspaceId) {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(activeWorkspaceId) })
-    }
+    await invalidateTaskQueries(queryClient, taskId, activeWorkspaceId ?? undefined)
   }, [activeWorkspaceId, detail.data?.task.id, queryClient])
 
   const openScene = useCallback(() => {
@@ -254,7 +249,16 @@ function DetailContent({
   showActions: boolean
 }) {
   const task = detail.task
-  const blockedOutcome = latestBlockedOutcome(events)
+  const latestSessionId = detail.sessions.at(-1)?.id ?? null
+  const lastOutcome = detail.lastOutcome
+  const blockedOutcome =
+    activeSessionId === latestSessionId && lastOutcome
+      ? lastOutcome.outcome === 'blocked' || lastOutcome.outcome === 'dropped'
+        ? lastOutcome.reason
+          ? { outcome: lastOutcome.outcome, reason: lastOutcome.reason }
+          : null
+        : null
+      : latestBlockedOutcome(events)
   const pendingApprovals = [...detail.approvals].reverse().filter((item) => item.decision === null)
   const needsApproval = detail.attention === 'needs_approval'
   const [historyDiffReviewId, setHistoryDiffReviewId] = useState<string | null>(null)
