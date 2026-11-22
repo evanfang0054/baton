@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   boardColumn,
   isStale,
+  needsMe,
   needsPerson,
   sortByWaiting,
   waitingSinceFor,
@@ -25,6 +26,24 @@ describe('board projection', () => {
     expect(needsPerson({ status: 'review', attention: 'needs_review' })).toBe(true)
     expect(needsPerson({ status: 'waiting_input', attention: 'none' })).toBe(true)
     expect(needsPerson({ status: 'running', attention: 'none' })).toBe(false)
+  })
+
+  it('includes acceptance failures and over-budget tasks in needsMe', () => {
+    expect(
+      needsMe({
+        status: 'running',
+        attention: 'none',
+        acceptance: { counts: { fail: 1 } },
+      }),
+    ).toBe(true)
+    expect(
+      needsMe({
+        status: 'running',
+        attention: 'none',
+        budget: { overBudget: true },
+      }),
+    ).toBe(true)
+    expect(needsMe({ status: 'running', attention: 'none' })).toBe(false)
   })
 
   it('derives waitingSince only for waiting/review', () => {
