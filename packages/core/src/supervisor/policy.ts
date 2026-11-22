@@ -16,6 +16,8 @@ export const SUPERVISOR_POLICY: SupervisorPolicy = {
     'get_task_failure',
     'create_task',
     'create_tasks',
+    'plan_tasks',
+    'batch_tasks',
     'enqueue_task',
     'retry_task',
     'reopen_task',

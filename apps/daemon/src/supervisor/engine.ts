@@ -111,6 +111,16 @@ export function createAiSdkSupervisorEngine(config: SupervisorConfig): Superviso
           inputSchema: tools.create_tasks.parameters,
           execute: (input) => tools.create_tasks.execute(input),
         }),
+        plan_tasks: tool({
+          description: tools.plan_tasks.description,
+          inputSchema: tools.plan_tasks.parameters,
+          execute: (input) => tools.plan_tasks.execute(input),
+        }),
+        batch_tasks: tool({
+          description: tools.batch_tasks.description,
+          inputSchema: tools.batch_tasks.parameters,
+          execute: (input) => tools.batch_tasks.execute(input),
+        }),
         handoff_task: tool({
           description: tools.handoff_task.description,
           inputSchema: tools.handoff_task.parameters,

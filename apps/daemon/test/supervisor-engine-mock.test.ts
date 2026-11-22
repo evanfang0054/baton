@@ -106,6 +106,8 @@ function tools(): BoundToolset {
     reply_task: noop,
     inject_context: noop,
     create_tasks: noop,
+    plan_tasks: noop,
+    batch_tasks: noop,
     handoff_task: noop,
     create_text: noop,
     create_agent: noop,
@@ -170,6 +172,7 @@ describe('createAiSdkSupervisorEngine with a mock OpenAI-compatible model', () =
       args: { title: '登录页暗黑模式' },
     })
     expect(sentTools.sort()).toEqual([
+      'batch_tasks',
       'cancel_task',
       'create_agent',
       'create_edge',
@@ -184,6 +187,7 @@ describe('createAiSdkSupervisorEngine with a mock OpenAI-compatible model', () =
       'inject_context',
       'list_canvas',
       'list_tasks',
+      'plan_tasks',
       'reopen_task',
       'reply_task',
       'retry_task',

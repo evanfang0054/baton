@@ -63,6 +63,7 @@ import { buildVerifierPrompt, parseVerdict } from './observe.js'
 import { parseAcceptanceReport, type ParsedAcceptanceReport } from './acceptance-parse.js'
 import { PROMPT_VERSION, REPORT_PROMPT, SUPERVISOR_PROMPT } from './prompt.js'
 import { createSupervisorStore } from './store.js'
+import { createContextDigest } from './context-digest.js'
 import { xmlEscape } from './xml.js'
 import {
   bindTools,
@@ -230,6 +231,9 @@ export function guardAcceptanceClaims(
 
 export function createSupervisorService(deps: SupervisorServiceDeps) {
   const store = createSupervisorStore({ db: deps.db, now: deps.now, newId: deps.newId })
+  const contextDigest = deps.failures
+    ? createContextDigest({ db: deps.db, failures: deps.failures, now: deps.now })
+    : undefined
   const tools = createSupervisorTools({
     db: deps.db,
     workspacesRoot: deps.workspacesRoot,
@@ -244,6 +248,8 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     injectContext: deps.injectContext,
     cancelTask: deps.cancelTask,
     ...(deps.requireMandate ? { requireMandate: deps.requireMandate } : {}),
+    ...(deps.actions ? { actions: deps.actions } : {}),
+    ...(contextDigest ? { contextDigest } : {}),
     ...(deps.failures ? { failures: deps.failures } : {}),
     ...(deps.logger ? { logger: deps.logger } : {}),
   })
@@ -1119,6 +1125,18 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         create_tasks: wrapTool(
           'create_tasks',
           bound.create_tasks,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        plan_tasks: wrapTool(
+          'plan_tasks',
+          bound.plan_tasks,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        batch_tasks: wrapTool(
+          'batch_tasks',
+          bound.batch_tasks,
           input.assistantMessageId,
           input.threadId,
         ),

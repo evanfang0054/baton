@@ -1,21 +1,28 @@
 import {
+  buildPlan,
   buildTaskOrigin,
   boardColumn,
   attentionFor,
   canInjectContext,
+  matchTemplate,
   needsPerson,
+  supervisorShortHash,
+  templateById,
   waitingSinceFor,
 } from '@baton/core'
 import {
   Engine,
-  Node,
   SupervisorHandoffResult,
   SupervisorTaskCard,
   TaskStatus,
+  TaskTemplateId,
   type Actor,
   type AppError,
   type Engine as EngineValue,
+  type PlanContextItem,
+  type PlanItem,
   type Strength,
+  type SupervisorAction,
   type SupervisorTaskCard as SupervisorTaskCardValue,
   type Task,
   type TaskAcceptanceSummary,
@@ -55,6 +62,7 @@ import { ASK_USER_QUESTION_TOOL, readQuestions } from '../runtime/questions.js'
 import type { TaskService } from '../runtime/task-service.js'
 import type { TransitionOutcome } from '../runtime/types.js'
 import { nodeSummary, textTitle } from './canvas-summary.js'
+import { createTargetResolver, type TargetContext } from './target.js'
 
 export interface AgentCandidate {
   id: string
@@ -102,6 +110,8 @@ export interface SupervisorToolset {
   reply_task: SupervisorTool
   inject_context: SupervisorTool
   create_tasks: SupervisorTool
+  plan_tasks: SupervisorTool
+  batch_tasks: SupervisorTool
   handoff_task: SupervisorTool
   create_text: SupervisorTool
   create_agent: SupervisorTool
@@ -129,6 +139,8 @@ export interface BoundToolset {
   reply_task: BoundTool
   inject_context: BoundTool
   create_tasks: BoundTool
+  plan_tasks: BoundTool
+  batch_tasks: BoundTool
   handoff_task: BoundTool
   create_text: BoundTool
   create_agent: BoundTool
@@ -156,6 +168,8 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     reply_task: bind(tools.reply_task),
     inject_context: bind(tools.inject_context),
     create_tasks: bind(tools.create_tasks),
+    plan_tasks: bind(tools.plan_tasks),
+    batch_tasks: bind(tools.batch_tasks),
     handoff_task: bind(tools.handoff_task),
     create_text: bind(tools.create_text),
     create_agent: bind(tools.create_agent),
@@ -235,7 +249,34 @@ const createTasksInput = z.object({
   engine: Engine.optional(),
   contextNodeIds: z.array(z.string().min(1)).max(40).optional(),
   start: z.boolean().default(false),
+  dryRun: z.boolean().default(false),
 })
+
+const planTasksInput = z
+  .object({
+    source: z
+      .object({
+        text: z.string().min(1).max(8000).optional(),
+        nodeIds: z.array(z.string().min(1)).max(40).default([]),
+      })
+      .strict()
+      .default({ nodeIds: [] }),
+    template: TaskTemplateId.optional(),
+    targetNodeId: z.string().min(1).optional(),
+    agentTitle: z.string().min(1).max(80).optional(),
+    contextNodeIds: z.array(z.string().min(1)).max(40).optional(),
+    maxItems: z.number().int().min(1).max(6).default(6),
+  })
+  .strict()
+
+const batchTasksInput = z
+  .object({
+    action: z.enum(['enqueue', 'retry', 'cancel']),
+    taskIds: z.array(z.string().min(1)).min(1).max(20),
+    dryRun: z.boolean().default(true),
+    confirm: z.boolean().default(false),
+  })
+  .strict()
 
 const handoffTaskInput = z.object({
   fromTaskId: z.string().min(1),
@@ -276,6 +317,25 @@ export type EnqueueTaskResult = { ok: true; status: TaskStatus } | { ok: false; 
 
 type BatchFailure = { nodeId: string; stage: 'create' | 'enqueue'; error: AppError }
 
+export interface SupervisorActionsPort {
+  propose(input: {
+    workspaceId: string
+    threadId?: string | null
+    taskId?: string | null
+    kind: SupervisorAction['kind']
+    strength: Strength
+    mode: 'observe' | 'auto'
+    reason: string
+    payload: unknown
+    policyVersion: string
+    mandateVersion?: string | null
+    dedupeKey: string
+    expiresAt?: number
+  }):
+    | { ok: true; action: SupervisorAction; duplicate: boolean }
+    | { ok: false; error: AppError }
+}
+
 export interface SupervisorToolsDeps {
   db: Db
   workspacesRoot: string
@@ -299,11 +359,11 @@ export interface SupervisorToolsDeps {
   cancelTask: (taskId: string, reason?: string) => TransitionOutcome
   /** 主动恢复动作前按当前 policy 重新校验；显式用户指令也会检查 allowedActions。 */
   requireMandate?: (taskId: string, action: TaskAction, strength: Strength) => AppError | null
+  actions?: SupervisorActionsPort
+  contextDigest?: (workspaceId: string, items: PlanItem[]) => PlanContextItem[]
   failures?: FailureService
   logger?: Logger
 }
-
-const CONTENT_TYPES = new Set(['text', 'file', 'image'])
 
 function truncateText(value: string, max: number): string {
   return value.length > max ? `${value.slice(0, max)}…` : value
@@ -332,6 +392,13 @@ function pendingForTask(db: Db, task: Task): unknown {
 }
 
 export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorToolset {
+  const resolver = createTargetResolver({
+    db: deps.db,
+    defaultEngine: deps.defaultEngine,
+    now: deps.now,
+    newId: deps.newId,
+  })
+
   function taskSummary(
     task: ReturnType<typeof listTasks>[number],
     column: string,
@@ -372,121 +439,6 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       },
       needsPerson: needsAttention,
     }
-  }
-
-  function canvasFor(ctx: ToolContext) {
-    const canvas = getCanvasByWorkspace(deps.db, ctx.workspaceId)
-    if (!canvas) {
-      throw appError('canvas_not_found', 'canvas not found', { workspaceId: ctx.workspaceId })
-    }
-    return canvas
-  }
-
-  function nextNodeY(canvasId: string): number {
-    const nodes = listNodes(deps.db, canvasId)
-    return nodes.reduce((max, node) => Math.max(max, node.y + node.h), 40) + 24
-  }
-
-  function insertCanvasNode(
-    ctx: ToolContext,
-    type: 'text' | 'agent',
-    data: Record<string, unknown>,
-  ): Node {
-    const canvas = canvasFor(ctx)
-    const ts = deps.now()
-    const node = Node.parse({
-      id: deps.newId(),
-      canvasId: canvas.id,
-      type,
-      x: 80,
-      y: nextNodeY(canvas.id),
-      w: 320,
-      h: 200,
-      groupId: null,
-      data,
-      createdAt: ts,
-      updatedAt: ts,
-    })
-    deps.db.transaction((tx) => insertNode(tx, node))
-    ctx.memo.createdNodeIds = [...(ctx.memo.createdNodeIds ?? []), node.id]
-    return node
-  }
-
-  function createAgentNode(
-    ctx: ToolContext,
-    options: { title?: string; engine?: EngineValue },
-  ): { nodeId: string; title: string; engine: EngineValue } {
-    const canvas = canvasFor(ctx)
-    const agentCount = listNodes(deps.db, canvas.id).filter((node) => node.type === 'agent').length
-    const title = options.title?.trim() || `Agent ${agentCount + 1}`
-    const engine = options.engine ?? deps.defaultEngine
-    const node = insertCanvasNode(ctx, 'agent', { title, engine, taskId: null })
-    return { nodeId: node.id, title, engine }
-  }
-
-  function resolveAgentTarget(
-    ctx: ToolContext,
-    parsed: {
-      title: string
-      targetNodeId?: string
-      agentTitle?: string
-      engine?: EngineValue
-    },
-  ): { id: string; title: string; engine: EngineValue; created: boolean } {
-    const canvas = canvasFor(ctx)
-    const requested =
-      parsed.targetNodeId ??
-      ctx.selection.targetNodeId ??
-      (ctx.selection.agentCandidates.length === 1
-        ? ctx.selection.agentCandidates[0]?.id
-        : undefined)
-    if (requested) {
-      const node = getNode(deps.db, requested)
-      if (!node || node.canvasId !== canvas.id || node.type !== 'agent') {
-        throw appError('supervisor_target_invalid', 'target agent is not on this canvas', {
-          targetNodeId: requested,
-        })
-      }
-      return {
-        id: node.id,
-        title: node.data.title,
-        engine: Engine.parse(node.data.engine),
-        created: false,
-      }
-    }
-
-    const created = createAgentNode(ctx, {
-      title: parsed.agentTitle ?? parsed.title,
-      ...(parsed.engine ? { engine: parsed.engine } : {}),
-    })
-    return { id: created.nodeId, title: created.title, engine: created.engine, created: true }
-  }
-
-  function resolveContext(ctx: ToolContext, requested: string[], targetId: string): string[] {
-    const canvas = canvasFor(ctx)
-    const contentIds = new Set(
-      listNodes(deps.db, canvas.id)
-        .filter((node) => CONTENT_TYPES.has(node.type))
-        .map((node) => node.id),
-    )
-    const invalid = requested.filter((id) => id !== targetId && !contentIds.has(id))
-    if (invalid.length > 0) {
-      throw appError('supervisor_context_invalid', 'context nodes are not on this canvas', {
-        nodeIds: invalid,
-      })
-    }
-    return [...new Set(requested.filter((id) => id !== targetId))]
-  }
-
-  function resolveEngine(
-    parsedEngine: EngineValue | undefined,
-    target: { engine: EngineValue; created: boolean },
-  ): EngineValue {
-    if (parsedEngine) return parsedEngine
-    if (target.created) return deps.defaultEngine
-    // 用户手工建节点时默认是 fake（演示引擎）；总管派活默认用真实引擎。
-    if (target.engine === 'fake' && deps.defaultEngine !== 'fake') return deps.defaultEngine
-    return target.engine
   }
 
   // 总管消息里经常只引用短 ID；严格全量 ID 会让模型把 "3ac390ff" 直接回填成 taskId。
@@ -635,7 +587,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       parameters: listCanvasInput,
       async execute(input, ctx) {
         const parsed = listCanvasInput.parse(input)
-        const canvas = canvasFor(ctx)
+        const canvas = resolver.canvasFor(ctx)
         const nodes = listNodes(deps.db, canvas.id)
         const edges = listEdges(deps.db, canvas.id)
         const shownNodes = nodes.slice(0, parsed.limit)
@@ -847,7 +799,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       parameters: createTextInput,
       async execute(input, ctx) {
         const parsed = createTextInput.parse(input)
-        const node = insertCanvasNode(ctx, 'text', { content: parsed.content })
+        const node = resolver.insertCanvasNode(ctx, 'text', { content: parsed.content })
         return {
           nodeId: node.id,
           type: 'text',
@@ -862,7 +814,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       parameters: createAgentInput,
       async execute(input, ctx) {
         const parsed = createAgentInput.parse(input)
-        return createAgentNode(ctx, parsed)
+        return resolver.createAgentNode(ctx, parsed)
       },
     },
 
@@ -871,7 +823,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       parameters: createEdgeInput,
       async execute(input, ctx) {
         const parsed = createEdgeInput.parse(input)
-        const canvas = canvasFor(ctx)
+        const canvas = resolver.canvasFor(ctx)
         const source = getNode(deps.db, parsed.sourceId)
         const target = getNode(deps.db, parsed.targetId)
         if (!source || !target || source.canvasId !== canvas.id || target.canvasId !== canvas.id) {
@@ -895,7 +847,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       parameters: updateNodeInput,
       async execute(input, ctx) {
         const parsed = updateNodeInput.parse(input)
-        const canvas = canvasFor(ctx)
+        const canvas = resolver.canvasFor(ctx)
         const node = getNode(deps.db, parsed.nodeId)
         if (!node || node.canvasId !== canvas.id) {
           throw appError('node_not_found', 'node not found on this canvas', {
@@ -1017,10 +969,10 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           }
         }
 
-        const target = resolveAgentTarget(ctx, parsed)
-        const engine = resolveEngine(parsed.engine, target)
+        const target = resolver.resolveAgentTarget(ctx, parsed)
+        const engine = resolver.resolveEngine(parsed.engine, target)
         const requestedContext = parsed.contextNodeIds ?? ctx.selection.contextNodeIds
-        const contextNodeIds = resolveContext(ctx, requestedContext, target.id)
+        const contextNodeIds = resolver.resolveContext(ctx, requestedContext, target.id)
 
         const created = createTaskForTool(ctx, {
           title: parsed.title,
@@ -1062,6 +1014,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           contextNodeIds: parsed.contextNodeIds ?? [],
           engine: parsed.engine ?? null,
           start: parsed.start,
+          dryRun: parsed.dryRun,
         })
         if (ctx.memo.batch?.key === batchKey) {
           return ctx.memo.batch.result as {
@@ -1069,7 +1022,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             failed: BatchFailure[]
           }
         }
-        const canvas = canvasFor(ctx)
+        const canvas = resolver.canvasFor(ctx)
         const textNodes = parsed.nodeIds.map((id) => {
           const node = getNode(deps.db, id)
           if (
@@ -1086,17 +1039,48 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           }
           return node
         })
-        const target = resolveAgentTarget(ctx, {
-          title: textTitle(textNodes[0]!.data.content),
-          ...(parsed.targetNodeId ? { targetNodeId: parsed.targetNodeId } : {}),
-          ...(parsed.agentTitle ? { agentTitle: parsed.agentTitle } : {}),
-          ...(parsed.engine ? { engine: parsed.engine } : {}),
-        })
-        const engine = resolveEngine(parsed.engine, target)
+        const requestedTargetId =
+          parsed.targetNodeId ??
+          ctx.selection.targetNodeId ??
+          (ctx.selection.agentCandidates.length === 1
+            ? ctx.selection.agentCandidates[0]?.id
+            : undefined)
+        // dryRun 只预览，不创建 Agent 节点，也不写任务。
+        const target =
+          parsed.dryRun && !requestedTargetId
+            ? {
+                id: '',
+                title: parsed.agentTitle ?? textTitle(textNodes[0]!.data.content),
+                engine: parsed.engine ?? deps.defaultEngine,
+                created: false,
+              }
+            : resolver.resolveAgentTarget(ctx, {
+                title: textTitle(textNodes[0]!.data.content),
+                ...(parsed.targetNodeId ? { targetNodeId: parsed.targetNodeId } : {}),
+                ...(parsed.agentTitle ? { agentTitle: parsed.agentTitle } : {}),
+                ...(parsed.engine ? { engine: parsed.engine } : {}),
+              })
+        const engine = resolver.resolveEngine(parsed.engine, target)
         const sharedContext = (parsed.contextNodeIds ?? ctx.selection.contextNodeIds).filter(
           (id) => !parsed.nodeIds.includes(id),
         )
-        const contextNodeIds = resolveContext(ctx, sharedContext, target.id)
+        const contextNodeIds = resolver.resolveContext(ctx, sharedContext, target.id)
+
+        if (parsed.dryRun) {
+          return {
+            dryRun: true,
+            items: textNodes.map((node) => ({
+              title: textTitle(node.data.content).slice(0, 80),
+              target: {
+                id: target.id || null,
+                title: target.title,
+                engine,
+              },
+              contextCount: contextNodeIds.length,
+            })),
+            failed: [],
+          }
+        }
 
         const created: SupervisorTaskCardValue[] = []
         const failed: BatchFailure[] = []
@@ -1178,6 +1162,216 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       },
     },
 
+    plan_tasks: {
+      description:
+        '把多条需求收敛成一张计划卡：只写 proposed，不建任务；必须等用户在计划卡点击应用。' +
+        '1-6 条；可从文本节点或本次消息中提炼。',
+      parameters: planTasksInput,
+      async execute(input, ctx) {
+        const parsed = planTasksInput.parse(input)
+        if (!deps.actions) {
+          throw appError('action_not_available', 'supervisor actions are not wired')
+        }
+        const canvas = resolver.canvasFor(ctx)
+        const nodeIds =
+          parsed.source.nodeIds.length > 0 ? parsed.source.nodeIds : ctx.selection.contextNodeIds
+        const nodes = nodeIds.map((id) => getNode(deps.db, id))
+        if (
+          nodes.some(
+            (node) => !node || node.canvasId !== canvas.id || node.type !== 'text',
+          )
+        ) {
+          throw appError('plan_invalid', 'source nodes must be text nodes on this canvas', {
+            nodeIds,
+          })
+        }
+        const textNodes = nodes.filter(
+          (node): node is NonNullable<typeof node> & { data: { content: string } } =>
+            Boolean(node),
+        )
+        const text =
+          parsed.source.text ??
+          (textNodes.length > 0
+            ? textNodes.map((node) => node.data.content).join('\n')
+            : ctx.text)
+        const templateId = parsed.template ?? matchTemplate(text)
+        const candidateTexts =
+          textNodes.length > 0
+            ? textNodes.map((node) => textTitle(node.data.content)).slice(0, parsed.maxItems)
+            : text
+                .split(/\n+/)
+                .map((line) => line.replace(/^[-*]\s*/, '').trim())
+                .filter(Boolean)
+                .slice(0, parsed.maxItems)
+        if (candidateTexts.length === 0) {
+          throw appError('plan_invalid', 'plan source is empty')
+        }
+        const requestedTargetId = parsed.targetNodeId ?? ctx.selection.targetNodeId
+        const target = requestedTargetId
+          ? resolver.resolveAgentTarget(ctx, {
+              title: candidateTexts[0]!,
+              targetNodeId: requestedTargetId,
+              ...(parsed.agentTitle ? { agentTitle: parsed.agentTitle } : {}),
+            })
+          : {
+              id: '',
+              title: parsed.agentTitle ?? candidateTexts[0]!,
+              engine: deps.defaultEngine,
+              created: false,
+            }
+        const contextNodeIds = resolver.resolveContext(
+          ctx,
+          parsed.contextNodeIds ?? ctx.selection.contextNodeIds,
+          target.id,
+        )
+        const template = templateById(templateId)
+        const items: PlanItem[] = candidateTexts.map((title) => ({
+          title: title.slice(0, 80),
+          templateId: templateId ?? null,
+          targetNodeId: target.id || null,
+          agentTitle: target.title,
+          contextNodeIds,
+          engine: target.engine,
+          budgetUsd: template?.defaultBudgetUsd ?? null,
+        }))
+        const built = buildPlan({
+          triggerId: ctx.triggerId,
+          source: { nodeIds },
+          templateId: templateId ?? null,
+          items,
+          contextDigest: deps.contextDigest?.(ctx.workspaceId, items) ?? [],
+          now: deps.now(),
+        })
+        const proposed = deps.actions.propose({
+          workspaceId: ctx.workspaceId,
+          threadId: ctx.threadId,
+          taskId: null,
+          kind: 'triage_plan',
+          strength: 'inferred',
+          mode: 'observe',
+          reason: `计划：${items.length} 个任务，等待你确认`,
+          payload: built.payload,
+          policyVersion: ctx.policyVersion,
+          dedupeKey: `plan:${ctx.threadId}:${ctx.triggerId}:${supervisorShortHash(
+            JSON.stringify(built.payload),
+          )}`,
+          expiresAt: built.expiresAt,
+        })
+        if (!proposed.ok) throw proposed.error
+        return {
+          actionId: proposed.action.id,
+          status: proposed.action.status,
+          plan: built.payload,
+        }
+      },
+    },
+
+    batch_tasks: {
+      description:
+        '批量 enqueue/retry/cancel；默认 dryRun=true，只有 confirm=true 才执行；cancel 自动跳过 running。',
+      parameters: batchTasksInput,
+      async execute(input, ctx) {
+        const parsed = batchTasksInput.parse(input)
+        if (parsed.taskIds.length !== new Set(parsed.taskIds).size) {
+          throw appError('batch_invalid', 'taskIds must be unique', { taskIds: parsed.taskIds })
+        }
+        const items: Array<{ taskId: string; title: string; status: TaskStatus }> = []
+        const skipped: Array<{ taskId: string; reason: string }> = []
+        for (const rawId of parsed.taskIds) {
+          const task = requireTask(ctx, rawId)
+          if (parsed.action === 'enqueue') {
+            if (task.status === 'todo') {
+              items.push({ taskId: task.id, title: task.title, status: task.status })
+            } else {
+              skipped.push({ taskId: task.id, reason: `status:${task.status}` })
+            }
+            continue
+          }
+          if (parsed.action === 'retry') {
+            if (task.status === 'failed') {
+              items.push({ taskId: task.id, title: task.title, status: task.status })
+            } else {
+              skipped.push({ taskId: task.id, reason: `status:${task.status}` })
+            }
+            continue
+          }
+          if (task.status === 'done' || task.status === 'failed' || task.status === 'cancelled') {
+            skipped.push({ taskId: task.id, reason: `status:${task.status}` })
+          } else if (task.status === 'running') {
+            skipped.push({ taskId: task.id, reason: 'running' })
+          } else {
+            items.push({ taskId: task.id, title: task.title, status: task.status })
+          }
+        }
+        const requiresConfirmation = parsed.action === 'cancel' && skipped.some(
+          (item) => item.reason === 'running',
+        )
+        if (parsed.dryRun || !parsed.confirm) {
+          return {
+            dryRun: true,
+            action: parsed.action,
+            items: items.map((item) => ({ taskId: item.taskId, title: item.title })),
+            skipped,
+            requiresConfirmation,
+          }
+        }
+
+        const results: Array<{
+          taskId: string
+          ok: boolean
+          status?: TaskStatus
+          error?: { code: string; message: string }
+        }> = []
+        for (const item of items) {
+          const mandate = deps.requireMandate?.(item.taskId, parsed.action, 'explicit')
+          if (mandate) {
+            results.push({
+              taskId: item.taskId,
+              ok: false,
+              error: { code: mandate.code, message: mandate.message },
+            })
+            continue
+          }
+          if (parsed.action === 'enqueue') {
+            const outcome = deps.enqueueTask(item.taskId)
+            results.push(
+              outcome.ok
+                ? { taskId: item.taskId, ok: true, status: outcome.status }
+                : {
+                    taskId: item.taskId,
+                    ok: false,
+                    error: { code: outcome.error.code, message: outcome.error.message },
+                  },
+            )
+            continue
+          }
+          const outcome =
+            parsed.action === 'retry'
+              ? deps.applyTransition(item.taskId, { type: 'retry' })
+              : deps.cancelTask(item.taskId)
+          results.push(
+            outcome.ok
+              ? parsed.action === 'cancel'
+                ? { taskId: item.taskId, ok: true }
+                : { taskId: item.taskId, ok: true, status: outcome.status }
+              : {
+                  taskId: item.taskId,
+                  ok: false,
+                  error: { code: outcome.error.code, message: outcome.error.message },
+                },
+          )
+        }
+        audit('supervisor.batch', items[0]?.taskId ?? parsed.taskIds[0]!, ctx, {
+          action: parsed.action,
+          taskIds: items.map((item) => item.taskId),
+          skipped: skipped.map((item) => item.taskId),
+          ok: results.filter((item) => item.ok).length,
+          failed: results.filter((item) => !item.ok).length,
+        })
+        return { dryRun: false, action: parsed.action, items: results, skipped }
+      },
+    },
+
     handoff_task: {
       description:
         '把一个已停下任务（review/done/failed/cancelled）的结果做成交接节点，并创建新任务继续；' +
@@ -1187,12 +1381,12 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         const parsed = handoffTaskInput.parse(input)
         const fromTask = requireTask(ctx, parsed.fromTaskId)
         const title = (parsed.title ?? `跟进：${fromTask.title}`).slice(0, 80)
-        const target = resolveAgentTarget(ctx, {
+        const target = resolver.resolveAgentTarget(ctx, {
           title,
           ...(parsed.toNodeId ? { targetNodeId: parsed.toNodeId } : {}),
         })
         // 先校验目标与额外上下文，再落交接节点；避免失败时画布留下孤儿节点。
-        const extraContext = resolveContext(ctx, ctx.selection.contextNodeIds, target.id)
+        const extraContext = resolver.resolveContext(ctx, ctx.selection.contextNodeIds, target.id)
         const handoff = createHandoffNode(
           {
             db: deps.db,
@@ -1205,7 +1399,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         )
         if (!handoff.ok) throw handoff.error
 
-        const engine = resolveEngine(undefined, target)
+        const engine = resolver.resolveEngine(undefined, target)
         const contextNodeIds = [...new Set([handoff.node.id, ...extraContext])]
         const created = createTaskForTool(ctx, {
           title,
