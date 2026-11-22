@@ -19,6 +19,8 @@ const base = {
   dangerouslySkipPermissions: false,
   budgetUsd: null,
   enqueuedAt: null,
+  deliveryId: null,
+  stageKey: null,
   createdAt: 10,
   updatedAt: 90,
 } satisfies Task

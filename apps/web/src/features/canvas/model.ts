@@ -37,6 +37,8 @@ const CUSTOM_TYPES = new Set<ProtocolNode['type']>([
   'image',
   'group',
   'review',
+  'artifact',
+  'drawing',
 ])
 
 export const REVIEW_CARD_PREFIX = 'review:'

@@ -201,8 +201,8 @@ export const TaskDetailResponse = z.object({
     .object({ outcome: SessionOutcome, reason: z.string().nullable() })
     .nullable()
     .default(null),
-  annotations: z.array(AnnotationSummary).default([]),
-  delivery: DeliverySummary.nullable().default(null),
+  annotations: z.array(AnnotationSummary).optional(),
+  delivery: DeliverySummary.nullable().optional(),
 })
 export type TaskDetailResponse = z.infer<typeof TaskDetailResponse>
 

@@ -52,6 +52,8 @@ import {
   type CanvasAddType,
 } from './model'
 import { AgentNode } from './nodes/AgentNode'
+import { ArtifactNode } from './nodes/ArtifactNode'
+import { DrawingNode } from './nodes/DrawingNode'
 import { FileNode } from './nodes/FileNode'
 import { GroupNode } from './nodes/GroupNode'
 import { ImageNode } from './nodes/ImageNode'
@@ -81,6 +83,8 @@ const nodeTypes = {
   image: ImageNode,
   group: GroupNode,
   review: ReviewCardNode,
+  artifact: ArtifactNode,
+  drawing: DrawingNode,
 }
 const DEFAULT_SIZE = { w: 320, h: 200 }
 const IMAGE_SIZE = { w: 320, h: 240 }

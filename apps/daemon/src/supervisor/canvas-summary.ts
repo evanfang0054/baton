@@ -28,6 +28,10 @@ export function nodeTitle(node: Node): string {
       return node.data.label
     case 'review':
       return 'review'
+    case 'artifact':
+      return node.data.title
+    case 'drawing':
+      return node.data.title
   }
 }
 
@@ -56,6 +60,15 @@ export function nodeSummary(node: Node): Record<string, unknown> {
       return { ...base, taskId: node.data.taskId }
     case 'image':
       return base
+    case 'artifact':
+      return {
+        ...base,
+        artifactId: node.data.artifactId,
+        kind: node.data.kind,
+        status: node.data.status,
+      }
+    case 'drawing':
+      return { ...base, artifactId: node.data.artifactId, status: node.data.status }
   }
 }
 

@@ -23,8 +23,8 @@ export const Task = z.object({
   /** 任务级预算；null 表示继承全局 claudeMaxBudgetUsd。 */
   budgetUsd: z.number().nonnegative().nullable().default(null),
   enqueuedAt: Timestamp.nullable().default(null),
-  deliveryId: Id.nullable().default(null),
-  stageKey: z.string().min(1).max(32).nullable().default(null),
+  deliveryId: Id.nullable().optional(),
+  stageKey: z.string().min(1).max(32).nullable().optional(),
   createdAt: Timestamp,
   updatedAt: Timestamp,
 })
@@ -33,6 +33,6 @@ export type Task = z.infer<typeof Task>
 export const TaskDetail = Task.extend({
   context: ContextSnapshot.nullable().default(null),
   origin: TaskOrigin.nullable().default(null),
-  annotationIds: z.array(Id).default([]),
+  annotationIds: z.array(Id).optional(),
 })
 export type TaskDetail = z.infer<typeof TaskDetail>

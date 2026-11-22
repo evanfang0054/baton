@@ -79,6 +79,10 @@ function nodeTitle(node: Node): string {
       return node.data.label
     case 'review':
       return 'review'
+    case 'artifact':
+      return node.data.title
+    case 'drawing':
+      return node.data.title
   }
 }
 

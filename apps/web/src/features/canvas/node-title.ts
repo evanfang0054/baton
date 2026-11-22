@@ -19,5 +19,9 @@ export function nodeTitle(node: Node): string {
       return node.data.label
     case 'review':
       return '验收节点'
+    case 'artifact':
+      return node.data.title
+    case 'drawing':
+      return node.data.title
   }
 }
