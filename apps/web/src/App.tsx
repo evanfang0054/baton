@@ -13,6 +13,7 @@ import { DeliveryBoard } from './features/deliveries/DeliveryBoard'
 import { DeliveryCanvas } from './features/deliveries/DeliveryCanvas'
 import { DeliveryRail } from './features/deliveries/DeliveryRail'
 import { AnnotationListOverlay } from './features/overlays/AnnotationListOverlay'
+import { AcceptanceMatrixOverlay } from './features/overlays/AcceptanceMatrixOverlay'
 import { ArtifactViewerOverlay } from './features/overlays/ArtifactViewerOverlay'
 import { DrawingEditorOverlay } from './features/overlays/DrawingEditorOverlay'
 import { Overlay } from './features/overlays/Overlay'
@@ -592,6 +593,11 @@ export function App() {
                     })
                   }
                   onOpenAnnotations={openAnnotations}
+                  onOpenAcceptance={() => {
+                    if (activeDeliveryId) {
+                      setOverlay({ kind: 'acceptance', deliveryId: activeDeliveryId })
+                    }
+                  }}
                   onCreateDrawing={() => void createDrawing()}
                   onAnnotationsChanged={() => {
                     if (!activeDeliveryId) return
@@ -668,6 +674,9 @@ export function App() {
               ) : null
             })()
           : null}
+        {overlay?.kind === 'acceptance' && delivery.data ? (
+          <AcceptanceMatrixOverlay delivery={delivery.data} onClose={() => setOverlay(null)} />
+        ) : null}
         {overlay?.kind === 'annotations' && delivery.data ? (
           <AnnotationListOverlay
             annotations={delivery.data.annotations}

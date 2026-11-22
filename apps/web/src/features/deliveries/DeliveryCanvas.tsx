@@ -28,6 +28,7 @@ export function DeliveryCanvas({
   onOpenAnnotations,
   onCreateDrawing,
   onAnnotationsChanged,
+  onOpenAcceptance,
 }: {
   workspaceId: string
   delivery: DeliveryDetail
@@ -43,6 +44,7 @@ export function DeliveryCanvas({
   onOpenAnnotations: () => void
   onCreateDrawing: () => void
   onAnnotationsChanged: () => void
+  onOpenAcceptance: () => void
 }) {
   const canvasRef = useRef<CanvasPanelHandle>(null)
   const [annotating, setAnnotating] = useState(false)
@@ -136,6 +138,9 @@ export function DeliveryCanvas({
             ) : null}
             <Button size="sm" variant="tertiary" onPress={onOpenAnnotations}>
               标注 {delivery.openAnnotationCount}
+            </Button>
+            <Button size="sm" variant="tertiary" onPress={onOpenAcceptance}>
+              验收矩阵
             </Button>
             <Button size="sm" variant="tertiary" onPress={onCreateDrawing}>
               新建画板

@@ -27,6 +27,24 @@ export function GroupNode({ data, selected }: CanvasFlowNodeProps) {
             <span className="shrink-0 text-[10px] text-muted">
               {stage.artifactCount} 产物 · {stage.openAnnotationCount} 标注
             </span>
+            {stage.skillId ? (
+              <span
+                className={`shrink-0 text-[10px] ${
+                  stage.skillStatus === 'ok'
+                    ? 'text-success'
+                    : stage.skillStatus === 'missing'
+                      ? 'text-warning'
+                      : 'text-danger'
+                }`}
+              >
+                {stage.skillId}
+                {stage.skillStatus === 'missing'
+                  ? '（缺失）'
+                  : stage.skillStatus === 'disabled_untrusted'
+                    ? '（未信任）'
+                    : ''}
+              </span>
+            ) : null}
             {stage.waitingSince ? (
               <span className="shrink-0 text-[10px] text-warning">
                 等待 {formatWaiting(stage.waitingSince)}

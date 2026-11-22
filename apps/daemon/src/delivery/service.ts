@@ -21,8 +21,9 @@ import type {
   Task,
   TaskTransitionEvent,
 } from '@baton/protocol'
-import { existsSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { getAcceptanceResponse } from '../acceptance/report-service.js'
 import type { Config } from '../config.js'
 import {
@@ -40,6 +41,7 @@ import {
 import {
   getCanvasByDelivery,
   getDelivery,
+  insertArtifact,
   insertDelivery,
   listAnnotations,
   listArtifactsByDelivery,
@@ -604,6 +606,52 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
               previousStageKey: stageKey,
             })
             created = task.taskId
+          }
+        } else if (currentTask) {
+          const workspace = getWorkspace(deps.db, delivery.workspaceId)
+          const workspacePath = workspace
+            ? resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+            : null
+          const rel = artifactPath({
+            deliveryId,
+            stageKey,
+            name: 'delivery-report.md',
+          })
+          if (workspacePath && rel) {
+            const report = [
+              `# 交付报告：${delivery.title}`,
+              '',
+              `- 目标：${delivery.goal}`,
+              `- Playbook：${delivery.playbookId} v${delivery.playbookVersion}`,
+              `- 完成时间：${new Date(now).toISOString()}`,
+              '',
+              '## 阶段结果',
+              ...playbook.stages.map((stage) => `- ${stage.label}（${stage.key}）`),
+              '',
+            ].join('\n')
+            const target = resolveWithin(workspacePath, rel)
+            mkdirSync(dirname(target), { recursive: true })
+            writeFileSync(target, report, 'utf8')
+            const buffer = Buffer.from(report, 'utf8')
+            insertArtifact(tx, {
+              id: deps.newId(),
+              workspaceId: delivery.workspaceId,
+              deliveryId,
+              stageKey,
+              taskId: currentTask.id,
+              kind: 'report',
+              name: 'delivery-report.md',
+              path: rel,
+              sourcePath: null,
+              svgPath: null,
+              mime: 'text/markdown',
+              size: buffer.length,
+              sha256: createHash('sha256').update(buffer).digest('hex'),
+              version: 1,
+              status: 'ready',
+              createdAt: now,
+              updatedAt: now,
+            })
           }
         }
         insertAudit(tx, {
