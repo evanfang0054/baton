@@ -80,18 +80,21 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
     config,
     now: deps.now,
     newId: deps.newId,
+    emit: (draft) => deps.runtime.publish(draft),
   })
   const artifacts = createArtifactService({
     db: deps.db,
     config,
     now: deps.now,
     newId: deps.newId,
+    emit: (draft) => deps.runtime.publish(draft),
   })
   const annotations = createAnnotationService({
     db: deps.db,
     config,
     now: deps.now,
     newId: deps.newId,
+    emit: (draft) => deps.runtime.publish(draft),
   })
   registerDeliveryRoutes(app, {
     deliveries,

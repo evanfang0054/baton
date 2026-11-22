@@ -15,6 +15,7 @@ import {
 } from '../db/delivery-repositories.js'
 import { getWorkspace, insertAudit, listNodes } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
+import type { WsEventDraft } from '../db/event-store.js'
 import { appError } from '../errors.js'
 import { resolveWorkspaceDir, resolveWithin } from '../workspace/resolver.js'
 
@@ -23,6 +24,7 @@ export interface AnnotationServiceDeps {
   config: Config
   now: () => number
   newId: () => string
+  emit?: (draft: WsEventDraft) => void
 }
 
 const MAX_STROKES = 2_000_000
@@ -132,6 +134,16 @@ export function createAnnotationService(deps: AnnotationServiceDeps) {
         detail: { annotationId: id, deliveryId: input.deliveryId, stageKey: input.stageKey },
       })
     })
+    deps.emit?.({
+      type: 'annotation.updated',
+      payload: {
+        annotationId: id,
+        deliveryId: input.deliveryId,
+        stageKey: input.stageKey,
+        status: 'open',
+      },
+      ts: now,
+    })
     return annotation
   }
 
@@ -162,7 +174,18 @@ export function createAnnotationService(deps: AnnotationServiceDeps) {
       })
     })
     const updated = getAnnotation(deps.db, annotation.id)
-    return summary(updated ?? annotation)
+    const result = summary(updated ?? annotation)
+    deps.emit?.({
+      type: 'annotation.updated',
+      payload: {
+        annotationId: result.id,
+        deliveryId: result.deliveryId,
+        stageKey: result.stageKey,
+        status: result.status,
+      },
+      ts: now,
+    })
+    return result
   }
 
   function listAnnotations(filter: {
@@ -180,7 +203,25 @@ export function createAnnotationService(deps: AnnotationServiceDeps) {
 
   function resolveAnnotationsForTask(taskId: string): string[] {
     const now = deps.now()
-    return deps.db.transaction((tx) => resolveRepository(tx, taskId, now))
+    const resolved = deps.db.transaction((tx) => {
+      const ids = resolveRepository(tx, taskId, now)
+      return ids
+        .map((id) => getAnnotation(deps.db, id))
+        .filter((item): item is Annotation => item !== null)
+    })
+    for (const annotation of resolved) {
+      deps.emit?.({
+        type: 'annotation.updated',
+        payload: {
+          annotationId: annotation.id,
+          deliveryId: annotation.deliveryId,
+          stageKey: annotation.stageKey,
+          status: annotation.status,
+        },
+        ts: now,
+      })
+    }
+    return resolved.map((annotation) => annotation.id)
   }
 
   return {

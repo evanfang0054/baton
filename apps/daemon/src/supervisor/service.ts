@@ -53,6 +53,8 @@ import { appError, isAppError } from '../errors.js'
 import type { Logger } from '../log.js'
 import type { TaskService } from '../runtime/task-service.js'
 import type { TransitionOutcome } from '../runtime/types.js'
+import type { AnnotationService } from '../annotation/service.js'
+import type { DeliveryService } from '../delivery/service.js'
 import { buildWsFrame } from '../ws/hub.js'
 import { canvasOverviewXml, nodeTitle } from './canvas-summary.js'
 import type { createSupervisorActionService } from './actions.js'
@@ -102,6 +104,8 @@ export interface SupervisorServiceDeps {
   killSwitch: () => boolean
   actions?: ReturnType<typeof createSupervisorActionService>
   failures?: FailureService
+  deliveries?: () => DeliveryService | undefined
+  annotations?: () => AnnotationService | undefined
   remindAttention?: (input: {
     workspaceId: string
     taskId: string
@@ -267,6 +271,8 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       : {}),
     ...(contextDigest ? { contextDigest } : {}),
     ...(deps.failures ? { failures: deps.failures } : {}),
+    ...(deps.deliveries ? { deliveries: deps.deliveries } : {}),
+    ...(deps.annotations ? { annotations: deps.annotations } : {}),
     ...(deps.logger ? { logger: deps.logger } : {}),
   })
   const policyVersion = supervisorPolicyVersion(SUPERVISOR_POLICY, PROMPT_VERSION)
@@ -1200,6 +1206,42 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         arrange_canvas: wrapTool(
           'arrange_canvas',
           bound.arrange_canvas,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        create_delivery: wrapTool(
+          'create_delivery',
+          bound.create_delivery,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        list_deliveries: wrapTool(
+          'list_deliveries',
+          bound.list_deliveries,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        get_delivery: wrapTool(
+          'get_delivery',
+          bound.get_delivery,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        enqueue_delivery: wrapTool(
+          'enqueue_delivery',
+          bound.enqueue_delivery,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        list_annotations: wrapTool(
+          'list_annotations',
+          bound.list_annotations,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        get_annotation: wrapTool(
+          'get_annotation',
+          bound.get_annotation,
           input.assistantMessageId,
           input.threadId,
         ),

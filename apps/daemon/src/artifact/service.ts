@@ -13,6 +13,7 @@ import {
 } from '../db/delivery-repositories.js'
 import { getWorkspace, insertAudit } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
+import type { WsEventDraft } from '../db/event-store.js'
 import { appError } from '../errors.js'
 import { resolveWorkspaceDir, resolveWithin } from '../workspace/resolver.js'
 
@@ -21,6 +22,7 @@ export interface ArtifactServiceDeps {
   config: Config
   now: () => number
   newId: () => string
+  emit?: (draft: WsEventDraft) => void
 }
 
 const MAX_ARTIFACT_BYTES = 10 * 1024 * 1024
@@ -76,6 +78,19 @@ function safeRootPath(workspacePath: string, relPath: string): string {
 export function createArtifactService(deps: ArtifactServiceDeps) {
   function listArtifacts(deliveryId: string): Artifact[] {
     return listArtifactsByDelivery(deps.db, deliveryId)
+  }
+
+  function emitArtifact(artifact: Artifact): void {
+    deps.emit?.({
+      type: 'artifact.updated',
+      payload: {
+        artifactId: artifact.id,
+        deliveryId: artifact.deliveryId,
+        stageKey: artifact.stageKey,
+        status: artifact.status,
+      },
+      ts: artifact.updatedAt,
+    })
   }
 
   function checkRequiredArtifacts(
@@ -137,6 +152,7 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
         })
       }
     })
+    for (const artifact of written) emitArtifact(artifact)
     return missing.length > 0 ? { ok: false, missing } : { ok: true, artifacts: written }
   }
 
@@ -171,6 +187,7 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
       updatedAt: now,
     }
     deps.db.transaction((tx) => upsertArtifact(tx, artifact))
+    emitArtifact(artifact)
     return artifact
   }
 
@@ -229,6 +246,7 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
         detail: { artifactId: updated.id, size: updated.size },
       })
     })
+    emitArtifact(updated)
     return updated
   }
 

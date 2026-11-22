@@ -1,6 +1,12 @@
-import { assembleContext } from '@baton/core'
-import type { AppError, TaskCreateInput, TaskOrigin } from '@baton/protocol'
+import { assembleContext, buildAnnotationBlock } from '@baton/core'
+import type { AppError, Node, TaskCreateInput, TaskOrigin } from '@baton/protocol'
 import type { Config } from '../config.js'
+import {
+  getAnnotation,
+  getArtifact,
+  getDelivery,
+  updateAnnotation,
+} from '../db/delivery-repositories.js'
 import {
   getCanvasByWorkspace,
   getWorkspace,
@@ -29,6 +35,13 @@ export interface CreateTaskOptions {
   /** 只允许 daemon 内部（总管）传入；web 的 task.create 不传。 */
   origin?: TaskOrigin
   audit?: { actor: string; action: string; detail: Record<string, unknown> }
+}
+
+function nodeLabel(node: Node | undefined): string | undefined {
+  if (!node) return undefined
+  const data = node.data as Record<string, unknown>
+  const value = data.title ?? data.label ?? data.content
+  return typeof value === 'string' && value.trim() ? value.trim().slice(0, 80) : undefined
 }
 
 export function createTaskService(deps: TaskServiceDeps) {
@@ -126,11 +139,62 @@ export function createTaskService(deps: TaskServiceDeps) {
         }
       }
 
+      const annotationIds = input.annotationIds ?? []
+      const loadedAnnotations = annotationIds.map((id) => getAnnotation(deps.db, id))
+      const missingAnnotations = annotationIds.filter((_, index) => !loadedAnnotations[index])
+      if (missingAnnotations.length > 0) {
+        return {
+          ok: false,
+          error: appError('annotation_not_found', 'annotation not found', {
+            annotationIds: missingAnnotations,
+          }),
+        }
+      }
+      for (const annotation of loadedAnnotations) {
+        if (!annotation) continue
+        const annotationDelivery = getDelivery(deps.db, annotation.deliveryId)
+        if (!annotationDelivery || annotationDelivery.workspaceId !== workspace.id) {
+          return {
+            ok: false,
+            error: appError('annotation_not_found', 'annotation not found', {
+              annotationId: annotation.id,
+            }),
+          }
+        }
+        if (input.deliveryId && annotation.deliveryId !== input.deliveryId) {
+          return {
+            ok: false,
+            error: appError(
+              'annotation_delivery_mismatch',
+              'annotation belongs to another delivery',
+              {
+                annotationId: annotation.id,
+              },
+            ),
+          }
+        }
+      }
+      const annotationBlock = buildAnnotationBlock(
+        loadedAnnotations
+          .filter((annotation) => annotation !== null)
+          .map((annotation) => {
+            const targetNode = annotation.targetNodeIds
+              .map((id) => nodes.find((node) => node.id === id))
+              .find((node) => node !== undefined)
+            const targetArtifact = annotation.targetArtifactId
+              ? getArtifact(deps.db, annotation.targetArtifactId)
+              : null
+            const targetTitle = nodeLabel(targetNode) ?? targetArtifact?.name
+            return { ...annotation, ...(targetTitle ? { targetTitle } : {}) }
+          }),
+      )
+      const taskPrompt = annotationBlock ? `${input.prompt}\n\n${annotationBlock}` : input.prompt
+
       // 创建时就校验策略；执行期会把同一份快照传给适配器。
       loadPolicy(workspacePath)
       const { contentByNodeId } = buildContextContent({ nodes, workspacePath })
       const assembled = assembleContext({
-        taskPrompt: input.prompt,
+        taskPrompt,
         targetNodeId: input.nodeId,
         selectedNodeIds: input.contextNodeIds,
         nodes,
@@ -167,12 +231,16 @@ export function createTaskService(deps: TaskServiceDeps) {
             budgetUsd: input.budgetUsd ?? null,
             retryCount: 0,
             dangerouslySkipPermissions: input.dangerouslySkipPermissions,
+            ...(input.annotationIds ? { annotationIds: input.annotationIds } : {}),
             createdAt: now,
             updatedAt: now,
           },
           JSON.stringify(snapshot),
           options.origin ? JSON.stringify(options.origin) : null,
         )
+        for (const annotationId of annotationIds) {
+          updateAnnotation(tx, annotationId, { taskId, updatedAt: now })
+        }
         if (options.audit) {
           insertAudit(tx, {
             id: deps.newId(),

@@ -19,12 +19,16 @@ import type {
   Playbook,
   StageSummary,
   Task,
+  TaskTransitionEvent,
 } from '@baton/protocol'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { getAcceptanceResponse } from '../acceptance/report-service.js'
 import type { Config } from '../config.js'
 import {
   getCanvasByWorkspace,
+  getReviewByTask,
+  getTask,
   getWorkspace,
   insertAudit,
   insertNode,
@@ -34,18 +38,23 @@ import {
   listTasks,
 } from '../db/repositories.js'
 import {
+  getCanvasByDelivery,
   getDelivery,
   insertDelivery,
   listAnnotations,
   listArtifactsByDelivery,
   listArtifactsByStage,
   listDeliveries as listDeliveryRows,
+  resolveAnnotationsForTask,
   setCanvasDelivery,
   setDeliveryCancelled,
+  updateArtifactStatus,
 } from '../db/delivery-repositories.js'
 import { canvas as canvasTable } from '../db/schema.js'
 import type { Db, Tx } from '../db/types.js'
+import type { WsEventDraft } from '../db/event-store.js'
 import { appError } from '../errors.js'
+import type { TransitionOutcome } from '../runtime/types.js'
 import { buildContextContent } from '../workspace/context.js'
 import { resolveWorkspaceDir, resolveWithin } from '../workspace/resolver.js'
 import { loadPlaybook } from './playbook.js'
@@ -55,6 +64,9 @@ export interface DeliveryServiceDeps {
   config: Config
   now: () => number
   newId: () => string
+  applyTransition?: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
+  killSwitch?: () => boolean
+  emit?: (draft: WsEventDraft) => void
 }
 
 export interface CreateDeliveryInput {
@@ -73,20 +85,42 @@ export type CreateDeliveryResult =
 export type DeliveryActionResult =
   { ok: true; taskId: string } | { ok: false; code: string; message: string }
 
-function skillRef(workspacePath: string, trusted: boolean, skillId: string | null) {
-  if (!skillId) return null
-  if (!trusted) return null
+const MAX_SKILL_BYTES = 64 * 1024
+
+type SkillStatus = 'ok' | 'missing' | 'disabled_untrusted'
+
+interface SkillRef {
+  id: string
+  path: string
+  summary: string
+}
+
+/**
+ * skill 只引用不复制；未信任或缺失都返回状态而不阻断交付创建。
+ * 超过 64KB 视为不可注入，避免把大文件塞进 prompt。
+ */
+function resolveSkillRef(
+  workspacePath: string,
+  trusted: boolean,
+  skillId: string | null,
+): { status: SkillStatus | null; ref: SkillRef | null } {
+  if (!skillId) return { status: null, ref: null }
+  if (!trusted) return { status: 'disabled_untrusted', ref: null }
   const rel = join('.baton', 'skills', skillId, 'SKILL.md')
   const path = resolveWithin(workspacePath, rel)
-  if (!existsSync(path)) return null
-  const head = readFileSync(path, 'utf8').slice(0, 4096)
+  if (!existsSync(path)) return { status: 'missing', ref: null }
+  const stat = statSync(path)
+  if (!stat.isFile() || stat.size > MAX_SKILL_BYTES) {
+    return { status: 'missing', ref: null }
+  }
+  const head = readFileSync(path, 'utf8')
   const summary =
     head
       .split(/\r?\n/)
       .find((line) => line.trim().startsWith('description:'))
       ?.replace(/^description:\s*/, '')
       .trim() ?? skillId
-  return { id: skillId, path: rel, summary }
+  return { status: 'ok', ref: { id: skillId, path: rel, summary } }
 }
 
 function stageArtifacts(
@@ -155,7 +189,7 @@ function createStageTask(input: {
           },
         ]
       : [],
-    skill: skillRef(input.workspacePath, input.trusted, stage.skill),
+    skill: resolveSkillRef(input.workspacePath, input.trusted, stage.skill).ref,
     annotations: [],
   })
 
@@ -218,12 +252,21 @@ function buildSummaries(
   )
   const artifacts = listArtifactsByDelivery(deps.db, delivery.id)
   const annotations = listAnnotations(deps.db, { deliveryId: delivery.id })
+  const workspace = getWorkspace(deps.db, delivery.workspaceId)
+  const workspacePath = workspace
+    ? resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+    : null
   const stages: StageSummary[] = stagesPlaybook.map((stage, index) => {
     const task = tasks.find((item) => item.stageKey === stage.key)
     const stageArtifactsList = artifacts.filter((item) => item.stageKey === stage.key)
     const stageAnnotations = annotations.filter(
       (item) => item.stageKey === stage.key && item.status === 'open',
     )
+    const skillStatus = stage.skill
+      ? workspacePath
+        ? resolveSkillRef(workspacePath, workspace?.trusted ?? false, stage.skill).status
+        : 'missing'
+      : null
     return {
       key: stage.key,
       label: stage.label,
@@ -240,7 +283,7 @@ function buildSummaries(
       artifactCount: stageArtifactsList.length,
       openAnnotationCount: stageAnnotations.length,
       skillId: stage.skill,
-      skillStatus: null,
+      skillStatus,
     }
   })
   const status = deriveDeliveryStatus({
@@ -377,6 +420,18 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
         })
         return task
       })
+      const detail = getDeliveryDetail(deliveryId)
+      if (detail) {
+        deps.emit?.({
+          type: 'delivery.updated',
+          payload: {
+            deliveryId,
+            status: detail.status,
+            currentStageKey: detail.currentStageKey,
+          },
+          ts: now,
+        })
+      }
       return { ok: true, deliveryId, taskId: result.taskId }
     } catch (error) {
       return {
@@ -413,7 +468,7 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
   function enqueueDelivery(id: string): DeliveryActionResult {
     const delivery = getDelivery(deps.db, id)
     if (!delivery) return { ok: false, code: 'delivery_not_found', message: 'delivery not found' }
-    const { stages } = buildSummaries(deps, delivery)
+    const { stages, summary } = buildSummaries(deps, delivery)
     const current = stages.find((stage) => stage.status !== 'done' && stage.status !== 'cancelled')
     if (!current?.taskId) {
       return { ok: false, code: 'no_stage', message: 'no enqueueable stage' }
@@ -424,6 +479,15 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
     if (task?.status !== 'todo') {
       return { ok: false, code: 'not_todo', message: 'current stage is not todo' }
     }
+    deps.emit?.({
+      type: 'delivery.updated',
+      payload: {
+        deliveryId: id,
+        status: summary.status,
+        currentStageKey: summary.currentStageKey,
+      },
+      ts: deps.now(),
+    })
     return { ok: true, taskId: current.taskId }
   }
 
@@ -448,12 +512,202 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
         detail: { deliveryId: id, taskId: current?.taskId ?? null },
       })
     })
+    const cancelled = getDelivery(deps.db, id)
+    if (cancelled) {
+      const { summary } = buildSummaries(deps, cancelled)
+      deps.emit?.({
+        type: 'delivery.updated',
+        payload: {
+          deliveryId: id,
+          status: summary.status,
+          currentStageKey: summary.currentStageKey,
+        },
+        ts: now,
+      })
+    }
     return current?.taskId
       ? { ok: true, taskId: current.taskId }
       : { ok: false, code: 'no_stage', message: 'no cancellable stage' }
   }
 
-  return { createDelivery, listDeliveries, getDeliveryDetail, enqueueDelivery, cancelDelivery }
+  function advanceDelivery(
+    deliveryId: string,
+    stageKey: string,
+  ): { ok: true; nextTaskId: string | null } | { ok: false; code: string; message: string } {
+    const delivery = getDelivery(deps.db, deliveryId)
+    if (!delivery) return { ok: false, code: 'delivery_not_found', message: 'delivery not found' }
+    let playbook: Playbook
+    try {
+      const parsed = parsePlaybook(JSON.parse(delivery.playbookJson) as unknown)
+      if (!parsed.ok) {
+        return { ok: false, code: 'playbook_invalid', message: 'delivery playbook is invalid' }
+      }
+      playbook = parsed.playbook
+    } catch {
+      return { ok: false, code: 'playbook_invalid', message: 'delivery playbook is invalid' }
+    }
+    const index = playbook.stages.findIndex((stage) => stage.key === stageKey)
+    if (index < 0) return { ok: false, code: 'stage_not_found', message: 'stage not found' }
+    const next = playbook.stages[index + 1]
+    const currentTask = listTasks(deps.db, { workspaceId: delivery.workspaceId }).find(
+      (task) => task.deliveryId === deliveryId && task.stageKey === stageKey,
+    )
+    const now = deps.now()
+    const acceptedArtifacts = listArtifactsByStage(deps.db, deliveryId, stageKey)
+    const resolvedAnnotationIds: string[] = []
+    try {
+      const nextTaskId = deps.db.transaction((tx) => {
+        for (const artifact of acceptedArtifacts) {
+          updateArtifactStatus(tx, artifact.id, 'accepted', now)
+        }
+        if (currentTask) {
+          resolvedAnnotationIds.push(...resolveAnnotationsForTask(tx, currentTask.id, now))
+        }
+        let created: string | null = null
+        if (next) {
+          const existing = listTasks(deps.db, { workspaceId: delivery.workspaceId }).find(
+            (task) => task.deliveryId === deliveryId && task.stageKey === next.key,
+          )
+          if (existing) {
+            created = existing.id
+          } else {
+            const canvas = getCanvasByDelivery(deps.db, deliveryId)
+            const group = canvas
+              ? listNodes(deps.db, canvas.id).find(
+                  (node) => node.type === 'group' && node.data.stageKey === next.key,
+                )
+              : null
+            if (!canvas || !group) {
+              throw appError('delivery_canvas_invalid', 'delivery stage group is missing')
+            }
+            const workspace = getWorkspace(deps.db, delivery.workspaceId)
+            if (!workspace) throw appError('workspace_not_found', 'workspace not found')
+            const workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+            const task = createStageTask({
+              deps,
+              tx,
+              delivery,
+              playbook,
+              stage: next,
+              ordinal: index + 2,
+              workspacePath,
+              trusted: workspace.trusted,
+              contextNodeIds: [],
+              engine: currentTask?.engine ?? 'claude-sdk',
+              budgetUsd: currentTask?.budgetUsd ?? null,
+              groupId: group.id,
+              previousStageKey: stageKey,
+            })
+            created = task.taskId
+          }
+        }
+        insertAudit(tx, {
+          id: deps.newId(),
+          ts: now,
+          actor: 'daemon',
+          action: 'delivery.stage.advance',
+          detail: { deliveryId, stageKey, nextStageKey: next?.key ?? null, nextTaskId: created },
+        })
+        return created
+      })
+      for (const artifact of acceptedArtifacts) {
+        deps.emit?.({
+          type: 'artifact.updated',
+          payload: {
+            artifactId: artifact.id,
+            deliveryId,
+            stageKey,
+            status: 'accepted',
+          },
+          ts: now,
+        })
+      }
+      for (const annotationId of resolvedAnnotationIds) {
+        deps.emit?.({
+          type: 'annotation.updated',
+          payload: { annotationId, deliveryId, stageKey, status: 'resolved' },
+          ts: now,
+        })
+      }
+      const updatedDelivery = getDelivery(deps.db, deliveryId)
+      if (updatedDelivery) {
+        const { summary } = buildSummaries(deps, updatedDelivery)
+        deps.emit?.({
+          type: 'delivery.updated',
+          payload: {
+            deliveryId,
+            status: summary.status,
+            currentStageKey: summary.currentStageKey,
+          },
+          ts: now,
+        })
+      }
+      return { ok: true, nextTaskId }
+    } catch (error) {
+      return {
+        ok: false,
+        code: error instanceof Error && 'code' in error ? String(error.code) : 'advance_failed',
+        message: error instanceof Error ? error.message : 'failed to advance delivery',
+      }
+    }
+  }
+
+  function maybeAutoApprove(taskId: string): { ok: boolean; code?: string; message?: string } {
+    if (deps.killSwitch?.()) return { ok: false, code: 'kill_switch' }
+    const task = getTask(deps.db, taskId)
+    if (!task?.deliveryId || !task.stageKey) return { ok: false, code: 'not_delivery' }
+    if (task.status !== 'review') return { ok: false, code: 'not_review' }
+    const delivery = getDelivery(deps.db, task.deliveryId)
+    if (!delivery) return { ok: false, code: 'delivery_not_found' }
+    let stageGate: 'human' | 'auto' | null
+    try {
+      const parsed = parsePlaybook(JSON.parse(delivery.playbookJson) as unknown)
+      stageGate = parsed.ok
+        ? (parsed.playbook.stages.find((stage) => stage.key === task.stageKey)?.gate ?? null)
+        : null
+    } catch {
+      stageGate = null
+    }
+    if (stageGate !== 'auto') return { ok: false, code: 'not_auto' }
+    const review = getReviewByTask(deps.db, task.id)
+    if (!review || review.verifyExitCode !== 0) {
+      return { ok: false, code: 'verify_not_passed' }
+    }
+    try {
+      const acceptance = getAcceptanceResponse(deps.db, task, deps.config)
+      const counts = acceptance?.report.acceptance.counts
+      if (counts && (counts.fail > 0 || counts.pending > 0)) {
+        return { ok: false, code: 'acceptance_not_passed' }
+      }
+    } catch {
+      return { ok: false, code: 'acceptance_unavailable' }
+    }
+    if (!deps.applyTransition) return { ok: false, code: 'transition_unavailable' }
+    const outcome = deps.applyTransition(task.id, { type: 'approve', reviewId: review.id })
+    if (!outcome.ok) return { ok: false, code: outcome.error.code, message: outcome.error.message }
+    const now = deps.now()
+    deps.db.transaction((tx) => {
+      insertAudit(tx, {
+        id: deps.newId(),
+        ts: now,
+        actor: 'daemon',
+        action: 'delivery.stage.auto_approve',
+        detail: { deliveryId: task.deliveryId, stageKey: task.stageKey, taskId: task.id },
+      })
+    })
+    advanceDelivery(task.deliveryId, task.stageKey)
+    return { ok: true }
+  }
+
+  return {
+    createDelivery,
+    listDeliveries,
+    getDeliveryDetail,
+    enqueueDelivery,
+    cancelDelivery,
+    advanceDelivery,
+    maybeAutoApprove,
+  }
 }
 
 export type DeliveryService = ReturnType<typeof createDeliveryService>

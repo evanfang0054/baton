@@ -32,7 +32,9 @@ import {
 } from '@baton/protocol'
 import { z } from 'zod'
 import { getAcceptanceResponse } from '../acceptance/report-service.js'
+import type { AnnotationService } from '../annotation/service.js'
 import { getTaskBudgetSummary } from '../budget/service.js'
+import type { DeliveryService } from '../delivery/service.js'
 import { listAcceptanceSummaries } from '../db/acceptance-repository.js'
 import {
   getNode,
@@ -118,6 +120,12 @@ export interface SupervisorToolset {
   create_edge: SupervisorTool
   update_node: SupervisorTool
   arrange_canvas: SupervisorTool
+  create_delivery: SupervisorTool
+  list_deliveries: SupervisorTool
+  get_delivery: SupervisorTool
+  enqueue_delivery: SupervisorTool
+  list_annotations: SupervisorTool
+  get_annotation: SupervisorTool
 }
 
 export interface BoundTool {
@@ -149,6 +157,12 @@ export interface BoundToolset {
   create_edge: BoundTool
   update_node: BoundTool
   arrange_canvas: BoundTool
+  create_delivery: BoundTool
+  list_deliveries: BoundTool
+  get_delivery: BoundTool
+  enqueue_delivery: BoundTool
+  list_annotations: BoundTool
+  get_annotation: BoundTool
 }
 
 export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundToolset {
@@ -180,6 +194,12 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     create_edge: bind(tools.create_edge),
     update_node: bind(tools.update_node),
     arrange_canvas: bind(tools.arrange_canvas),
+    create_delivery: bind(tools.create_delivery),
+    list_deliveries: bind(tools.list_deliveries),
+    get_delivery: bind(tools.get_delivery),
+    enqueue_delivery: bind(tools.enqueue_delivery),
+    list_annotations: bind(tools.list_annotations),
+    get_annotation: bind(tools.get_annotation),
   }
 }
 
@@ -213,6 +233,31 @@ const getTaskFailureInput = z.object({
   limit: z.number().int().min(1).max(20).default(3),
 })
 
+const createDeliveryInput = z.object({
+  title: z.string().min(1).max(200),
+  goal: z.string().min(1).max(2000),
+  playbookId: z.string().min(1).max(64).optional(),
+  contextNodeIds: z.array(z.string().min(1)).max(40).optional(),
+  engine: Engine.optional(),
+  budgetUsd: z.number().finite().positive().optional(),
+})
+
+const listDeliveriesInput = z.object({
+  status: z.enum(['draft', 'running', 'waiting_person', 'blocked', 'done', 'cancelled']).optional(),
+  needsPerson: z.boolean().optional(),
+})
+
+const getDeliveryInput = z.object({ deliveryId: z.string().min(1) })
+const enqueueDeliveryInput = z.object({ deliveryId: z.string().min(1) })
+
+const listAnnotationsInput = z.object({
+  deliveryId: z.string().min(1),
+  stageKey: z.string().min(1).max(32).optional(),
+  status: z.enum(['open', 'resolved', 'dismissed']).optional(),
+})
+
+const getAnnotationInput = z.object({ annotationId: z.string().min(1) })
+
 const createTaskInput = z.object({
   title: z.string().min(1).max(80),
   // 任务指令必须由总管显式给全：用户只说“可以/继续”时，不能把确认词当成任务内容。
@@ -223,6 +268,7 @@ const createTaskInput = z.object({
   engine: Engine.optional(),
   workspaceMode: z.enum(['main', 'worktree']).default('main'),
   start: z.boolean().default(false),
+  annotationIds: z.array(z.string().min(1)).max(20).optional(),
 })
 
 const enqueueTaskInput = z.object({ taskId: z.string().min(1) })
@@ -255,6 +301,7 @@ const createTasksInput = z.object({
   agentTitle: z.string().min(1).max(80).optional(),
   engine: Engine.optional(),
   contextNodeIds: z.array(z.string().min(1)).max(40).optional(),
+  annotationIdsByNode: z.record(z.string().min(1), z.array(z.string().min(1)).max(20)).optional(),
   start: z.boolean().default(false),
   dryRun: z.boolean().default(false),
 })
@@ -272,6 +319,7 @@ const planTasksInput = z
     targetNodeId: z.string().min(1).optional(),
     agentTitle: z.string().min(1).max(80).optional(),
     contextNodeIds: z.array(z.string().min(1)).max(40).optional(),
+    annotationIdsByNode: z.record(z.string().min(1), z.array(z.string().min(1)).max(20)).optional(),
     maxItems: z.number().int().min(1).max(6).default(6),
   })
   .strict()
@@ -386,6 +434,8 @@ export interface SupervisorToolsDeps {
   workspacePolicyVersion?: (workspaceId: string) => string
   contextDigest?: (workspaceId: string, items: PlanItem[]) => PlanContextItem[]
   failures?: FailureService
+  deliveries?: () => DeliveryService | undefined
+  annotations?: () => AnnotationService | undefined
   logger?: Logger
 }
 
@@ -520,6 +570,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       engine: EngineValue
       workspaceMode: 'main' | 'worktree'
       start: boolean
+      annotationIds?: string[]
       auditDetail?: Record<string, unknown>
     },
   ): { taskId: string; status: 'todo' | 'queued'; startError?: string } {
@@ -544,6 +595,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         engine: input.engine,
         workspaceMode: input.workspaceMode,
         dangerouslySkipPermissions: false,
+        ...(input.annotationIds ? { annotationIds: input.annotationIds } : {}),
       },
       {
         origin,
@@ -557,6 +609,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             contextNodeIds: input.contextNodeIds,
             engine: input.engine,
             createdAgent: input.target.created,
+            ...(input.annotationIds ? { annotationIds: input.annotationIds } : {}),
             ...input.auditDetail,
           },
         },
@@ -1041,6 +1094,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           engine,
           workspaceMode: parsed.workspaceMode,
           start: parsed.start,
+          ...(parsed.annotationIds ? { annotationIds: parsed.annotationIds } : {}),
         })
         ctx.memo.taskId = created.taskId
         return {
@@ -1136,6 +1190,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
                 engine,
               },
               contextCount: contextNodeIds.length,
+              annotationCount: parsed.annotationIdsByNode?.[node.id]?.length ?? 0,
             })),
             failed: [],
           }
@@ -1167,6 +1222,9 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
               engine,
               workspaceMode: 'main',
               dangerouslySkipPermissions: false,
+              ...(parsed.annotationIdsByNode?.[node.id]
+                ? { annotationIds: parsed.annotationIdsByNode[node.id] }
+                : {}),
             },
             {
               origin,
@@ -1182,6 +1240,9 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
                   createdAgent: target.created,
                   batch: true,
                   sourceNodeId: node.id,
+                  ...(parsed.annotationIdsByNode?.[node.id]
+                    ? { annotationIds: parsed.annotationIdsByNode[node.id] }
+                    : {}),
                 },
               },
             },
@@ -1277,15 +1338,22 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           target.id,
         )
         const template = templateById(templateId)
-        const items: PlanItem[] = candidateTexts.map((title) => ({
-          title: title.slice(0, 80),
-          templateId: templateId ?? null,
-          targetNodeId: target.id || null,
-          agentTitle: target.title,
-          contextNodeIds,
-          engine: target.engine,
-          budgetUsd: template?.defaultBudgetUsd ?? null,
-        }))
+        const items: PlanItem[] = candidateTexts.map((title, index) => {
+          const sourceNodeId = textNodes[index]?.id
+          const annotationIds = sourceNodeId
+            ? parsed.annotationIdsByNode?.[sourceNodeId]
+            : undefined
+          return {
+            title: title.slice(0, 80),
+            templateId: templateId ?? null,
+            targetNodeId: target.id || null,
+            agentTitle: target.title,
+            contextNodeIds,
+            ...(annotationIds ? { annotationIds } : {}),
+            engine: target.engine,
+            budgetUsd: template?.defaultBudgetUsd ?? null,
+          }
+        })
         const built = buildPlan({
           triggerId: ctx.triggerId,
           source: { nodeIds },
@@ -1673,6 +1741,128 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           truncated: result.truncated,
           dropped: result.dropped,
         }
+      },
+    },
+
+    create_delivery: {
+      description:
+        '创建一条交付：一条需求一块画布，按 playbook 建阶段；只创建第一阶段待办任务，不自动开工。' +
+        '用户说“做一条需求/从需求开始/建交付”时使用；不要用它代替 create_task。',
+      parameters: createDeliveryInput,
+      async execute(input, ctx) {
+        const parsed = createDeliveryInput.parse(input)
+        const service = deps.deliveries?.()
+        if (!service) throw appError('delivery_unavailable', 'delivery service is unavailable')
+        const result = service.createDelivery({
+          workspaceId: ctx.workspaceId,
+          title: parsed.title,
+          goal: parsed.goal,
+          ...(parsed.playbookId ? { playbookId: parsed.playbookId } : {}),
+          ...(parsed.contextNodeIds ? { contextNodeIds: parsed.contextNodeIds } : {}),
+          ...(parsed.engine ? { engine: parsed.engine } : {}),
+          ...(parsed.budgetUsd ? { budgetUsd: parsed.budgetUsd } : {}),
+        })
+        if (!result.ok) throw appError(result.code, result.message)
+        deps.db.transaction((tx) => {
+          insertAudit(tx, {
+            id: deps.newId(),
+            ts: deps.now(),
+            actor: 'supervisor',
+            action: 'supervisor.delivery.create',
+            detail: { deliveryId: result.deliveryId, taskId: result.taskId },
+          })
+        })
+        return { deliveryId: result.deliveryId, taskId: result.taskId, status: 'draft' }
+      },
+    },
+
+    list_deliveries: {
+      description:
+        '列出当前 workspace 的交付，可按状态或“需要我”过滤；用于回答“现在有哪些交付/哪条卡住了”。',
+      parameters: listDeliveriesInput,
+      async execute(input, ctx) {
+        const parsed = listDeliveriesInput.parse(input)
+        const service = deps.deliveries?.()
+        if (!service) throw appError('delivery_unavailable', 'delivery service is unavailable')
+        const deliveries = service.listDeliveries(ctx.workspaceId).filter((delivery) => {
+          if (parsed.status && delivery.status !== parsed.status) return false
+          if (
+            parsed.needsPerson &&
+            delivery.status !== 'waiting_person' &&
+            delivery.status !== 'blocked'
+          ) {
+            return false
+          }
+          return true
+        })
+        return { deliveries }
+      },
+    },
+
+    get_delivery: {
+      description: '读取一条交付的阶段、产物、标注和当前闸门；用它回答交付进度，不要凭聊天记录猜。',
+      parameters: getDeliveryInput,
+      async execute(input) {
+        const parsed = getDeliveryInput.parse(input)
+        const service = deps.deliveries?.()
+        if (!service) throw appError('delivery_unavailable', 'delivery service is unavailable')
+        const delivery = service.getDeliveryDetail(parsed.deliveryId)
+        if (!delivery) throw appError('delivery_not_found', 'delivery not found')
+        return { delivery }
+      },
+    },
+
+    enqueue_delivery: {
+      description: '开工当前阶段；只接受当前阶段为待办。不要用它绕过阶段闸门。',
+      parameters: enqueueDeliveryInput,
+      async execute(input) {
+        const parsed = enqueueDeliveryInput.parse(input)
+        const service = deps.deliveries?.()
+        if (!service) throw appError('delivery_unavailable', 'delivery service is unavailable')
+        const result = service.enqueueDelivery(parsed.deliveryId)
+        if (!result.ok) throw appError(result.code, result.message)
+        const outcome = deps.enqueueTask(result.taskId)
+        if (!outcome.ok) throw outcome.error
+        deps.db.transaction((tx) => {
+          insertAudit(tx, {
+            id: deps.newId(),
+            ts: deps.now(),
+            actor: 'supervisor',
+            action: 'supervisor.delivery.enqueue',
+            detail: { deliveryId: parsed.deliveryId, taskId: result.taskId },
+          })
+        })
+        return { deliveryId: parsed.deliveryId, taskId: result.taskId, status: 'queued' }
+      },
+    },
+
+    list_annotations: {
+      description: '列出交付/阶段的标注；用户说“按标注改”时先查这里，不要把笔迹当上下文猜。',
+      parameters: listAnnotationsInput,
+      async execute(input) {
+        const parsed = listAnnotationsInput.parse(input)
+        const service = deps.annotations?.()
+        if (!service) throw appError('annotation_unavailable', 'annotation service is unavailable')
+        return {
+          annotations: service.listAnnotations({
+            deliveryId: parsed.deliveryId,
+            ...(parsed.stageKey ? { stageKey: parsed.stageKey } : {}),
+            ...(parsed.status ? { status: parsed.status } : {}),
+          }),
+        }
+      },
+    },
+
+    get_annotation: {
+      description: '读取一条标注的 note、目标、bbox 和合成图路径；不返回 strokes。',
+      parameters: getAnnotationInput,
+      async execute(input) {
+        const parsed = getAnnotationInput.parse(input)
+        const service = deps.annotations?.()
+        if (!service) throw appError('annotation_unavailable', 'annotation service is unavailable')
+        const annotation = service.getAnnotationForSupervisor(parsed.annotationId)
+        if (!annotation) throw appError('annotation_not_found', 'annotation not found')
+        return { annotation }
       },
     },
   }

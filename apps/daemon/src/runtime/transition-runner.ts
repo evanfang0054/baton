@@ -232,6 +232,9 @@ export function createTransitionRunner(deps: TransitionRunnerDeps) {
         }),
       )
     }
+    if (result.status === 'review') {
+      deps.hooks.track(() => deps.hooks.onReviewReady?.(task.id))
+    }
     if (!isActiveStatus(result.status)) {
       deps.hooks.kick()
     }

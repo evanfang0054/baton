@@ -10,6 +10,9 @@ import {
 } from './entities/acceptance.js'
 import { Notice } from './entities/notice.js'
 import { PreliminaryVerdict } from './entities/review.js'
+import { DeliveryStatus } from './entities/delivery.js'
+import { ArtifactStatus } from './entities/artifact.js'
+import { AnnotationStatus } from './entities/annotation.js'
 import { Attention, SessionOutcome, TaskStatus, WaitingReason } from './enums.js'
 import { AppError } from './errors.js'
 import { SupervisorMessage } from './supervisor.js'
@@ -202,6 +205,39 @@ export const AcceptanceUpdatedEvent = ReplayableBase.extend({
 })
 export type AcceptanceUpdatedEvent = z.infer<typeof AcceptanceUpdatedEvent>
 
+/** 交付/产物/标注只推轻量事件；完整数据始终走 REST 重新查询。 */
+export const DeliveryUpdatedEvent = ReplayableBase.extend({
+  type: z.literal('delivery.updated'),
+  payload: z.object({
+    deliveryId: Id,
+    status: DeliveryStatus,
+    currentStageKey: z.string().min(1).nullable(),
+  }),
+})
+export type DeliveryUpdatedEvent = z.infer<typeof DeliveryUpdatedEvent>
+
+export const ArtifactUpdatedEvent = ReplayableBase.extend({
+  type: z.literal('artifact.updated'),
+  payload: z.object({
+    artifactId: Id,
+    deliveryId: Id,
+    stageKey: z.string().min(1),
+    status: ArtifactStatus,
+  }),
+})
+export type ArtifactUpdatedEvent = z.infer<typeof ArtifactUpdatedEvent>
+
+export const AnnotationUpdatedEvent = ReplayableBase.extend({
+  type: z.literal('annotation.updated'),
+  payload: z.object({
+    annotationId: Id,
+    deliveryId: Id,
+    stageKey: z.string().min(1),
+    status: AnnotationStatus,
+  }),
+})
+export type AnnotationUpdatedEvent = z.infer<typeof AnnotationUpdatedEvent>
+
 export const ServerMessage = z.discriminatedUnion('type', [
   AckEvent,
   ErrorEvent,
@@ -216,5 +252,8 @@ export const ServerMessage = z.discriminatedUnion('type', [
   ReviewPreliminaryEvent,
   ContextInjectedEvent,
   AcceptanceUpdatedEvent,
+  DeliveryUpdatedEvent,
+  ArtifactUpdatedEvent,
+  AnnotationUpdatedEvent,
 ])
 export type ServerMessage = z.infer<typeof ServerMessage>

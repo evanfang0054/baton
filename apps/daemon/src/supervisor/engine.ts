@@ -141,6 +141,36 @@ export function createAiSdkSupervisorEngine(config: SupervisorConfig): Superviso
           inputSchema: tools.arrange_canvas.parameters,
           execute: (input) => tools.arrange_canvas.execute(input),
         }),
+        create_delivery: tool({
+          description: tools.create_delivery.description,
+          inputSchema: tools.create_delivery.parameters,
+          execute: (input) => tools.create_delivery.execute(input),
+        }),
+        list_deliveries: tool({
+          description: tools.list_deliveries.description,
+          inputSchema: tools.list_deliveries.parameters,
+          execute: (input) => tools.list_deliveries.execute(input),
+        }),
+        get_delivery: tool({
+          description: tools.get_delivery.description,
+          inputSchema: tools.get_delivery.parameters,
+          execute: (input) => tools.get_delivery.execute(input),
+        }),
+        enqueue_delivery: tool({
+          description: tools.enqueue_delivery.description,
+          inputSchema: tools.enqueue_delivery.parameters,
+          execute: (input) => tools.enqueue_delivery.execute(input),
+        }),
+        list_annotations: tool({
+          description: tools.list_annotations.description,
+          inputSchema: tools.list_annotations.parameters,
+          execute: (input) => tools.list_annotations.execute(input),
+        }),
+        get_annotation: tool({
+          description: tools.get_annotation.description,
+          inputSchema: tools.get_annotation.parameters,
+          execute: (input) => tools.get_annotation.execute(input),
+        }),
       }
 
       const result = streamText({
