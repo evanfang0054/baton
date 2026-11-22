@@ -1,4 +1,4 @@
-import { buildTaskScene, canInjectContext, groupBounds } from '@baton/core'
+import { arrangeCanvasNodes, buildTaskScene, canInjectContext, groupBounds } from '@baton/core'
 import type { CanvasResponse, NodeCreateValue, ReviewView, TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
@@ -116,6 +116,7 @@ function FlowCanvas({
   const [injectTaskId, setInjectTaskId] = useState<string | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [dropActive, setDropActive] = useState(false)
+  const [arranging, setArranging] = useState(false)
   const selectedNodeIds = useAppStore((state) => state.selectedNodeIds)
   const sceneTaskId = useAppStore((state) => state.sceneTaskId)
   const setSceneTask = useAppStore((state) => state.setSceneTask)
@@ -301,6 +302,31 @@ function FlowCanvas({
     },
     [refreshCanvas, sceneActive, send],
   )
+
+  const arrangeCanvas = useCallback(async () => {
+    if (!canvas || sceneActive || arranging) return
+    const moves = arrangeCanvasNodes(canvas.nodes)
+    if (moves.length === 0) {
+      toast.info('画布已经整齐')
+      return
+    }
+    setArranging(true)
+    try {
+      // 协议单次最多 200 条；大画布按块提交，保持 daemon 侧顺序校验。
+      for (let index = 0; index < moves.length; index += 200) {
+        await send({
+          type: 'node.move_many',
+          payload: { canvasId: canvas.canvas.id, moves: moves.slice(index, index + 200) },
+        })
+      }
+      toast.success(`已整理 ${moves.length} 个节点`)
+    } catch (cause) {
+      toast.danger(cause instanceof Error ? cause.message : '整理画布失败')
+    } finally {
+      setArranging(false)
+      await refreshCanvas()
+    }
+  }, [arranging, canvas, refreshCanvas, sceneActive, send])
 
   const connect = useCallback(
     async (connection: Connection) => {
@@ -620,6 +646,8 @@ function FlowCanvas({
     >
       <CanvasToolbar
         onAdd={addNode}
+        onArrange={() => void arrangeCanvas()}
+        arrangeDisabled={arranging}
         onFit={() => void fitView({ padding: 0.2 })}
         onZoomIn={() => void zoomIn()}
         onZoomOut={() => void zoomOut()}

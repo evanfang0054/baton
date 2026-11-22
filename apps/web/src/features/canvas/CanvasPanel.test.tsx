@@ -213,6 +213,17 @@ describe('CanvasPanel', () => {
     expect(send).not.toHaveBeenCalled()
   })
 
+  it('arranges canvas nodes through one move_many command', async () => {
+    const { send } = renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: '整理画布' }))
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({
+        type: 'node.move_many',
+        payload: { canvasId: 'c1', moves: [{ nodeId: 'n1', x: 80, y: 80 }] },
+      }),
+    )
+  })
+
   it('opens the inject dialog from the toolbar and submits selection', async () => {
     useAppStore.setState({ selectedNodeIds: ['n1'] })
     const { send } = renderPanel()

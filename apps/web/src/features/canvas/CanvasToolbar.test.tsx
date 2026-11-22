@@ -10,9 +10,11 @@ describe('CanvasToolbar', () => {
     const onZoomIn = vi.fn()
     const onZoomOut = vi.fn()
     const onInject = vi.fn()
+    const onArrange = vi.fn()
     render(
       <CanvasToolbar
         onAdd={onAdd}
+        onArrange={onArrange}
         onFit={onFit}
         onZoomIn={onZoomIn}
         onZoomOut={onZoomOut}
@@ -25,12 +27,14 @@ describe('CanvasToolbar', () => {
     await userEvent.click(screen.getByRole('button', { name: '添加图片' }))
     await userEvent.click(screen.getByRole('button', { name: '建分组' }))
     await userEvent.click(screen.getByRole('button', { name: '添加 Agent' }))
+    await userEvent.click(screen.getByRole('button', { name: '整理画布' }))
     await userEvent.click(screen.getByRole('button', { name: '投喂给任务' }))
     await userEvent.click(screen.getByRole('button', { name: '适应视图' }))
     await userEvent.click(screen.getByRole('button', { name: '放大' }))
     await userEvent.click(screen.getByRole('button', { name: '缩小' }))
 
     expect(onAdd.mock.calls).toEqual([['text'], ['file'], ['image'], ['group'], ['agent']])
+    expect(onArrange).toHaveBeenCalled()
     expect(onInject).toHaveBeenCalled()
     expect(onFit).toHaveBeenCalled()
     expect(onZoomIn).toHaveBeenCalled()
@@ -41,6 +45,7 @@ describe('CanvasToolbar', () => {
     render(
       <CanvasToolbar
         onAdd={vi.fn()}
+        onArrange={vi.fn()}
         onFit={vi.fn()}
         onZoomIn={vi.fn()}
         onZoomOut={vi.fn()}
@@ -56,6 +61,7 @@ describe('CanvasToolbar', () => {
     render(
       <CanvasToolbar
         onAdd={onAdd}
+        onArrange={vi.fn()}
         onFit={vi.fn()}
         onZoomIn={vi.fn()}
         onZoomOut={vi.fn()}
@@ -64,6 +70,7 @@ describe('CanvasToolbar', () => {
       />,
     )
     expect(screen.queryByRole('button', { name: '添加文本' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '整理画布' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '投喂给任务' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '适应视图' })).toBeInTheDocument()
   })
