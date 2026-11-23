@@ -4,7 +4,7 @@ spec_topic: m8-attention-gate-authority
 task_count: 3
 estimated_phases: [tests, implementation, verification]
 dod: "总管对话流底部出现审批/验收闸门卡；内联动作复用 approval.decide/review.decide；卡片不写入 supervisor 消息、不进入模型上下文；WS 失效后 2 秒内出现/消失；pnpm verify + Playwright 通过"
-status: active
+status: completed
 depends_on: 2026-11-23-m8-2-workspace-authority-cancel.md
 ---
 

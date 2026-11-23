@@ -51,5 +51,5 @@ M8-1 → M8-2 → M8-3 → M8-4
 - M8 contract：已提交。
 - M8-1 plan：已完成（预算移除 + migration 0016）。
 - M8-2 plan：已完成（workspace authority + 交付取消）。
-- M8-3：active（总管会话闸门卡）。
-- M8-4：待 M8-3 完成后创建。
+- M8-3 plan：已完成（总管会话闸门卡 + Playwright）。
+- M8-4：active（全量验收 + 真实 ego 链路 + 证据）。
