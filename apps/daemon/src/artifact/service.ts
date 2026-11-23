@@ -6,13 +6,21 @@ import { dirname, relative } from 'node:path'
 import type { Config } from '../config.js'
 import {
   getArtifact,
+  getCanvasByDelivery,
   getDelivery,
   listArtifactsByDelivery,
   listArtifactsByStage,
   upsertArtifact,
 } from '../db/delivery-repositories.js'
-import { getWorkspace, insertAudit } from '../db/repositories.js'
-import type { Db } from '../db/types.js'
+import {
+  getWorkspace,
+  insertAudit,
+  insertNode,
+  listNodes,
+  updateNode,
+  deleteNode,
+} from '../db/repositories.js'
+import type { Db, Tx } from '../db/types.js'
 import type { WsEventDraft } from '../db/event-store.js'
 import { appError } from '../errors.js'
 import { resolveWorkspaceDir, resolveWithin } from '../workspace/resolver.js'
@@ -76,6 +84,69 @@ function safeRootPath(workspacePath: string, relPath: string): string {
 }
 
 export function createArtifactService(deps: ArtifactServiceDeps) {
+  /**
+   * 产物只存文件 + DB 时，交付画布上没有卡片；这里在登记产物时同步一个
+   * artifact 节点，供画布预览与双击打开。drawing 由前端自己建 drawing 节点。
+   */
+  function syncArtifactNode(tx: Tx, artifact: Artifact): void {
+    if (artifact.kind === 'drawing') return
+    const canvas = getCanvasByDelivery(deps.db, artifact.deliveryId)
+    if (!canvas) return
+    const nodes = listNodes(deps.db, canvas.id)
+    const group = nodes.find(
+      (node) => node.type === 'group' && node.data.stageKey === artifact.stageKey,
+    )
+    const matches = nodes.filter(
+      (node) =>
+        node.type === 'artifact' &&
+        (node.data.artifactId === artifact.id ||
+          (node.data.path === artifact.path && node.groupId === (group?.id ?? null))),
+    )
+    const [existing, ...duplicates] = matches
+    const now = deps.now()
+    for (const duplicate of duplicates) {
+      deleteNode(tx, duplicate.id)
+    }
+    if (existing && existing.type === 'artifact') {
+      updateNode(tx, existing.id, {
+        data: {
+          artifactId: artifact.id,
+          kind: artifact.kind,
+          title: artifact.name,
+          path: artifact.path,
+          thumbnailPath: artifact.path.endsWith('.png') ? artifact.path : null,
+          status: artifact.status,
+        },
+        updatedAt: now,
+      })
+      return
+    }
+    const siblings = nodes.filter(
+      (node) => node.type === 'artifact' && node.groupId === (group?.id ?? null),
+    )
+    const index = siblings.length
+    insertNode(tx, {
+      id: deps.newId(),
+      canvasId: canvas.id,
+      type: 'artifact',
+      x: (group?.x ?? 120) + 24 + (index % 2) * 220,
+      y: (group?.y ?? 420) + 240 + Math.floor(index / 2) * 110,
+      w: 200,
+      h: 96,
+      groupId: group?.id ?? null,
+      data: {
+        artifactId: artifact.id,
+        kind: artifact.kind,
+        title: artifact.name,
+        path: artifact.path,
+        thumbnailPath: artifact.path.endsWith('.png') ? artifact.path : null,
+        status: artifact.status,
+      },
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+
   function listArtifacts(deliveryId: string): Artifact[] {
     return listArtifactsByDelivery(deps.db, deliveryId)
   }
@@ -122,8 +193,11 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
           missing.push(`${produced.name}:too_large`)
           continue
         }
+        const existing = listArtifactsByStage(deps.db, deliveryId, stageKey).find(
+          (item) => item.name === produced.name,
+        )
         const artifact: Artifact = {
-          id: deps.newId(),
+          id: existing?.id ?? deps.newId(),
           workspaceId: getDelivery(deps.db, deliveryId)!.workspaceId,
           deliveryId,
           stageKey,
@@ -142,6 +216,7 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
           updatedAt: now,
         }
         upsertArtifact(tx, artifact)
+        syncArtifactNode(tx, artifact)
         written.push(artifact)
         insertAudit(tx, {
           id: deps.newId(),
@@ -238,6 +313,7 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
       write(updated.sourcePath, source)
       write(updated.svgPath, svg)
       upsertArtifact(tx, updated)
+      if (updated.kind !== 'drawing') syncArtifactNode(tx, updated)
       insertAudit(tx, {
         id: deps.newId(),
         ts: updated.updatedAt,

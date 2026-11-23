@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createArtifactService } from '../src/artifact/service.js'
 import { createDeliveryService } from '../src/delivery/service.js'
+import { getAnnotation, insertAnnotation } from '../src/db/delivery-repositories.js'
 import { createTestRuntime } from './helpers/runtime.js'
 
 const handles: Array<ReturnType<typeof createTestRuntime>> = []
@@ -86,5 +87,39 @@ describe('delivery advance', () => {
 
     const advanced = deliveries.advanceDelivery(deliveryId, 'requirement')
     expect(advanced.ok).toBe(true)
+  })
+
+  it('resolves annotations attached to the accepted stage task', () => {
+    const { handle, deliveries, deliveryId } = setup()
+    writeSpec(handle, deliveryId)
+    deliveries.syncStageArtifacts(deliveryId, 'requirement')
+    const taskId = deliveries.getDeliveryDetail(deliveryId)?.stages[0]?.taskId
+    if (!taskId) throw new Error('requirement task missing')
+
+    const annotationId = 'an-advance-1'
+    handle.database.db.transaction((tx) =>
+      insertAnnotation(tx, {
+        id: annotationId,
+        workspaceId: handle.seeded.workspaceId,
+        deliveryId,
+        stageKey: 'requirement',
+        targetNodeIds: [],
+        targetArtifactId: null,
+        note: '补一条说明',
+        strokesJson: '{}',
+        bbox: { x: 1, y: 2, w: 3, h: 4 },
+        imagePath: '.baton/deliveries/d1/requirement/annotations/an-advance-1.png',
+        status: 'open',
+        taskId,
+        createdAt: 1,
+        updatedAt: 1,
+        resolvedAt: null,
+      }),
+    )
+
+    expect(deliveries.advanceDelivery(deliveryId, 'requirement').ok).toBe(true)
+    const resolved = getAnnotation(handle.database.db, annotationId)
+    expect(resolved).toMatchObject({ status: 'resolved' })
+    expect(resolved?.resolvedAt).toEqual(expect.any(Number))
   })
 })

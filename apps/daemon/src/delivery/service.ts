@@ -37,6 +37,7 @@ import {
   listEdges,
   listNodes,
   listTasks,
+  updateNode,
 } from '../db/repositories.js'
 import {
   getCanvasByDelivery,
@@ -367,6 +368,24 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
     return deps.checkArtifacts(deliveryId, stageKey)
   }
 
+  /** 阶段通过后同步画布卡片状态，避免卡片仍显示 ready。 */
+  function setArtifactNodeStatus(
+    tx: Tx,
+    deliveryId: string,
+    artifactId: string,
+    status: 'accepted' | 'rejected',
+    now: number,
+  ): void {
+    const canvas = getCanvasByDelivery(deps.db, deliveryId)
+    if (!canvas) return
+    const node = listNodes(deps.db, canvas.id).find(
+      (item) => item.type === 'artifact' && item.data.artifactId === artifactId,
+    )
+    if (node?.type === 'artifact') {
+      updateNode(tx, node.id, { data: { ...node.data, status }, updatedAt: now })
+    }
+  }
+
   function createDelivery(input: CreateDeliveryInput): CreateDeliveryResult {
     const workspace = getWorkspace(deps.db, input.workspaceId)
     if (!workspace) {
@@ -599,6 +618,7 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
       const nextTaskId = deps.db.transaction((tx) => {
         for (const artifact of acceptedArtifacts) {
           updateArtifactStatus(tx, artifact.id, 'accepted', now)
+          setArtifactNodeStatus(tx, deliveryId, artifact.id, 'accepted', now)
         }
         if (currentTask) {
           resolvedAnnotationIds.push(...resolveAnnotationsForTask(tx, currentTask.id, now))
