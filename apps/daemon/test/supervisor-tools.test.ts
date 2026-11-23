@@ -420,6 +420,28 @@ describe('supervisor tools', () => {
     expect(transitions).toHaveLength(0)
   })
 
+  it('re-enqueues a task left stalled by a daemon restart', async () => {
+    const { database, seeded, tools } = setup()
+    database.raw
+      .prepare('update task set status = ?, waiting_reason = ? where id = ?')
+      .run('waiting_input', 'stalled', seeded.taskId)
+    const result = (await tools.enqueue_task.execute({ taskId: seeded.taskId }, ctx(seeded))) as {
+      taskId: string
+      status: string
+    }
+    expect(result).toEqual({ taskId: seeded.taskId, status: 'queued' })
+  })
+
+  it('rejects enqueueing a task waiting for a question', async () => {
+    const { database, seeded, tools } = setup()
+    database.raw
+      .prepare('update task set status = ?, waiting_reason = ? where id = ?')
+      .run('waiting_input', 'question', seeded.taskId)
+    await expect(
+      tools.enqueue_task.execute({ taskId: seeded.taskId }, ctx(seeded)),
+    ).rejects.toMatchObject({ code: 'task_not_enqueueable' })
+  })
+
   it('requires confirmation before cancelling a running task', async () => {
     const { database, seeded, tools, transitions } = setup()
     database.raw.prepare('update task set status = ? where id = ?').run('running', seeded.taskId)

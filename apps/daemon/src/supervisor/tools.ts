@@ -1566,7 +1566,8 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     },
 
     enqueue_task: {
-      description: '把一个待办任务立即开工；只接受 todo 状态，验收仍由用户决定。',
+      description:
+        '把一个 todo 或 stalled（重启/中断，没有活会话）任务重新入队开工；其他状态用 retry_task/reopen_task。验收仍由用户决定。',
       parameters: enqueueTaskInput,
       async execute(input, ctx) {
         const parsed = enqueueTaskInput.parse(input)
@@ -1578,7 +1579,9 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         if (detail.task.status === 'queued' || detail.task.status === 'running') {
           return { taskId: detail.task.id, status: detail.task.status }
         }
-        if (detail.task.status !== 'todo') {
+        const stalled =
+          detail.task.status === 'waiting_input' && detail.task.waitingReason === 'stalled'
+        if (detail.task.status !== 'todo' && !stalled) {
           throw appError('task_not_enqueueable', 'task is not in todo state', {
             taskId: detail.task.id,
             status: detail.task.status,
