@@ -18,6 +18,7 @@ import {
   TaskTemplateId,
   type Actor,
   type AppError,
+  type DeliveryDetail,
   type Engine as EngineValue,
   type PlanContextItem,
   type PlanItem,
@@ -552,6 +553,20 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     return task
   }
 
+  // 交付工具和任务工具一样必须校验归属：模型可能从别的画布上下文里带出 deliveryId。
+  function requireDelivery(
+    ctx: ToolContext,
+    deliveryId: string,
+  ): { service: DeliveryService; detail: DeliveryDetail } {
+    const service = deps.deliveries?.()
+    if (!service) throw appError('delivery_unavailable', 'delivery service is unavailable')
+    const detail = service.getDeliveryDetail(deliveryId)
+    if (!detail || detail.workspaceId !== ctx.workspaceId) {
+      throw appError('delivery_not_found', 'delivery not found', { deliveryId })
+    }
+    return { service, detail }
+  }
+
   function createTaskForTool(
     ctx: ToolContext,
     input: {
@@ -720,7 +735,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
 
     get_task: {
       description:
-        '读取一个任务的元数据、验收摘要、成本用量、报告摘要、session 与 review 摘要；' +
+        '读取一个任务的元数据、验收摘要、报告摘要、session 与 review 摘要；' +
         '不返回 transcript、日志或 diff 正文。',
       parameters: getTaskInput,
       async execute(input, ctx) {
@@ -1787,23 +1802,20 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     get_delivery: {
       description: '读取一条交付的阶段、产物、标注和当前闸门；用它回答交付进度，不要凭聊天记录猜。',
       parameters: getDeliveryInput,
-      async execute(input) {
+      async execute(input, ctx) {
         const parsed = getDeliveryInput.parse(input)
-        const service = deps.deliveries?.()
-        if (!service) throw appError('delivery_unavailable', 'delivery service is unavailable')
-        const delivery = service.getDeliveryDetail(parsed.deliveryId)
-        if (!delivery) throw appError('delivery_not_found', 'delivery not found')
-        return { delivery }
+        const { detail } = requireDelivery(ctx, parsed.deliveryId)
+        return { delivery: detail }
       },
     },
 
     enqueue_delivery: {
       description: '开工当前阶段；只接受当前阶段为待办。不要用它绕过阶段闸门。',
       parameters: enqueueDeliveryInput,
-      async execute(input) {
+      async execute(input, ctx) {
         const parsed = enqueueDeliveryInput.parse(input)
-        const service = deps.deliveries?.()
-        if (!service) throw appError('delivery_unavailable', 'delivery service is unavailable')
+        const { service } = requireDelivery(ctx, parsed.deliveryId)
+        assertAutomationAllowed(ctx)
         const result = service.enqueueDelivery(parsed.deliveryId)
         if (!result.ok) throw appError(result.code, result.message)
         if (!result.taskId) throw appError('no_stage', 'no stage task to enqueue')
@@ -1829,10 +1841,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       parameters: cancelDeliveryInput,
       async execute(input, ctx) {
         const parsed = cancelDeliveryInput.parse(input)
-        const service = deps.deliveries?.()
-        if (!service) throw appError('delivery_unavailable', 'delivery service is unavailable')
-        const detail = service.getDeliveryDetail(parsed.deliveryId)
-        if (!detail) throw appError('delivery_not_found', 'delivery not found')
+        const { service, detail } = requireDelivery(ctx, parsed.deliveryId)
         if (detail.status === 'cancelled') {
           return {
             deliveryId: parsed.deliveryId,
@@ -1841,17 +1850,36 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             alreadyCancelled: true,
           }
         }
+        if (detail.status === 'done') {
+          throw appError('delivery_not_cancellable', 'delivery is already done', {
+            deliveryId: parsed.deliveryId,
+          })
+        }
         if (!parsed.confirm) {
           return {
             deliveryId: parsed.deliveryId,
             status: detail.status,
+            code: 'confirmation_required',
             confirmationRequired: true,
             message: '请先向用户确认是否停止整条交付；确认后再传 confirm=true。',
           }
         }
-        const result = service.cancelDelivery(parsed.deliveryId)
-        if (!result.ok) throw appError(result.code, result.message)
-        if (result.taskId) deps.cancelTask(result.taskId, '交付已取消')
+        const target = service.getCancellationTarget(parsed.deliveryId)
+        if (!target.ok) throw appError(target.code, target.message)
+        let taskId = target.taskId
+        if (taskId) {
+          const outcome = deps.cancelTask(taskId, '交付已取消')
+          if (!outcome.ok) {
+            if (outcome.error.code !== 'invalid_transition') throw outcome.error
+            taskId = null
+          }
+        }
+        const marked = service.markDeliveryCancelled(parsed.deliveryId, {
+          actor: 'supervisor',
+          source: 'supervisor_cancel',
+          taskId,
+        })
+        if (!marked.ok) throw appError(marked.code, marked.message)
         deps.db.transaction((tx) => {
           insertAudit(tx, {
             id: deps.newId(),
@@ -1860,13 +1888,13 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             action: 'supervisor.delivery.cancel',
             detail: {
               deliveryId: parsed.deliveryId,
-              taskId: result.taskId,
+              taskId,
               confirmedByUser: true,
               triggerId: ctx.triggerId,
             },
           })
         })
-        return { deliveryId: parsed.deliveryId, status: 'cancelled', taskId: result.taskId }
+        return { deliveryId: parsed.deliveryId, status: 'cancelled', taskId }
       },
     },
 

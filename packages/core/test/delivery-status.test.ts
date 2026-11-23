@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  canCancelDeliveryStatus,
   deriveCurrentStageKey,
   deriveDeliveryStatus,
   deriveStageStatus,
@@ -54,5 +55,16 @@ describe('deriveDeliveryStatus', () => {
     expect(deriveCurrentStageKey(stages('done', 'running', 'pending'))).toBe('s1')
     expect(deriveCurrentStageKey(stages('done', 'done'))).toBeNull()
     expect(deriveCurrentStageKey(stages('done', 'cancelled', 'pending'))).toBeNull()
+  })
+})
+
+describe('canCancelDeliveryStatus', () => {
+  it('rejects terminal delivery states', () => {
+    expect(canCancelDeliveryStatus('draft')).toBe(true)
+    expect(canCancelDeliveryStatus('running')).toBe(true)
+    expect(canCancelDeliveryStatus('waiting_person')).toBe(true)
+    expect(canCancelDeliveryStatus('blocked')).toBe(true)
+    expect(canCancelDeliveryStatus('done')).toBe(false)
+    expect(canCancelDeliveryStatus('cancelled')).toBe(false)
   })
 })

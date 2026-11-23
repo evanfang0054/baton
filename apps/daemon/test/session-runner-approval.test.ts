@@ -437,6 +437,24 @@ describe('workspace authority approvals', () => {
     test.database.raw.close()
   })
 
+  it('does not cap workspace authority approvals', async () => {
+    const policy = PolicySchema.parse({
+      autopilot: { enabled: true, maxAutoApprovalsPerTask: 0 },
+    })
+    const test = setup({ trusted: true, policy, command: 'which baton; baton --help' })
+    await start(test, policy)
+
+    expect(test.approvals).toEqual([{ requestId: 'req-1', decision: 'allow' }])
+    expect(test.transitions).not.toContain('approval_requested')
+    expect(
+      listAudit(test.database.db, { actionPrefix: 'approval.cap_reached', limit: 10 }),
+    ).toHaveLength(0)
+    expect(
+      listAudit(test.database.db, { actionPrefix: 'approval.auto_allow', limit: 10 })[0]?.detail,
+    ).toMatchObject({ authority: 'workspace' })
+    test.database.raw.close()
+  })
+
   it('falls back to ask when the kill switch is on', async () => {
     const policy = PolicySchema.parse({ autopilot: { enabled: true } })
     const test = setup({ trusted: true, policy, killSwitch: true })

@@ -34,6 +34,10 @@ export function deriveDeliveryStatus(input: {
   return 'running'
 }
 
+export function canCancelDeliveryStatus(status: DeliveryStatus): boolean {
+  return status !== 'done' && status !== 'cancelled'
+}
+
 export function deriveCurrentStageKey(
   stages: Array<{ key: string; status: StageStatus }>,
 ): string | null {

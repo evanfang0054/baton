@@ -81,6 +81,7 @@ function setup() {
 
   const enqueued: string[] = []
   const cancelled: string[] = []
+  let automationBlocked: ReturnType<typeof appError> | null = null
   const tools = createSupervisorTools({
     db: database.db,
     workspacesRoot: root,
@@ -88,6 +89,7 @@ function setup() {
     now: () => 10,
     newId,
     defaultEngine: 'claude-sdk',
+    assertAutomationAllowed: () => automationBlocked,
     enqueueTask: (taskId) => {
       enqueued.push(taskId)
       return { ok: true, status: 'queued' }
@@ -135,6 +137,9 @@ function setup() {
     events,
     enqueued,
     cancelled,
+    blockAutomation: (error: ReturnType<typeof appError> | null) => {
+      automationBlocked = error
+    },
     ctx,
     workspaceDir,
   }
@@ -228,6 +233,36 @@ describe('supervisor delivery and annotation tools', () => {
     expect(Object.keys(tools)).not.toContain('resolve_annotation')
   })
 
+  it('blocks enqueue_delivery when automation is paused', async () => {
+    const { tools, ctx, enqueued, blockAutomation } = setup()
+    const created = (await tools.create_delivery.execute(
+      { title: '交付 E', goal: '目标 E' },
+      ctx(),
+    )) as { deliveryId: string; taskId: string }
+    blockAutomation(appError('automation_paused', 'automation paused'))
+
+    await expect(
+      tools.enqueue_delivery.execute({ deliveryId: created.deliveryId }, ctx()),
+    ).rejects.toMatchObject({ code: 'automation_paused' })
+    expect(enqueued).toEqual([])
+  })
+
+  it('rejects delivery tools from another workspace', async () => {
+    const { tools, ctx } = setup()
+    const created = (await tools.create_delivery.execute(
+      { title: '交付 F', goal: '目标 F' },
+      ctx(),
+    )) as { deliveryId: string }
+    const other = { ...ctx(), workspaceId: 'other-workspace' }
+
+    await expect(
+      tools.get_delivery.execute({ deliveryId: created.deliveryId }, other),
+    ).rejects.toMatchObject({ code: 'delivery_not_found' })
+    await expect(
+      tools.cancel_delivery.execute({ deliveryId: created.deliveryId, confirm: true }, other),
+    ).rejects.toMatchObject({ code: 'delivery_not_found' })
+  })
+
   it('requires confirmation before cancelling a delivery and is idempotent', async () => {
     const { database, tools, ctx, deliveries, cancelled } = setup()
     const created = (await tools.create_delivery.execute(
@@ -238,8 +273,12 @@ describe('supervisor delivery and annotation tools', () => {
     const first = (await tools.cancel_delivery.execute(
       { deliveryId: created.deliveryId },
       ctx(),
-    )) as { confirmationRequired: boolean; status: string }
-    expect(first).toMatchObject({ confirmationRequired: true, status: 'draft' })
+    )) as { confirmationRequired: boolean; code?: string; status: string }
+    expect(first).toMatchObject({
+      confirmationRequired: true,
+      code: 'confirmation_required',
+      status: 'draft',
+    })
     expect(deliveries.getDeliveryDetail(created.deliveryId)?.status).toBe('draft')
     expect(cancelled).toEqual([])
 

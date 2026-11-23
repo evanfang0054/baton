@@ -209,6 +209,9 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       const autoCount = autoDecision === 'allow' ? countAutoApprovals(deps.db, active.taskId) : 0
       if (
         autoDecision === 'allow' &&
+        // 工作区授权是“所有非 deny 自动批准”，不再受逐任务自动批准上限约束；
+        // 上限只保留给 delegated/普通自动批准，作为人工兜底。
+        decision.authority !== 'workspace' &&
         autoApprovalCapReached({
           count: autoCount,
           cap: policy.autopilot.maxAutoApprovalsPerTask,

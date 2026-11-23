@@ -2,6 +2,7 @@ import {
   assembleContext,
   artifactPath,
   buildStagePrompt,
+  canCancelDeliveryStatus,
   deriveCurrentStageKey,
   deriveDeliveryStatus,
   deriveStageStatus,
@@ -14,6 +15,7 @@ import type {
   Attention,
   Delivery,
   DeliveryDetail,
+  DeliveryStatus,
   DeliverySummary,
   Engine,
   Playbook,
@@ -94,6 +96,10 @@ export type DeliveryActionResult =
 
 export type MarkDeliveryCancelledResult =
   | { ok: true; changed: boolean; taskId: string | null }
+  | { ok: false; code: string; message: string }
+
+export type DeliveryCancellationTarget =
+  | { ok: true; status: DeliveryStatus; taskId: string | null }
   | { ok: false; code: string; message: string }
 
 const MAX_SKILL_BYTES = 64 * 1024
@@ -542,6 +548,30 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
     return { ok: true, taskId: current.taskId }
   }
 
+  function getCancellationTarget(id: string): DeliveryCancellationTarget {
+    const delivery = getDelivery(deps.db, id)
+    if (!delivery) return { ok: false, code: 'delivery_not_found', message: 'delivery not found' }
+    const { stages, summary } = buildSummaries(deps, delivery)
+    if (delivery.cancelledAt !== null || summary.status === 'cancelled') {
+      return { ok: true, status: 'cancelled', taskId: null }
+    }
+    if (!canCancelDeliveryStatus(summary.status)) {
+      return {
+        ok: false,
+        code: 'delivery_not_cancellable',
+        message: 'delivery is already done',
+      }
+    }
+    const current = stages.find(
+      (stage) =>
+        stage.taskId &&
+        stage.status !== 'done' &&
+        stage.status !== 'cancelled' &&
+        stage.status !== 'failed',
+    )
+    return { ok: true, status: summary.status, taskId: current?.taskId ?? null }
+  }
+
   function markDeliveryCancelled(
     id: string,
     input: {
@@ -553,12 +583,21 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
   ): MarkDeliveryCancelledResult {
     const delivery = getDelivery(deps.db, id)
     if (!delivery) return { ok: false, code: 'delivery_not_found', message: 'delivery not found' }
-    const { stages } = buildSummaries(deps, delivery)
+    const { stages, summary } = buildSummaries(deps, delivery)
     const current = stages.find(
       (stage) => stage.taskId && stage.status !== 'done' && stage.status !== 'cancelled',
     )
     if (delivery.cancelledAt !== null) {
       return { ok: true, changed: false, taskId: null }
+    }
+    // cancelled 但 cancelledAt 为空只可能来自“阶段任务先取消”的级联窗口；
+    // 仍需落 cancelledAt 让交付本身进入终态，后续重复调用再由上面的幂等分支拦截。
+    if (summary.status === 'done') {
+      return {
+        ok: false,
+        code: 'delivery_not_cancellable',
+        message: 'delivery is already done',
+      }
     }
     const now = deps.now()
     deps.db.transaction((tx) => {
@@ -833,6 +872,7 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
     listDeliveries,
     getDeliveryDetail,
     enqueueDelivery,
+    getCancellationTarget,
     cancelDelivery,
     markDeliveryCancelled,
     advanceDelivery,

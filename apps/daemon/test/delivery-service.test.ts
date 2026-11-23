@@ -1,4 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import {
+  insertAnnotation,
+  insertArtifact,
+  listAnnotations,
+  listArtifactsByDelivery,
+} from '../src/db/delivery-repositories.js'
+import { insertTask } from '../src/db/repositories.js'
 import { createDeliveryService } from '../src/delivery/service.js'
 import { createTestRuntime } from './helpers/runtime.js'
 
@@ -56,6 +63,47 @@ describe('delivery service', () => {
     })
     expect(result.ok).toBe(true)
     if (!result.ok) throw new Error(result.message)
+    const deliveryId = result.deliveryId
+    handle.database.db.transaction((tx) =>
+      insertArtifact(tx, {
+        id: 'art-1',
+        workspaceId: handle.seeded.workspaceId,
+        deliveryId,
+        stageKey: 'requirement',
+        taskId: result.taskId,
+        kind: 'spec',
+        name: 'spec.md',
+        path: `.baton/deliveries/${deliveryId}/requirement/spec.md`,
+        sourcePath: null,
+        svgPath: null,
+        mime: 'text/markdown',
+        size: 10,
+        sha256: 'sha-1',
+        version: 1,
+        status: 'ready',
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    )
+    handle.database.db.transaction((tx) =>
+      insertAnnotation(tx, {
+        id: 'ann-1',
+        workspaceId: handle.seeded.workspaceId,
+        deliveryId,
+        stageKey: 'requirement',
+        targetNodeIds: [],
+        targetArtifactId: 'art-1',
+        note: '保留',
+        strokesJson: '[]',
+        bbox: { x: 0, y: 0, w: 10, h: 10 },
+        imagePath: '.baton/annotation.png',
+        status: 'open',
+        taskId: result.taskId,
+        createdAt: 1,
+        updatedAt: 1,
+        resolvedAt: null,
+      }),
+    )
 
     expect(
       handle.runtime.handleCommand({
@@ -66,9 +114,63 @@ describe('delivery service', () => {
         payload: { taskId: result.taskId },
       }).ok,
     ).toBe(true)
-    const detail = service.getDeliveryDetail(result.deliveryId)
+    const detail = service.getDeliveryDetail(deliveryId)
     expect(detail?.status).toBe('cancelled')
     expect(detail?.currentStageKey).toBeNull()
     expect(detail?.cancelledAt).not.toBeNull()
+    expect(listArtifactsByDelivery(handle.database.db, deliveryId)).toHaveLength(1)
+    expect(listAnnotations(handle.database.db, { deliveryId })).toHaveLength(1)
+  })
+
+  it('refuses to cancel a delivered delivery', () => {
+    const { handle, service } = setup()
+    const result = service.createDelivery({
+      workspaceId: handle.seeded.workspaceId,
+      title: '已完成交付',
+      goal: '验证 done 不可取消',
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error(result.message)
+    const detail = service.getDeliveryDetail(result.deliveryId)
+    if (!detail) throw new Error('missing delivery')
+    for (const stage of detail.stages) {
+      if (stage.taskId) {
+        handle.database.raw
+          .prepare('update task set status = ? where id = ?')
+          .run('done', stage.taskId)
+        continue
+      }
+      handle.database.db.transaction((tx) =>
+        insertTask(tx, {
+          id: `done-${stage.key}`,
+          workspaceId: handle.seeded.workspaceId,
+          nodeId: null,
+          title: stage.label,
+          prompt: '',
+          status: 'done',
+          waitingReason: null,
+          engine: 'claude-sdk',
+          workspaceMode: 'main',
+          branch: null,
+          worktreePath: null,
+          verifyCommand: null,
+          retryCount: 0,
+          dangerouslySkipPermissions: false,
+          deliveryId: result.deliveryId,
+          stageKey: stage.key,
+          createdAt: 1,
+          updatedAt: 1,
+        }),
+      )
+    }
+
+    expect(service.getDeliveryDetail(result.deliveryId)?.status).toBe('done')
+    expect(service.cancelDelivery(result.deliveryId)).toMatchObject({
+      ok: false,
+      code: 'delivery_not_cancellable',
+    })
+    const after = service.getDeliveryDetail(result.deliveryId)
+    expect(after?.status).toBe('done')
+    expect(after?.cancelledAt).toBeNull()
   })
 })
