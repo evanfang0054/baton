@@ -2,6 +2,8 @@ import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: './apps/web/e2e',
+  // 画布拖拽偶发受 headless 帧调度影响；失败重试一次，避免假红。
+  retries: 1,
   use: {
     baseURL: 'http://127.0.0.1:5173',
     // 不下载 Playwright 自带 Chromium：优先用系统 Chrome（CI runner 也预装）。

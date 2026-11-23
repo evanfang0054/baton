@@ -33,12 +33,22 @@ export function AcceptanceMatrixOverlay({
 
   const decide = async (decision: 'approve' | 'reject') => {
     if (!review) return
+    const unresolved = items.some((item) => item.status === 'fail' || item.status === 'pending')
+    const overrideReason =
+      decision === 'approve' && unresolved
+        ? window.prompt('仍有验收项未通过，填写通过理由')?.trim()
+        : undefined
+    if (decision === 'approve' && unresolved && !overrideReason) return
     try {
       await send({
         type: 'review.decide',
         payload:
           decision === 'approve'
-            ? { reviewId: review.id, decision: 'approve' }
+            ? {
+                reviewId: review.id,
+                decision: 'approve',
+                ...(overrideReason ? { overrideReason } : {}),
+              }
             : { reviewId: review.id, decision: 'reject', feedback: '验收矩阵未通过' },
       })
       if (taskId) {

@@ -116,6 +116,10 @@ export function QuickAnnotationLayer({
 
   const onPointerDown = (event: React.PointerEvent) => {
     event.preventDefault()
+    if (tool !== 'eraser' && strokes.length >= 200) {
+      toast.warning('单阶段最多 200 条标注')
+      return
+    }
     const point = position(event)
     if (tool === 'eraser') {
       setStrokes((current) =>
@@ -196,19 +200,21 @@ export function QuickAnnotationLayer({
       aria-label="快速标注层"
     >
       <div className="pointer-events-none absolute inset-0">
-        {annotations.map((annotation) => (
-          <div
-            key={annotation.id}
-            className="absolute rounded border border-warning/60 bg-warning/10"
-            style={{
-              left: annotation.bbox.x,
-              top: annotation.bbox.y,
-              width: annotation.bbox.w,
-              height: annotation.bbox.h,
-            }}
-            title={annotation.note}
-          />
-        ))}
+        {annotations
+          .filter((annotation) => annotation.status === 'open')
+          .map((annotation) => (
+            <div
+              key={annotation.id}
+              className="absolute rounded border border-warning/60 bg-warning/10"
+              style={{
+                left: annotation.bbox.x,
+                top: annotation.bbox.y,
+                width: annotation.bbox.w,
+                height: annotation.bbox.h,
+              }}
+              title={annotation.note}
+            />
+          ))}
         <svg className="h-full w-full">
           {[...strokes, ...(draft ? [draft] : [])].map((stroke, index) => (
             <path

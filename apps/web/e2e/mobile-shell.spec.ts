@@ -38,7 +38,7 @@ test.describe('compact desktop', () => {
     await expect(page.getByLabel('交付看板')).toBeVisible()
     await expect(page.locator('aside[aria-label="交付列表"]')).toBeVisible()
     await expect(page.getByTestId('right-panel')).toBeVisible()
-    await expect(page.getByTestId('task-board')).toHaveCount(0)
+    await expect(page.getByTestId('task-board-overlay')).toHaveCount(0)
     await expect(page.getByRole('navigation', { name: '移动端导航' })).toHaveCount(0)
 
     const overflow = await page.evaluate(

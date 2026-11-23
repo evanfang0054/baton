@@ -455,6 +455,7 @@ test('batch starts todo tasks and shows task automation', async ({ page }) => {
   await expect(page.getByTestId('task-automation')).toContainText('自动批准 1 次')
   await expect(page.getByTestId('task-automation')).toContainText('自动重试 1 次')
 
+  await page.getByRole('button', { name: '关闭', exact: true }).click()
   await page.getByRole('button', { name: '任务', exact: true }).click()
   await page.locator('#task-board').getByText('任务二').click()
   await expect(page.getByTestId('task-automation')).toContainText('本任务没有自动决策')

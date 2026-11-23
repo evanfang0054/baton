@@ -817,8 +817,12 @@ function FlowCanvas({
             if (onOpenNode) onOpenNode(node.data.node)
           }}
           onSelectionChange={({ nodes: selected }) => {
-            // 现场允许选中节点用于投喂；布局写操作仍由 sceneActive 关闭。
-            onSelectNodes(selected.map((node) => ({ id: node.id, type: node.data.node.type })))
+            // 打开节点覆盖层会让 React Flow 短暂清空选区；保留上一次非空选择，
+            // 否则工具栏（投喂/建组）会在关闭面板后被误禁用。
+            if (selected.length === 0) return
+            onSelectNodes(
+              selected.map((node) => ({ id: node.data.node.id, type: node.data.node.type })),
+            )
           }}
           onPaneClick={() => {
             setSelectedEdgeId(null)

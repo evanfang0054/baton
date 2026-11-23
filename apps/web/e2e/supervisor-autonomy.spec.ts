@@ -133,7 +133,6 @@ test('plan card applies through WS and shows created count', async ({ page }) =>
   })
 
   await page.goto('/')
-  await page.getByRole('tab', { name: '总管' }).click()
   await expect(page.getByText('计划：1 个任务')).toBeVisible()
   await page.getByRole('button', { name: '应用全部' }).click()
   await expect(page.getByText(/已创建 1 个/)).toBeVisible()
@@ -347,7 +346,7 @@ test('observe proposal applies only through the human digest action', async ({ p
   await expect.poll(() => commands).toContain('supervisor.action.decide')
   await expect(page.getByLabel('需要你决定')).toHaveCount(0)
   await page.getByRole('button', { name: '任务', exact: true }).click()
-  await expect(page.getByTestId('task-board').getByText('重试中的登录修复')).toBeVisible()
+  await expect(page.getByTestId('task-board-overlay').getByText('重试中的登录修复')).toBeVisible()
 })
 
 test('mandate_revoked asks for reauthorize before retrying again', async ({ page }) => {

@@ -55,7 +55,7 @@ test('image node and task scene', async ({ page }) => {
   await expect(page.getByTestId('task-detail')).toContainText('任务')
   await expect(deleteButton).toHaveCount(0)
 
-  await page.getByRole('button', { name: '关闭' }).click()
+  await page.getByRole('button', { name: '关闭', exact: true }).click()
   await expect(page.getByRole('dialog', { name: '阶段现场' })).toHaveCount(0)
   expect(commands.every((command) => command.type !== 'node.update')).toBe(true)
   expect(commands.filter((command) => command.type === 'edge.delete')).toHaveLength(1)

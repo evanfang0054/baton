@@ -47,6 +47,7 @@ import {
   listWorkspaces,
   setKillSwitch,
   UnauthorizedError,
+  updateAnnotation,
 } from './lib/api'
 import { useCommand } from './lib/command-context'
 import { queryKeys } from './lib/query'
@@ -560,7 +561,7 @@ export function App() {
                   agentNodes={workspaceCanvas.data?.nodes ?? []}
                   selectedTaskId={activeTaskId}
                   expanded
-                  pinned
+                  pinned={false}
                   onSelectTask={openTask}
                   onOpenScene={openTask}
                   onClose={() => setShowTasks(false)}
@@ -687,6 +688,18 @@ export function App() {
               const nodeId = annotation.targetNodeIds[0]
               if (nodeId) setSelectedNode(nodeId)
               setOverlay(null)
+            }}
+            onDismiss={(annotation) => {
+              if (!delivery.data) return
+              void updateAnnotation(annotation.deliveryId, annotation.id, { status: 'dismissed' })
+                .then(() =>
+                  queryClient.invalidateQueries({
+                    queryKey: queryKeys.delivery(annotation.deliveryId),
+                  }),
+                )
+                .catch((cause: unknown) =>
+                  toast.danger(cause instanceof Error ? cause.message : '忽略标注失败'),
+                )
             }}
           />
         ) : null}

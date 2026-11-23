@@ -5,10 +5,12 @@ export function AnnotationListOverlay({
   annotations,
   onClose,
   onLocate,
+  onDismiss,
 }: {
   annotations: AnnotationSummary[]
   onClose: () => void
   onLocate?: (annotation: AnnotationSummary) => void
+  onDismiss?: (annotation: AnnotationSummary) => void
 }) {
   return (
     <Overlay title="标注" onClose={onClose} width="min(720px, 92vw)">
@@ -34,6 +36,15 @@ export function AnnotationListOverlay({
                     className="ml-auto underline underline-offset-2 hover:text-foreground"
                   >
                     定位
+                  </button>
+                ) : null}
+                {onDismiss && annotation.status === 'open' ? (
+                  <button
+                    type="button"
+                    onClick={() => onDismiss(annotation)}
+                    className="underline underline-offset-2 hover:text-foreground"
+                  >
+                    忽略
                   </button>
                 ) : null}
               </div>

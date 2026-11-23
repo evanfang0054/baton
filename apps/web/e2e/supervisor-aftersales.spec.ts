@@ -128,7 +128,6 @@ async function mockSupervisor(
 
 async function openSupervisor(page: Page) {
   await page.goto('/?workspace=w1')
-  await page.getByRole('tab', { name: '总管' }).click()
 }
 
 test('batch creates three todo cards sharing one agent', async ({ page }) => {
@@ -154,7 +153,7 @@ test('batch creates three todo cards sharing one agent', async ({ page }) => {
   )
   await mockRest(page, getMessages)
   await openSupervisor(page)
-  await page.getByRole('textbox').fill('把这 3 个需求分别建任务')
+  await page.getByLabel('对总管说').fill('把这 3 个需求分别建任务')
   await page.getByRole('button', { name: '发送' }).click()
 
   await expect(page.getByText('需求 A')).toBeVisible()
@@ -176,7 +175,7 @@ test('retries a failed task from chat', async ({ page }) => {
   )
   await mockRest(page, getMessages)
   await openSupervisor(page)
-  await page.getByRole('textbox').fill('重试那个失败的任务')
+  await page.getByLabel('对总管说').fill('重试那个失败的任务')
   await page.getByRole('button', { name: '发送' }).click()
 
   await expect(page.getByText('已重试，任务回到队列。')).toBeVisible()
@@ -207,13 +206,13 @@ test('asks for confirmation before cancelling a running task', async ({ page }) 
   )
   await mockRest(page, getMessages)
   await openSupervisor(page)
-  await page.getByRole('textbox').fill('取消那个运行中的任务')
+  await page.getByLabel('对总管说').fill('取消那个运行中的任务')
   await page.getByRole('button', { name: '发送' }).click()
 
   await expect(page.getByText('任务正在运行，确认取消吗？')).toBeVisible()
   await expect(page.getByText('已取消。')).not.toBeVisible()
 
-  await page.getByRole('textbox').fill('确认')
+  await page.getByLabel('对总管说').fill('确认')
   await page.getByRole('button', { name: '发送' }).click()
   await expect(page.getByText('已取消。')).toBeVisible()
   await expect(page.getByText('cancel_task')).toBeVisible()
