@@ -1,7 +1,7 @@
 ---
 spec_ref: ../specs/2026-11-23-m8-attention-gate-authority-design.md
 spec_topic: m8-attention-gate-authority
-status: active
+status: completed
 ---
 
 # M8 注意力闭环实施执行图
@@ -52,4 +52,4 @@ M8-1 → M8-2 → M8-3 → M8-4
 - M8-1 plan：已完成（预算移除 + migration 0016）。
 - M8-2 plan：已完成（workspace authority + 交付取消）。
 - M8-3 plan：已完成（总管会话闸门卡 + Playwright）。
-- M8-4：active（全量验收 + 真实 ego 链路 + 证据）。
+- M8-4 plan：已完成（`pnpm verify:full` 全绿；真实 deepseek 总管 + 真实 Claude 完成 4/4；总管无闸门工具；证据落库）。

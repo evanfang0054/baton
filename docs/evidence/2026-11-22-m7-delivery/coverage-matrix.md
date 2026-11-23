@@ -27,7 +27,7 @@
 - 人工闸门推进：需求阶段人工通过后进入设计；设计阶段人工 override 通过后进入开发。
 - 自动闸门：verify exit 0 自动推进；verify exit 1 阻断在评审，不进入下一阶段。
 - 必产物守卫：`spec.md` 缺失时 advance/approve 返回 `artifact_missing`，UI 告警；补文件后可继续。
-- 交付取消：`POST /api/deliveries/:id/cancel` 成功，交付状态变 `cancelled`，UI 显示「已取消」；当前产品没有交付取消的 UI 控件（已知缺口）。
+- 交付取消：`POST /api/deliveries/:id/cancel` 成功，交付状态变 `cancelled`；交付卡「停止交付」二次确认后调用同一接口，总管 `cancel_delivery` 首次返回 confirmation_required，阶段任务级联取消。
 - 版本覆盖：画板保存两次后 `version=2`，`sourcePath/svgPath` 均落盘。
 
 ### 产物
@@ -84,8 +84,17 @@
 ### 总管
 
 - 未配置 `supervisor.json` 时 UI 显示 `supervisor_unavailable` 与检查配置入口，不发送消息。
-- 总管交付工具（create/list/get/enqueue delivery、list/get annotation）由 `apps/daemon/test/supervisor-delivery-tools.test.ts` 覆盖（4 tests）。
-- 总管真实对话未在本环境执行：缺少模型配置，属于环境限制，不是产品分支遗漏。
+- 总管交付工具（create/list/get/enqueue/cancel delivery、list/get annotation）由 daemon 测试覆盖。
+- 真实 deepseek-flash 总管已跑通完整链路：建交付、逐阶段开工、确认终态；审批与阶段闸门由人在总管栏闸门卡处理，总管 toolCalls 无 approve/reject/resolve。见 `m8-real-chain.md`。
+- daemon 重启后 `waiting_input(stalled)` 任务可由总管 `enqueue_task` 重新入队；`question` 等待仍必须用 `reply_task`。
+
+### M8 注意力与授权
+
+- 工作区授权：已信任 + 自动驾驶开启 + kill switch 关闭时，`Write`/`Bash`/MCP 等非 deny 工具自动 allow，审计 `authority=workspace`；`rm -rf` 命中 deny 被拒。
+- 审批闸门卡：`approval.request` 出现时总管栏展示工具、风险、输入预览，可允许/拒绝并写备注；动作只发送一次 `approval.decide`。
+- 验收闸门卡：`review` 未决时展示 AC 计数、退出码、diff 统计；零 AC 或 verify 未过时必须填写理由，「确认通过」才可用。
+- 交付取消：UI 停止交付 + 总管确认制工具 + 任务级联；取消后交付 `cancelled`，阶段不再推导为 running。
+- Playwright：`supervisor-gate-cards.spec.ts` 覆盖桌面审批卡、验收 override、移动端布局；`m8-gate-cards.md` 附截图。
 
 ## 本轮发现并修复
 
@@ -99,17 +108,21 @@
 
 ## 已知限制
 
-- 交付取消只有 API，没有 UI 控件。
-- 验收矩阵 override 仍使用 `window.prompt`，交互一致性弱于 ReviewCard 的内联确认区。
+- 验收矩阵 override 在任务详情入口仍使用 `window.prompt`；总管闸门卡已是内联输入区，交互尚未统一。
 - `canvas-group` 拖拽在 headless 下偶发，Playwright retry 通过，仍是已知 flake。
-- 总管真实链路已用 deepseek-flash 跑过：能建交付/开工，但工具审批与阶段闸门必须人工在任务详情完成，不能只靠总管闭环；详见 `supervisor-only-flow.md`。
+- 闸门卡由前端从 task attention 派生，不写入总管消息/模型上下文；刷新后由查询重建。
 - 阶段任务取消曾让交付推导为 running 并指向未创建的下一阶段；已修复为 cancelled，currentStageKey 为 null。
 - 并发与预算耗尽未做压力级真实 Claude 验证；M8 已彻底移除金钱预算（任务预算、等待/提额、SDK 上限、成本展示），仅保留内部 session cost/turn 采集；migration 0016 删除 `task.budget_usd` 并把旧的预算等待任务恢复为 todo。
 - 本轮真实验收使用 `BATON_CLAUDE_MAX_TURNS=60`，默认 30 对较重验收仍可能偏紧。
+- 工作区授权是“所有非 deny”语义，host MCP 工具（如 chrome MCP，high risk）也会自动批准；按工具域收窄后置。
+- `packageManager` 缺失时 verify runner 默认 pnpm；corepack 不可用的环境会失败，可后续按 lockfile 推断默认包管理器。
+- 外部提醒推送（系统通知/IM）后置；本迭代只做应用内提醒。
 
 ## 回归结果
 
 - `pnpm verify`：通过（typecheck / lint / format / boundaries / protocol / tests / build / bundle）。
-- `pnpm exec playwright test`：53 passed，`canvas-group` 1 flaky（retry 通过）。
-- 定向 daemon 测试：`supervisor-delivery-tools` 4、`artifact-service` 3、`delivery-advance` 3 全通过。
-- 定向 web 测试：`AcceptanceMatrixOverlay` 3、`ReviewCard` 8 全通过。
+- 单测：protocol 177、adapters 16、core 257、daemon 446、web 316，全部通过。
+- `pnpm exec playwright test`：55 passed（本轮无 flake）。
+- 定向 daemon 测试：`supervisor-tools` 含 stalled 重新入队、`migration-0016`、`delivery-advance` 全通过。
+- 定向 web 测试：`SupervisorGateCards`、`AcceptanceMatrixOverlay`、`ReviewCard` 全通过。
+- 真实链路：见 `m8-real-chain.md`；自动化门见 `m8-e2e.md`。
