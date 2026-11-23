@@ -18,11 +18,11 @@ pnpm verify:full
 
 | workspace | 文件 | 用例 |
 | --- | --- | --- |
-| protocol | 25 passed | 177 passed |
+| protocol | 25 passed | 178 passed |
 | adapters | 3 passed | 16 passed |
-| core | 38 passed | 257 passed |
-| daemon | 97 passed | 446 passed |
-| web | 68 passed | 316 passed |
+| core | 38 passed | 258 passed |
+| daemon | 97 passed | 450 passed |
+| web | 68 passed | 319 passed |
 
 - build：daemon / web 构建通过
 - bundle：`bundle check ok: main=index-*.js, excalidraw chunk present`
@@ -31,13 +31,14 @@ pnpm verify:full
 ## Playwright
 
 ```text
-Running 55 tests using 5 workers
-55 passed (17.5s)
+Running 57 tests using 5 workers
+57 passed (18.6s)
 ```
 
 覆盖包括：
 
-- `supervisor-gate-cards.spec.ts`：审批卡、验收 override、移动端
+- `supervisor-gate-cards.spec.ts`：审批卡允许/拒绝、验收 override、AC/diff 展示、处理后卡片消失、移动端
+- `delivery.spec.ts`：交付看板/画布、快速标注、停止交付二次确认与取消请求
 - `acceptance-evidence.spec.ts`：ReviewCard 证据 + AC override
 - `supervisor-autonomy.spec.ts`：自动驾驶、kill switch、失败摘要
 - 交付看板/画布、标注、实时、持久化、worktree、售后等既有场景
@@ -49,3 +50,12 @@ Running 55 tests using 5 workers
 - 首次 `verify:full` 因 `supervisor-tools.test.ts` 未过 Prettier 失败 → 格式化后重跑。
 - 第二次因总管 prompt 长度超预算（3858 > 3840）失败 → 精简规则 20 后重跑。
 - 第三次全绿（上述结果）。
+
+## Code Review 后续修复
+
+- 取消交付：done 不可取消；HTTP 先取消阶段任务再落交付；总管检查级联返回值；审计 actor 改为 supervisor。
+- 授权：workspace authority 不再受 `maxAutoApprovalsPerTask` 限制；`enqueue_delivery` 补自动化门；交付工具校验 workspace 归属。
+- 契约：任务详情/历史 API 使用 `SessionView`，不再返回 `costUsd/turns`；旧 digest 的 budget 计数按忽略兼容。
+- 闸门卡：排除 `AskUserQuestion`；计数不再被 slice 截断；动作成功后本地隐藏；拒绝/AC/diff/消失补 Playwright。
+- UI/文档：交付卡改为覆盖按钮避免嵌套 button；停止交付改用 HeroUI 确认框；新组件字号改 token；风险映射复用；清理预算/成本残留文案与 runbook。
+- 测试：新增 done 取消拒绝、级联保留 artifact/annotation、cap 跳过、旧 digest、归属校验、取消交付 E2E、闸门 deny/消失。

@@ -115,14 +115,15 @@
 - 并发与预算耗尽未做压力级真实 Claude 验证；M8 已彻底移除金钱预算（任务预算、等待/提额、SDK 上限、成本展示），仅保留内部 session cost/turn 采集；migration 0016 删除 `task.budget_usd` 并把旧的预算等待任务恢复为 todo。
 - 本轮真实验收使用 `BATON_CLAUDE_MAX_TURNS=60`，默认 30 对较重验收仍可能偏紧。
 - 工作区授权是“所有非 deny”语义，host MCP 工具（如 chrome MCP，high risk）也会自动批准；按工具域收窄后置。
+- REST 交付路由（cancel/enqueue/artifacts）没有 workspace 维度，仍按本地单工作区假设；总管工具已校验归属。
 - `packageManager` 缺失时 verify runner 默认 pnpm；corepack 不可用的环境会失败，可后续按 lockfile 推断默认包管理器。
 - 外部提醒推送（系统通知/IM）后置；本迭代只做应用内提醒。
 
 ## 回归结果
 
 - `pnpm verify`：通过（typecheck / lint / format / boundaries / protocol / tests / build / bundle）。
-- 单测：protocol 177、adapters 16、core 257、daemon 446、web 316，全部通过。
-- `pnpm exec playwright test`：55 passed（本轮无 flake）。
+- 单测：protocol 178、adapters 16、core 258、daemon 450、web 319，全部通过。
+- `pnpm exec playwright test`：57 passed（本轮无 flake）。
 - 定向 daemon 测试：`supervisor-tools` 含 stalled 重新入队、`migration-0016`、`delivery-advance` 全通过。
 - 定向 web 测试：`SupervisorGateCards`、`AcceptanceMatrixOverlay`、`ReviewCard` 全通过。
 - 真实链路：见 `m8-real-chain.md`；自动化门见 `m8-e2e.md`。
