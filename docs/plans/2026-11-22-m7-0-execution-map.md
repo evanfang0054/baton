@@ -55,4 +55,4 @@ M7-1 → M7-2 → M7-3 → M7-4a → M7-4b → M7-5 → M7-6
 - M7-4a plan：已完成；drawing artifact/节点/懒加载编辑器/保存链路 + bundle 断言已落。分支 `feat/m7-4a-excalidraw`。
 - M7-4b plan：已完成；快速标注层/快捷键/note/合成 PNG、resolved 默认隐藏、200 条上限已落。分支 `feat/m7-4b-annotation`。
 - M7-5 plan：已完成；验收矩阵/闸门按钮/交付报告/skill 状态/overrideReason 已落。分支 `feat/m7-5-acceptance`。
-- M7-6 plan：已完成；`pnpm verify:full` 全绿（Playwright 54 passed）、`pack:check` 通过；证据落 `docs/evidence/2026-11-22-m7-delivery/`。ego-lite/真实 Claude 证据后置。
+- M7-6 plan：已完成；`pnpm verify` 全绿（daemon 443 / web 305）、Playwright 53 passed + 1 known flaky、`pack:check` 通过；证据落 `docs/evidence/2026-11-22-m7-delivery/`。真实 Claude + ego-lite 全链路已补跑，4 阶段完成、验收 A1–A8 全 PASS。

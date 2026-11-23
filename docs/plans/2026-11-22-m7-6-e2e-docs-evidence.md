@@ -13,7 +13,7 @@ depends_on: 2026-11-22-m7-5-acceptance-skills.md
 - [x] `pnpm verify` 全绿（含 Excalidraw bundle 断言）。
 - [x] `pnpm pack:check` 通过。
 - [x] `pnpm verify:full` 全绿：Playwright 54 passed；旧三栏/右栏 e2e 已按新交付壳与覆盖层重写。
-- [ ] ego-lite 截图与真实 Claude 交付链路证据（需本机 Claude 登录态，后置）。
+- [x] ego-lite 截图与真实 Claude 交付链路证据：4 阶段完成，验收 A1–A8 全 PASS，见 `docs/evidence/2026-11-22-m7-delivery/real-chain/`。
 
 ## 说明
 
