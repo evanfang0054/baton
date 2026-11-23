@@ -32,7 +32,7 @@ function copyMigrationsThrough(maxIdx: number): string {
 }
 
 describe('migration 0012', () => {
-  it('adds acceptance tables and a nullable task budget', () => {
+  it('adds acceptance tables and a task budget that 0016 later removes', () => {
     const oldDir = copyMigrationsThrough(11)
     const raw = openDb(':memory:')
     process.env.BATON_MIGRATIONS_DIR = oldDir
@@ -53,10 +53,7 @@ describe('migration 0012', () => {
       (raw.prepare(`pragma table_info(${table})`).all() as Array<{ name: string }>).map(
         (row) => row.name,
       )
-    expect(columns('task')).toContain('budget_usd')
-    expect(raw.prepare("select budget_usd from task where id='t1'").get()).toEqual({
-      budget_usd: null,
-    })
+    expect(columns('task')).not.toContain('budget_usd')
     expect(
       raw
         .prepare(
