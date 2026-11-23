@@ -53,4 +53,22 @@ describe('attention schemas', () => {
       }).success,
     ).toBe(false)
   })
+  it('downgrades legacy budget attention items to stale', () => {
+    expect(
+      DigestAttention.parse({
+        items: [
+          {
+            taskId: 't1',
+            title: '旧预算任务',
+            kind: 'budget',
+            reason: '超出预算',
+            waitingSince: 1,
+            proposalId: null,
+            action: { type: 'open_task' },
+          },
+        ],
+        counts: { approval: 0, reply: 0, review: 0, failed: 0, stale: 0 },
+      }).items[0]?.kind,
+    ).toBe('stale')
+  })
 })

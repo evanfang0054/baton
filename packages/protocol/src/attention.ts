@@ -4,11 +4,17 @@ import { Id, Timestamp } from './common.js'
 export const AttentionKind = z.enum(['approval', 'reply', 'review', 'failed', 'stale'])
 export type AttentionKind = z.infer<typeof AttentionKind>
 
+// 旧 digest 可能仍带已删除的 budget 条目；读取时降级为 stale，避免整条摘要解析失败。
+const AttentionItemKind = z.union([
+  AttentionKind,
+  z.literal('budget').transform((): AttentionKind => 'stale'),
+])
+
 export const AttentionItem = z
   .object({
     taskId: Id,
     title: z.string().min(1),
-    kind: AttentionKind,
+    kind: AttentionItemKind,
     reason: z.string().min(1).max(200),
     waitingSince: Timestamp.nullable(),
     proposalId: Id.nullable(),
