@@ -16,7 +16,6 @@ import { mergeSessionPage } from '../realtime/session-cache'
 import { AcceptanceEditor } from './AcceptanceEditor'
 import { AcceptanceReport } from './AcceptanceReport'
 import { ApprovalCard } from './ApprovalCard'
-import { BudgetEditor } from './BudgetEditor'
 import { ContextTimeline } from './ContextTimeline'
 import { QuestionCard } from './QuestionCard'
 import { ReplyComposer } from './ReplyComposer'
@@ -360,9 +359,6 @@ function DetailContent({
           />
         ) : null}
       </div>
-      {budgetSummary && ['todo', 'queued', 'failed'].includes(task.status) ? (
-        <BudgetEditor taskId={task.id} budget={budgetSummary} onDone={onDone} />
-      ) : null}
 
       <TaskHistory taskId={task.id} onOpenDiff={setHistoryDiffReviewId} />
       {historyDiffReviewId ? (
