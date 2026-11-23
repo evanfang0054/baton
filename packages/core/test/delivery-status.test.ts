@@ -42,6 +42,9 @@ describe('deriveDeliveryStatus', () => {
     expect(deriveDeliveryStatus({ cancelled: false, stages: stages('failed', 'pending') })).toBe(
       'blocked',
     )
+    expect(
+      deriveDeliveryStatus({ cancelled: false, stages: stages('done', 'cancelled', 'pending') }),
+    ).toBe('cancelled')
     expect(deriveDeliveryStatus({ cancelled: false, stages: stages('pending', 'pending') })).toBe(
       'draft',
     )
@@ -50,5 +53,6 @@ describe('deriveDeliveryStatus', () => {
   it('derives the current stage and skips done/cancelled', () => {
     expect(deriveCurrentStageKey(stages('done', 'running', 'pending'))).toBe('s1')
     expect(deriveCurrentStageKey(stages('done', 'done'))).toBeNull()
+    expect(deriveCurrentStageKey(stages('done', 'cancelled', 'pending'))).toBeNull()
   })
 })

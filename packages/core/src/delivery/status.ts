@@ -17,6 +17,8 @@ export function deriveDeliveryStatus(input: {
 }): DeliveryStatus {
   if (input.cancelled) return 'cancelled'
   const statuses = input.stages.map((stage) => stage.status)
+  // 任一阶段被取消，交付就不可能完成；继续展示后续 pending 阶段会让人误以为还在推进。
+  if (statuses.some((status) => status === 'cancelled')) return 'cancelled'
   if (statuses.length > 0 && statuses.every((status) => status === 'done')) return 'done'
   if (statuses.some((status) => status === 'waiting_person')) return 'waiting_person'
   if (
@@ -35,6 +37,8 @@ export function deriveDeliveryStatus(input: {
 export function deriveCurrentStageKey(
   stages: Array<{ key: string; status: StageStatus }>,
 ): string | null {
+  // 交付已因阶段取消而终止时，没有“当前阶段”。
+  if (stages.some((stage) => stage.status === 'cancelled')) return null
   return (
     stages.find((stage) => stage.status !== 'done' && stage.status !== 'cancelled')?.key ?? null
   )
