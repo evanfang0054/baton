@@ -71,7 +71,7 @@ describe('TaskCard', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it('shows acceptance and budget badges with text and icons', () => {
+  it('shows acceptance badges with text and icons', () => {
     render(
       <TaskCard
         task={{
@@ -85,22 +85,32 @@ describe('TaskCard', () => {
             verdict: 'fail',
             topFailures: [{ text: '深链参数未校验', evidence: null }],
           },
-          budget: {
-            budgetUsd: 2,
-            spentUsd: 1.8,
-            remainingUsd: 0.2,
-            ratio: 0.9,
-            overBudget: false,
-            nearBudget: true,
-            workerCostUsd: 1.8,
-            verifierCostUsd: 0,
-            turns: 3,
-          },
         }}
         onSelect={vi.fn()}
       />,
     )
     expect(screen.getByText('AC 2/3')).toBeInTheDocument()
-    expect(screen.getByText('接近预算')).toBeInTheDocument()
+  })
+
+  it('does not render legacy budget badges', () => {
+    const legacy = {
+      budgetUsd: 2,
+      spentUsd: 3,
+      remainingUsd: 0,
+      ratio: 1.5,
+      overBudget: true,
+      nearBudget: false,
+      workerCostUsd: 3,
+      verifierCostUsd: 0,
+      turns: 1,
+    }
+    render(
+      <TaskCard
+        task={{ ...task, budget: legacy } as unknown as TaskSummary}
+        onSelect={vi.fn()}
+      />,
+    )
+    expect(screen.queryByText('超预算')).not.toBeInTheDocument()
+    expect(screen.queryByText('接近预算')).not.toBeInTheDocument()
   })
 })

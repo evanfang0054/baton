@@ -82,12 +82,10 @@ describe('ReviewCard', () => {
       <CommandProvider send={send}>
         <ReviewCard
           review={{ ...review, verifyExitCode: 1 }}
-          usage={{ costUsd: 0.42, turns: 3 }}
           onDone={vi.fn()}
         />
       </CommandProvider>,
     )
-    expect(screen.getByText('本次 $0.42 · 3 turns')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '通过' }))
     expect(send).not.toHaveBeenCalled()
     expect(screen.getByText('校验未通过，仍要通过吗？')).toBeInTheDocument()

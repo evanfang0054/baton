@@ -303,7 +303,7 @@ describe('TaskDetailPanel', () => {
 
     expect(await screen.findByText('注入 #1')).toBeInTheDocument()
     expect(screen.getByText('补充报错')).toBeInTheDocument()
-    expect(screen.getByText(/累计 \$0\.42 · 3 turns/)).toBeInTheDocument()
+    expect(screen.queryByText(/累计 \$/)).not.toBeInTheDocument()
   })
 
   it('shows a todo task, enqueues it and invalidates its queries', async () => {
@@ -312,7 +312,7 @@ describe('TaskDetailPanel', () => {
     const invalidate = vi.spyOn(client, 'invalidateQueries')
 
     expect(await screen.findByText('修复登录页')).toBeInTheDocument()
-    expect(screen.getByText('累计 — · —')).toBeInTheDocument()
+    expect(screen.queryByText('累计 — · —')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '立即开工' }))
     await waitFor(() =>
       expect(send).toHaveBeenCalledWith({
@@ -701,5 +701,13 @@ describe('TaskDetailPanel', () => {
     const button = await screen.findByRole('button', { name: '看现场' })
     fireEvent.click(button)
     expect(useAppStore.getState().sceneTaskId).toBe('t1')
+  })
+
+  it('does not render task budget or accumulated cost', async () => {
+    stubFetch(detail())
+    renderPanel()
+    expect(await screen.findByText('修复登录页')).toBeInTheDocument()
+    expect(screen.queryByText('任务预算')).not.toBeInTheDocument()
+    expect(screen.queryByText(/累计 \$/)).not.toBeInTheDocument()
   })
 })

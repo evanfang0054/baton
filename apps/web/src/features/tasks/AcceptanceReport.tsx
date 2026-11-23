@@ -11,10 +11,6 @@ const STATUS_MARKS: Record<AcceptanceItemStatus, string> = {
   waived: '— 豁免',
 }
 
-function money(value: number): string {
-  return `$${value.toFixed(2)}`
-}
-
 export function AcceptanceReport({
   report,
   onOpenDiff,
@@ -22,7 +18,7 @@ export function AcceptanceReport({
   report: AcceptanceReportValue
   onOpenDiff?: () => void
 }) {
-  const { acceptance, changes, usage, verify } = report
+  const { acceptance, changes, verify } = report
   return (
     <section className="flex shrink-0 flex-col gap-3 rounded-lg border border-separator bg-surface p-3">
       <header className="flex items-start justify-between gap-2">
@@ -92,19 +88,6 @@ export function AcceptanceReport({
             <li className="text-muted">初步验收未完成，没有可展示的验收条目。</li>
           ) : null}
         </ul>
-      </section>
-
-      <section>
-        <h4 className="text-xs font-medium text-foreground">成本</h4>
-        <p className="mt-1 font-mono text-xs text-muted">
-          worker {money(usage.workerCostUsd)} / {money(usage.budgetUsd)} · verifier{' '}
-          {money(usage.verifierCostUsd)} · {usage.turns} turns
-        </p>
-        {usage.overBudget ? (
-          <p className="mt-1 text-xs text-danger">超预算</p>
-        ) : usage.nearBudget ? (
-          <p className="mt-1 text-xs text-warning">接近预算</p>
-        ) : null}
       </section>
 
       <section>

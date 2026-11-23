@@ -3,7 +3,6 @@ import type { TaskScene } from '@baton/core'
 import {
   VERIFY_SKIPPED,
   type TaskAcceptanceSummary,
-  type TaskBudgetSummary,
   type TaskDetailResponse,
 } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
@@ -14,14 +13,12 @@ export function TaskSceneBar({
   scene,
   detail,
   acceptance = null,
-  budget = null,
   onExit,
   onInject,
 }: {
   scene: TaskScene
   detail: TaskDetailResponse
   acceptance?: TaskAcceptanceSummary | null
-  budget?: TaskBudgetSummary | null
   onExit: () => void
   onInject: () => void
 }) {
@@ -52,7 +49,6 @@ export function TaskSceneBar({
       ) : null}
       <span className="text-muted">
         {acceptance ? `AC ${acceptance.counts.pass}/${acceptance.counts.total}` : 'AC —'}
-        {budget ? ` · $${budget.spentUsd.toFixed(2)} / $${budget.budgetUsd.toFixed(2)}` : ''}
       </span>
       <span title={injectable ? undefined : '当前状态不能投喂；review 请用打回'}>
         <Button size="sm" variant="tertiary" isDisabled={!injectable} onPress={onInject}>

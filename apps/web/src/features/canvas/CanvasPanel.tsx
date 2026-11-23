@@ -730,7 +730,6 @@ function FlowCanvas({
             scene={scene}
             detail={sceneDetail.data}
             acceptance={tasks.find((task) => task.id === sceneTaskId)?.acceptance ?? null}
-            budget={tasks.find((task) => task.id === sceneTaskId)?.budget ?? null}
             onExit={exitScene}
             onInject={() => openInject(sceneTaskId)}
           />

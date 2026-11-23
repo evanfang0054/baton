@@ -163,8 +163,6 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
                   workspaceId={activeWorkspaceId}
                   status={detail.data.task.status}
                   attention={detail.data.attention}
-                  waitingReason={detail.data.task.waitingReason}
-                  budget={acceptance.data?.budget ?? null}
                 />
               </div>
             ) : null}
@@ -259,11 +257,6 @@ function DetailContent({
   const pendingApprovals = [...detail.approvals].reverse().filter((item) => item.decision === null)
   const needsApproval = detail.attention === 'needs_approval'
   const [historyDiffReviewId, setHistoryDiffReviewId] = useState<string | null>(null)
-  const hasCost = detail.sessions.some((session) => session.costUsd !== null)
-  const hasTurns = detail.sessions.some((session) => session.turns !== null)
-  const totalCost = detail.sessions.reduce((sum, session) => sum + (session.costUsd ?? 0), 0)
-  const totalTurns = detail.sessions.reduce((sum, session) => sum + (session.turns ?? 0), 0)
-  const lastSession = detail.sessions.at(-1)
   const acceptanceSummary: TaskAcceptanceSummary | null = acceptance
     ? {
         contractId: acceptance.contract.id,
@@ -278,7 +271,6 @@ function DetailContent({
           .map((item) => ({ text: item.text, evidence: item.evidence })),
       }
     : null
-  const budgetSummary = detail.budget ?? acceptance?.budget ?? null
 
   return (
     <>
@@ -288,15 +280,6 @@ function DetailContent({
         waitingSince={detail.waitingSince}
         {...(onOpenScene ? { onOpenScene } : {})}
       />
-      {detail.sessions.length > 0 ? (
-        <p className="text-xs text-muted">
-          累计 {hasCost ? `$${totalCost.toFixed(2)}` : '—'} ·{' '}
-          {hasTurns ? `${totalTurns} turns` : '—'}
-          {acceptance
-            ? ` · 预算 $${acceptance.budget.spentUsd.toFixed(2)} / $${acceptance.budget.budgetUsd.toFixed(2)}`
-            : ''}
-        </p>
-      ) : null}
       {mobile ? (
         <MobileCollapsible title="上下文与来源">
           <div className="flex flex-col gap-2">
@@ -404,9 +387,7 @@ function DetailContent({
         detail.review ? (
           <ReviewCard
             review={detail.review}
-            usage={lastSession ? { costUsd: lastSession.costUsd, turns: lastSession.turns } : null}
             acceptance={acceptanceSummary}
-            budget={budgetSummary}
             contextNodes={contextNodes}
             onDone={onDone}
           />
@@ -423,8 +404,6 @@ function DetailContent({
           workspaceId={workspaceId}
           status={task.status}
           attention={detail.attention}
-          waitingReason={task.waitingReason}
-          budget={budgetSummary}
           sticky={mobile}
         />
       ) : null}

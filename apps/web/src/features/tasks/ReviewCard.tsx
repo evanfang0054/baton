@@ -3,7 +3,6 @@ import {
   type Node,
   type ReviewView,
   type TaskAcceptanceSummary,
-  type TaskBudgetSummary,
 } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
@@ -20,16 +19,12 @@ const CONTEXT_TYPES = new Set<Node['type']>(['text', 'file', 'image', 'group'])
 
 export function ReviewCard({
   review,
-  usage,
   acceptance = null,
-  budget = null,
   contextNodes,
   onDone,
 }: {
   review: ReviewView
-  usage?: { costUsd: number | null; turns: number | null } | null
   acceptance?: TaskAcceptanceSummary | null
-  budget?: TaskBudgetSummary | null
   contextNodes?: Node[]
   onDone: () => Promise<void> | void
 }) {
@@ -93,12 +88,6 @@ export function ReviewCard({
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-medium">验收</h3>
         <div className="flex items-center gap-2">
-          {usage ? (
-            <span className="text-xs text-muted">
-              本次 {usage.costUsd === null ? '—' : `$${usage.costUsd.toFixed(2)}`} ·{' '}
-              {usage.turns === null ? '—' : `${usage.turns} turns`}
-            </span>
-          ) : null}
           <Chip
             size="sm"
             variant="soft"
@@ -138,12 +127,6 @@ export function ReviewCard({
         )}
         {acceptance?.topFailures[0] ? (
           <span className="text-danger">未过项：{acceptance.topFailures[0].text}</span>
-        ) : null}
-        {budget ? (
-          <span className={budget.overBudget ? 'text-danger' : 'text-muted'}>
-            ${budget.spentUsd.toFixed(2)} / ${budget.budgetUsd.toFixed(2)}
-            {budget.overBudget ? ' · 超预算' : budget.nearBudget ? ' · 接近预算' : ''}
-          </span>
         ) : null}
       </div>
 

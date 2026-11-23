@@ -7,7 +7,6 @@ import type {
   ReviewView,
   StageSummary,
   TaskAcceptanceSummary,
-  TaskBudgetSummary,
   TaskSummary,
 } from '@baton/protocol'
 import type { Edge as FlowEdge, Node as FlowNode } from '@xyflow/react'
@@ -19,7 +18,6 @@ export interface CanvasNodeData extends Record<string, unknown> {
   imageUrl?: string
   review?: ReviewView | null
   acceptance?: TaskAcceptanceSummary | null
-  budget?: TaskBudgetSummary | null
   childCount?: number
   injected?: boolean
   stage?: StageSummary | null
@@ -171,7 +169,6 @@ export function toFlowNodes(
         dimmed: false,
         review: options.reviewDetails?.[task.id] ?? null,
         acceptance: task.acceptance ?? null,
-        budget: task.budget ?? null,
       },
     }
   })

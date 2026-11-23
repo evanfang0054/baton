@@ -64,7 +64,7 @@ describe('AcceptanceReport', () => {
     render(<AcceptanceReportView report={report} />)
     expect(screen.getByText('改动')).toBeInTheDocument()
     expect(screen.getByText('校验')).toBeInTheDocument()
-    expect(screen.getByText('成本')).toBeInTheDocument()
+    expect(screen.queryByText('成本')).not.toBeInTheDocument()
     expect(screen.getByText('风险与未验证')).toBeInTheDocument()
     expect(screen.getAllByText(/错误提示/).length).toBeGreaterThan(0)
     expect(screen.queryByText(/diff --git/)).toBeNull()
