@@ -46,11 +46,18 @@ describe('delivery service', () => {
 
     expect(service.listDeliveries(handle.seeded.workspaceId)).toHaveLength(1)
     expect(service.enqueueDelivery(result.deliveryId)).toEqual({ ok: true, taskId: result.taskId })
-    expect(service.cancelDelivery(result.deliveryId)).toEqual({
-      ok: true,
-      taskId: result.taskId,
-    })
-    expect(service.cancelDelivery(result.deliveryId)).toEqual({ ok: true, taskId: null })
+    expect(
+      service.markDeliveryCancelled(result.deliveryId, {
+        actor: 'human',
+        source: 'delivery_cancel',
+      }),
+    ).toEqual({ ok: true, changed: true, taskId: result.taskId })
+    expect(
+      service.markDeliveryCancelled(result.deliveryId, {
+        actor: 'human',
+        source: 'delivery_cancel',
+      }),
+    ).toEqual({ ok: true, changed: false, taskId: null })
     expect(service.getDeliveryDetail(result.deliveryId)?.status).toBe('cancelled')
   })
 
@@ -165,12 +172,43 @@ describe('delivery service', () => {
     }
 
     expect(service.getDeliveryDetail(result.deliveryId)?.status).toBe('done')
-    expect(service.cancelDelivery(result.deliveryId)).toMatchObject({
+    expect(
+      service.markDeliveryCancelled(result.deliveryId, {
+        actor: 'human',
+        source: 'delivery_cancel',
+      }),
+    ).toMatchObject({
       ok: false,
       code: 'delivery_not_cancellable',
     })
     const after = service.getDeliveryDetail(result.deliveryId)
     expect(after?.status).toBe('done')
     expect(after?.cancelledAt).toBeNull()
+  })
+
+  it('refuses to enqueue or advance a cancelled delivery', () => {
+    const { handle, service } = setup()
+    const result = service.createDelivery({
+      workspaceId: handle.seeded.workspaceId,
+      title: '取消后不可推进',
+      goal: '验证 cancelledAt 守卫',
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error(result.message)
+    expect(
+      service.markDeliveryCancelled(result.deliveryId, {
+        actor: 'human',
+        source: 'delivery_cancel',
+      }).ok,
+    ).toBe(true)
+
+    expect(service.enqueueDelivery(result.deliveryId)).toMatchObject({
+      ok: false,
+      code: 'delivery_cancelled',
+    })
+    expect(service.advanceDelivery(result.deliveryId, 'requirement')).toMatchObject({
+      ok: false,
+      code: 'delivery_cancelled',
+    })
   })
 })

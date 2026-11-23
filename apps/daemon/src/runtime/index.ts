@@ -660,12 +660,25 @@ export function createRuntime(deps: RuntimeDeps) {
     }
     const task = getTask(deps.db, taskId)
     if (task?.deliveryId && task.stageKey) {
-      deliveryServiceHolder.value?.markDeliveryCancelled(task.deliveryId, {
-        actor: 'system',
-        source: 'task_cancel',
-        ...(reason ? { reason } : {}),
-        taskId,
-      })
+      try {
+        const cascade = deliveryServiceHolder.value?.markDeliveryCancelled(task.deliveryId, {
+          actor: 'system',
+          source: 'task_cancel',
+          ...(reason ? { reason } : {}),
+          taskId,
+        })
+        if (cascade && !cascade.ok) {
+          deps.logger?.warn(
+            { event: 'delivery_cancel_cascade_failed', taskId, code: cascade.code },
+            'delivery cancel cascade failed',
+          )
+        }
+      } catch (error) {
+        deps.logger?.warn(
+          { event: 'delivery_cancel_cascade_failed', taskId, error: String(error) },
+          'delivery cancel cascade failed',
+        )
+      }
     }
     return outcome
   }

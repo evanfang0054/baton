@@ -49,7 +49,8 @@ const VERIFIER_DENY_FLAGS =
 
 /**
  * 验收员只应读；总管全权不能让它获得任意 Bash。
- * 这里只给只读工具和安全只读命令放行，其他请求仍走正常 policy/人工闸门。
+ * 这里只给只读工具和安全只读命令放行；未命中 workspace authority 时，
+ * 其他请求仍走正常 policy/人工闸门（命中时按 M8 spec §5.2 一并放行）。
  */
 export function isReadOnlyVerifierRequest(request: { toolName: string; input: unknown }): boolean {
   if (VERIFIER_READ_TOOLS.has(request.toolName)) return true
@@ -210,7 +211,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       if (
         autoDecision === 'allow' &&
         // 工作区授权是“所有非 deny 自动批准”，不再受逐任务自动批准上限约束；
-        // 上限只保留给 delegated/普通自动批准，作为人工兜底。
+        // 上限只保留给 delegated 自动批准；工作区授权按 spec 不受上限限制。
         decision.authority !== 'workspace' &&
         autoApprovalCapReached({
           count: autoCount,

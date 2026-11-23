@@ -99,7 +99,7 @@ export type MarkDeliveryCancelledResult =
   | { ok: false; code: string; message: string }
 
 export type DeliveryCancellationTarget =
-  | { ok: true; status: DeliveryStatus; taskId: string | null }
+  | { ok: true; status: DeliveryStatus; cancelledAt: number | null; taskId: string | null }
   | { ok: false; code: string; message: string }
 
 const MAX_SKILL_BYTES = 64 * 1024
@@ -525,6 +525,9 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
   function enqueueDelivery(id: string): DeliveryActionResult {
     const delivery = getDelivery(deps.db, id)
     if (!delivery) return { ok: false, code: 'delivery_not_found', message: 'delivery not found' }
+    if (delivery.cancelledAt !== null) {
+      return { ok: false, code: 'delivery_cancelled', message: 'delivery is cancelled' }
+    }
     const { stages, summary } = buildSummaries(deps, delivery)
     const current = stages.find((stage) => stage.status !== 'done' && stage.status !== 'cancelled')
     if (!current?.taskId) {
@@ -553,7 +556,12 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
     if (!delivery) return { ok: false, code: 'delivery_not_found', message: 'delivery not found' }
     const { stages, summary } = buildSummaries(deps, delivery)
     if (delivery.cancelledAt !== null || summary.status === 'cancelled') {
-      return { ok: true, status: 'cancelled', taskId: null }
+      return {
+        ok: true,
+        status: 'cancelled',
+        cancelledAt: delivery.cancelledAt,
+        taskId: null,
+      }
     }
     if (!canCancelDeliveryStatus(summary.status)) {
       return {
@@ -569,7 +577,12 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
         stage.status !== 'cancelled' &&
         stage.status !== 'failed',
     )
-    return { ok: true, status: summary.status, taskId: current?.taskId ?? null }
+    return {
+      ok: true,
+      status: summary.status,
+      cancelledAt: delivery.cancelledAt,
+      taskId: current?.taskId ?? null,
+    }
   }
 
   function markDeliveryCancelled(
@@ -579,15 +592,39 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
       source: 'delivery_cancel' | 'task_cancel' | 'supervisor_cancel'
       reason?: string | undefined
       taskId?: string | null | undefined
+      /** 级联已落库时仍补一条来源审计，用于区分人工/总管发起。 */
+      auditIfUnchanged?: boolean | undefined
     },
   ): MarkDeliveryCancelledResult {
     const delivery = getDelivery(deps.db, id)
     if (!delivery) return { ok: false, code: 'delivery_not_found', message: 'delivery not found' }
     const { stages, summary } = buildSummaries(deps, delivery)
     const current = stages.find(
-      (stage) => stage.taskId && stage.status !== 'done' && stage.status !== 'cancelled',
+      (stage) =>
+        stage.taskId &&
+        stage.status !== 'done' &&
+        stage.status !== 'cancelled' &&
+        stage.status !== 'failed',
     )
     if (delivery.cancelledAt !== null) {
+      if (input.auditIfUnchanged) {
+        const now = deps.now()
+        deps.db.transaction((tx) => {
+          insertAudit(tx, {
+            id: deps.newId(),
+            ts: now,
+            actor: input.actor,
+            action: 'delivery.cancel',
+            detail: {
+              deliveryId: id,
+              taskId: input.taskId ?? current?.taskId ?? null,
+              source: input.source,
+              changed: false,
+              ...(input.reason ? { reason: input.reason } : {}),
+            },
+          })
+        })
+      }
       return { ok: true, changed: false, taskId: null }
     }
     // cancelled 但 cancelledAt 为空只可能来自“阶段任务先取消”的级联窗口；
@@ -631,17 +668,15 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
     return { ok: true, changed: true, taskId: current?.taskId ?? null }
   }
 
-  function cancelDelivery(id: string): DeliveryActionResult {
-    const result = markDeliveryCancelled(id, { actor: 'human', source: 'delivery_cancel' })
-    return result.ok ? { ok: true, taskId: result.taskId } : result
-  }
-
   function advanceDelivery(
     deliveryId: string,
     stageKey: string,
   ): { ok: true; nextTaskId: string | null } | { ok: false; code: string; message: string } {
     const delivery = getDelivery(deps.db, deliveryId)
     if (!delivery) return { ok: false, code: 'delivery_not_found', message: 'delivery not found' }
+    if (delivery.cancelledAt !== null) {
+      return { ok: false, code: 'delivery_cancelled', message: 'delivery is cancelled' }
+    }
     let playbook: Playbook
     try {
       const parsed = parsePlaybook(JSON.parse(delivery.playbookJson) as unknown)
@@ -819,6 +854,7 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
     if (task.status !== 'review') return { ok: false, code: 'not_review' }
     const delivery = getDelivery(deps.db, task.deliveryId)
     if (!delivery) return { ok: false, code: 'delivery_not_found' }
+    if (delivery.cancelledAt !== null) return { ok: false, code: 'delivery_cancelled' }
     let stageGate: 'human' | 'auto' | null
     try {
       const parsed = parsePlaybook(JSON.parse(delivery.playbookJson) as unknown)
@@ -873,7 +909,6 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
     getDeliveryDetail,
     enqueueDelivery,
     getCancellationTarget,
-    cancelDelivery,
     markDeliveryCancelled,
     advanceDelivery,
     maybeAutoApprove,

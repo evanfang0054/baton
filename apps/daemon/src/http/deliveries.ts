@@ -77,10 +77,13 @@ export function registerDeliveryRoutes(app: FastifyInstance, deps: DeliveryRoute
     const body = (req.body ?? {}) as { reason?: string }
     const target = deps.deliveries.getCancellationTarget(deliveryId)
     if (!target.ok) throw appError(target.code, target.message)
-    if (target.status === 'cancelled') return DeliveryActionResponse.parse({ taskId: null })
+    // cancelledAt 已有值才是真正完成；只有阶段 cancelled 的中间态继续补写，避免无法自愈。
+    if (target.status === 'cancelled' && target.cancelledAt !== null) {
+      return DeliveryActionResponse.parse({ taskId: null })
+    }
     // 先取消阶段任务，再由任务取消级联标记交付；任务已是终态时视为无需级联，
     // 避免出现“交付已取消但接口报错”的部分成功。
-    let taskId = target.taskId
+    let taskId = target.status === 'cancelled' ? null : target.taskId
     if (taskId) {
       const outcome = deps.runtime.handleCommand(
         command('task.cancel', { taskId, ...(body.reason ? { reason: body.reason } : {}) }, deps),
@@ -94,6 +97,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, deps: DeliveryRoute
       actor: 'human',
       source: 'delivery_cancel',
       taskId,
+      auditIfUnchanged: true,
       ...(body.reason ? { reason: body.reason } : {}),
     })
     if (!marked.ok) throw appError(marked.code, marked.message)

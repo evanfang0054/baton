@@ -567,6 +567,18 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     return { service, detail }
   }
 
+  // 交付已取消后，阶段任务不能再被重试/重开/开工，否则会绕过 cancelled 终态。
+  function assertDeliveryActive(task: Task): void {
+    if (!task.deliveryId) return
+    const detail = deps.deliveries?.()?.getDeliveryDetail(task.deliveryId)
+    if (detail && detail.cancelledAt !== null) {
+      throw appError('delivery_cancelled', 'delivery is cancelled', {
+        deliveryId: detail.id,
+        taskId: task.id,
+      })
+    }
+  }
+
   function createTaskForTool(
     ctx: ToolContext,
     input: {
@@ -831,6 +843,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         if (!detail) {
           throw appError('task_not_found', 'task not found', { taskId: parsed.taskId })
         }
+        assertDeliveryActive(detail.task)
         const history = listTaskStatusHistory(deps.db, taskId, parsed.limit, parsed.beforeOrdinal)
         return {
           taskId,
@@ -1617,6 +1630,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       async execute(input, ctx) {
         const parsed = retryTaskInput.parse(input)
         const task = requireTask(ctx, parsed.taskId)
+        assertDeliveryActive(task)
         if (task.status !== 'failed') {
           throw appError('invalid_transition', 'only failed tasks can be retried', {
             taskId: task.id,
@@ -1644,6 +1658,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       async execute(input, ctx) {
         const parsed = reopenTaskInput.parse(input)
         const task = requireTask(ctx, parsed.taskId)
+        assertDeliveryActive(task)
         if (task.status !== 'done' && task.status !== 'cancelled') {
           throw appError('invalid_transition', 'only done/cancelled tasks can be reopened', {
             taskId: task.id,
@@ -1839,10 +1854,11 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         '取消整条交付；首次调用返回 confirmation_required，必须先问用户，确认后传 confirm=true。' +
         '不要用它取消验收或替人做审批。',
       parameters: cancelDeliveryInput,
+      // 停止类动作不受 kill switch/自动化门限制：kill switch 只暂停自动化，不应阻止止损。
       async execute(input, ctx) {
         const parsed = cancelDeliveryInput.parse(input)
         const { service, detail } = requireDelivery(ctx, parsed.deliveryId)
-        if (detail.status === 'cancelled') {
+        if (detail.status === 'cancelled' && detail.cancelledAt !== null) {
           return {
             deliveryId: parsed.deliveryId,
             status: 'cancelled',
@@ -1864,6 +1880,21 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             message: '请先向用户确认是否停止整条交付；确认后再传 confirm=true。',
           }
         }
+        if (detail.status === 'cancelled') {
+          // 只差 cancelledAt 的中间态：补写交付终态与审计。
+          const marked = service.markDeliveryCancelled(parsed.deliveryId, {
+            actor: 'supervisor',
+            source: 'supervisor_cancel',
+            auditIfUnchanged: true,
+          })
+          if (!marked.ok) throw appError(marked.code, marked.message)
+          return {
+            deliveryId: parsed.deliveryId,
+            status: 'cancelled',
+            taskId: null,
+            alreadyCancelled: true,
+          }
+        }
         const target = service.getCancellationTarget(parsed.deliveryId)
         if (!target.ok) throw appError(target.code, target.message)
         let taskId = target.taskId
@@ -1878,6 +1909,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           actor: 'supervisor',
           source: 'supervisor_cancel',
           taskId,
+          auditIfUnchanged: true,
         })
         if (!marked.ok) throw appError(marked.code, marked.message)
         deps.db.transaction((tx) => {
@@ -1901,8 +1933,9 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     list_annotations: {
       description: '列出交付/阶段的标注；用户说“按标注改”时先查这里，不要把笔迹当上下文猜。',
       parameters: listAnnotationsInput,
-      async execute(input) {
+      async execute(input, ctx) {
         const parsed = listAnnotationsInput.parse(input)
+        requireDelivery(ctx, parsed.deliveryId)
         const service = deps.annotations?.()
         if (!service) throw appError('annotation_unavailable', 'annotation service is unavailable')
         return {
@@ -1918,12 +1951,13 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     get_annotation: {
       description: '读取一条标注的 note、目标、bbox 和合成图路径；不返回 strokes。',
       parameters: getAnnotationInput,
-      async execute(input) {
+      async execute(input, ctx) {
         const parsed = getAnnotationInput.parse(input)
         const service = deps.annotations?.()
         if (!service) throw appError('annotation_unavailable', 'annotation service is unavailable')
         const annotation = service.getAnnotationForSupervisor(parsed.annotationId)
         if (!annotation) throw appError('annotation_not_found', 'annotation not found')
+        requireDelivery(ctx, annotation.deliveryId)
         return { annotation }
       },
     },

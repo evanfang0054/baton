@@ -1,7 +1,7 @@
 import { buildTestApp } from './helpers/app.js'
 import { afterEach, describe, expect, it } from 'vitest'
 import { getCanvasByDelivery } from '../src/db/delivery-repositories.js'
-import { listNodes } from '../src/db/repositories.js'
+import { insertTask, listAudit, listNodes } from '../src/db/repositories.js'
 
 const apps: Array<Awaited<ReturnType<typeof buildTestApp>>> = []
 afterEach(async () => {
@@ -32,7 +32,7 @@ async function setup() {
 
 describe('delivery REST', () => {
   it('creates, lists, enqueues and cancels a delivery', async () => {
-    const { app, handle, deliveryId } = await setup()
+    const { app, handle, deliveryId, taskId } = await setup()
     const list = await app.inject({
       method: 'GET',
       url: `/api/deliveries?workspaceId=${handle.seeded.workspaceId}`,
@@ -69,6 +69,69 @@ describe('delivery REST', () => {
       payload: { reason: '需求取消' },
     })
     expect(cancel.statusCode).toBe(200)
+    const after = await app.inject({ method: 'GET', url: `/api/deliveries/${deliveryId}` })
+    const afterBody = after.json() as {
+      delivery: { status: string; cancelledAt: number | null; currentStageKey: string | null }
+    }
+    expect(afterBody.delivery).toMatchObject({
+      status: 'cancelled',
+      currentStageKey: null,
+    })
+    expect(afterBody.delivery.cancelledAt).not.toBeNull()
+    const taskRow = handle.database.raw
+      .prepare('select status from task where id = ?')
+      .get(taskId) as { status: string }
+    expect(taskRow.status).toBe('cancelled')
+    const audit = listAudit(handle.database.db, { actionPrefix: 'delivery.cancel', limit: 10 })[0]
+    expect(audit).toMatchObject({
+      actor: 'human',
+      detail: { deliveryId, source: 'delivery_cancel' },
+    })
+  })
+
+  it('returns 409 when cancelling a delivered delivery', async () => {
+    const { app, handle, deliveryId } = await setup()
+    const detail = await app.inject({ method: 'GET', url: `/api/deliveries/${deliveryId}` })
+    const stages = (
+      detail.json() as { delivery: { stages: Array<{ key: string; taskId: string | null }> } }
+    ).delivery.stages
+    for (const stage of stages) {
+      if (stage.taskId) {
+        handle.database.raw
+          .prepare('update task set status = ? where id = ?')
+          .run('done', stage.taskId)
+        continue
+      }
+      handle.database.db.transaction((tx) =>
+        insertTask(tx, {
+          id: `done-${stage.key}`,
+          workspaceId: handle.seeded.workspaceId,
+          nodeId: null,
+          title: stage.key,
+          prompt: '',
+          status: 'done',
+          waitingReason: null,
+          engine: 'claude-sdk',
+          workspaceMode: 'main',
+          branch: null,
+          worktreePath: null,
+          verifyCommand: null,
+          retryCount: 0,
+          dangerouslySkipPermissions: false,
+          deliveryId,
+          stageKey: stage.key,
+          createdAt: 1,
+          updatedAt: 1,
+        }),
+      )
+    }
+
+    const cancel = await app.inject({
+      method: 'POST',
+      url: `/api/deliveries/${deliveryId}/cancel`,
+    })
+    expect(cancel.statusCode).toBe(409)
+    expect((cancel.json() as { code: string }).code).toBe('delivery_not_cancellable')
   })
 
   it('creates, saves and reads artifacts', async () => {

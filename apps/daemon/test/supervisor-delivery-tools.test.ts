@@ -374,4 +374,35 @@ describe('supervisor delivery and annotation tools', () => {
       details: { code: 'annotation_not_found' },
     })
   })
+  it('rejects task recovery and cross-workspace annotations after delivery cancel', async () => {
+    const { database, tools, ctx, annotations } = setup()
+    const created = (await tools.create_delivery.execute(
+      { title: '交付 G', goal: '目标 G' },
+      ctx(),
+    )) as { deliveryId: string; taskId: string }
+    const annotation = createAnnotation(annotations, database, created.deliveryId)
+
+    await tools.cancel_delivery.execute({ deliveryId: created.deliveryId, confirm: true }, ctx())
+
+    await expect(
+      tools.reopen_task.execute({ taskId: created.taskId }, ctx()),
+    ).rejects.toMatchObject({ code: 'delivery_cancelled' })
+
+    database.db
+      .update(taskTable)
+      .set({ status: 'failed' })
+      .where(eq(taskTable.id, created.taskId))
+      .run()
+    await expect(
+      tools.retry_task.execute({ taskId: created.taskId, note: '再试一次' }, ctx()),
+    ).rejects.toMatchObject({ code: 'delivery_cancelled' })
+
+    const other = { ...ctx(), workspaceId: 'other-workspace' }
+    await expect(
+      tools.list_annotations.execute({ deliveryId: created.deliveryId }, other),
+    ).rejects.toMatchObject({ code: 'delivery_not_found' })
+    await expect(
+      tools.get_annotation.execute({ annotationId: annotation.id }, other),
+    ).rejects.toMatchObject({ code: 'delivery_not_found' })
+  })
 })
