@@ -44,6 +44,16 @@ describe('delivery service', () => {
     expect(detail?.status).toBe('draft')
     expect(detail?.stages[0]?.taskId).toBe(result.taskId)
 
+    // 阶段任务也必须有上下文快照，否则任务详情会误报“创建于快照上线前”。
+    const row = handle.database.raw
+      .prepare('select context_json from task where id = ?')
+      .get(result.taskId) as { context_json: string | null }
+    expect(row.context_json).not.toBeNull()
+    expect(JSON.parse(row.context_json!)).toMatchObject({
+      included: expect.any(Array),
+      dropped: expect.any(Array),
+    })
+
     expect(service.listDeliveries(handle.seeded.workspaceId)).toHaveLength(1)
     expect(service.enqueueDelivery(result.deliveryId)).toEqual({ ok: true, taskId: result.taskId })
     expect(

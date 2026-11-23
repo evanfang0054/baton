@@ -223,28 +223,41 @@ function createStageTask(input: {
     edges,
     contentByNodeId,
   })
-
-  insertTask(tx, {
-    id: taskId,
-    workspaceId: delivery.workspaceId,
-    nodeId: agentNodeId,
-    title: `${stage.label}：${delivery.title}`,
-    prompt: assembled.prompt,
-    status: 'todo',
-    waitingReason: null,
-    engine: input.engine,
-    workspaceMode: 'main',
-    branch: null,
-    worktreePath: null,
-    verifyCommand: null,
-    retryCount: 0,
-    dangerouslySkipPermissions: false,
-    deliveryId: delivery.id,
-    stageKey: stage.key,
-    annotationIds: [],
-    createdAt: now,
-    updatedAt: now,
+  // 阶段任务与手动任务共用任务详情；不记录快照会让 UI 误报“创建于快照上线前”。
+  const contextSnapshot = JSON.stringify({
+    included: assembled.included,
+    dropped: assembled.dropped,
+    truncated: assembled.truncated,
+    redactedPaths: assembled.redactedPaths,
+    relations: assembled.relations,
+    relationsTruncated: assembled.relationsTruncated,
   })
+
+  insertTask(
+    tx,
+    {
+      id: taskId,
+      workspaceId: delivery.workspaceId,
+      nodeId: agentNodeId,
+      title: `${stage.label}：${delivery.title}`,
+      prompt: assembled.prompt,
+      status: 'todo',
+      waitingReason: null,
+      engine: input.engine,
+      workspaceMode: 'main',
+      branch: null,
+      worktreePath: null,
+      verifyCommand: null,
+      retryCount: 0,
+      dangerouslySkipPermissions: false,
+      deliveryId: delivery.id,
+      stageKey: stage.key,
+      annotationIds: [],
+      createdAt: now,
+      updatedAt: now,
+    },
+    contextSnapshot,
+  )
   return { taskId, agentNodeId }
 }
 

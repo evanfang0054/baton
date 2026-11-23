@@ -1,6 +1,6 @@
 import { resolveVerifyCommand } from '@baton/core'
 import { VERIFY_SKIPPED, type DiffSnapshot, type TaskTransitionEvent } from '@baton/protocol'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Config } from '../config.js'
 import { getTask, getWorkspace, updateReviewDiff } from '../db/repositories.js'
@@ -13,6 +13,7 @@ import { resolveWorkspaceDir } from '../workspace/resolver.js'
 import { isInsideDataDir } from '../workspace/worktree.js'
 import { captureDiff } from './diff.js'
 import { runVerifyCommand, type VerifyCommandRunResult } from './executor.js'
+import { detectPackageManager } from './package-manager.js'
 
 export interface VerifyRunnerDeps {
   db: Db
@@ -44,17 +45,11 @@ function readPackageJson(workspacePath: string): PackageJson | undefined {
   }
 }
 
-function packageManagerOf(pkg: PackageJson | undefined): 'pnpm' | 'npm' | 'yarn' {
-  const value = pkg?.packageManager
-  if (typeof value === 'string') {
-    if (value.startsWith('npm@')) {
-      return 'npm'
-    }
-    if (value.startsWith('yarn@')) {
-      return 'yarn'
-    }
-  }
-  return 'pnpm'
+function packageManagerOf(workspacePath: string, pkg: PackageJson | undefined) {
+  return detectPackageManager({
+    packageManager: pkg?.packageManager,
+    hasFile: (name) => existsSync(join(workspacePath, name)),
+  })
 }
 
 function failure(exitCode: number, output: string): VerifyCommandRunResult {
@@ -106,7 +101,7 @@ export function createVerifyRunner(deps: VerifyRunnerDeps): VerifyRunner {
           taskCommand: task.verifyCommand ?? undefined,
           policyCommand: policy.verify.command,
           packageScripts: pkg?.scripts,
-          packageManager: packageManagerOf(pkg),
+          packageManager: packageManagerOf(executionPath, pkg),
         })
         if (!resolved.ok) {
           result = failure(127, resolved.error.message)

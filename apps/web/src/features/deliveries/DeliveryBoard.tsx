@@ -53,6 +53,7 @@ export function DeliveryBoard({
     (delivery) => delivery.status === 'waiting_person' || delivery.status === 'blocked',
   ).length
   const stale = deliveries.filter((delivery) => isStaleWaiting(delivery.waitingSince)).length
+  const firstWaiting = visible.find((delivery) => delivery.waitingSince != null)
 
   return (
     <section className="flex min-h-0 flex-1 flex-col" aria-label="交付看板">
@@ -127,7 +128,9 @@ export function DeliveryBoard({
       ) : null}
       <p className="sr-only">
         当前最先等待的交付：
-        {visible[0] ? `${visible[0].title}（${formatWaiting(visible[0].waitingSince)}）` : '无'}
+        {firstWaiting
+          ? `${firstWaiting.title}（${formatWaiting(firstWaiting.waitingSince)}）`
+          : '无'}
       </p>
     </section>
   )

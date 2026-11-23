@@ -373,6 +373,9 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
   }
 
   function notify(threadId: string, key: string, content: string): void {
+    // 人工任务没有总管会话，验收员 origin 里的 threadId 只是来源标记；
+    // 这类 thread 不存在，不应落站内消息，更不能撞 supervisor_message 的外键。
+    if (!store.hasThread(threadId)) return
     try {
       const result = store.insertNotification({ threadId, dedupeKey: key, content })
       if (result.duplicate) return

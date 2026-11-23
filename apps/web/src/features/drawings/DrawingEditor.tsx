@@ -104,6 +104,7 @@ export function DrawingEditor({
           <Excalidraw
             excalidrawAPI={setApi}
             theme="dark"
+            langCode="zh-CN"
             initialData={initialData ?? undefined}
             UIOptions={{ canvasActions: { loadScene: false } }}
           />

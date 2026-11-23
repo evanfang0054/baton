@@ -119,7 +119,12 @@ function json(body: unknown) {
 }
 
 function mockDeliveryApi(page: Page) {
-  const state = { cancelled: false, cancelCalls: 0 }
+  const specArtifact = detail.artifacts[0]!
+  const state = {
+    cancelled: false,
+    cancelCalls: 0,
+    artifacts: [specArtifact] as Array<typeof specArtifact>,
+  }
   const current = () =>
     state.cancelled
       ? {
@@ -186,8 +191,24 @@ function mockDeliveryApi(page: Page) {
     }
     if (path === '/api/deliveries') return route.fulfill(json({ deliveries: [current()] }))
     if (path === '/api/deliveries/d1') return route.fulfill(json({ delivery: currentDetail() }))
+    if (
+      route.request().method() === 'POST' &&
+      path === '/api/deliveries/d1/stages/requirement/artifacts'
+    ) {
+      const artifact = {
+        ...specArtifact,
+        id: 'a2',
+        kind: 'drawing',
+        name: 'drawing-test.png',
+        mime: 'image/png',
+        status: 'draft',
+        size: 0,
+      }
+      state.artifacts.push(artifact)
+      return route.fulfill(json({ artifact }))
+    }
     if (path === '/api/deliveries/d1/artifacts')
-      return route.fulfill(json({ artifacts: detail.artifacts }))
+      return route.fulfill(json({ artifacts: state.artifacts }))
     if (path === '/api/tasks') return route.fulfill(json({ tasks: [currentTask()] }))
     if (path === '/api/canvas') return route.fulfill(json(canvas))
     if (path === '/api/automation') return route.fulfill(json({ killSwitch: false, summary: null }))
@@ -215,6 +236,18 @@ test('delivery board opens the canvas and annotation overlay', async ({ page }) 
   await expect(page.getByRole('application', { name: '快速标注层' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('application', { name: '快速标注层' })).toBeHidden()
+})
+
+test('creates a drawing board from the delivery canvas', async ({ page }) => {
+  await page.routeWebSocket('**/ws', wsRecorder([], { compact: true, skipResumeAck: true }))
+  mockDeliveryApi(page)
+
+  await page.goto('/?workspace=w1&delivery=d1')
+  await expect(page.getByText('优惠券领取页').first()).toBeVisible()
+  // 画布数据到达后 createDrawing 才有 canvasId；先等阶段分组渲染。
+  await expect(page.getByText('1 需求').first()).toBeVisible()
+  await page.getByRole('button', { name: '新建画板' }).click()
+  await expect(page.getByText('画板 · drawing-test.png')).toBeVisible({ timeout: 15_000 })
 })
 
 test('stops a delivery after confirmation', async ({ page }) => {

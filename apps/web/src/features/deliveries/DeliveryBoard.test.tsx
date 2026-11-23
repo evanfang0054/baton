@@ -118,6 +118,26 @@ describe('DeliveryBoard', () => {
     expect(screen.queryByRole('button', { name: /停止交付/ })).not.toBeInTheDocument()
   })
 
+  it('announces only the first waiting delivery to screen readers', () => {
+    const list = [
+      delivery({ id: 'd1', title: '已取消的交付', status: 'cancelled', waitingSince: null }),
+      delivery({
+        id: 'd2',
+        title: '等待中的交付',
+        status: 'waiting_person',
+        attention: 'needs_review',
+        waitingSince: 60_000,
+      }),
+    ]
+    render(<DeliveryBoard deliveries={list} onSelect={() => {}} />)
+    const summary = screen.getByText(
+      (_, element) =>
+        element?.tagName === 'P' && element.textContent?.includes('当前最先等待的交付') === true,
+    )
+    expect(summary).toHaveTextContent('等待中的交付')
+    expect(summary).not.toHaveTextContent('已取消的交付')
+  })
+
   it('sorts by waiting time and flags stale deliveries', () => {
     const now = Date.now()
     const sorted = filterDeliveries(

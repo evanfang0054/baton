@@ -58,6 +58,7 @@ function setup(
     newId: () => 'task-new',
   })
   const frames: string[] = []
+  const warnings: unknown[] = []
   const transitions: Array<{ taskId: string; event: TaskTransitionEvent }> = []
   const pending: Array<Promise<void>> = []
   let sequence = 0
@@ -104,14 +105,20 @@ function setup(
     track: (action) => {
       pending.push(Promise.resolve().then(action))
     },
-    logger: { warn() {}, error() {}, info() {} } as never,
+    logger: {
+      warn(object: unknown) {
+        warnings.push(object)
+      },
+      error() {},
+      info() {},
+    },
   })
   const drain = async () => {
     while (pending.length > 0) {
       await Promise.all(pending.splice(0))
     }
   }
-  return { database, seeded, service, frames, transitions, root, drain }
+  return { database, seeded, service, frames, transitions, root, drain, warnings }
 }
 
 describe('supervisor service', () => {
@@ -523,7 +530,7 @@ describe('supervisor service', () => {
         throw new Error('unused')
       },
     }
-    const { database, seeded, service } = setup(engine)
+    const { database, seeded, service, warnings } = setup(engine)
     database.raw
       .prepare("update task set status = 'review', origin_json = null, updated_at = 2 where id = ?")
       .run(seeded.taskId)
@@ -535,6 +542,13 @@ describe('supervisor service', () => {
       .run(seeded.taskId, JSON.stringify({ filesChanged: 0, insertions: 0, deletions: 0 }))
 
     service.observeTask({ taskId: seeded.taskId, status: 'review', waitingReason: null })
+
+    // 人工任务没有总管会话：验收员的合成 thread 不能触发外键失败警告。
+    expect(
+      warnings.filter(
+        (entry) => (entry as { event?: string }).event === 'supervisor.notify_failed',
+      ),
+    ).toEqual([])
 
     const rows = database.raw
       .prepare('select id, origin_json from task order by created_at')

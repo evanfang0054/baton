@@ -113,7 +113,8 @@ export async function runVerifyCommand(
   timer.unref()
 
   try {
-    const env = sanitizeEnv(process.env)
+    // corepack 在缺少 packageManager 字段时会把它写回 package.json；verify 只能读仓库，不能改。
+    const env = { ...sanitizeEnv(process.env), COREPACK_ENABLE_AUTO_PIN: '0' }
     subprocess = execa(input.command, {
       shell: true,
       cwd: input.workspacePath,
