@@ -69,6 +69,11 @@ export interface DeliveryServiceDeps {
   applyTransition?: (taskId: string, event: TaskTransitionEvent) => TransitionOutcome
   killSwitch?: () => boolean
   emit?: (draft: WsEventDraft) => void
+  /** 必产物检查/登记；缺失 required 时返回 ok=false。 */
+  checkArtifacts?: (
+    deliveryId: string,
+    stageKey: string,
+  ) => { ok: true; artifacts: unknown[] } | { ok: false; missing: string[] }
 }
 
 export interface CreateDeliveryInput {
@@ -342,6 +347,26 @@ function annotationSummary(annotation: Annotation): AnnotationSummary {
 }
 
 export function createDeliveryService(deps: DeliveryServiceDeps) {
+  /**
+   * 阶段产物由 agent 直接写 workspace；这里在任务完成/审批前补做一次登记，
+   * 否则 DB 里没有 artifact，画布和后续阶段都看不到。
+   */
+  function syncStageArtifacts(deliveryId: string, stageKey: string): void {
+    try {
+      deps.checkArtifacts?.(deliveryId, stageKey)
+    } catch {
+      // 文件未产出不应阻断任务收尾；推进阶段时还会再检查一次并给出明确错误。
+    }
+  }
+
+  function checkStageArtifacts(
+    deliveryId: string,
+    stageKey: string,
+  ): { ok: true; artifacts: unknown[] } | { ok: false; missing: string[] } {
+    if (!deps.checkArtifacts) return { ok: true, artifacts: [] }
+    return deps.checkArtifacts(deliveryId, stageKey)
+  }
+
   function createDelivery(input: CreateDeliveryInput): CreateDeliveryResult {
     const workspace = getWorkspace(deps.db, input.workspaceId)
     if (!workspace) {
@@ -555,6 +580,14 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
     }
     const index = playbook.stages.findIndex((stage) => stage.key === stageKey)
     if (index < 0) return { ok: false, code: 'stage_not_found', message: 'stage not found' }
+    const checked = checkStageArtifacts(deliveryId, stageKey)
+    if (!checked.ok) {
+      return {
+        ok: false,
+        code: 'artifact_missing',
+        message: `missing required artifacts: ${checked.missing.join(', ')}`,
+      }
+    }
     const next = playbook.stages[index + 1]
     const currentTask = listTasks(deps.db, { workspaceId: delivery.workspaceId }).find(
       (task) => task.deliveryId === deliveryId && task.stageKey === stageKey,
@@ -722,6 +755,14 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
       stageGate = null
     }
     if (stageGate !== 'auto') return { ok: false, code: 'not_auto' }
+    const checked = checkStageArtifacts(task.deliveryId, task.stageKey)
+    if (!checked.ok) {
+      return {
+        ok: false,
+        code: 'artifact_missing',
+        message: `missing required artifacts: ${checked.missing.join(', ')}`,
+      }
+    }
     const review = getReviewByTask(deps.db, task.id)
     if (!review || review.verifyExitCode !== 0) {
       return { ok: false, code: 'verify_not_passed' }
@@ -760,6 +801,8 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
     cancelDelivery,
     advanceDelivery,
     maybeAutoApprove,
+    syncStageArtifacts,
+    checkStageArtifacts,
   }
 }
 

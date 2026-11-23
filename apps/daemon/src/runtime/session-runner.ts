@@ -93,6 +93,8 @@ export interface SessionRunnerDeps {
   newId: () => string
   killSwitch: () => boolean
   failures?: FailureService
+  /** 任务正常完成后的收尾钩子（如登记交付阶段产物）。 */
+  onTaskCompleted?: (taskId: string) => void
 }
 
 export interface ActiveRun {
@@ -382,6 +384,13 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
           finished = true
           if (active.outcome === 'ready') {
             const outcome = deps.applyTransition(active.taskId, { type: 'completed' })
+            if (outcome.ok) {
+              try {
+                deps.onTaskCompleted?.(active.taskId)
+              } catch {
+                // 收尾失败不能把已完成的任务重新标失败；产物检查会在审批时再跑一次。
+              }
+            }
             endSession(
               active.sessionId,
               outcome.ok ? 'ended' : 'failed',

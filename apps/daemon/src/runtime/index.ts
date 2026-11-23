@@ -73,6 +73,7 @@ import { handleTaskSetBudget } from './budget-command.js'
 import { createEdge, deleteEdge } from './edge-service.js'
 import { createHandoffNode } from '../handoff/service.js'
 import { createDeliveryService } from '../delivery/service.js'
+import { createArtifactService } from '../artifact/service.js'
 import { createAnnotationService } from '../annotation/service.js'
 import type { EngineRegistry } from './engines.js'
 import { createScheduler, type Scheduler } from './scheduler.js'
@@ -596,6 +597,13 @@ export function createRuntime(deps: RuntimeDeps) {
     deps.broadcast(event)
   }
 
+  const artifacts = createArtifactService({
+    db: deps.db,
+    config: deps.config,
+    now,
+    newId,
+    emit: publish,
+  })
   deliveryServiceHolder.value = createDeliveryService({
     db: deps.db,
     config: deps.config,
@@ -604,6 +612,7 @@ export function createRuntime(deps: RuntimeDeps) {
     applyTransition,
     killSwitch: () => automationState.isKillSwitchOn(),
     emit: publish,
+    checkArtifacts: artifacts.checkRequiredArtifacts,
   })
   annotationServiceHolder.value = createAnnotationService({
     db: deps.db,
@@ -790,6 +799,21 @@ export function createRuntime(deps: RuntimeDeps) {
               verdict: acceptance?.report.acceptance.verdict ?? 'incomplete',
             },
           ),
+        }
+      }
+      if (task?.deliveryId && task.stageKey) {
+        const checked = deliveryServiceHolder.value?.checkStageArtifacts(
+          task.deliveryId,
+          task.stageKey,
+        )
+        if (checked && !checked.ok) {
+          return {
+            ok: false,
+            error: appError('artifact_missing', 'required artifacts are missing', {
+              taskId: task.id,
+              missing: checked.missing,
+            }),
+          }
         }
       }
       const reasonProvided = Boolean(input.reason?.trim())
@@ -1446,10 +1470,25 @@ export function createRuntime(deps: RuntimeDeps) {
       newId,
       killSwitch: () => automationState.isKillSwitchOn(),
       failures,
+      onTaskCompleted: (taskId) => {
+        const task = getTask(deps.db, taskId)
+        if (task?.deliveryId && task.stageKey) {
+          deliveryServiceHolder.value?.syncStageArtifacts(task.deliveryId, task.stageKey)
+        }
+      },
     })
   }
 
-  return { ...runtime, scheduler: created, supervisor, automation, digest, actions, failures }
+  return {
+    ...runtime,
+    scheduler: created,
+    supervisor,
+    automation,
+    digest,
+    actions,
+    failures,
+    artifacts,
+  }
 }
 
 export type Runtime = ReturnType<typeof createRuntime>

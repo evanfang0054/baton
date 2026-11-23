@@ -6,7 +6,6 @@ import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import type { Config } from './config.js'
 import { createAnnotationService } from './annotation/service.js'
-import { createArtifactService } from './artifact/service.js'
 import { createDeliveryService } from './delivery/service.js'
 import type { Db } from './db/types.js'
 import { registerApiAuth } from './http/api-auth.js'
@@ -75,19 +74,14 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
     onTrustChanged: () => deps.runtime.rescheduleDigest(),
   })
   registerCanvasRoutes(app, { db: deps.db })
+  const artifacts = deps.runtime.artifacts
   const deliveries = createDeliveryService({
     db: deps.db,
     config,
     now: deps.now,
     newId: deps.newId,
     emit: (draft) => deps.runtime.publish(draft),
-  })
-  const artifacts = createArtifactService({
-    db: deps.db,
-    config,
-    now: deps.now,
-    newId: deps.newId,
-    emit: (draft) => deps.runtime.publish(draft),
+    checkArtifacts: artifacts.checkRequiredArtifacts,
   })
   const annotations = createAnnotationService({
     db: deps.db,
