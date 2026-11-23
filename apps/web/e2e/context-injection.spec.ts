@@ -91,9 +91,9 @@ test('rejects with the current canvas selection', async ({ page }) => {
   await page.getByRole('button', { name: '任务', exact: true }).click()
   await page.getByTestId('task-board-overlay').getByText('待验收任务').click()
 
-  await page.getByRole('button', { name: '打回' }).click()
+  await page.getByTestId('task-detail').getByRole('button', { name: '打回' }).click()
   await page.getByRole('checkbox', { name: /附带当前选中的 1 个节点/ }).check()
-  await page.getByRole('button', { name: '确认打回' }).click()
+  await page.getByTestId('task-detail').getByRole('button', { name: '确认打回' }).click()
   await expect
     .poll(() => commands.find((command) => command.type === 'review.decide')?.payload)
     .toEqual({ reviewId: 'r1', decision: 'reject', contextNodeIds: ['n1'] })
@@ -122,10 +122,10 @@ test('requires confirmation when passing a failed verify', async ({ page }) => {
   await page.getByRole('button', { name: '任务', exact: true }).click()
   await page.getByTestId('task-board-overlay').getByText('待验收任务').click()
 
-  await page.getByRole('button', { name: '通过' }).click()
+  await page.getByTestId('task-detail').getByRole('button', { name: '通过' }).click()
   await expect(page.getByText('校验未通过，仍要通过吗？')).toBeVisible()
   await page.getByLabel('通过理由').fill('已知问题，先合')
-  await page.getByRole('button', { name: '确认通过' }).click()
+  await page.getByTestId('task-detail').getByRole('button', { name: '确认通过' }).click()
   await expect
     .poll(() => commands.find((command) => command.type === 'review.decide')?.payload)
     .toEqual({ reviewId: 'r1', decision: 'approve', overrideReason: '已知问题，先合' })

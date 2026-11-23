@@ -79,8 +79,8 @@ test('needs me filter, stale and review card', async ({ page }) => {
 
   await board.getByText('待验收任务').click()
   await expect(page.getByText('初步验收：PASS')).toBeVisible()
-  await expect(page.getByRole('button', { name: '通过' })).toBeVisible()
-  await page.getByRole('button', { name: '通过' }).click()
+  await expect(page.getByTestId('task-detail').getByRole('button', { name: '通过' })).toBeVisible()
+  await page.getByTestId('task-detail').getByRole('button', { name: '通过' }).click()
 
   await expect.poll(() => commands.some((command) => command.type === 'review.decide')).toBe(true)
   await page.getByRole('button', { name: '关闭', exact: true }).click()

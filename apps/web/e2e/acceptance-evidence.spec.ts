@@ -51,13 +51,15 @@ test('review card opens evidence and AC override sends reason', async ({ page })
   })
 
   await page.goto('/?workspace=w1')
-  await expect(page.getByText('AC 2/3')).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '打开任务 待验收任务' }).getByText('AC 2/3'),
+  ).toBeVisible()
   await page.getByRole('button', { name: '查看证据' }).click()
   await expect(page.getByRole('heading', { name: '验收清单' })).toBeVisible()
-  await page.getByRole('button', { name: '通过' }).click()
+  await page.getByTestId('task-detail').getByRole('button', { name: '通过' }).click()
   await expect(page.getByText('仍有验收项未通过，仍要通过吗？')).toBeVisible()
   await page.getByLabel('通过理由').fill('已知风险')
-  await page.getByRole('button', { name: '确认通过' }).click()
+  await page.getByTestId('task-detail').getByRole('button', { name: '确认通过' }).click()
 
   await expect
     .poll(() => commands.find((command) => command.type === 'review.decide')?.payload)

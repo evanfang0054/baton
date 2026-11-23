@@ -165,6 +165,6 @@ test('trusts a workspace and resolves an approval card', async ({ page }) => {
 
   await expect(page.getByText('需要授权')).toBeVisible()
   decided = true
-  await page.getByRole('button', { name: '允许' }).click()
+  await page.getByTestId('task-detail').getByRole('button', { name: '允许' }).click()
   await expect(page.getByText('需要授权')).toHaveCount(0)
 })
