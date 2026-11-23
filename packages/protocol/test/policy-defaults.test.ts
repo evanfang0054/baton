@@ -10,6 +10,8 @@ describe('policy defaults', () => {
       'Glob',
       'Edit:src/**',
       'Edit:tests/**',
+      'Edit:.baton/deliveries/**',
+      'Write:.baton/deliveries/**',
       'Bash:pnpm {test,lint,typecheck,build,install --frozen-lockfile}',
     ])
     expect(policy.approval.deny).toEqual([
@@ -19,8 +21,12 @@ describe('policy defaults', () => {
       'Bash:git push *',
       'Edit:**/.env*',
       'Edit:.git/**',
-      'Edit:.baton/**',
-      'Write:.baton/**',
+      'Edit:.baton/policy.json',
+      'Write:.baton/policy.json',
+      'Edit:.baton/skills/**',
+      'Write:.baton/skills/**',
+      'Edit:.baton/playbooks/**',
+      'Write:.baton/playbooks/**',
     ])
     expect(policy.approval.allow.some((rule) => rule.includes('(test|'))).toBe(false)
   })

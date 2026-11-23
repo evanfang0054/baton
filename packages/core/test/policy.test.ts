@@ -178,6 +178,42 @@ describe('evaluateApproval', () => {
     ).toMatchObject({ decision: 'ask' })
   })
 
+  it('asks before writing delivery artifacts instead of denying the stage output', () => {
+    const decision = evaluateApproval(
+      policy(),
+      request(
+        'Write',
+        {
+          file_path: '/workspace/demo/.baton/deliveries/d1/requirement/spec.md',
+          cwd: '/workspace/demo',
+        },
+        'medium',
+      ),
+      { killSwitch: false, workspaceTrusted: true },
+    )
+    expect(decision).toMatchObject({
+      decision: 'ask',
+      matchedRule: 'Write:.baton/deliveries/**',
+      autoApproved: false,
+    })
+  })
+
+  it('keeps the .baton control plane denied', () => {
+    const decision = evaluateApproval(
+      policy(),
+      request(
+        'Write',
+        { file_path: '/workspace/demo/.baton/policy.json', cwd: '/workspace/demo' },
+        'medium',
+      ),
+      { killSwitch: false, workspaceTrusted: true },
+    )
+    expect(decision).toMatchObject({
+      decision: 'deny',
+      matchedRule: 'Write:.baton/policy.json',
+    })
+  })
+
   it('denies before allowing', () => {
     const decision = evaluateApproval(
       policy(),

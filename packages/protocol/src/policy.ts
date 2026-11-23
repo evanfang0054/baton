@@ -7,9 +7,14 @@ const DEFAULT_ALLOW = [
   'Glob',
   'Edit:src/**',
   'Edit:tests/**',
+  // 交付产物必须落在 .baton/deliveries；这是阶段 prompt 明确要求的路径。
+  'Edit:.baton/deliveries/**',
+  'Write:.baton/deliveries/**',
   'Bash:pnpm {test,lint,typecheck,build,install --frozen-lockfile}',
 ]
 
+// .baton 下只有控制面（策略/skill/playbook）必须禁止 agent 改写；
+// deliveries/uploads 是数据面，不能一起封死，否则真实交付无法产出。
 const DEFAULT_DENY = [
   'Bash:sudo *',
   'Bash:rm -rf *',
@@ -17,8 +22,12 @@ const DEFAULT_DENY = [
   'Bash:git push *',
   'Edit:**/.env*',
   'Edit:.git/**',
-  'Edit:.baton/**',
-  'Write:.baton/**',
+  'Edit:.baton/policy.json',
+  'Write:.baton/policy.json',
+  'Edit:.baton/skills/**',
+  'Write:.baton/skills/**',
+  'Edit:.baton/playbooks/**',
+  'Write:.baton/playbooks/**',
 ]
 
 const VerifyPolicy = z.object({
