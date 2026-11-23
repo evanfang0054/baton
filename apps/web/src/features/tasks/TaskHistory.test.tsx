@@ -33,8 +33,6 @@ describe('TaskHistory', () => {
           engineSessionId: null,
           status: 'ended',
           outcome: 'ready',
-          costUsd: null,
-          turns: null,
           startedAt: 1,
           endedAt: 2,
         },

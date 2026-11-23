@@ -119,8 +119,8 @@ function json(body: unknown) {
   }
 }
 
-test('delivery board opens the canvas and annotation overlay', async ({ page }) => {
-  await page.routeWebSocket('**/ws', (ws: WsRoute) => {
+function ackWebSocket(page: Page) {
+  return page.routeWebSocket('**/ws', (ws: WsRoute) => {
     ws.onMessage((raw) => {
       const message = JSON.parse(String(raw)) as { id?: string }
       if (!message.id) return
@@ -135,9 +135,57 @@ test('delivery board opens the canvas and annotation overlay', async ({ page }) 
       )
     })
   })
-  await page.route('**/api/**', async (route) => {
+}
+
+function mockDeliveryApi(page: Page) {
+  const state = { cancelled: false, cancelCalls: 0 }
+  const current = () =>
+    state.cancelled
+      ? {
+          ...delivery,
+          status: 'cancelled',
+          currentStageKey: null,
+          attention: 'none',
+          cancelledAt: 1,
+          stages: delivery.stages.map((stage) =>
+            stage.key === 'requirement'
+              ? { ...stage, status: 'cancelled', taskStatus: 'cancelled', attention: 'none' }
+              : stage,
+          ),
+        }
+      : delivery
+  const currentDetail = () => ({ ...detail, ...current() })
+  const currentTask = () => ({
+    ...current(),
+    id: 't1',
+    nodeId: 'n1',
+    title: '需求：优惠券领取页',
+    prompt: '',
+    status: state.cancelled ? 'cancelled' : 'review',
+    waitingReason: null,
+    engine: 'claude-sdk',
+    workspaceMode: 'main',
+    branch: null,
+    worktreePath: null,
+    verifyCommand: null,
+    retryCount: 0,
+    dangerouslySkipPermissions: false,
+    enqueuedAt: null,
+    deliveryId: 'd1',
+    stageKey: 'requirement',
+    attention: state.cancelled ? 'none' : 'needs_review',
+    waitingSince: 2,
+    acceptance: null,
+  })
+
+  page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url())
     const path = url.pathname
+    if (route.request().method() === 'POST' && path === '/api/deliveries/d1/cancel') {
+      state.cancelCalls += 1
+      state.cancelled = true
+      return route.fulfill(json({ taskId: 't1' }))
+    }
     if (path === '/api/workspaces') {
       return route.fulfill(
         json({
@@ -155,40 +203,11 @@ test('delivery board opens the canvas and annotation overlay', async ({ page }) 
         }),
       )
     }
-    if (path === '/api/deliveries') return route.fulfill(json({ deliveries: [delivery] }))
-    if (path === '/api/deliveries/d1') return route.fulfill(json({ delivery: detail }))
+    if (path === '/api/deliveries') return route.fulfill(json({ deliveries: [current()] }))
+    if (path === '/api/deliveries/d1') return route.fulfill(json({ delivery: currentDetail() }))
     if (path === '/api/deliveries/d1/artifacts')
       return route.fulfill(json({ artifacts: detail.artifacts }))
-    if (path === '/api/tasks') {
-      return route.fulfill(
-        json({
-          tasks: [
-            {
-              ...delivery,
-              id: 't1',
-              nodeId: 'n1',
-              title: '需求：优惠券领取页',
-              prompt: '',
-              status: 'review',
-              waitingReason: null,
-              engine: 'claude-sdk',
-              workspaceMode: 'main',
-              branch: null,
-              worktreePath: null,
-              verifyCommand: null,
-              retryCount: 0,
-              dangerouslySkipPermissions: false,
-              enqueuedAt: null,
-              deliveryId: 'd1',
-              stageKey: 'requirement',
-              attention: 'needs_review',
-              waitingSince: 2,
-              acceptance: null,
-            },
-          ],
-        }),
-      )
-    }
+    if (path === '/api/tasks') return route.fulfill(json({ tasks: [currentTask()] }))
     if (path === '/api/canvas') return route.fulfill(json(canvas))
     if (path === '/api/automation') return route.fulfill(json({ killSwitch: false, summary: null }))
     if (path === '/api/notices') return route.fulfill(json({ notices: [] }))
@@ -200,6 +219,12 @@ test('delivery board opens the canvas and annotation overlay', async ({ page }) 
     }
     return route.fulfill(json({}))
   })
+  return state
+}
+
+test('delivery board opens the canvas and annotation overlay', async ({ page }) => {
+  await ackWebSocket(page)
+  mockDeliveryApi(page)
 
   await page.goto('/?workspace=w1&delivery=d1')
   await expect(page.getByText('优惠券领取页').first()).toBeVisible()
@@ -209,4 +234,18 @@ test('delivery board opens the canvas and annotation overlay', async ({ page }) 
   await expect(page.getByRole('application', { name: '快速标注层' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('application', { name: '快速标注层' })).toBeHidden()
+})
+
+test('stops a delivery after confirmation', async ({ page }) => {
+  await ackWebSocket(page)
+  const state = mockDeliveryApi(page)
+
+  await page.goto('/?workspace=w1&delivery=d1')
+  await expect(page.getByText('优惠券领取页').first()).toBeVisible()
+  await page.getByRole('button', { name: '停止交付', exact: true }).first().click()
+  await expect(page.getByText('停止这条交付？')).toBeVisible()
+  await page.getByRole('button', { name: '确认停止' }).click()
+
+  await expect.poll(() => state.cancelCalls).toBe(1)
+  await expect(page.getByText('已取消').first()).toBeVisible()
 })

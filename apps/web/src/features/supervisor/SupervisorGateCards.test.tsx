@@ -103,6 +103,94 @@ describe('SupervisorGateCards', () => {
       }),
     )
     expect(send).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.queryByText('登录页修复')).not.toBeInTheDocument())
+  })
+
+  it('denies a pending approval from the supervisor chat', async () => {
+    const approval = {
+      id: 'a1',
+      sessionId: 's1',
+      request: { toolName: 'Bash', input: { command: 'pnpm test' }, risk: 'high' as const },
+      decision: null,
+      decidedBy: null,
+      decidedAt: null,
+      response: null,
+    }
+    stubFetch([task()], detail({ approvals: [approval] }))
+    const send = renderCards()
+
+    fireEvent.click(await screen.findByRole('button', { name: '拒绝' }))
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({
+        type: 'approval.decide',
+        payload: { approvalId: 'a1', decision: 'deny' },
+      }),
+    )
+  })
+
+  it('does not expose AskUserQuestion approvals as normal gate cards', async () => {
+    stubFetch(
+      [task()],
+      detail({
+        approvals: [
+          {
+            id: 'q1',
+            sessionId: 's1',
+            request: {
+              toolName: 'AskUserQuestion',
+              input: { questions: [{ question: '选哪个？', options: [] }] },
+              risk: 'high',
+            },
+            decision: null,
+            decidedBy: null,
+            decidedAt: null,
+            response: null,
+          },
+        ],
+      }),
+    )
+    renderCards()
+    await waitFor(() => expect(fetch).toHaveBeenCalled())
+    expect(screen.queryByText(/待我处理/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '允许' })).not.toBeInTheDocument()
+  })
+
+  it('shows the total count while rendering only the first four cards', async () => {
+    const tasks = Array.from({ length: 5 }, (_, index) =>
+      task({ id: `t${index + 1}`, title: `任务 ${index + 1}` }),
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.startsWith('/api/tasks?')) return Response.json({ tasks })
+        const id = url.match(/^\/api\/tasks\/(.+)$/)?.[1]
+        if (id) {
+          return Response.json(
+            detail({
+              task: { ...task({ id, title: `任务 ${id.slice(1)}` }), context: null, origin: null },
+              approvals: [
+                {
+                  id: `a-${id}`,
+                  sessionId: 's1',
+                  request: { toolName: 'Bash', input: {}, risk: 'low' },
+                  decision: null,
+                  decidedBy: null,
+                  decidedAt: null,
+                  response: null,
+                },
+              ],
+            }),
+          )
+        }
+        throw new Error(`unexpected fetch ${url}`)
+      }),
+    )
+    renderCards()
+
+    expect(await screen.findByText(/待我处理 5/)).toBeInTheDocument()
+    expect(screen.getByText(/显示前 4/)).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: '允许' })).toHaveLength(4)
   })
 
   it('requires an override reason before approving a failed acceptance', async () => {

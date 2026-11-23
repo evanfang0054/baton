@@ -1,3 +1,4 @@
+import { canCancelDeliveryStatus } from '@baton/core'
 import type { Artifact, CanvasResponse, DeliveryDetail, Node, TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { useMemo, useRef, useState } from 'react'
@@ -147,7 +148,7 @@ export function DeliveryCanvas({
             <Button size="sm" variant="tertiary" onPress={onCreateDrawing}>
               新建画板
             </Button>
-            {delivery.status !== 'cancelled' ? (
+            {canCancelDeliveryStatus(delivery.status) ? (
               <Button size="sm" variant="danger-soft" onPress={() => onCancelDelivery(delivery.id)}>
                 停止交付
               </Button>

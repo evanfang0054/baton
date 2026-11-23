@@ -15,6 +15,7 @@ import { DeliveryRail } from './features/deliveries/DeliveryRail'
 import { AnnotationListOverlay } from './features/overlays/AnnotationListOverlay'
 import { AcceptanceMatrixOverlay } from './features/overlays/AcceptanceMatrixOverlay'
 import { ArtifactViewerOverlay } from './features/overlays/ArtifactViewerOverlay'
+import { ConfirmDialog } from './features/overlays/ConfirmDialog'
 import { DrawingEditorOverlay } from './features/overlays/DrawingEditorOverlay'
 import { Overlay } from './features/overlays/Overlay'
 import { StageSceneOverlay } from './features/overlays/StageSceneOverlay'
@@ -98,6 +99,7 @@ export function App() {
   const [mobileNodesOpen, setMobileNodesOpen] = useState(false)
   const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false)
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false)
+  const [cancelDeliveryId, setCancelDeliveryId] = useState<string | null>(null)
   const [showTasks, setShowTasks] = useState(false)
   const [showWorkspace, setShowWorkspace] = useState(false)
 
@@ -294,18 +296,19 @@ export function App() {
     setShowWorkspace(false)
     setOverlay(null)
   }
-  const stopDelivery = async (deliveryId: string) => {
-    if (!window.confirm('停止交付会取消整条交付和当前阶段任务，确认吗？')) return
+  const stopDelivery = (deliveryId: string) => setCancelDeliveryId(deliveryId)
+  const confirmStopDelivery = async () => {
+    if (!cancelDeliveryId) return
     try {
-      await cancelDeliveryRequest(deliveryId)
+      await cancelDeliveryRequest(cancelDeliveryId)
       toast.success('交付已停止')
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: queryKeys.deliveries(activeWorkspaceId ?? ''),
         }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.delivery(deliveryId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.delivery(cancelDeliveryId) }),
         queryClient.invalidateQueries({
-          queryKey: queryKeys.deliveryCanvas(activeWorkspaceId ?? '', deliveryId),
+          queryKey: queryKeys.deliveryCanvas(activeWorkspaceId ?? '', cancelDeliveryId),
         }),
         queryClient.invalidateQueries({ queryKey: queryKeys.tasks(activeWorkspaceId ?? '') }),
       ])
@@ -662,6 +665,16 @@ export function App() {
           open={deliveryDialogOpen && Boolean(activeWorkspaceId)}
           onOpenChange={setDeliveryDialogOpen}
           onCreated={selectDelivery}
+        />
+        <ConfirmDialog
+          open={cancelDeliveryId !== null}
+          title="停止这条交付？"
+          description="会取消整条交付和当前阶段任务；产物与标注保留。"
+          confirmLabel="确认停止"
+          onConfirm={confirmStopDelivery}
+          onOpenChange={(open) => {
+            if (!open) setCancelDeliveryId(null)
+          }}
         />
         {!isMobile && overlay?.kind === 'stage' ? (
           <StageSceneOverlay taskId={overlay.taskId} onClose={() => setOverlay(null)} />

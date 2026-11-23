@@ -7,11 +7,9 @@ import { useState } from 'react'
 import { getTask, listTasks } from '../../lib/api'
 import { invalidateTaskQueries, queryKeys } from '../../lib/query'
 import { needsAcceptanceOverride } from '../tasks/acceptance-gate'
+import { riskColor, riskLabel } from '../tasks/ApprovalCard'
 import { useCommandAction } from '../tasks/useCommandAction'
 import { WaitingTime } from '../tasks/WaitingTime'
-
-const RISK_LABELS = { low: '低风险', medium: '中风险', high: '高风险' } as const
-const RISK_COLORS = { low: 'success', medium: 'warning', high: 'danger' } as const
 
 function inputPreview(input: unknown): string {
   if (input === undefined || input === null) return ''
@@ -35,6 +33,8 @@ type GateCard =
       acceptance: TaskAcceptanceSummary | null
     }
 
+const MAX_GATE_CARDS = 4
+
 function useGateQuery(workspaceId: string) {
   const tasks = useQuery({
     queryKey: queryKeys.tasks(workspaceId),
@@ -42,9 +42,12 @@ function useGateQuery(workspaceId: string) {
   })
   const candidates = (tasks.data ?? [])
     .filter((task) => task.attention === 'needs_approval' || task.attention === 'needs_review')
-    .slice(0, 4)
+    .sort(
+      (a, b) =>
+        (a.waitingSince ?? Number.MAX_SAFE_INTEGER) - (b.waitingSince ?? Number.MAX_SAFE_INTEGER),
+    )
   const details = useQueries({
-    queries: candidates.map((task) => ({
+    queries: candidates.slice(0, MAX_GATE_CARDS).map((task) => ({
       queryKey: queryKeys.task(task.id),
       queryFn: () => getTask(task.id),
     })),
@@ -63,27 +66,32 @@ export function SupervisorGateCards({
   const { candidates, details } = useGateQuery(workspaceId)
   const refresh = async (task: TaskSummary) => {
     await invalidateTaskQueries(queryClient, task.id, workspaceId)
-    await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
   }
 
-  const cards: GateCard[] = candidates.flatMap((task, index): GateCard[] => {
-    const detail = details[index]?.data
-    if (!detail) return []
-    if (task.attention === 'needs_approval') {
-      const approval = [...detail.approvals].reverse().find((item) => item.decision === null)
-      return approval ? [{ kind: 'approval', task, approval }] : []
-    }
-    const review = detail.review
-    if (!review || review.verdict !== null) return []
-    return [
-      {
-        kind: 'review',
-        task,
-        review,
-        acceptance: detail.acceptance,
-      },
-    ]
-  })
+  const cards: GateCard[] = candidates
+    .slice(0, MAX_GATE_CARDS)
+    .flatMap((task, index): GateCard[] => {
+      const detail = details[index]?.data
+      if (!detail) return []
+      if (task.attention === 'needs_approval') {
+        // AskUserQuestion 必须回答结构化问题，普通审批卡的 allow/deny 无法提交 answers，
+        // 在任务详情/问答卡处理；这里不放出必然失败的动作。
+        const approval = [...detail.approvals]
+          .reverse()
+          .find((item) => item.decision === null && item.request.toolName !== 'AskUserQuestion')
+        return approval ? [{ kind: 'approval', task, approval }] : []
+      }
+      const review = detail.review
+      if (!review || review.verdict !== null) return []
+      return [
+        {
+          kind: 'review',
+          task,
+          review,
+          acceptance: detail.acceptance,
+        },
+      ]
+    })
 
   if (cards.length === 0) {
     return <section aria-label="待我处理" aria-live="polite" className="sr-only" />
@@ -95,7 +103,10 @@ export function SupervisorGateCards({
       aria-live="polite"
       className="max-h-72 shrink-0 overflow-y-auto border-t border-separator bg-background/60 px-3 py-2"
     >
-      <p className="mb-2 text-xs font-medium text-foreground">待我处理 {cards.length}</p>
+      <p className="mb-2 text-xs font-medium text-foreground">
+        待我处理 {candidates.length}
+        {candidates.length > MAX_GATE_CARDS ? `（显示前 ${MAX_GATE_CARDS}）` : ''}
+      </p>
       <div className="flex flex-col gap-2">
         {cards.map((card) =>
           card.kind === 'approval' ? (
@@ -134,8 +145,24 @@ function ApprovalGateCard({
   onDone: () => Promise<void>
 }) {
   const [note, setNote] = useState('')
+  const [resolved, setResolved] = useState(false)
   const action = useCommandAction(onDone)
   const preview = inputPreview(approval.request.input)
+
+  if (resolved) return null
+
+  const decide = async (decision: 'allow' | 'deny') => {
+    setResolved(true)
+    const ok = await action.run({
+      type: 'approval.decide',
+      payload: {
+        approvalId: approval.id,
+        decision,
+        ...(note.trim() ? { note: note.trim() } : {}),
+      },
+    })
+    if (!ok) setResolved(false)
+  }
 
   return (
     <section className="rounded-lg border border-warning/60 bg-surface p-3">
@@ -144,16 +171,16 @@ function ApprovalGateCard({
           <p className="truncate text-sm font-medium text-foreground">{task.title}</p>
           <p className="mt-0.5 font-mono text-xs text-muted">{approval.request.toolName}</p>
         </div>
-        <Chip size="sm" variant="soft" color={RISK_COLORS[approval.request.risk]}>
-          {RISK_LABELS[approval.request.risk]}
+        <Chip size="sm" variant="soft" color={riskColor[approval.request.risk]}>
+          {riskLabel[approval.request.risk]}
         </Chip>
       </div>
       {preview ? (
-        <pre className="mt-2 max-h-16 overflow-hidden whitespace-pre-wrap break-words rounded bg-default/40 p-1.5 font-mono text-[11px] text-muted">
+        <pre className="mt-2 max-h-16 overflow-hidden whitespace-pre-wrap break-words rounded bg-default/40 p-1.5 font-mono text-xs text-muted">
           {preview}
         </pre>
       ) : null}
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted">
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
         {task.waitingSince ? <WaitingTime since={task.waitingSince} /> : null}
         <input
           aria-label="审批备注"
@@ -171,16 +198,7 @@ function ApprovalGateCard({
           size="sm"
           variant="danger-soft"
           isDisabled={action.pending}
-          onPress={() =>
-            void action.run({
-              type: 'approval.decide',
-              payload: {
-                approvalId: approval.id,
-                decision: 'deny',
-                ...(note.trim() ? { note: note.trim() } : {}),
-              },
-            })
-          }
+          onPress={() => void decide('deny')}
         >
           拒绝
         </Button>
@@ -188,16 +206,7 @@ function ApprovalGateCard({
           size="sm"
           variant="primary"
           isDisabled={action.pending}
-          onPress={() =>
-            void action.run({
-              type: 'approval.decide',
-              payload: {
-                approvalId: approval.id,
-                decision: 'allow',
-                ...(note.trim() ? { note: note.trim() } : {}),
-              },
-            })
-          }
+          onPress={() => void decide('allow')}
         >
           允许
         </Button>
@@ -226,20 +235,51 @@ function ReviewGateCard({
 }) {
   const [mode, setMode] = useState<'idle' | 'approve' | 'reject'>('idle')
   const [reason, setReason] = useState('')
+  const [resolved, setResolved] = useState(false)
   const action = useCommandAction(onDone)
   const needsOverride = needsAcceptanceOverride(review, acceptance)
   const reasonMissing = needsOverride && reason.trim().length === 0
 
-  const approve = () => {
+  if (resolved) return null
+
+  const approve = async () => {
     if (needsOverride) {
       setReason('')
       setMode('approve')
       return
     }
-    void action.run({
+    setResolved(true)
+    const ok = await action.run({
       type: 'review.decide',
       payload: { reviewId: review.id, decision: 'approve' },
     })
+    if (!ok) setResolved(false)
+  }
+
+  const confirmApprove = async () => {
+    setResolved(true)
+    const ok = await action.run({
+      type: 'review.decide',
+      payload: {
+        reviewId: review.id,
+        decision: 'approve',
+        ...(reason.trim() ? { overrideReason: reason.trim() } : {}),
+      },
+    })
+    if (!ok) setResolved(false)
+  }
+
+  const reject = async () => {
+    setResolved(true)
+    const ok = await action.run({
+      type: 'review.decide',
+      payload: {
+        reviewId: review.id,
+        decision: 'reject',
+        feedback: reason.trim(),
+      },
+    })
+    if (!ok) setResolved(false)
   }
 
   return (
@@ -247,13 +287,13 @@ function ReviewGateCard({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-foreground">{task.title}</p>
-          <p className="mt-0.5 text-[11px] text-muted">
+          <p className="mt-0.5 text-xs text-muted">
             {acceptance
               ? `AC ${acceptance.counts.pass}/${acceptance.counts.total} · 未过 ${acceptance.counts.fail}`
               : '验收清单未生成'}{' '}
             · 退出码 {review.verifyExitCode}
           </p>
-          <p className="mt-0.5 text-[11px] text-muted">
+          <p className="mt-0.5 text-xs text-muted">
             Git {review.diffStat.filesChanged} · +{review.diffStat.insertions} -
             {review.diffStat.deletions}
           </p>
@@ -278,16 +318,7 @@ function ReviewGateCard({
               size="sm"
               variant="primary"
               isDisabled={action.pending || reasonMissing}
-              onPress={() =>
-                void action.run({
-                  type: 'review.decide',
-                  payload: {
-                    reviewId: review.id,
-                    decision: 'approve',
-                    ...(reason.trim() ? { overrideReason: reason.trim() } : {}),
-                  },
-                })
-              }
+              onPress={() => void confirmApprove()}
             >
               确认通过
             </Button>
@@ -310,16 +341,7 @@ function ReviewGateCard({
               size="sm"
               variant="danger"
               isDisabled={action.pending || reason.trim().length === 0}
-              onPress={() =>
-                void action.run({
-                  type: 'review.decide',
-                  payload: {
-                    reviewId: review.id,
-                    decision: 'reject',
-                    feedback: reason.trim(),
-                  },
-                })
-              }
+              onPress={() => void reject()}
             >
               确认打回
             </Button>
@@ -341,7 +363,12 @@ function ReviewGateCard({
           >
             打回
           </Button>
-          <Button size="sm" variant="primary" isDisabled={action.pending} onPress={approve}>
+          <Button
+            size="sm"
+            variant="primary"
+            isDisabled={action.pending}
+            onPress={() => void approve()}
+          >
             通过
           </Button>
         </div>

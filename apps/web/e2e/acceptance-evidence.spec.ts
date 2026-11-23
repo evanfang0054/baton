@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import {
   acceptanceBundle,
   acceptanceSummary,
@@ -6,28 +6,8 @@ import {
   mockWorkspace,
   sceneDetail,
   task,
+  wsRecorder,
 } from './m6-helpers'
-
-type WsRoute = Parameters<Parameters<Page['routeWebSocket']>[1]>[0]
-
-function wsRecorder(commands: Array<{ type?: string; payload?: unknown }>) {
-  return (ws: WsRoute) => {
-    ws.onMessage((raw) => {
-      const message = JSON.parse(String(raw)) as { id?: string; type?: string; payload?: unknown }
-      if (!message.id) return
-      commands.push(message)
-      ws.send(
-        JSON.stringify({
-          v: 1,
-          id: `ack-${message.id}`,
-          type: 'ack',
-          ts: Date.now(),
-          payload: { commandId: message.id, ok: true, data: {} },
-        }),
-      )
-    })
-  }
-}
 
 test('review card opens evidence and AC override sends reason', async ({ page }) => {
   const commands: Array<{ type?: string; payload?: unknown }> = []

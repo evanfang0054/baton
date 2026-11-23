@@ -395,3 +395,28 @@ export async function mockWorkspace(
 
   return state
 }
+
+type WsRoute = Parameters<Parameters<Page['routeWebSocket']>[1]>[0]
+
+export function wsRecorder(
+  commands: Array<{ type?: string; payload?: unknown }>,
+  options: { compact?: boolean; skipResumeAck?: boolean } = {},
+) {
+  return (ws: WsRoute) => {
+    ws.onMessage((raw) => {
+      const message = JSON.parse(String(raw)) as { id?: string; type?: string; payload?: unknown }
+      if (!message.id) return
+      if (options.skipResumeAck && message.type === 'resume') return
+      commands.push(options.compact ? { type: message.type, payload: message.payload } : message)
+      ws.send(
+        JSON.stringify({
+          v: 1,
+          id: `ack-${message.id}`,
+          type: 'ack',
+          ts: Date.now(),
+          payload: { commandId: message.id, ok: true, data: {} },
+        }),
+      )
+    })
+  }
+}

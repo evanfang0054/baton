@@ -1,4 +1,4 @@
-import type { ReviewView, Session, TaskStatusHistoryItem } from '@baton/protocol'
+import type { ReviewView, SessionView, TaskStatusHistoryItem } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
@@ -20,7 +20,7 @@ const statusLabels: Record<TaskStatusHistoryItem['status'], string> = {
 
 type TimelineItem =
   | { kind: 'status'; key: string; ts: number; status: TaskStatusHistoryItem }
-  | { kind: 'session'; key: string; ts: number; session: Session }
+  | { kind: 'session'; key: string; ts: number; session: SessionView }
   | { kind: 'review'; key: string; ts: number; review: ReviewView }
 
 export function TaskHistory({
