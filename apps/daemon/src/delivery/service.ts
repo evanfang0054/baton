@@ -84,7 +84,6 @@ export interface CreateDeliveryInput {
   playbookId?: string
   contextNodeIds?: string[]
   engine?: Engine
-  budgetUsd?: number
 }
 
 export type CreateDeliveryResult =
@@ -153,7 +152,6 @@ function createStageTask(input: {
   trusted: boolean
   contextNodeIds: string[]
   engine: Engine
-  budgetUsd: number | null
   groupId: string
   previousStageKey: string | null
 }): { taskId: string; agentNodeId: string } {
@@ -231,7 +229,6 @@ function createStageTask(input: {
     verifyCommand: null,
     retryCount: 0,
     dangerouslySkipPermissions: false,
-    budgetUsd: input.budgetUsd,
     deliveryId: delivery.id,
     stageKey: stage.key,
     annotationIds: [],
@@ -458,7 +455,6 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
           trusted: workspace.trusted,
           contextNodeIds,
           engine,
-          budgetUsd: input.budgetUsd ?? null,
           groupId: groupIds[0] ?? '',
           previousStageKey: null,
         })
@@ -654,7 +650,6 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
               trusted: workspace.trusted,
               contextNodeIds: [],
               engine: currentTask?.engine ?? 'claude-sdk',
-              budgetUsd: currentTask?.budgetUsd ?? null,
               groupId: group.id,
               previousStageKey: stageKey,
             })

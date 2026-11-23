@@ -33,7 +33,6 @@ import {
 import { z } from 'zod'
 import { getAcceptanceResponse } from '../acceptance/report-service.js'
 import type { AnnotationService } from '../annotation/service.js'
-import { getTaskBudgetSummary } from '../budget/service.js'
 import type { DeliveryService } from '../delivery/service.js'
 import { listAcceptanceSummaries } from '../db/acceptance-repository.js'
 import {
@@ -239,7 +238,6 @@ const createDeliveryInput = z.object({
   playbookId: z.string().min(1).max(64).optional(),
   contextNodeIds: z.array(z.string().min(1)).max(40).optional(),
   engine: Engine.optional(),
-  budgetUsd: z.number().finite().positive().optional(),
 })
 
 const listDeliveriesInput = z.object({
@@ -484,13 +482,8 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     acceptance: TaskAcceptanceSummary | null,
   ) {
     const attention = attentionFor(task.status, task.waitingReason)
-    const budget = getTaskBudgetSummary(deps.db, task, {
-      claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
-    })
     const needsAttention =
-      needsPerson({ status: task.status, attention }) ||
-      budget.overBudget ||
-      (acceptance?.counts.fail ?? 0) > 0
+      needsPerson({ status: task.status, attention }) || (acceptance?.counts.fail ?? 0) > 0
     return {
       id: task.id,
       title: task.title,
@@ -510,12 +503,6 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             fail: acceptance.counts.fail,
           }
         : null,
-      budget: {
-        spent: budget.spentUsd,
-        limit: budget.budgetUsd,
-        over: budget.overBudget,
-        near: budget.nearBudget,
-      },
       needsPerson: needsAttention,
     }
   }
@@ -745,9 +732,6 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         const session = sessions.at(-1)
         const review = getReviewByTask(deps.db, task.id)
         const acceptance = listAcceptanceSummaries(deps.db, [task.id]).get(task.id) ?? null
-        const usage = getTaskBudgetSummary(deps.db, task, {
-          claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
-        })
         const acceptanceResponse = acceptance
           ? getAcceptanceResponse(deps.db, task, {
               claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
@@ -789,7 +773,6 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
                 topFailures: acceptance.topFailures,
               }
             : null,
-          usage,
           report: acceptanceResponse
             ? {
                 summary: truncateText(acceptanceResponse.report.result, 500),
@@ -1760,7 +1743,6 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           ...(parsed.playbookId ? { playbookId: parsed.playbookId } : {}),
           ...(parsed.contextNodeIds ? { contextNodeIds: parsed.contextNodeIds } : {}),
           ...(parsed.engine ? { engine: parsed.engine } : {}),
-          ...(parsed.budgetUsd ? { budgetUsd: parsed.budgetUsd } : {}),
         })
         if (!result.ok) throw appError(result.code, result.message)
         deps.db.transaction((tx) => {

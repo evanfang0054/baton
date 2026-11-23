@@ -779,16 +779,10 @@ describe('supervisor tools', () => {
     expect(detail.injectable).toEqual({ ok: false, reason: 'use_review_reject' })
   })
 
-  it('includes acceptance, usage and report in get_task', async () => {
+  it('includes acceptance and report in get_task', async () => {
     const { database, seeded, tools } = setup()
     database.raw
       .prepare("update task set status='review', updated_at=9 where id=?")
-      .run(seeded.taskId)
-    database.raw
-      .prepare(
-        `insert into session (id, task_id, adapter, status, cost_usd, turns, started_at, ended_at)
-         values ('sess-usage', ?, 'claude-sdk', 'ended', 1.2, 4, 1, 2)`,
-      )
       .run(seeded.taskId)
     database.db.transaction((tx) => {
       insertReview(tx, {
@@ -855,7 +849,6 @@ describe('supervisor tools', () => {
         verdict: string
         topFailures: Array<{ text: string; evidence: string | null }>
       }
-      usage: { workerCostUsd: number; budgetUsd: number; overBudget: boolean }
       report: { summary: string; risks: string[]; unverified: string[] }
     }
     expect(detail.acceptance).toMatchObject({
@@ -865,7 +858,7 @@ describe('supervisor tools', () => {
       verdict: 'fail',
       topFailures: [{ text: '错误提示', evidence: 'test/login.test.ts' }],
     })
-    expect(detail.usage).toMatchObject({ workerCostUsd: 1.2, budgetUsd: 2, overBudget: false })
+    expect(detail).not.toHaveProperty('usage')
     expect(detail.report.summary).toBe('1 条未过')
     expect(detail.report.risks).toEqual(expect.arrayContaining(['1 条验收未通过']))
     expect(detail.report.unverified).toContain('错误提示')
@@ -876,34 +869,11 @@ describe('supervisor tools', () => {
       tasks: Array<{
         id: string
         acceptance: { pass: number; total: number; fail: number } | null
-        budget: { spent: number; limit: number; over: boolean }
       }>
     }
     expect(list.tasks[0]).toMatchObject({
       id: seeded.taskId,
       acceptance: { pass: 1, total: 2, fail: 1 },
-      budget: { limit: 2, over: false },
-    })
-  })
-
-  it('treats over-budget running tasks as attention', async () => {
-    const { database, seeded, tools } = setup()
-    database.raw
-      .prepare("update task set status='running', updated_at=9 where id=?")
-      .run(seeded.taskId)
-    database.raw
-      .prepare(
-        `insert into session (id, task_id, adapter, status, cost_usd, turns, started_at)
-         values ('sess-over', ?, 'claude-sdk', 'running', 2.5, 3, 1)`,
-      )
-      .run(seeded.taskId)
-
-    const list = (await tools.list_tasks.execute({ filter: 'attention' }, ctx(seeded))) as {
-      tasks: Array<{ id: string; budget: { spent: number; limit: number; over: boolean } }>
-    }
-    expect(list.tasks[0]).toMatchObject({
-      id: seeded.taskId,
-      budget: { spent: 2.5, limit: 2, over: true },
     })
   })
 

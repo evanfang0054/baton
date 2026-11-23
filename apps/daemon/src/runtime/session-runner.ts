@@ -14,9 +14,7 @@ import {
   type TaskTransitionEvent,
 } from '@baton/protocol'
 import type { BroadcastEvent, EventStore } from '../db/event-store.js'
-import { getTaskBudgetState } from '../budget/service.js'
 import type { FailureService } from '../failures/service.js'
-import { formatBudgetResume, pendingBudgetResume } from './budget-command.js'
 import {
   countAutoApprovals,
   getApproval,
@@ -48,10 +46,6 @@ const VERIFIER_SAFE_RUN = /^(node\s+(--version|-v)|pnpm\s+(test|lint|typecheck|b
 // 这些参数能把“只读”命令变成写文件或执行子进程。
 const VERIFIER_DENY_FLAGS =
   /(^|\s)(--output|--ext-diff|--pre)(=|\s|$)|(^|\s)-(delete|exec|execdir|ok|okdir|fprint0?|fls)(\s|$)/
-
-function isBudgetError(message: string): boolean {
-  return /budget|maxBudget|cost limit|USD budget/i.test(message)
-}
 
 /**
  * 验收员只应读；总管全权不能让它获得任意 Bash。
@@ -145,20 +139,6 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
     }
     deps.applyTransition(taskId, { type: 'error', message: failure.message })
     endSession(sessionId, 'failed')
-  }
-
-  function recordBudgetFailure(taskId: string, sessionId: string, message: string): void {
-    const task = getTask(deps.db, taskId)
-    if (!task) return
-    deps.failures?.record({
-      workspaceId: task.workspaceId,
-      taskId,
-      sessionId,
-      attempt: task.retryCount,
-      stage: 'budget',
-      message,
-      retryable: false,
-    })
   }
 
   async function handleApproval(active: ActiveRun, policy: Policy, value: unknown): Promise<void> {
@@ -335,18 +315,6 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
                 ...(parsed.data.turns !== undefined ? { turns: parsed.data.turns } : {}),
               }),
             )
-            const budget = getTaskBudgetState(deps.db, active.taskId, {
-              claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
-            })
-            if (budget?.overBudget) {
-              const current = getTask(deps.db, active.taskId)
-              if (current?.status === 'running') {
-                recordBudgetFailure(active.taskId, active.sessionId, '任务超出预算')
-                deps.applyTransition(active.taskId, { type: 'budget_exceeded' })
-                await active.run.interrupt().catch(() => {})
-                break
-              }
-            }
           }
         } else if (event.type === EventType.CUSTOM && event.name === APPROVAL_REQUEST_EVENT) {
           await handleApproval(active, policy, event.value)
@@ -413,26 +381,20 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
         } else if (event.type === EventType.RUN_ERROR) {
           finished = true
           const message = event.message ?? 'run failed'
-          if (isBudgetError(message)) {
-            recordBudgetFailure(active.taskId, active.sessionId, message)
-            deps.applyTransition(active.taskId, { type: 'budget_exceeded' })
-            endSession(active.sessionId, 'ended')
-          } else {
-            const task = getTask(deps.db, active.taskId)
-            if (task) {
-              deps.failures?.record({
-                workspaceId: task.workspaceId,
-                taskId: task.id,
-                sessionId: active.sessionId,
-                attempt: task.retryCount,
-                stage: 'run',
-                message,
-                retryable: true,
-              })
-            }
-            deps.applyTransition(active.taskId, { type: 'error', message })
-            endSession(active.sessionId, 'failed')
+          const task = getTask(deps.db, active.taskId)
+          if (task) {
+            deps.failures?.record({
+              workspaceId: task.workspaceId,
+              taskId: task.id,
+              sessionId: active.sessionId,
+              attempt: task.retryCount,
+              stage: 'run',
+              message: message,
+              retryable: true,
+            })
           }
+          deps.applyTransition(active.taskId, { type: 'error', message })
+          endSession(active.sessionId, 'failed')
           break
         }
       }
@@ -450,16 +412,11 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
             outcome.ok ? 'unreported' : null,
           )
         } else if (current?.status === 'waiting_input') {
-          // 预算耗尽是我们主动停下的，不是适配器异常退出。
-          if (current.waitingReason === 'budget') {
-            endSession(active.sessionId, 'ended')
-          } else {
-            deps.applyTransition(active.taskId, {
-              type: 'error',
-              message: 'adapter stream ended while waiting for input',
-            })
-            endSession(active.sessionId, 'failed')
-          }
+          deps.applyTransition(active.taskId, {
+            type: 'error',
+            message: 'adapter stream ended while waiting for input',
+          })
+          endSession(active.sessionId, 'failed')
         } else if (current?.status === 'cancelled') {
           endSession(active.sessionId, 'ended')
         }
@@ -469,25 +426,18 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
         const current = getTask(deps.db, active.taskId)
         const message = toAppError(error).message
         if (current && (current.status === 'running' || current.status === 'waiting_input')) {
-          if (isBudgetError(message)) {
-            recordBudgetFailure(active.taskId, active.sessionId, message)
-          } else {
-            deps.failures?.record({
-              workspaceId: current.workspaceId,
-              taskId: current.id,
-              sessionId: active.sessionId,
-              attempt: current.retryCount,
-              stage: 'run',
-              message,
-              retryable: true,
-            })
-          }
-          deps.applyTransition(
-            active.taskId,
-            isBudgetError(message) ? { type: 'budget_exceeded' } : { type: 'error', message },
-          )
+          deps.failures?.record({
+            workspaceId: current.workspaceId,
+            taskId: current.id,
+            sessionId: active.sessionId,
+            attempt: current.retryCount,
+            stage: 'run',
+            message,
+            retryable: true,
+          })
+          deps.applyTransition(active.taskId, { type: 'error', message })
         }
-        endSession(active.sessionId, isBudgetError(message) ? 'ended' : 'failed')
+        endSession(active.sessionId, 'failed')
       } catch {
         // daemon 关闭时 DB 可能已关闭；此时不再写状态，避免卸载阶段产生未处理拒绝。
       }
@@ -503,17 +453,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
       return
     }
 
-    const budget = getTaskBudgetState(deps.db, task.id, {
-      claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
-    })
-    if (budget?.overBudget) {
-      recordBudgetFailure(task.id, input.sessionId, '任务超出预算')
-      const outcome = deps.applyTransition(task.id, { type: 'budget_exceeded' })
-      endSession(input.sessionId, outcome.ok ? 'ended' : 'failed')
-      return
-    }
-    const resumeNote = pendingBudgetResume(deps.db, task.id)
-    const prompt = resumeNote ? `${task.prompt}\n\n${formatBudgetResume(resumeNote)}` : task.prompt
+    const prompt = task.prompt
 
     let workspacePath = input.workspacePath
     if (task.workspaceMode === 'worktree') {
@@ -565,22 +505,10 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
         policy: input.policy,
         workspaceTrust: input.workspaceTrust,
         bypassPermissions: input.bypassPermissions,
-        ...(budget ? { maxBudgetUsd: budget.remainingUsd } : {}),
       })
     } catch (error) {
       failTask(task.id, input.sessionId, error)
       return
-    }
-    if (resumeNote) {
-      deps.db.transaction((tx) =>
-        insertAudit(tx, {
-          id: deps.newId(),
-          ts: deps.now(),
-          actor: 'system',
-          action: 'task.budget.resume',
-          detail: { taskId: task.id, ...resumeNote },
-        }),
-      )
     }
 
     const active: ActiveRun = {

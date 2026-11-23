@@ -538,7 +538,6 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         engine: deps.defaultEngine,
         workspaceMode: task.workspaceMode,
         dangerouslySkipPermissions: false,
-        budgetUsd: deps.verifierBudgetUsd,
       },
       {
         origin: buildTaskOrigin({

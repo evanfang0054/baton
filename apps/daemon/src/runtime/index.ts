@@ -69,7 +69,6 @@ import { createVerifyRunner, type VerifyRunner } from '../verify/runner.js'
 import type { AdapterFactory } from './adapter-factory.js'
 import { createContextService } from './context-service.js'
 import { handleAcceptanceUpdate } from './acceptance-command.js'
-import { handleTaskSetBudget } from './budget-command.js'
 import { createEdge, deleteEdge } from './edge-service.js'
 import { createHandoffNode } from '../handoff/service.js'
 import { createDeliveryService } from '../delivery/service.js'
@@ -482,7 +481,6 @@ export function createRuntime(deps: RuntimeDeps) {
             engine: resolver.resolveEngine(item.engine ?? undefined, target),
             workspaceMode: 'main',
             dangerouslySkipPermissions: false,
-            ...(item.budgetUsd !== null ? { budgetUsd: item.budgetUsd } : {}),
             ...(item.annotationIds ? { annotationIds: item.annotationIds } : {}),
           },
           {
@@ -916,19 +914,6 @@ export function createRuntime(deps: RuntimeDeps) {
             ...(message.payload.note ? { note: message.payload.note } : {}),
           }),
         )
-      }
-      case 'task.set_budget': {
-        const result = handleTaskSetBudget(
-          {
-            db: deps.db,
-            config: deps.config,
-            applyTransition,
-            now,
-            newId,
-          },
-          message.payload,
-        )
-        return result.ok ? { ok: true, ack: result.ack } : { ok: false, error: result.error }
       }
       case 'task.reopen': {
         const mandate = requireMandate(message.payload.taskId, 'reopen', 'explicit')
