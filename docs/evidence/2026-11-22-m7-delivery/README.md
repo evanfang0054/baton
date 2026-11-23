@@ -12,8 +12,8 @@
 ## 已验证
 
 - `pnpm verify`：typecheck / lint / format / boundaries / protocol / 单测 / build / bundle 断言全绿。
-- daemon：97 test files / 450 tests。
-- web：68 test files / 319 tests。
+- daemon：97 test files / 453 tests。
+- web：68 test files / 322 tests。
 - Playwright：57 passed（本轮无 flake；`canvas-group` headless 偶发仍保留 retry）。
 - `pnpm pack:check`：通过。
 - bundle 断言：主 chunk 不含 `@excalidraw/excalidraw`，`DrawingEditor-*` 懒加载 chunk 存在。

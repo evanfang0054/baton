@@ -6,18 +6,19 @@
 
 `apps/web/e2e/supervisor-gate-cards.spec.ts`
 
-- 审批卡：mock 一条 `needs_approval` 任务，总管栏出现「待我处理 1」，展示任务标题、`Bash`、高风险、命令预览与等待时长；点「允许」后只发送一次 `approval.decide { approvalId: 'a1', decision: 'allow' }`。
+- 审批卡：mock 一条 `needs_approval` 任务，总管栏出现「待我处理 1」，展示任务标题、`Bash`、高风险、命令预览与等待时长；点「允许」后只发送一次 `approval.decide { approvalId: 'a1', decision: 'allow' }`，卡片立即消失。
+- 审批拒绝：点「拒绝」发送 `approval.decide { approvalId: 'a1', decision: 'deny' }`，卡片消失。
 - 验收卡：mock 一条 `needs_review` 任务，展示 `AC 2/3`、未过 1、退出码 1、diff 统计；点「通过」必须填写通过理由，确认后发送 `review.decide { reviewId, decision: 'approve', overrideReason: '已知风险' }`。
 - 移动端：`390×844` 视口，从底部导航进入「总管」，闸门卡与理由输入可用。
 
 运行命令：
 
 ```bash
-M8_EVIDENCE_DIR="$PWD/docs/evidence/2026-11-22-m7-delivery" \
+BATON_M8_EVIDENCE_DIR="$PWD/docs/evidence/2026-11-22-m7-delivery" \
   pnpm exec playwright test apps/web/e2e/supervisor-gate-cards.spec.ts
 ```
 
-结果：2 passed。
+结果：3 passed。
 
 ## 截图
 

@@ -18,11 +18,11 @@ pnpm verify:full
 
 | workspace | 文件 | 用例 |
 | --- | --- | --- |
-| protocol | 25 passed | 178 passed |
+| protocol | 25 passed | 179 passed |
 | adapters | 3 passed | 16 passed |
 | core | 38 passed | 258 passed |
-| daemon | 97 passed | 450 passed |
-| web | 68 passed | 319 passed |
+| daemon | 97 passed | 453 passed |
+| web | 68 passed | 322 passed |
 
 - build：daemon / web 构建通过
 - bundle：`bundle check ok: main=index-*.js, excalidraw chunk present`
@@ -59,3 +59,11 @@ Running 57 tests using 5 workers
 - 闸门卡：排除 `AskUserQuestion`；计数不再被 slice 截断；动作成功后本地隐藏；拒绝/AC/diff/消失补 Playwright。
 - UI/文档：交付卡改为覆盖按钮避免嵌套 button；停止交付改用 HeroUI 确认框；新组件字号改 token；风险映射复用；清理预算/成本残留文案与 runbook。
 - 测试：新增 done 取消拒绝、级联保留 artifact/annotation、cap 跳过、旧 digest、归属校验、取消交付 E2E、闸门 deny/消失。
+
+## 第二轮 Review 修复
+
+- 取消态闭环：`enqueueDelivery`/`advanceDelivery`/`maybeAutoApprove` 拒绝 `cancelledAt` 非空的交付；retry/reopen 拒绝已取消交付的任务；级联失败写日志，HTTP/总管可补写 `cancelledAt` 并保留人工/总管审计。
+- 旧 digest：`items[].kind='budget'` 降级为 stale，不再让整条摘要解析失败。
+- 归属：`list_annotations`/`get_annotation` 校验 workspace；`delivery_not_cancellable` 等错误码映射 409。
+- UI：闸门卡计数按实际卡片、失败 toast + 回滚、HeroUI Input/边框；交付卡停止按钮统一 HeroUI；TaskBoard 复用 ConfirmDialog；交付查询失效抽 helper。
+- 计划与证据：M8-1/2/3 勾选完成步骤；`m8-gate-cards.md` 更新为 3 passed；`BATON_M8_EVIDENCE_DIR` 统一前缀。

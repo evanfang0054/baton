@@ -122,7 +122,7 @@
 ## 回归结果
 
 - `pnpm verify`：通过（typecheck / lint / format / boundaries / protocol / tests / build / bundle）。
-- 单测：protocol 178、adapters 16、core 258、daemon 450、web 319，全部通过。
+- 单测：protocol 179、adapters 16、core 258、daemon 453、web 322，全部通过。
 - `pnpm exec playwright test`：57 passed（本轮无 flake）。
 - 定向 daemon 测试：`supervisor-tools` 含 stalled 重新入队、`migration-0016`、`delivery-advance` 全通过。
 - 定向 web 测试：`SupervisorGateCards`、`AcceptanceMatrixOverlay`、`ReviewCard` 全通过。

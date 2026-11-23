@@ -10,7 +10,7 @@ depends_on: none
 
 # M8-1 预算彻底移除实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `subagent-driven-development` (recommended) or `executing-plans` to implement task-by-task. Steps use `- [ ]` syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `subagent-driven-development` (recommended) or `executing-plans` to implement task-by-task. Steps use `- [x]` syntax for tracking.
 
 **Goal:** 把任务级预算、budget 等待、提额、预算/成本展示从产品面彻底移除，同时保留内部 cost/turn 采集。
 
@@ -50,7 +50,7 @@ Seam: component render assertions
 - Consumes: existing `TaskCard`, `TaskDetailPanel`, `ReviewCard`, `TaskSceneBar`, `AcceptanceReport` props.
 - Produces: same components without `budget` props; no UI text matching `任务预算|预算|剩余|超预算|接近预算|累计 \$|成本|turns` except internal context-injection wording.
 
-- [ ] **Step 1: 写失败断言**
+- [x] **Step 1: 写失败断言**
 
 在 `TaskDetailPanel.test.tsx` 的 describe 内加入：
 
@@ -84,12 +84,12 @@ it('does not render cost or budget sections', () => {
 })
 ```
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
 Run: `pnpm --filter @baton/web exec vitest run src/features/tasks/TaskDetailPanel.test.tsx src/features/tasks/TaskCard.test.tsx src/features/tasks/ReviewCard.test.tsx src/features/tasks/AcceptanceReport.test.tsx`  
 Expected: 新断言失败（仍渲染预算/成本）。
 
-- [ ] **Step 3: 移除 UI**
+- [x] **Step 3: 移除 UI**
 
 - 删除 `BudgetCard.tsx` 与 `BudgetCard.test.tsx`。
 - `TaskActions.tsx`：删除 `BudgetCard` import、`budget` prop、`waitingReason === 'budget'` 分支及其类型引用；`waitingReason` 仍可显示为普通等待。
@@ -101,12 +101,12 @@ Expected: 新断言失败（仍渲染预算/成本）。
 - `CanvasPanel.tsx` / `ReviewCardNode.tsx` / `canvas/model.ts`：删除传递/存储的 budget 字段。
 - 所有列出的 test fixtures 删除 `budgetUsd`、`budget` 字段；删除 `BudgetCard` 相关测试。
 
-- [ ] **Step 4: 运行并确认通过**
+- [x] **Step 4: 运行并确认通过**
 
 Run: `pnpm --filter @baton/web typecheck && pnpm --filter @baton/web test`  
 Expected: PASS；`rg -n "任务预算|超预算|接近预算|累计 \\$|BudgetCard" apps/web/src` 无产品 UI 命中。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src
@@ -141,7 +141,7 @@ Seam: command handling + adapter start input
 - Consumes: existing `createTestRuntime`, `runtime.handleCommand`, `ScriptedAdapter`.
 - Produces: `task.set_budget` command returns `unknown_command`; session start no longer accepts/passes `maxBudgetUsd`; task/detail/supervisor responses no longer include budget summary.
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 新建 `apps/daemon/test/budget-command-removed.test.ts`：
 
@@ -165,12 +165,12 @@ describe('budget command removal', () => {
 })
 ```
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/budget-command-removed.test.ts`  
 Expected: FAIL（当前返回 `task_not_found` 或成功分支）。
 
-- [ ] **Step 3: 移除 daemon 预算行为**
+- [x] **Step 3: 移除 daemon 预算行为**
 
 - `session-runner.ts`：删除 `getTaskBudgetState` / `getRemainingBudget` import、`maxBudgetUsd` 参数、预算 error → `budget_exceeded`、预算触发的 `interruptSession`；保留普通 error/failure 记录。
 - `runtime/index.ts`：删除 budget service import、`task.set_budget` case、任务列表/详情中的 budget summary、`claudeMaxBudgetUsd` 传参。
@@ -181,12 +181,12 @@ Expected: FAIL（当前返回 `task_not_found` 或成功分支）。
 - 删除 `budget-command.ts`、`budget/service.ts`、`budget-raise.test.ts`；更新 runtime helper 默认 config，移除 budget 字段。
 - `runtime/index.ts` 的 command switch 不再包含 `task.set_budget`，落到 default `unknown_command`。
 
-- [ ] **Step 4: 运行并确认通过**
+- [x] **Step 4: 运行并确认通过**
 
 Run: `pnpm --filter @evanfang0054/baton test`  
 Expected: PASS；`rg -n "budget-command|task.set_budget|getRemainingBudget|maxBudgetUsd" apps/daemon/src` 无命中（config 字段除外，下一 task 处理）。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/daemon
@@ -234,7 +234,7 @@ Seam: schema key assertions + core exports
 - Consumes: Task 1/2 已移除所有 UI/daemon 消费方。
 - Produces: protocol 不再导出 `TaskBudgetSummary`、`TaskSetBudgetInput`、`budgetUsd`、`budget_exceeded`、`budget_raise`、`waitingReason='budget'`、`AttentionKind='budget'`、`maxBudgetUsd`、budget config；core 不再导出金钱预算 helpers；DB 映射不再读取 `budget_usd`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `packages/protocol/test/budget-removed.test.ts`：
 
@@ -271,12 +271,12 @@ describe('budget exports removal', () => {
 })
 ```
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
 Run: `pnpm --filter @baton/protocol test -- budget-removed && pnpm --filter @baton/core test -- budget-removed`  
 Expected: FAIL（字段/导出仍存在）。
 
-- [ ] **Step 3: 删除 protocol/core/DB 预算代码**
+- [x] **Step 3: 删除 protocol/core/DB 预算代码**
 
 - Protocol：删除上述字段/枚举/命令/schema；`TaskSummary`/`TaskDetailResponse`/`TaskAcceptanceResponse` 删除 budget；`AcceptanceReportFacts` 删除 budget 与 usage；`TaskCreateInput` 删除 `budgetUsd`；`TaskSetBudgetInput` 与 `task.set_budget` 命令删除；`ClientCommand` 类型移除；config 删除 `claudeMaxBudgetUsd`/`verifierBudgetUsd`/`maxTaskBudgetUsd`；adapter 删除 `maxBudgetUsd`。
 - Core：删除 `src/budget/**` 与导出；state machine 删除 `budget_exceeded`/`budget_raise`、`budgetRemainingUsd`、budget waiting 分支；`state-machine/attention.ts` 不再把 budget 归为需人；`tasks/board.ts` 删除 budget over 判断；`acceptance/report.ts` 删除 budget/usage 与预算风险；`supervisor/attention.ts` 删除 budget kind；`supervisor/templates.ts` 删除 defaultBudgetUsd。
@@ -284,12 +284,12 @@ Expected: FAIL（字段/导出仍存在）。
 - DB：`schema.ts` 删除 `budgetUsd`；`repositories.ts` 删除 `budgetUsd` 映射、`updateTaskBudget`、插入/更新字段；`task-service`/`delivery` 不传 budget。
 - 清理所有 imports 与 test fixtures；删除 budget-raise/core budget/exports snapshots 中的金钱预算项。
 
-- [ ] **Step 4: 运行并确认通过**
+- [x] **Step 4: 运行并确认通过**
 
 Run: `pnpm --filter @baton/protocol test && pnpm --filter @baton/core test && pnpm --filter @evanfang0054/baton test && pnpm --filter @baton/web typecheck`  
 Expected: PASS；`rg -n "budgetUsd|TaskBudgetSummary|budget_exceeded|budget_raise|task.set_budget|maxBudgetUsd|claudeMaxBudgetUsd" packages apps --glob '!**/dist/**'` 只允许出现在 migration/历史文档中。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/protocol packages/core apps/daemon/src apps/daemon/test
@@ -316,7 +316,7 @@ Seam: migration test
 - Consumes: Task 3 后所有代码不再读写 `budget_usd`。
 - Produces: migration 0016 删除列；历史 `waiting_input(budget)` 变 `todo`。
 
-- [ ] **Step 1: 写失败 migration 测试**
+- [x] **Step 1: 写失败 migration 测试**
 
 `apps/daemon/test/migration-0016.test.ts`：
 
@@ -365,12 +365,12 @@ describe('migration 0016', () => {
 })
 ```
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/migration-0016.test.ts`  
 Expected: FAIL（migration 0016 不存在）。
 
-- [ ] **Step 3: 写 migration 与 snapshot**
+- [x] **Step 3: 写 migration 与 snapshot**
 
 `0016_m8_budget_removal.sql`：
 
@@ -391,7 +391,7 @@ WHERE `status` = 'waiting_input' AND `waiting_reason` = 'budget';
 
 用 `pnpm --filter @evanfang0054/baton exec drizzle-kit generate` 或按 `0015_snapshot.json` 删除 `budget_usd` 后生成 `0016_snapshot.json`。确保 `apps/daemon/scripts/copy-migrations.mjs` 会复制它。
 
-- [ ] **Step 4: 运行 migration 与全量验证**
+- [x] **Step 4: 运行 migration 与全量验证**
 
 Run:
 
@@ -402,7 +402,7 @@ pnpm verify
 
 Expected: PASS；migration 测试通过；全仓 typecheck/lint/format/boundaries/protocol/test/build/bundle 全绿。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/daemon/migrations apps/daemon/test docs/evidence/2026-11-22-m7-delivery/coverage-matrix.md
