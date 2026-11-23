@@ -138,7 +138,79 @@ describe('evaluateApproval', () => {
       autoApproved: true,
       risk: 'high',
       reason: 'delegated supervisor authority',
+      authority: 'delegated',
     })
+  })
+
+  it('allows non-deny high-risk requests under workspace authority', () => {
+    const decision = evaluateApproval(
+      policy({ autopilot: autopilotOn }),
+      request('Bash', { command: 'which baton; baton --help' }, 'high'),
+      { killSwitch: false, workspaceTrusted: true, workspaceAuthority: true },
+    )
+    expect(decision).toMatchObject({
+      decision: 'allow',
+      autoApproved: true,
+      risk: 'high',
+      reason: 'workspace authority',
+      authority: 'workspace',
+    })
+  })
+
+  it('does not apply workspace authority when any gate is closed', () => {
+    const requestHigh = request('Bash', { command: 'which baton' }, 'high')
+    expect(
+      evaluateApproval(policy({ autopilot: autopilotOn }), requestHigh, {
+        killSwitch: true,
+        workspaceTrusted: true,
+        workspaceAuthority: true,
+      }),
+    ).toMatchObject({ decision: 'ask' })
+    expect(
+      evaluateApproval(policy({ autopilot: autopilotOn }), requestHigh, {
+        killSwitch: false,
+        workspaceTrusted: false,
+        workspaceAuthority: true,
+      }),
+    ).toMatchObject({ decision: 'ask' })
+    expect(
+      evaluateApproval(policy(), requestHigh, {
+        killSwitch: false,
+        workspaceTrusted: true,
+        workspaceAuthority: true,
+      }),
+    ).toMatchObject({ decision: 'ask' })
+    expect(
+      evaluateApproval(policy({ autopilot: autopilotOn }), requestHigh, {
+        killSwitch: false,
+        workspaceTrusted: true,
+      }),
+    ).toMatchObject({ decision: 'ask' })
+  })
+
+  it('keeps deny rules above workspace authority', () => {
+    const decision = evaluateApproval(
+      policy({ autopilot: autopilotOn }),
+      request('Bash', { command: 'rm -rf /tmp/demo' }, 'high'),
+      { killSwitch: false, workspaceTrusted: true, workspaceAuthority: true },
+    )
+    expect(decision).toMatchObject({ decision: 'deny', autoApproved: false })
+  })
+
+  it.each([
+    ['Edit', { file_path: '/workspace/demo/.ssh/id_rsa', cwd: '/workspace/demo' }],
+    ['Write', { file_path: '/workspace/demo/.aws/credentials', cwd: '/workspace/demo' }],
+    ['Write', { file_path: '/workspace/demo/.gnupg/key', cwd: '/workspace/demo' }],
+    ['Edit', { file_path: '/etc/passwd', cwd: '/workspace/demo' }],
+    ['Bash', { command: 'mkfs.ext4 /dev/sda' }],
+    ['Bash', { command: 'dd if=/dev/zero of=/dev/sda' }],
+  ] as const)('denies sensitive or destructive target %s %o', (tool, input) => {
+    const decision = evaluateApproval(policy({ autopilot: autopilotOn }), request(tool, input), {
+      killSwitch: false,
+      workspaceTrusted: true,
+      workspaceAuthority: true,
+    })
+    expect(decision.decision).toBe('deny')
   })
 
   it('does not delegate high-risk requests for human tasks', () => {
