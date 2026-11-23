@@ -161,6 +161,11 @@ export function createAiSdkSupervisorEngine(config: SupervisorConfig): Superviso
           inputSchema: tools.enqueue_delivery.parameters,
           execute: (input) => tools.enqueue_delivery.execute(input),
         }),
+        cancel_delivery: tool({
+          description: tools.cancel_delivery.description,
+          inputSchema: tools.cancel_delivery.parameters,
+          execute: (input) => tools.cancel_delivery.execute(input),
+        }),
         list_annotations: tool({
           description: tools.list_annotations.description,
           inputSchema: tools.list_annotations.parameters,

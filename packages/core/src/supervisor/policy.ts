@@ -35,6 +35,7 @@ export const SUPERVISOR_POLICY: SupervisorPolicy = {
     'list_deliveries',
     'get_delivery',
     'enqueue_delivery',
+    'cancel_delivery',
     'list_annotations',
     'get_annotation',
   ],

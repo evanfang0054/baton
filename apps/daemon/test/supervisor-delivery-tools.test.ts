@@ -7,7 +7,7 @@ import { createAnnotationService } from '../src/annotation/service.js'
 import { createDeliveryService } from '../src/delivery/service.js'
 import { getCanvasByDelivery, getAnnotation } from '../src/db/delivery-repositories.js'
 import { task as taskTable } from '../src/db/schema.js'
-import { getTaskDetail, listNodes } from '../src/db/repositories.js'
+import { getTaskDetail, listAudit, listNodes } from '../src/db/repositories.js'
 import type { WsEventDraft } from '../src/db/event-store.js'
 import { appError } from '../src/errors.js'
 import type { Config } from '../src/config.js'
@@ -80,6 +80,7 @@ function setup() {
   })
 
   const enqueued: string[] = []
+  const cancelled: string[] = []
   const tools = createSupervisorTools({
     db: database.db,
     workspacesRoot: root,
@@ -94,7 +95,18 @@ function setup() {
     applyTransition: () => ({ ok: false, error: appError('not_used', 'not used') }),
     replyToTask: () => ({ ok: true }),
     injectContext: () => ({ ok: false, error: appError('not_used', 'not used') }),
-    cancelTask: () => ({ ok: false, error: appError('not_used', 'not used') }),
+    cancelTask: (taskId) => {
+      cancelled.push(taskId)
+      return {
+        ok: true,
+        taskId,
+        status: 'cancelled',
+        previousStatus: 'todo',
+        retryCount: 0,
+        waitingReason: null,
+        events: [],
+      }
+    },
     deliveries: () => deliveries,
     annotations: () => annotations,
   })
@@ -122,6 +134,7 @@ function setup() {
     annotations,
     events,
     enqueued,
+    cancelled,
     ctx,
     workspaceDir,
   }
@@ -213,6 +226,45 @@ describe('supervisor delivery and annotation tools', () => {
     expect(Object.keys(tools)).not.toContain('approve')
     expect(Object.keys(tools)).not.toContain('reject')
     expect(Object.keys(tools)).not.toContain('resolve_annotation')
+  })
+
+  it('requires confirmation before cancelling a delivery and is idempotent', async () => {
+    const { database, tools, ctx, deliveries, cancelled } = setup()
+    const created = (await tools.create_delivery.execute(
+      { title: '交付 D', goal: '目标 D' },
+      ctx(),
+    )) as { deliveryId: string; taskId: string }
+
+    const first = (await tools.cancel_delivery.execute(
+      { deliveryId: created.deliveryId },
+      ctx(),
+    )) as { confirmationRequired: boolean; status: string }
+    expect(first).toMatchObject({ confirmationRequired: true, status: 'draft' })
+    expect(deliveries.getDeliveryDetail(created.deliveryId)?.status).toBe('draft')
+    expect(cancelled).toEqual([])
+
+    const confirmed = (await tools.cancel_delivery.execute(
+      { deliveryId: created.deliveryId, confirm: true },
+      ctx(),
+    )) as { status: string; taskId: string | null }
+    expect(confirmed).toMatchObject({ status: 'cancelled', taskId: created.taskId })
+    expect(deliveries.getDeliveryDetail(created.deliveryId)?.status).toBe('cancelled')
+    expect(cancelled).toEqual([created.taskId])
+
+    const again = (await tools.cancel_delivery.execute(
+      { deliveryId: created.deliveryId, confirm: true },
+      ctx(),
+    )) as { alreadyCancelled: boolean }
+    expect(again.alreadyCancelled).toBe(true)
+    expect(cancelled).toEqual([created.taskId])
+
+    expect(
+      listAudit(database.db, { actionPrefix: 'supervisor.delivery.cancel', limit: 10 })[0]?.detail,
+    ).toMatchObject({
+      deliveryId: created.deliveryId,
+      taskId: created.taskId,
+      confirmedByUser: true,
+    })
   })
 
   it('exposes annotation summaries without strokes and injects them into prompts', async () => {

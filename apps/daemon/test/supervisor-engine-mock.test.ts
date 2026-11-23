@@ -119,6 +119,7 @@ function tools(): BoundToolset {
     list_deliveries: noop,
     get_delivery: noop,
     enqueue_delivery: noop,
+    cancel_delivery: noop,
     list_annotations: noop,
     get_annotation: noop,
     create_task: {

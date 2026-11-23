@@ -43,6 +43,32 @@ describe('delivery service', () => {
       ok: true,
       taskId: result.taskId,
     })
+    expect(service.cancelDelivery(result.deliveryId)).toEqual({ ok: true, taskId: null })
     expect(service.getDeliveryDetail(result.deliveryId)?.status).toBe('cancelled')
+  })
+
+  it('cascades a stage task cancel into delivery cancellation', () => {
+    const { handle, service } = setup()
+    const result = service.createDelivery({
+      workspaceId: handle.seeded.workspaceId,
+      title: '级联取消',
+      goal: '验证阶段任务取消会取消整条交付',
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error(result.message)
+
+    expect(
+      handle.runtime.handleCommand({
+        v: 1,
+        id: 'cancel-stage',
+        ts: 1,
+        type: 'task.cancel',
+        payload: { taskId: result.taskId },
+      }).ok,
+    ).toBe(true)
+    const detail = service.getDeliveryDetail(result.deliveryId)
+    expect(detail?.status).toBe('cancelled')
+    expect(detail?.currentStageKey).toBeNull()
+    expect(detail?.cancelledAt).not.toBeNull()
   })
 })

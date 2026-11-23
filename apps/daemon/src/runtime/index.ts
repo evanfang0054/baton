@@ -654,8 +654,18 @@ export function createRuntime(deps: RuntimeDeps) {
       type: 'cancel',
       ...(reason ? { reason } : {}),
     })
-    if (outcome.ok && outcome.previousStatus === 'verifying') {
+    if (!outcome.ok) return outcome
+    if (outcome.previousStatus === 'verifying') {
       verifyHolder.value?.cancel(taskId)
+    }
+    const task = getTask(deps.db, taskId)
+    if (task?.deliveryId && task.stageKey) {
+      deliveryServiceHolder.value?.markDeliveryCancelled(task.deliveryId, {
+        actor: 'system',
+        source: 'task_cancel',
+        ...(reason ? { reason } : {}),
+        taskId,
+      })
     }
     return outcome
   }

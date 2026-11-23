@@ -90,7 +90,11 @@ export type CreateDeliveryResult =
   { ok: true; deliveryId: string; taskId: string } | { ok: false; code: string; message: string }
 
 export type DeliveryActionResult =
-  { ok: true; taskId: string } | { ok: false; code: string; message: string }
+  { ok: true; taskId: string | null } | { ok: false; code: string; message: string }
+
+export type MarkDeliveryCancelledResult =
+  | { ok: true; changed: boolean; taskId: string | null }
+  | { ok: false; code: string; message: string }
 
 const MAX_SKILL_BYTES = 64 * 1024
 
@@ -538,25 +542,38 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
     return { ok: true, taskId: current.taskId }
   }
 
-  function cancelDelivery(id: string): DeliveryActionResult {
+  function markDeliveryCancelled(
+    id: string,
+    input: {
+      actor: 'human' | 'supervisor' | 'system'
+      source: 'delivery_cancel' | 'task_cancel' | 'supervisor_cancel'
+      reason?: string | undefined
+      taskId?: string | null | undefined
+    },
+  ): MarkDeliveryCancelledResult {
     const delivery = getDelivery(deps.db, id)
     if (!delivery) return { ok: false, code: 'delivery_not_found', message: 'delivery not found' }
-    if (delivery.cancelledAt !== null) {
-      return { ok: false, code: 'cancelled', message: 'delivery is already cancelled' }
-    }
     const { stages } = buildSummaries(deps, delivery)
     const current = stages.find(
       (stage) => stage.taskId && stage.status !== 'done' && stage.status !== 'cancelled',
     )
+    if (delivery.cancelledAt !== null) {
+      return { ok: true, changed: false, taskId: null }
+    }
     const now = deps.now()
     deps.db.transaction((tx) => {
       setDeliveryCancelled(tx, id, now)
       insertAudit(tx, {
         id: deps.newId(),
         ts: now,
-        actor: 'human',
+        actor: input.actor,
         action: 'delivery.cancel',
-        detail: { deliveryId: id, taskId: current?.taskId ?? null },
+        detail: {
+          deliveryId: id,
+          taskId: input.taskId ?? current?.taskId ?? null,
+          source: input.source,
+          ...(input.reason ? { reason: input.reason } : {}),
+        },
       })
     })
     const cancelled = getDelivery(deps.db, id)
@@ -572,9 +589,12 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
         ts: now,
       })
     }
-    return current?.taskId
-      ? { ok: true, taskId: current.taskId }
-      : { ok: false, code: 'no_stage', message: 'no cancellable stage' }
+    return { ok: true, changed: true, taskId: current?.taskId ?? null }
+  }
+
+  function cancelDelivery(id: string): DeliveryActionResult {
+    const result = markDeliveryCancelled(id, { actor: 'human', source: 'delivery_cancel' })
+    return result.ok ? { ok: true, taskId: result.taskId } : result
   }
 
   function advanceDelivery(
@@ -814,6 +834,7 @@ export function createDeliveryService(deps: DeliveryServiceDeps) {
     getDeliveryDetail,
     enqueueDelivery,
     cancelDelivery,
+    markDeliveryCancelled,
     advanceDelivery,
     maybeAutoApprove,
     syncStageArtifacts,

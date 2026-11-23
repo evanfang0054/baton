@@ -64,6 +64,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, deps: DeliveryRoute
     const { deliveryId } = req.params as { deliveryId: string }
     const result = deps.deliveries.enqueueDelivery(deliveryId)
     if (!result.ok) throw appError(result.code, result.message)
+    if (!result.taskId) throw appError('no_stage', 'no stage task to enqueue')
     const outcome = deps.runtime.handleCommand(
       command('task.enqueue', { taskId: result.taskId }, deps),
     )
@@ -76,6 +77,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, deps: DeliveryRoute
     const body = (req.body ?? {}) as { reason?: string }
     const result = deps.deliveries.cancelDelivery(deliveryId)
     if (!result.ok) throw appError(result.code, result.message)
+    if (!result.taskId) return DeliveryActionResponse.parse({ taskId: null })
     const outcome = deps.runtime.handleCommand(
       command(
         'task.cancel',

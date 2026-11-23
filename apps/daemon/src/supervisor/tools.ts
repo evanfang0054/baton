@@ -122,6 +122,7 @@ export interface SupervisorToolset {
   list_deliveries: SupervisorTool
   get_delivery: SupervisorTool
   enqueue_delivery: SupervisorTool
+  cancel_delivery: SupervisorTool
   list_annotations: SupervisorTool
   get_annotation: SupervisorTool
 }
@@ -159,6 +160,7 @@ export interface BoundToolset {
   list_deliveries: BoundTool
   get_delivery: BoundTool
   enqueue_delivery: BoundTool
+  cancel_delivery: BoundTool
   list_annotations: BoundTool
   get_annotation: BoundTool
 }
@@ -196,6 +198,7 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     list_deliveries: bind(tools.list_deliveries),
     get_delivery: bind(tools.get_delivery),
     enqueue_delivery: bind(tools.enqueue_delivery),
+    cancel_delivery: bind(tools.cancel_delivery),
     list_annotations: bind(tools.list_annotations),
     get_annotation: bind(tools.get_annotation),
   }
@@ -246,6 +249,10 @@ const listDeliveriesInput = z.object({
 
 const getDeliveryInput = z.object({ deliveryId: z.string().min(1) })
 const enqueueDeliveryInput = z.object({ deliveryId: z.string().min(1) })
+const cancelDeliveryInput = z.object({
+  deliveryId: z.string().min(1),
+  confirm: z.boolean().optional(),
+})
 
 const listAnnotationsInput = z.object({
   deliveryId: z.string().min(1),
@@ -1796,6 +1803,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         if (!service) throw appError('delivery_unavailable', 'delivery service is unavailable')
         const result = service.enqueueDelivery(parsed.deliveryId)
         if (!result.ok) throw appError(result.code, result.message)
+        if (!result.taskId) throw appError('no_stage', 'no stage task to enqueue')
         const outcome = deps.enqueueTask(result.taskId)
         if (!outcome.ok) throw outcome.error
         deps.db.transaction((tx) => {
@@ -1808,6 +1816,54 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           })
         })
         return { deliveryId: parsed.deliveryId, taskId: result.taskId, status: 'queued' }
+      },
+    },
+
+    cancel_delivery: {
+      description:
+        '取消整条交付；首次调用返回 confirmation_required，必须先问用户，确认后传 confirm=true。' +
+        '不要用它取消验收或替人做审批。',
+      parameters: cancelDeliveryInput,
+      async execute(input, ctx) {
+        const parsed = cancelDeliveryInput.parse(input)
+        const service = deps.deliveries?.()
+        if (!service) throw appError('delivery_unavailable', 'delivery service is unavailable')
+        const detail = service.getDeliveryDetail(parsed.deliveryId)
+        if (!detail) throw appError('delivery_not_found', 'delivery not found')
+        if (detail.status === 'cancelled') {
+          return {
+            deliveryId: parsed.deliveryId,
+            status: 'cancelled',
+            taskId: null,
+            alreadyCancelled: true,
+          }
+        }
+        if (!parsed.confirm) {
+          return {
+            deliveryId: parsed.deliveryId,
+            status: detail.status,
+            confirmationRequired: true,
+            message: '请先向用户确认是否停止整条交付；确认后再传 confirm=true。',
+          }
+        }
+        const result = service.cancelDelivery(parsed.deliveryId)
+        if (!result.ok) throw appError(result.code, result.message)
+        if (result.taskId) deps.cancelTask(result.taskId, '交付已取消')
+        deps.db.transaction((tx) => {
+          insertAudit(tx, {
+            id: deps.newId(),
+            ts: deps.now(),
+            actor: 'supervisor',
+            action: 'supervisor.delivery.cancel',
+            detail: {
+              deliveryId: parsed.deliveryId,
+              taskId: result.taskId,
+              confirmedByUser: true,
+              triggerId: ctx.triggerId,
+            },
+          })
+        })
+        return { deliveryId: parsed.deliveryId, status: 'cancelled', taskId: result.taskId }
       },
     },
 

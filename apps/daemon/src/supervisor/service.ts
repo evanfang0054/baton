@@ -1225,6 +1225,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           input.assistantMessageId,
           input.threadId,
         ),
+        cancel_delivery: wrapTool(
+          'cancel_delivery',
+          bound.cancel_delivery,
+          input.assistantMessageId,
+          input.threadId,
+        ),
         list_annotations: wrapTool(
           'list_annotations',
           bound.list_annotations,

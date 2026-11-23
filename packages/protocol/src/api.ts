@@ -310,7 +310,7 @@ export const DeliveryDetailResponse = z.object({ delivery: DeliveryDetail })
 export type DeliveryDetailResponse = z.infer<typeof DeliveryDetailResponse>
 
 export const DeliveryActionResponse = z.object({
-  taskId: Id,
+  taskId: Id.nullable(),
   ack: z.record(z.string(), z.unknown()).optional(),
 })
 export type DeliveryActionResponse = z.infer<typeof DeliveryActionResponse>
