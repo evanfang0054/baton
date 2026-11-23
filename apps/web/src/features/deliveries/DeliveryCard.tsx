@@ -1,5 +1,6 @@
 import { canCancelDeliveryStatus } from '@baton/core'
 import type { DeliverySummary } from '@baton/protocol'
+import { Button } from '@heroui/react/button'
 import {
   DELIVERY_STATUS_LABELS,
   STAGE_STATUS_LABELS,
@@ -9,11 +10,6 @@ import {
 } from './delivery-labels'
 
 const chipBase = 'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium'
-const stopButtonClass = [
-  'pointer-events-auto relative z-20 ml-auto rounded border border-danger/40 px-1.5 py-0.5 text-danger',
-  'transition-colors hover:bg-danger/10 focus-visible:outline-2',
-  'focus-visible:outline-offset-1 focus-visible:outline-accent',
-].join(' ')
 
 function stageTone(status: string): string {
   if (status === 'done') return 'bg-success/10 text-success'
@@ -62,13 +58,10 @@ export function DeliveryCard({
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-1">
           {delivery.stages.map((stage) => (
-            <span
-              key={stage.key}
-              className={`${chipBase} ${stageTone(stage.status)}`}
-              title={`${stage.ordinal} ${stage.label}：${STAGE_STATUS_LABELS[stage.status]}`}
-            >
+            <span key={stage.key} className={`${chipBase} ${stageTone(stage.status)}`}>
               <span aria-hidden="true">{stage.ordinal}</span>
               {stage.label}
+              <span className="sr-only">：{STAGE_STATUS_LABELS[stage.status]}</span>
             </span>
           ))}
         </div>
@@ -87,14 +80,15 @@ export function DeliveryCard({
           ) : null}
           {delivery.attention !== 'none' ? <span className="text-warning">需要老板</span> : null}
           {onCancel && canCancelDeliveryStatus(delivery.status) ? (
-            <button
-              type="button"
-              onClick={() => onCancel(delivery.id)}
-              className={stopButtonClass}
+            <Button
+              size="sm"
+              variant="danger-soft"
+              className="pointer-events-auto relative z-20 ml-auto"
               aria-label={`停止交付 ${delivery.title}`}
+              onPress={() => onCancel(delivery.id)}
             >
               停止交付
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>

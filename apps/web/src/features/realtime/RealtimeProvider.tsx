@@ -7,7 +7,7 @@ import { toast } from '@heroui/react/toast'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { CommandProvider, offlineCommand, type CommandSender } from '../../lib/command-context'
-import { queryKeys } from '../../lib/query'
+import { invalidateDeliveryQueries, queryKeys } from '../../lib/query'
 import { createWsClient } from '../../lib/ws'
 import { useAppStore } from '../../stores/app'
 import { useSupervisorStreamStore } from '../supervisor/stream-store'
@@ -231,14 +231,7 @@ export function RealtimeProvider({
           return
         }
         if (event.type === 'delivery.updated') {
-          const { deliveryId } = event.payload
-          void queryClient.invalidateQueries({ queryKey: queryKeys.deliveries(workspaceId) })
-          void queryClient.invalidateQueries({ queryKey: queryKeys.delivery(deliveryId) })
-          void queryClient.invalidateQueries({
-            queryKey: queryKeys.deliveryCanvas(workspaceId, deliveryId),
-          })
-          void queryClient.invalidateQueries({ queryKey: queryKeys.artifacts(deliveryId) })
-          void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+          void invalidateDeliveryQueries(queryClient, workspaceId, event.payload.deliveryId)
           return
         }
         if (event.type === 'artifact.updated') {

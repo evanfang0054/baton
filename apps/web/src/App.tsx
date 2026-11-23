@@ -52,7 +52,7 @@ import {
   updateAnnotation,
 } from './lib/api'
 import { useCommand } from './lib/command-context'
-import { queryKeys } from './lib/query'
+import { invalidateDeliveryQueries, queryKeys } from './lib/query'
 import { readUrlState, writeUrlState } from './lib/url'
 import { useViewport } from './lib/use-viewport'
 import { useAppStore } from './stores/app'
@@ -302,16 +302,7 @@ export function App() {
     try {
       await cancelDeliveryRequest(cancelDeliveryId)
       toast.success('交付已停止')
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.deliveries(activeWorkspaceId ?? ''),
-        }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.delivery(cancelDeliveryId) }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.deliveryCanvas(activeWorkspaceId ?? '', cancelDeliveryId),
-        }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.tasks(activeWorkspaceId ?? '') }),
-      ])
+      await invalidateDeliveryQueries(queryClient, activeWorkspaceId ?? '', cancelDeliveryId)
     } catch (cause) {
       toast.danger(cause instanceof Error ? cause.message : '停止交付失败')
     }

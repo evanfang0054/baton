@@ -9,7 +9,7 @@ import {
 } from './m6-helpers'
 
 async function evidenceShot(page: Page, name: string): Promise<void> {
-  const dir = process.env.M8_EVIDENCE_DIR
+  const dir = process.env.BATON_M8_EVIDENCE_DIR
   if (!dir) return
   await page.screenshot({ path: `${dir}/${name}` })
 }
@@ -57,6 +57,7 @@ test('supervisor approval gate card sends approval.decide once', async ({ page }
   await expect(page.getByText('登录页修复')).toBeVisible()
   await expect(page.getByText('Bash')).toBeVisible()
   await expect(page.getByText('高风险', { exact: true })).toBeVisible()
+  await expect(page.locator('[aria-label="总管对话"]').getByText('允许')).toHaveCount(0)
   await evidenceShot(page, 'm8-gate-approval-desktop.png')
 
   await page.getByRole('button', { name: '允许' }).click()

@@ -48,3 +48,16 @@ export async function invalidateTaskQueries(
     await client.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
   }
 }
+
+/** 交付命令后统一刷新交付/画布/任务查询，避免人工入口与实时入口漏键。 */
+export async function invalidateDeliveryQueries(
+  client: QueryClient,
+  workspaceId: string,
+  deliveryId: string,
+): Promise<void> {
+  await client.invalidateQueries({ queryKey: queryKeys.deliveries(workspaceId) })
+  await client.invalidateQueries({ queryKey: queryKeys.delivery(deliveryId) })
+  await client.invalidateQueries({ queryKey: queryKeys.deliveryCanvas(workspaceId, deliveryId) })
+  await client.invalidateQueries({ queryKey: queryKeys.artifacts(deliveryId) })
+  await client.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+}

@@ -188,8 +188,8 @@ describe('SupervisorGateCards', () => {
     )
     renderCards()
 
-    expect(await screen.findByText(/待我处理 5/)).toBeInTheDocument()
-    expect(screen.getByText(/显示前 4/)).toBeInTheDocument()
+    expect(await screen.findByText(/待我处理 4/)).toBeInTheDocument()
+    expect(screen.getByText(/另有 1 条需到任务详情处理/)).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: '允许' })).toHaveLength(4)
   })
 

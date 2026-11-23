@@ -1,9 +1,11 @@
 import type { Approval, ReviewView, TaskAcceptanceSummary, TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
+import { Input } from '@heroui/react/input'
 import { TextArea } from '@heroui/react/textarea'
+import { toast } from '@heroui/react/toast'
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getTask, listTasks } from '../../lib/api'
 import { invalidateTaskQueries, queryKeys } from '../../lib/query'
 import { needsAcceptanceOverride } from '../tasks/acceptance-gate'
@@ -104,8 +106,11 @@ export function SupervisorGateCards({
       className="max-h-72 shrink-0 overflow-y-auto border-t border-separator bg-background/60 px-3 py-2"
     >
       <p className="mb-2 text-xs font-medium text-foreground">
-        待我处理 {candidates.length}
-        {candidates.length > MAX_GATE_CARDS ? `（显示前 ${MAX_GATE_CARDS}）` : ''}
+        待我处理 {cards.length}
+        {candidates.length > cards.length
+          ? `（另有 ${candidates.length - cards.length} 条需到任务详情处理）`
+          : ''}
+        {cards.length > MAX_GATE_CARDS ? `（显示前 ${MAX_GATE_CARDS}）` : ''}
       </p>
       <div className="flex flex-col gap-2">
         {cards.map((card) =>
@@ -149,6 +154,10 @@ function ApprovalGateCard({
   const action = useCommandAction(onDone)
   const preview = inputPreview(approval.request.input)
 
+  useEffect(() => {
+    if (action.error) toast.danger(action.error)
+  }, [action.error])
+
   if (resolved) return null
 
   const decide = async (decision: 'allow' | 'deny') => {
@@ -165,7 +174,7 @@ function ApprovalGateCard({
   }
 
   return (
-    <section className="rounded-lg border border-warning/60 bg-surface p-3">
+    <section className="rounded-lg border border-warning border-l-2 bg-surface p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-foreground">{task.title}</p>
@@ -182,12 +191,12 @@ function ApprovalGateCard({
       ) : null}
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
         {task.waitingSince ? <WaitingTime since={task.waitingSince} /> : null}
-        <input
+        <Input
           aria-label="审批备注"
           placeholder="备注（可选）"
           value={note}
           onChange={(event) => setNote(event.target.value)}
-          className="h-7 min-w-0 flex-1 rounded border border-separator bg-background px-2 text-xs"
+          className="h-7 min-w-0 flex-1"
         />
       </div>
       <div className="mt-2 flex justify-end gap-2">
@@ -240,6 +249,10 @@ function ReviewGateCard({
   const needsOverride = needsAcceptanceOverride(review, acceptance)
   const reasonMissing = needsOverride && reason.trim().length === 0
 
+  useEffect(() => {
+    if (action.error) toast.danger(action.error)
+  }, [action.error])
+
   if (resolved) return null
 
   const approve = async () => {
@@ -283,7 +296,7 @@ function ReviewGateCard({
   }
 
   return (
-    <section className="rounded-lg border border-accent/60 bg-surface p-3">
+    <section className="rounded-lg border border-accent bg-surface p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-foreground">{task.title}</p>

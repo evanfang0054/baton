@@ -1,6 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-
-type WsRoute = Parameters<Parameters<Page['routeWebSocket']>[1]>[0]
+import { wsRecorder } from './m6-helpers'
 
 const stages = [
   { key: 'requirement', label: '需求', ordinal: 1, gate: 'human', status: 'waiting_person' },
@@ -119,24 +118,6 @@ function json(body: unknown) {
   }
 }
 
-function ackWebSocket(page: Page) {
-  return page.routeWebSocket('**/ws', (ws: WsRoute) => {
-    ws.onMessage((raw) => {
-      const message = JSON.parse(String(raw)) as { id?: string }
-      if (!message.id) return
-      ws.send(
-        JSON.stringify({
-          v: 1,
-          id: `ack-${message.id}`,
-          type: 'ack',
-          ts: Date.now(),
-          payload: { commandId: message.id, ok: true, data: {} },
-        }),
-      )
-    })
-  })
-}
-
 function mockDeliveryApi(page: Page) {
   const state = { cancelled: false, cancelCalls: 0 }
   const current = () =>
@@ -223,7 +204,7 @@ function mockDeliveryApi(page: Page) {
 }
 
 test('delivery board opens the canvas and annotation overlay', async ({ page }) => {
-  await ackWebSocket(page)
+  await page.routeWebSocket('**/ws', wsRecorder([], { compact: true, skipResumeAck: true }))
   mockDeliveryApi(page)
 
   await page.goto('/?workspace=w1&delivery=d1')
@@ -237,7 +218,7 @@ test('delivery board opens the canvas and annotation overlay', async ({ page }) 
 })
 
 test('stops a delivery after confirmation', async ({ page }) => {
-  await ackWebSocket(page)
+  await page.routeWebSocket('**/ws', wsRecorder([], { compact: true, skipResumeAck: true }))
   const state = mockDeliveryApi(page)
 
   await page.goto('/?workspace=w1&delivery=d1')

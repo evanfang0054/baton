@@ -294,7 +294,8 @@ export function AutomationSettingsDialog({
                     </select>
                   </label>
                   <p className="text-xs text-muted">
-                    修改只影响新启动的会话；运行中的任务使用启动时的策略快照。工作区授权命中时不受风险上限限制；仅未启用工作区授权的旧策略按此上限自动批准。
+                    修改只影响新启动的会话；运行中的任务使用启动时的策略快照。工作区授权命中时不受风险上限限制；风险上限仅对
+                    delegated（非工作区授权）自动批准生效。
                   </p>
                   {current.digestCronUnsupported ? (
                     <p className="text-xs text-warning">
