@@ -21,18 +21,26 @@ export function DeliveryCard({
   delivery,
   compact = false,
   onSelect,
+  onCancel,
 }: {
   delivery: DeliverySummary
   compact?: boolean
   onSelect: (deliveryId: string) => void
+  onCancel?: (deliveryId: string) => void
 }) {
   const stale = isStaleWaiting(delivery.waitingSince)
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(delivery.id)}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        onSelect(delivery.id)
+      }}
       className={[
-        'w-full rounded-lg border border-separator bg-surface p-3 text-left transition-colors',
+        'w-full cursor-pointer rounded-lg border border-separator bg-surface p-3 text-left transition-colors',
         'hover:border-accent/50 hover:bg-default/40',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
       ].join(' ')}
@@ -75,7 +83,21 @@ export function DeliveryCard({
           <span>{delivery.openAnnotationCount} 条标注</span>
         ) : null}
         {delivery.attention !== 'none' ? <span className="text-warning">需要老板</span> : null}
+        {onCancel && delivery.status !== 'cancelled' ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              onCancel(delivery.id)
+            }}
+            onKeyDown={(event) => event.stopPropagation()}
+            className="ml-auto rounded border border-danger/40 px-1.5 py-0.5 text-danger transition-colors hover:bg-danger/10 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+            aria-label={`停止交付 ${delivery.title}`}
+          >
+            停止交付
+          </button>
+        ) : null}
       </div>
-    </button>
+    </div>
   )
 }

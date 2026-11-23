@@ -29,6 +29,7 @@ export function DeliveryCanvas({
   onCreateDrawing,
   onAnnotationsChanged,
   onOpenAcceptance,
+  onCancelDelivery,
 }: {
   workspaceId: string
   delivery: DeliveryDetail
@@ -45,6 +46,7 @@ export function DeliveryCanvas({
   onCreateDrawing: () => void
   onAnnotationsChanged: () => void
   onOpenAcceptance: () => void
+  onCancelDelivery: (deliveryId: string) => void
 }) {
   const canvasRef = useRef<CanvasPanelHandle>(null)
   const [annotating, setAnnotating] = useState(false)
@@ -145,6 +147,11 @@ export function DeliveryCanvas({
             <Button size="sm" variant="tertiary" onPress={onCreateDrawing}>
               新建画板
             </Button>
+            {delivery.status !== 'cancelled' ? (
+              <Button size="sm" variant="danger-soft" onPress={() => onCancelDelivery(delivery.id)}>
+                停止交付
+              </Button>
+            ) : null}
             <Button
               size="sm"
               variant={annotating ? 'primary' : 'tertiary'}

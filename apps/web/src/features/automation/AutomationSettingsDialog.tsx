@@ -191,6 +191,10 @@ export function AutomationSettingsDialog({
                       onChange={(event) => setEnabled(event.target.checked)}
                     />
                   </label>
+                  <p className="text-xs text-muted">
+                    开启后，信任工作区内所有非 deny 操作（含高风险 Bash）自动批准；deny、kill switch
+                    与审计仍然生效。
+                  </p>
                   <label className="flex items-center justify-between gap-3 text-sm">
                     <span>总管全权（含高风险自动批准）</span>
                     <input
@@ -290,7 +294,7 @@ export function AutomationSettingsDialog({
                     </select>
                   </label>
                   <p className="text-xs text-muted">
-                    修改只影响新启动的会话；运行中的任务使用启动时的策略快照。未开启总管全权时，高风险操作永远不会自动批准。
+                    修改只影响新启动的会话；运行中的任务使用启动时的策略快照。工作区授权命中时不受风险上限限制；仅未启用工作区授权的旧策略按此上限自动批准。
                   </p>
                   {current.digestCronUnsupported ? (
                     <p className="text-xs text-warning">

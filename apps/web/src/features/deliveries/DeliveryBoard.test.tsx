@@ -92,6 +92,32 @@ describe('DeliveryBoard', () => {
     expect(onSelect).toHaveBeenCalledWith('d1')
   })
 
+  it('stops a delivery without opening the card', async () => {
+    const onSelect = vi.fn()
+    const onCancelDelivery = vi.fn()
+    render(
+      <DeliveryBoard
+        deliveries={[delivery()]}
+        onSelect={onSelect}
+        onCancelDelivery={onCancelDelivery}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: '停止交付 优惠券领取页' }))
+    expect(onCancelDelivery).toHaveBeenCalledWith('d1')
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('hides the stop action for cancelled deliveries', () => {
+    render(
+      <DeliveryBoard
+        deliveries={[delivery({ status: 'cancelled' })]}
+        onSelect={() => {}}
+        onCancelDelivery={() => {}}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: /停止交付/ })).not.toBeInTheDocument()
+  })
+
   it('sorts by waiting time and flags stale deliveries', () => {
     const now = Date.now()
     const sorted = filterDeliveries(

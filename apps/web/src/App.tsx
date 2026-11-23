@@ -39,6 +39,7 @@ import {
   getAutomation,
   getCanvas,
   getDelivery,
+  cancelDelivery as cancelDeliveryRequest,
   createArtifactDraft,
   listArtifacts,
   listDeliveries,
@@ -292,6 +293,25 @@ export function App() {
     setShowTasks(false)
     setShowWorkspace(false)
     setOverlay(null)
+  }
+  const stopDelivery = async (deliveryId: string) => {
+    if (!window.confirm('停止交付会取消整条交付和当前阶段任务，确认吗？')) return
+    try {
+      await cancelDeliveryRequest(deliveryId)
+      toast.success('交付已停止')
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.deliveries(activeWorkspaceId ?? ''),
+        }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.delivery(deliveryId) }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.deliveryCanvas(activeWorkspaceId ?? '', deliveryId),
+        }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks(activeWorkspaceId ?? '') }),
+      ])
+    } catch (cause) {
+      toast.danger(cause instanceof Error ? cause.message : '停止交付失败')
+    }
   }
   const goBoard = () => {
     setDelivery(null)
@@ -601,6 +621,7 @@ export function App() {
                     }
                   }}
                   onCreateDrawing={() => void createDrawing()}
+                  onCancelDelivery={(deliveryId) => void stopDelivery(deliveryId)}
                   onAnnotationsChanged={() => {
                     if (!activeDeliveryId) return
                     void queryClient.invalidateQueries({
@@ -615,6 +636,7 @@ export function App() {
                 <DeliveryBoard
                   deliveries={deliveries.data ?? []}
                   onSelect={selectDelivery}
+                  onCancelDelivery={(deliveryId) => void stopDelivery(deliveryId)}
                   onOpenTaskView={() => setShowTasks(true)}
                 />
               )}

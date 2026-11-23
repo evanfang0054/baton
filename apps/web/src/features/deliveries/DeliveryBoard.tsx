@@ -31,10 +31,12 @@ export function filterDeliveries(
 export function DeliveryBoard({
   deliveries,
   onSelect,
+  onCancelDelivery,
   onOpenTaskView,
 }: {
   deliveries: DeliverySummary[]
   onSelect: (deliveryId: string) => void
+  onCancelDelivery?: (deliveryId: string) => void
   onOpenTaskView?: () => void
 }) {
   const [filter, setFilter] = useState<DeliveryFilter>('all')
@@ -99,7 +101,12 @@ export function DeliveryBoard({
             </div>
             <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
               {column.items.map((delivery) => (
-                <DeliveryCard key={delivery.id} delivery={delivery} onSelect={onSelect} />
+                <DeliveryCard
+                  key={delivery.id}
+                  delivery={delivery}
+                  onSelect={onSelect}
+                  {...(onCancelDelivery ? { onCancel: onCancelDelivery } : {})}
+                />
               ))}
               {column.items.length === 0 ? (
                 <p className="px-1 py-6 text-center text-xs text-muted">暂无</p>
