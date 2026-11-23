@@ -4,7 +4,7 @@ spec_topic: m8-attention-gate-authority
 task_count: 4
 estimated_phases: [tests, implementation, verification]
 dod: "预算从 web/daemon/core/protocol/DB 彻底移除；内部 cost/turn 保留；migration 0016 删除 budget_usd 并迁移旧 budget 等待任务；pnpm verify 全绿"
-status: active
+status: completed
 depends_on: none
 ---
 
