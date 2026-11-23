@@ -78,7 +78,6 @@ export function isReadOnlyVerifierRequest(request: { toolName: string; input: un
 export interface SessionRunnerDeps {
   db: Db
   dataDir: string
-  claudeMaxBudgetUsd: number
   adapters: AdapterFactory
   eventStore: EventStore
   broadcast: (event: BroadcastEvent) => void

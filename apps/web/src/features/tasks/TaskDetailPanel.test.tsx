@@ -25,7 +25,6 @@ const baseTask: TaskDetailResponse['task'] = {
   worktreePath: null,
   verifyCommand: null,
   dangerouslySkipPermissions: false,
-  budgetUsd: null,
   enqueuedAt: null,
   retryCount: 0,
   ...{ context: null, origin: null },
@@ -55,17 +54,6 @@ function detail(overrides: Partial<TaskDetailResponse> = {}): TaskDetailResponse
     waitingSince: null,
     attention: 'none',
     acceptance: null,
-    budget: {
-      budgetUsd: 2,
-      spentUsd: 0,
-      remainingUsd: 2,
-      ratio: 0,
-      overBudget: false,
-      nearBudget: false,
-      workerCostUsd: 0,
-      verifierCostUsd: 0,
-      turns: 0,
-    },
     lastFailure: null,
     lastOutcome: null,
     ['contextInvalid']: false,
@@ -125,31 +113,10 @@ function acceptanceBundle(): TaskAcceptanceResponse {
         counts: { total: 1, pass: 1, fail: 0, pending: 0, waived: 0 },
         verdict: 'pass',
       },
-      usage: {
-        workerCostUsd: 0.2,
-        verifierCostUsd: 0.1,
-        turns: 2,
-        budgetUsd: 2,
-        spentUsd: 0.2,
-        remainingUsd: 1.8,
-        overBudget: false,
-        nearBudget: false,
-      },
       risks: [],
       unverified: [],
       preliminary: { verdict: 'pass', summary: '满足要求' },
       hash: 'a'.repeat(64),
-    },
-    budget: {
-      budgetUsd: 2,
-      spentUsd: 0.2,
-      remainingUsd: 1.8,
-      ratio: 0.1,
-      overBudget: false,
-      nearBudget: false,
-      workerCostUsd: 0.2,
-      verifierCostUsd: 0.1,
-      turns: 2,
     },
   }
 }
@@ -253,7 +220,7 @@ describe('TaskDetailPanel', () => {
     expect(screen.getByText('prompt-1')).toBeInTheDocument()
   })
 
-  it('shows injection timeline and aggregate usage', async () => {
+  it('shows injection timeline without cost', async () => {
     stubFetch(
       detail({
         task: {

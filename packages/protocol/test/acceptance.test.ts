@@ -6,7 +6,6 @@ import {
   AcceptanceRun,
   Task,
   TaskSummary,
-  WaitingReason,
 } from '../src/index.js'
 
 const contract = {
@@ -100,16 +99,6 @@ describe('acceptance entities', () => {
         counts: { total: 1, pass: 0, fail: 0, pending: 1, waived: 0 },
         verdict: 'incomplete',
       },
-      usage: {
-        workerCostUsd: 1.2,
-        verifierCostUsd: 0.08,
-        turns: 2,
-        budgetUsd: 2,
-        spentUsd: 1.2,
-        remainingUsd: 0.8,
-        overBudget: false,
-        nearBudget: false,
-      },
       risks: [],
       unverified: ['验收项 1'],
       preliminary: { verdict: null, summary: null },
@@ -120,18 +109,13 @@ describe('acceptance entities', () => {
   })
 })
 
-describe('task acceptance/budget fields', () => {
-  it('defaults Task.budgetUsd to null', () => {
-    expect(Task.parse(taskSummary).budgetUsd).toBeNull()
-  })
-
-  it('defaults TaskSummary acceptance/budget to null', () => {
+describe('task acceptance fields', () => {
+  it('defaults TaskSummary acceptance to null', () => {
     const parsed = TaskSummary.parse(taskSummary)
     expect(parsed.acceptance).toBeNull()
-    expect(parsed.budget).toBeNull()
   })
 
-  it('accepts waitingReason budget', () => {
-    expect(WaitingReason.parse('budget')).toBe('budget')
+  it('rejects a monetary budget field on Task', () => {
+    expect(Task.shape).not.toHaveProperty('budgetUsd')
   })
 })

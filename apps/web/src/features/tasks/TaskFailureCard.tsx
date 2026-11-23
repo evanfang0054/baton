@@ -6,7 +6,6 @@ const STAGE_LABELS: Record<FailureSummary['stage'], string> = {
   verify: '自动校验',
   review: '人工验收',
   verifier: '验收 Agent',
-  budget: '预算',
   unknown: '未知',
 }
 

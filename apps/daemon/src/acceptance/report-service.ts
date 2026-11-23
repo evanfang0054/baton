@@ -6,17 +6,10 @@ import type {
   AcceptanceReport,
   AcceptanceRun,
   Task,
-  TaskBudgetSummary,
 } from '@baton/protocol'
 import type { Config } from '../config.js'
-import { getTaskBudgetSummary } from '../budget/service.js'
 import { getAcceptanceBundle } from '../db/acceptance-repository.js'
-import {
-  getReviewByTask,
-  getReviewDiff,
-  getWorkspace,
-  listSessionsByTask,
-} from '../db/repositories.js'
+import { getReviewByTask, getReviewDiff, getWorkspace } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { resolveWorkspaceDir } from '../workspace/resolver.js'
 
@@ -25,23 +18,17 @@ export interface AcceptanceResponse {
   items: AcceptanceItem[]
   run: AcceptanceRun | null
   report: AcceptanceReport
-  budget: TaskBudgetSummary
 }
 
 export function getAcceptanceResponse(
   db: Db,
   task: Task,
-  config: Pick<Config, 'claudeMaxBudgetUsd' | 'workspacesRoot'>,
+  config: Pick<Config, 'workspacesRoot'>,
 ): AcceptanceResponse | null {
   const bundle = getAcceptanceBundle(db, task.id)
   if (!bundle) return null
   const review = getReviewByTask(db, task.id)
   const diff = review ? getReviewDiff(db, review.id) : null
-  const workerSessions = listSessionsByTask(db, task.id)
-  const verifierSessions = bundle.run?.verifierTaskId
-    ? listSessionsByTask(db, bundle.run.verifierTaskId)
-    : []
-  const budget = getTaskBudgetSummary(db, task, config)
   const root = workspaceRoot(db, task, config)
 
   const { report, canonical } = buildAcceptanceReport({
@@ -67,9 +54,6 @@ export function getAcceptanceResponse(
         }
       : null,
     changedFiles: diff?.files.map((file) => file.path) ?? [],
-    worker: { costUsd: sumCost(workerSessions), turns: sumTurns(workerSessions) },
-    verifier: { costUsd: sumCost(verifierSessions), turns: sumTurns(verifierSessions) },
-    budget,
     verifyCommand: task.verifyCommand,
     ...(root ? { workspaceRoot: root } : {}),
   })
@@ -79,16 +63,7 @@ export function getAcceptanceResponse(
     items: bundle.items,
     run: bundle.run,
     report: { ...report, hash },
-    budget,
   }
-}
-
-function sumCost(sessions: ReadonlyArray<{ costUsd: number | null }>): number {
-  return sessions.reduce((total, session) => total + (session.costUsd ?? 0), 0)
-}
-
-function sumTurns(sessions: ReadonlyArray<{ turns: number | null }>): number {
-  return sessions.reduce((total, session) => total + (session.turns ?? 0), 0)
 }
 
 function workspaceRoot(

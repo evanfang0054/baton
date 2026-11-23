@@ -37,7 +37,6 @@ describe('plan apply', () => {
             agentTitle: 'Agent 1',
             contextNodeIds: [],
             engine: 'claude-sdk',
-            budgetUsd: null,
           },
           {
             title: '目标已失效',
@@ -46,7 +45,6 @@ describe('plan apply', () => {
             agentTitle: null,
             contextNodeIds: [],
             engine: 'claude-sdk',
-            budgetUsd: null,
           },
         ],
       },
@@ -132,7 +130,6 @@ describe('plan apply', () => {
             agentTitle: null,
             contextNodeIds: [],
             engine: null,
-            budgetUsd: null,
           },
         ],
       },

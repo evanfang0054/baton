@@ -555,8 +555,6 @@ export function createRuntime(deps: RuntimeDeps) {
     injectContext: contextService.injectContext,
     cancelTask: cancel,
     workspacesRoot: deps.config.workspacesRoot,
-    claudeMaxBudgetUsd: deps.config.claudeMaxBudgetUsd,
-    verifierBudgetUsd: deps.config.verifierBudgetUsd,
     killSwitch: () => automationState.isKillSwitchOn(),
     actions,
     failures,
@@ -1446,7 +1444,6 @@ export function createRuntime(deps: RuntimeDeps) {
     sessionHolder.value = createSessionRunner({
       db: deps.db,
       dataDir: deps.config.dataDir,
-      claudeMaxBudgetUsd: deps.config.claudeMaxBudgetUsd,
       adapters: deps.adapters,
       eventStore,
       broadcast: deps.broadcast,

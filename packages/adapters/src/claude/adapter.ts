@@ -23,7 +23,6 @@ import { createSdkClaudeTransport, type ClaudeTransportFactory } from './transpo
 export interface ClaudeAdapterOptions {
   transportFactory?: ClaudeTransportFactory
   maxTurns?: number
-  maxBudgetUsd?: number
   /** 全局 kill switch；false 时即使 workspace 打开 hooks 也不加载。 */
   projectHooksGlobal?: boolean
 }
@@ -36,13 +35,11 @@ export class ClaudeAdapter implements AgentAdapter {
   readonly name = 'claude-sdk' as const
   private readonly factory: ClaudeTransportFactory
   private readonly maxTurns: number
-  private readonly maxBudgetUsd: number
   private readonly projectHooksGlobal: boolean
 
   constructor(options: ClaudeAdapterOptions = {}) {
     this.factory = options.transportFactory ?? createSdkClaudeTransport
     this.maxTurns = options.maxTurns ?? 30
-    this.maxBudgetUsd = options.maxBudgetUsd ?? 2
     this.projectHooksGlobal = options.projectHooksGlobal ?? true
   }
 
@@ -55,7 +52,6 @@ export class ClaudeAdapter implements AgentAdapter {
       bypassPermissions: input.bypassPermissions,
       systemPromptAppend: BATON_PROTOCOL_PROMPT,
       maxTurns: this.maxTurns,
-      maxBudgetUsd: input.maxBudgetUsd ?? this.maxBudgetUsd,
     })
 
     const runId = randomUUID()

@@ -5,7 +5,6 @@ import type {
   AcceptanceRun,
   Review,
   Task,
-  TaskBudgetSummary,
 } from '@baton/protocol'
 import { VERIFY_SKIPPED } from '@baton/protocol'
 import { stableStringify } from '../policy/match.js'
@@ -18,9 +17,6 @@ export interface BuildAcceptanceReportInput {
   run: Pick<AcceptanceRun, 'status' | 'verdict' | 'summary'> | null
   review: Pick<Review, 'verifyExitCode' | 'verifyOutput' | 'diffStat' | 'preliminaryReason'> | null
   changedFiles?: string[]
-  worker: { costUsd: number | null; turns: number | null }
-  verifier: { costUsd: number | null; turns: number | null }
-  budget: TaskBudgetSummary
   verifyCommand: string | null
   workspaceRoot?: string
 }
@@ -55,8 +51,6 @@ export function buildAcceptanceReport(input: BuildAcceptanceReportInput): Accept
   if (verifySkipped) risks.push('未执行自动校验')
   if (counts.fail > 0) risks.push(`${counts.fail} 条验收未通过`)
   if (counts.pending > 0) risks.push(`${counts.pending} 条验收未完成`)
-  if (input.budget.overBudget) risks.push('预算已超限')
-  else if (input.budget.nearBudget) risks.push('预算接近上限')
   if (input.task.workspaceMode === 'worktree') risks.push('在 worktree 中执行')
   if (input.run?.status === 'failed') risks.push('初步验收未完成')
 
@@ -87,16 +81,6 @@ export function buildAcceptanceReport(input: BuildAcceptanceReportInput): Accept
       skipped: verifySkipped,
     },
     acceptance: { items: input.items, counts, verdict },
-    usage: {
-      workerCostUsd: input.worker.costUsd ?? 0,
-      verifierCostUsd: input.verifier.costUsd ?? 0,
-      turns: input.worker.turns ?? 0,
-      budgetUsd: input.budget.budgetUsd,
-      spentUsd: input.budget.spentUsd,
-      remainingUsd: input.budget.remainingUsd,
-      overBudget: input.budget.overBudget,
-      nearBudget: input.budget.nearBudget,
-    },
     risks,
     unverified,
     preliminary: {

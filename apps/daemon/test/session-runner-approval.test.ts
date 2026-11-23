@@ -111,7 +111,6 @@ describe('session runner approval failures', () => {
     const runner = createSessionRunner({
       db: database.db,
       dataDir: process.cwd(),
-      claudeMaxBudgetUsd: 2,
       adapters: createAdapterFactory({ 'claude-sdk': approvalAdapter(approvals) }),
       eventStore,
       broadcast: () => {},
@@ -180,7 +179,6 @@ describe('session runner approval failures', () => {
     const runner = createSessionRunner({
       db: database.db,
       dataDir: process.cwd(),
-      claudeMaxBudgetUsd: 2,
       adapters: createAdapterFactory({ 'claude-sdk': approvalAdapter(approvals) }),
       eventStore,
       broadcast: () => {},
@@ -232,7 +230,6 @@ describe('session runner approval failures', () => {
     const runner = createSessionRunner({
       db: database.db,
       dataDir: process.cwd(),
-      claudeMaxBudgetUsd: 2,
       adapters: createAdapterFactory({ 'claude-sdk': questionAdapter(replies) }),
       eventStore,
       broadcast: () => {},
@@ -307,7 +304,6 @@ describe('session runner approval failures', () => {
     const runner = createSessionRunner({
       db: database.db,
       dataDir: process.cwd(),
-      claudeMaxBudgetUsd: 2,
       adapters: createAdapterFactory({ 'claude-sdk': questionAdapter(replies, denials) }),
       eventStore,
       broadcast: () => {},

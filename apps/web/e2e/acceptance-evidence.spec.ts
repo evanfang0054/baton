@@ -3,7 +3,6 @@ import {
   acceptanceBundle,
   acceptanceSummary,
   agentNode,
-  budgetSummary,
   mockWorkspace,
   sceneDetail,
   task,
@@ -43,7 +42,6 @@ test('review card opens evidence and AC override sends reason', async ({ page })
     status: 'review',
     attention: 'needs_review',
     acceptance: summary,
-    budget: acceptance.budget,
   })
   await mockWorkspace(page, {
     nodes: [agentNode('a1', 420, 80)],
@@ -64,49 +62,4 @@ test('review card opens evidence and AC override sends reason', async ({ page })
   await expect
     .poll(() => commands.find((command) => command.type === 'review.decide')?.payload)
     .toMatchObject({ decision: 'approve', overrideReason: '已知风险' })
-})
-
-test('budget card raises the budget and continues', async ({ page }) => {
-  const commands: Array<{ type?: string; payload?: unknown }> = []
-  await page.routeWebSocket('**/ws', wsRecorder(commands))
-
-  const budget = budgetSummary({
-    budgetUsd: 2,
-    spentUsd: 2,
-    remainingUsd: 0,
-    ratio: 1,
-    overBudget: true,
-  })
-  const acceptance = acceptanceBundle({ budget })
-  const waiting = task({
-    id: 't1',
-    nodeId: 'a1',
-    title: '超预算任务',
-    status: 'waiting_input',
-    waitingReason: 'budget',
-    attention: 'needs_attention',
-    budget,
-  })
-  const detail = sceneDetail()
-  detail.task = { ...detail.task, status: 'waiting_input', waitingReason: 'budget' }
-  detail.attention = 'needs_attention'
-  detail.review = null
-
-  await mockWorkspace(page, {
-    nodes: [agentNode('a1', 420, 80)],
-    tasks: [waiting],
-    taskDetail: detail,
-    acceptance,
-  })
-
-  await page.goto('/?workspace=w1')
-  await page.getByRole('button', { name: '任务', exact: true }).click()
-  await page.getByTestId('task-board-overlay').getByText('超预算任务').click()
-  await expect(page.getByText('预算已用完')).toBeVisible()
-  await page.getByLabel('新预算').fill('3')
-  await page.getByRole('button', { name: '提额并继续' }).click()
-
-  await expect
-    .poll(() => commands.find((command) => command.type === 'task.set_budget')?.payload)
-    .toEqual({ taskId: 't1', budgetUsd: 3 })
 })

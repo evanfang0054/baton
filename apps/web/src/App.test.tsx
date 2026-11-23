@@ -73,7 +73,6 @@ function stubTaskApi() {
     verifyCommand: null,
     retryCount: 0,
     dangerouslySkipPermissions: false,
-    budgetUsd: null,
     enqueuedAt: null,
     createdAt: 1,
     updatedAt: 2,
@@ -119,17 +118,6 @@ function stubTaskApi() {
           waitingSince: 2,
           attention: 'needs_reply',
           acceptance: null,
-          budget: {
-            budgetUsd: 2,
-            spentUsd: 0,
-            remainingUsd: 2,
-            ratio: 0,
-            overBudget: false,
-            nearBudget: false,
-            workerCostUsd: 0,
-            verifierCostUsd: 0,
-            turns: 0,
-          },
         })
       }
       if (url === '/api/tasks/t1/automation') {

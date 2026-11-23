@@ -82,19 +82,6 @@ export const TaskAcceptanceSummary = z.object({
 })
 export type TaskAcceptanceSummary = z.infer<typeof TaskAcceptanceSummary>
 
-export const TaskBudgetSummary = z.object({
-  budgetUsd: z.number().nonnegative(),
-  spentUsd: z.number().nonnegative(),
-  remainingUsd: z.number().nonnegative(),
-  ratio: z.number().nonnegative(),
-  overBudget: z.boolean(),
-  nearBudget: z.boolean(),
-  workerCostUsd: z.number().nonnegative(),
-  verifierCostUsd: z.number().nonnegative(),
-  turns: z.number().int().nonnegative(),
-})
-export type TaskBudgetSummary = z.infer<typeof TaskBudgetSummary>
-
 const ReportChanges = z.object({
   filesChanged: z.number().int().nonnegative(),
   insertions: z.number().int().nonnegative(),
@@ -107,17 +94,6 @@ const ReportVerify = z.object({
   exitCode: z.number().int().nullable(),
   outputSummary: z.string(),
   skipped: z.boolean(),
-})
-
-const ReportUsage = z.object({
-  workerCostUsd: z.number().nonnegative(),
-  verifierCostUsd: z.number().nonnegative(),
-  turns: z.number().int().nonnegative(),
-  budgetUsd: z.number().nonnegative(),
-  spentUsd: z.number().nonnegative(),
-  remainingUsd: z.number().nonnegative(),
-  overBudget: z.boolean(),
-  nearBudget: z.boolean(),
 })
 
 const ReportPreliminary = z.object({
@@ -139,7 +115,6 @@ export const AcceptanceReportFacts = z.object({
     counts: AcceptanceCounts,
     verdict: AcceptanceVerdict,
   }),
-  usage: ReportUsage,
   risks: z.array(z.string()),
   unverified: z.array(z.string()),
   preliminary: ReportPreliminary,

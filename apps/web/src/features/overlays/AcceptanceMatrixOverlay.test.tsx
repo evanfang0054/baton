@@ -97,7 +97,6 @@ describe('AcceptanceMatrixOverlay', () => {
           verdict: 'incomplete',
         },
       },
-      budget: {},
     })
     const prompt = vi.spyOn(window, 'prompt').mockReturnValue('已知问题，先合')
     const send = renderOverlay()
@@ -141,7 +140,6 @@ describe('AcceptanceMatrixOverlay', () => {
           verdict: 'fail',
         },
       },
-      budget: {},
     })
     vi.spyOn(window, 'prompt').mockReturnValue(null)
     const send = renderOverlay()
@@ -179,7 +177,6 @@ describe('AcceptanceMatrixOverlay', () => {
           verdict: 'fail',
         },
       },
-      budget: {},
     })
     const prompt = vi.spyOn(window, 'prompt')
     const send = renderOverlay()

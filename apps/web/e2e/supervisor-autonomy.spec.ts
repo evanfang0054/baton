@@ -23,7 +23,6 @@ const plan = {
       agentTitle: 'Agent 1',
       contextNodeIds: ['n1'],
       engine: null,
-      budgetUsd: null,
     },
   ],
 }
@@ -173,7 +172,7 @@ function digestReport(attention: unknown[]) {
     },
     attention: {
       items: attention,
-      counts: { approval: 0, reply: 0, review: 0, failed: 1, budget: 0, stale: 0 },
+      counts: { approval: 0, reply: 0, review: 0, failed: 1, stale: 0 },
     },
     oldestWaiting: null,
   }
@@ -204,7 +203,6 @@ const failedTask = {
   worktreePath: null,
   verifyCommand: 'pnpm test',
   dangerouslySkipPermissions: false,
-  budgetUsd: null,
   enqueuedAt: null,
   retryCount: 1,
   createdAt: 1,
@@ -212,7 +210,6 @@ const failedTask = {
   attention: 'needs_attention',
   waitingSince: 2,
   acceptance: null,
-  budget: null,
 }
 
 const failedDetail = {
@@ -229,7 +226,6 @@ const failedDetail = {
   waitingSince: 2,
   attention: 'needs_attention',
   acceptance: null,
-  budget: null,
   lastFailure: {
     stage: 'verify',
     lastError: 'pnpm test failed at <workspace>/src/login.ts',

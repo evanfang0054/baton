@@ -8,7 +8,6 @@ import {
   matchTemplate,
   needsPerson,
   supervisorShortHash,
-  templateById,
   waitingSinceFor,
 } from '@baton/core'
 import {
@@ -405,7 +404,6 @@ export interface SupervisorActionsPort {
 export interface SupervisorToolsDeps {
   db: Db
   workspacesRoot: string
-  claudeMaxBudgetUsd: number
   taskService: TaskService
   now: () => number
   newId: () => string
@@ -679,7 +677,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
 
     list_tasks: {
       description:
-        '列出当前 workspace 的任务；filter=attention 只返回需要人处理的任务（含超预算、AC 未过）。',
+        '列出当前 workspace 的任务；filter=attention 只返回需要人处理的任务（含 AC 未过）。',
       parameters: listTasksInput,
       async execute(input, ctx) {
         const parsed = listTasksInput.parse(input)
@@ -733,10 +731,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         const review = getReviewByTask(deps.db, task.id)
         const acceptance = listAcceptanceSummaries(deps.db, [task.id]).get(task.id) ?? null
         const acceptanceResponse = acceptance
-          ? getAcceptanceResponse(deps.db, task, {
-              claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
-              workspacesRoot: deps.workspacesRoot,
-            })
+          ? getAcceptanceResponse(deps.db, task, { workspacesRoot: deps.workspacesRoot })
           : null
         return {
           task: {
@@ -1320,7 +1315,6 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           parsed.contextNodeIds ?? ctx.selection.contextNodeIds,
           target.id,
         )
-        const template = templateById(templateId)
         const items: PlanItem[] = candidateTexts.map((title, index) => {
           const sourceNodeId = textNodes[index]?.id
           const annotationIds = sourceNodeId
@@ -1334,7 +1328,6 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
             contextNodeIds,
             ...(annotationIds ? { annotationIds } : {}),
             engine: target.engine,
-            budgetUsd: template?.defaultBudgetUsd ?? null,
           }
         })
         const built = buildPlan({

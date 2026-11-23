@@ -65,8 +65,6 @@ export const TaskTransitionEvent = z
     z.object({ type: z.literal('retry'), note: z.string().min(1).max(16_384).optional() }),
     z.object({ type: z.literal('reopen'), note: z.string().min(1).max(16_384).optional() }),
     z.object({ type: z.literal('cancel'), reason: z.string().min(1).optional() }),
-    z.object({ type: z.literal('budget_exceeded') }),
-    z.object({ type: z.literal('budget_raise'), budgetUsd: z.number().finite().positive() }),
     z.object({ type: z.literal('error'), message: z.string().min(1) }),
   ])
   .superRefine((event, ctx) => {

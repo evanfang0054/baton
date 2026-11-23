@@ -1,15 +1,7 @@
 import { z } from 'zod'
 import { Id, Timestamp } from './common.js'
 
-export const FailureStage = z.enum([
-  'launch',
-  'run',
-  'verify',
-  'review',
-  'verifier',
-  'budget',
-  'unknown',
-])
+export const FailureStage = z.enum(['launch', 'run', 'verify', 'review', 'verifier', 'unknown'])
 export type FailureStage = z.infer<typeof FailureStage>
 
 export const FailureSummary = z

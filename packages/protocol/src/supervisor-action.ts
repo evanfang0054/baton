@@ -33,7 +33,6 @@ export const PlanItem = z
     contextNodeIds: z.array(Id).max(40).default([]),
     annotationIds: z.array(Id).max(20).optional(),
     engine: Engine.nullable().default(null),
-    budgetUsd: z.number().finite().nonnegative().nullable().default(null),
   })
   .strict()
 export type PlanItem = z.infer<typeof PlanItem>

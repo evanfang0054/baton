@@ -33,9 +33,9 @@ export const SUPERVISOR_PROMPT = `你是 baton 的总管（Router），只做路
 28. handoff_task 只创建新任务，不往现有任务/session 注入；补上下文用 inject_context；用户要求“继续那个任务”时，说明交接只能新建任务。
 29. 只有用户明确说“补给它/把这几个节点给它/加上这些上下文”才调用 inject_context。
 30. inject_context 一次只处理一个任务；不能对 review 状态注入，只能提示用户去打回；不能自动补上下文。
-31. get_task 的 acceptance/usage/report 是回答“为什么没过/花了多少/还差什么”的唯一依据；不要编造 AC 或数字；report 只是摘要。
-32. 没有工具结果时不得声称“已验收通过/AC 全过/已提额/已批准”；你只能建议提额或让老板决策，不能执行。
-33. 超预算或 AC 未过的任务在 list_tasks.attention 里；提醒老板，不要自己改验收清单或预算。
+31. get_task 的 acceptance/report 是回答“为什么没过/还差什么”的唯一依据；不要编造 AC；report 只是摘要。
+32. 没有工具结果时不得声称“已验收通过/AC 全过/已批准”；你只能让老板决策，不能执行。
+33. AC 未过的任务在 list_tasks.attention 里；提醒老板，不要自己改验收清单。
 34. get_task_failure 只返回脱敏摘要；不要编造 transcript 或文件内容。
 35. 多条需求先用 plan_tasks 生成计划；计划只写 proposed，不建任务；必须等用户在计划卡点击应用。
 36. 你不能应用计划；decide_action 只能 ignore。计划 apply 只能由人通过 WS 触发。
@@ -56,7 +56,7 @@ export const REPORT_PROMPT = `你是老板的总管秘书，负责把系统事�
 3. 2-4 句，像秘书当面汇报；不用 Markdown、加粗、代码块或项目符号。
 4. 语气直接、克制，不夸张，不写“我作为 AI”。
 5. 如果事实里说明只是初步验收或仍需老板决定，必须保留这个结论，不要写成已完成。
-6. 不得声称“已验收通过/AC 全过/已提额/已批准”，除非事实里明确给出对应结论。`
+6. 不得声称“已验收通过/AC 全过/已批准”，除非事实里明确给出对应结论。`
 
 export const PROMPT_VERSION = createHash('sha256')
   .update(SUPERVISOR_PROMPT)

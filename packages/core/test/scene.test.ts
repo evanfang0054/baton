@@ -67,7 +67,6 @@ const task = {
   verifyCommand: null,
   retryCount: 0,
   dangerouslySkipPermissions: false,
-  budgetUsd: null,
   enqueuedAt: null,
   deliveryId: null,
   stageKey: null,

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import type { TaskAcceptanceSummary, TaskBudgetSummary } from '@baton/protocol'
+import type { TaskAcceptanceSummary } from '@baton/protocol'
 import type { TestApp } from './helpers/app.js'
 import { buildTestApp } from './helpers/app.js'
 
@@ -55,7 +55,7 @@ describe('acceptance REST', () => {
     expect(missing.json()).toMatchObject({ code: 'acceptance_not_found' })
   })
 
-  it('exposes acceptance and budget on the task list', async () => {
+  it('exposes acceptance and omits budget on the task list', async () => {
     const { app, handle } = await setup()
     const listUrl = `/api/tasks?workspaceId=${handle.seeded.workspaceId}`
     const before = await app.inject({ method: 'GET', url: listUrl, headers: auth })
@@ -65,12 +65,11 @@ describe('acceptance REST', () => {
         tasks: Array<{
           id: string
           acceptance: TaskAcceptanceSummary | null
-          budget: TaskBudgetSummary
         }>
       }
     ).tasks.find((task) => task.id === handle.seeded.taskId)
     expect(beforeTask?.acceptance).toBeNull()
-    expect(beforeTask?.budget).toMatchObject({ budgetUsd: 2, spentUsd: 0, overBudget: false })
+    expect(beforeTask).not.toHaveProperty('budget')
 
     enterReview(handle)
     const after = await app.inject({ method: 'GET', url: listUrl, headers: auth })
@@ -79,7 +78,6 @@ describe('acceptance REST', () => {
         tasks: Array<{
           id: string
           acceptance: TaskAcceptanceSummary | null
-          budget: TaskBudgetSummary
         }>
       }
     ).tasks.find((task) => task.id === handle.seeded.taskId)
@@ -91,15 +89,13 @@ describe('acceptance REST', () => {
     })
   })
 
-  it('exposes acceptance and budget on task detail', async () => {
+  it('exposes acceptance and omits budget on task detail', async () => {
     const { app, handle } = await setup()
     const url = `/api/tasks/${handle.seeded.taskId}`
     const before = await app.inject({ method: 'GET', url, headers: auth })
     expect(before.statusCode).toBe(200)
-    expect(before.json()).toMatchObject({
-      acceptance: null,
-      budget: { budgetUsd: 2, spentUsd: 0, overBudget: false },
-    })
+    expect(before.json()).toMatchObject({ acceptance: null })
+    expect(before.json()).not.toHaveProperty('budget')
 
     enterReview(handle)
     const after = await app.inject({ method: 'GET', url, headers: auth })
@@ -110,8 +106,8 @@ describe('acceptance REST', () => {
         counts: { total: 0, pass: 0, fail: 0, pending: 0, waived: 0 },
         verdict: 'incomplete',
       },
-      budget: { budgetUsd: 2, spentUsd: 0, overBudget: false },
     })
+    expect(after.json()).not.toHaveProperty('budget')
   })
 
   it('returns the derived acceptance report for a review task', async () => {

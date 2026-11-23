@@ -80,10 +80,7 @@ describe('ReviewCard', () => {
     const send = vi.fn().mockResolvedValue(undefined)
     render(
       <CommandProvider send={send}>
-        <ReviewCard
-          review={{ ...review, verifyExitCode: 1 }}
-          onDone={vi.fn()}
-        />
+        <ReviewCard review={{ ...review, verifyExitCode: 1 }} onDone={vi.fn()} />
       </CommandProvider>,
     )
     fireEvent.click(screen.getByRole('button', { name: '通过' }))

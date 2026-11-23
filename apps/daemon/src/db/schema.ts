@@ -82,7 +82,6 @@ export const task = sqliteTable(
     dangerouslySkipPermissions: integer('dangerously_skip_permissions', { mode: 'boolean' })
       .notNull()
       .default(false),
-    budgetUsd: real('budget_usd'),
     contextJson: text('context_json'),
     originJson: text('origin_json'),
     policyJson: text('policy_json'),

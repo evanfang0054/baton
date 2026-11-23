@@ -4,7 +4,6 @@ import type {
   Node as ProtocolNode,
   ReviewView,
   TaskAcceptanceSummary,
-  TaskBudgetSummary,
   TaskDetailResponse,
   TaskSummary,
 } from '@baton/protocol'
@@ -38,7 +37,6 @@ export function task(overrides: Partial<TaskSummary> = {}): TaskSummary {
     worktreePath: null,
     verifyCommand: 'pnpm test',
     dangerouslySkipPermissions: false,
-    budgetUsd: null,
     enqueuedAt: null,
     retryCount: 0,
     createdAt: 1,
@@ -46,7 +44,6 @@ export function task(overrides: Partial<TaskSummary> = {}): TaskSummary {
     attention: 'needs_review',
     waitingSince: Date.now() - 40 * 60_000,
     acceptance: null,
-    budget: null,
     ...overrides,
   }
 }
@@ -167,25 +164,7 @@ export function acceptanceSummary(
   }
 }
 
-export function budgetSummary(overrides: Partial<TaskBudgetSummary> = {}): TaskBudgetSummary {
-  return {
-    budgetUsd: 2,
-    spentUsd: 1.2,
-    remainingUsd: 0.8,
-    ratio: 0.6,
-    overBudget: false,
-    nearBudget: false,
-    workerCostUsd: 1.2,
-    verifierCostUsd: 0.1,
-    turns: 3,
-    ...overrides,
-  }
-}
-
-export function acceptanceReport(
-  acceptance: TaskAcceptanceSummary,
-  budget: TaskBudgetSummary,
-): AcceptanceReport {
+export function acceptanceReport(acceptance: TaskAcceptanceSummary): AcceptanceReport {
   return {
     taskId: 't1',
     contractId: acceptance.contractId,
@@ -236,16 +215,6 @@ export function acceptanceReport(
       counts: acceptance.counts,
       verdict: acceptance.verdict,
     },
-    usage: {
-      workerCostUsd: budget.workerCostUsd,
-      verifierCostUsd: budget.verifierCostUsd,
-      turns: budget.turns,
-      budgetUsd: budget.budgetUsd,
-      spentUsd: budget.spentUsd,
-      remainingUsd: budget.remainingUsd,
-      overBudget: budget.overBudget,
-      nearBudget: budget.nearBudget,
-    },
     risks: ['1 条验收未通过'],
     unverified: ['错误提示'],
     preliminary: { verdict: 'fail', summary: '1 条未过' },
@@ -253,11 +222,8 @@ export function acceptanceReport(
   }
 }
 
-export function acceptanceBundle(
-  options: { acceptance?: TaskAcceptanceSummary; budget?: TaskBudgetSummary } = {},
-) {
+export function acceptanceBundle(options: { acceptance?: TaskAcceptanceSummary } = {}) {
   const acceptance = options.acceptance ?? acceptanceSummary()
-  const budget = options.budget ?? budgetSummary()
   return {
     contract: {
       id: 'ac1',
@@ -293,8 +259,7 @@ export function acceptanceBundle(
       },
     ],
     run: null,
-    report: acceptanceReport(acceptance, budget),
-    budget,
+    report: acceptanceReport(acceptance),
   }
 }
 
@@ -324,7 +289,6 @@ export function sceneDetail(): TaskDetailResponse {
     waitingSince: Date.now() - 40 * 60_000,
     attention: 'needs_review',
     acceptance: acceptanceSummary(),
-    budget: budgetSummary(),
     lastFailure: null,
     lastOutcome: null,
   }

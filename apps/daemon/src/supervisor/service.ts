@@ -99,8 +99,6 @@ export interface SupervisorServiceDeps {
     | { ok: false; error: AppError }
   cancelTask: (taskId: string, reason?: string) => TransitionOutcome
   workspacesRoot: string
-  claudeMaxBudgetUsd: number
-  verifierBudgetUsd: number
   killSwitch: () => boolean
   actions?: ReturnType<typeof createSupervisorActionService>
   failures?: FailureService
@@ -190,7 +188,7 @@ export interface SupervisorToolClaim {
 }
 
 /**
- * 验收/预算/审批类结论只能来自工具事实；否则追加免责声明。
+ * 验收/审批类结论只能来自工具事实；否则追加免责声明。
  * 这里只处理读证据能覆盖的断言，写操作断言仍由调用点的工具结果检查兜底。
  */
 export function guardAcceptanceClaims(
@@ -216,10 +214,6 @@ export function guardAcceptanceClaims(
     next += '\n\n（我没有验收通过的工具结果；请以任务详情里的验收清单为准。）'
     flagged = true
   }
-  if (/已(经)?(提额|提高预算|增加预算)/.test(text)) {
-    next += '\n\n（我没有提额工具，不能替你改预算；请在任务详情里操作。）'
-    flagged = true
-  }
   const approvedFact = toolCalls.some(
     (call) =>
       call.ok &&
@@ -241,7 +235,6 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
   const tools = createSupervisorTools({
     db: deps.db,
     workspacesRoot: deps.workspacesRoot,
-    claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
     taskService: deps.taskService,
     now: deps.now,
     newId: deps.newId,

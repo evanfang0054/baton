@@ -165,7 +165,6 @@ export function App() {
           status: task.status,
           attention: task.attention,
           acceptance: task.acceptance,
-          budget: task.budget,
         }),
       ).length,
       needs_approval: list.filter((task) => task.attention === 'needs_approval').length,

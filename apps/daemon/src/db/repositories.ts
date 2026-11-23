@@ -116,7 +116,6 @@ function toTask(row: typeof task.$inferSelect): Task {
     verifyCommand: row.verifyCommand,
     retryCount: row.retryCount,
     dangerouslySkipPermissions: row.dangerouslySkipPermissions,
-    budgetUsd: row.budgetUsd ?? null,
     enqueuedAt: row.enqueuedAt ?? null,
     deliveryId: row.deliveryId ?? null,
     stageKey: row.stageKey ?? null,
@@ -670,9 +669,8 @@ export function listQueuedTasksByEnqueuedAt(db: Db): Task[] {
 
 export function insertTask(
   tx: Tx,
-  input: Omit<Task, 'enqueuedAt' | 'budgetUsd' | 'deliveryId' | 'stageKey'> & {
+  input: Omit<Task, 'enqueuedAt' | 'deliveryId' | 'stageKey'> & {
     enqueuedAt?: number | null
-    budgetUsd?: number | null
     deliveryId?: string | null
     stageKey?: string | null
     annotationIds?: string[]
@@ -696,7 +694,6 @@ export function insertTask(
       verifyCommand: input.verifyCommand,
       retryCount: input.retryCount,
       dangerouslySkipPermissions: input.dangerouslySkipPermissions,
-      budgetUsd: input.budgetUsd ?? null,
       contextJson,
       originJson,
       enqueuedAt: input.enqueuedAt ?? null,
@@ -764,10 +761,6 @@ export function updateTaskTitle(
 /** 人重新授权时写入新的 origin 快照；不改任务状态。 */
 export function updateTaskOrigin(tx: Tx, id: string, originJson: string, updatedAt: number): void {
   tx.update(task).set({ originJson, updatedAt }).where(eq(task.id, id)).run()
-}
-
-export function updateTaskBudget(tx: Tx, id: string, budgetUsd: number, updatedAt: number): void {
-  tx.update(task).set({ budgetUsd, updatedAt }).where(eq(task.id, id)).run()
 }
 
 export function getTaskPolicy(db: Db, id: string): Policy | null {

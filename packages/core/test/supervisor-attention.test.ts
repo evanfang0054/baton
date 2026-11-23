@@ -18,7 +18,6 @@ describe('buildAttentionItems', () => {
           waitingSince: now - 60_000,
           updatedAt: now - 60_000,
           acceptance: null,
-          budget: null,
           proposalId: null,
           lastFailure: null,
         },
@@ -26,12 +25,11 @@ describe('buildAttentionItems', () => {
           taskId: 't1',
           title: '待审批',
           status: 'waiting_input',
-          attention: 'needs_approval',
-          waitingReason: 'approval',
+          attention: 'needs_reply',
+          waitingReason: 'question',
           waitingSince: now - 60_000,
           updatedAt: now - 60_000,
           acceptance: null,
-          budget: { overBudget: true },
           proposalId: null,
           lastFailure: null,
         },
@@ -44,7 +42,6 @@ describe('buildAttentionItems', () => {
           waitingSince: null,
           updatedAt: now - 10_000,
           acceptance: null,
-          budget: null,
           proposalId: 'a2',
           lastFailure: { stage: 'run', summary: '进程退出 1' },
         },
@@ -75,7 +72,6 @@ describe('buildAttentionItems', () => {
           waitingSince: now - 1,
           updatedAt: now - 1,
           acceptance: null,
-          budget: null,
           proposalId: null,
           lastFailure: null,
         },
@@ -97,7 +93,6 @@ describe('buildAttentionItems', () => {
           waitingSince: now - 31 * 60_000,
           updatedAt: now - 31 * 60_000,
           acceptance: null,
-          budget: null,
           proposalId: null,
           lastFailure: null,
         },
@@ -116,7 +111,6 @@ describe('buildAttentionItems', () => {
       waitingSince: now - index,
       updatedAt: now - index,
       acceptance: null,
-      budget: null,
       proposalId: null,
       lastFailure: null,
     }))
@@ -125,7 +119,7 @@ describe('buildAttentionItems', () => {
     expect(Object.values(result.counts).reduce((sum, value) => sum + value, 0)).toBe(20)
     expect(buildAttentionItems({ now, tasks: [] })).toEqual({
       items: [],
-      counts: { approval: 0, reply: 0, review: 0, failed: 0, budget: 0, stale: 0 },
+      counts: { approval: 0, reply: 0, review: 0, failed: 0, stale: 0 },
     })
   })
 
@@ -142,7 +136,6 @@ describe('buildAttentionItems', () => {
           waitingSince: null,
           updatedAt: now,
           acceptance: null,
-          budget: null,
           proposalId: null,
           lastFailure: { stage: 'verify', summary: 'x'.repeat(2000) },
         },
@@ -150,29 +143,6 @@ describe('buildAttentionItems', () => {
     })
     expect(result.items[0]?.reason).toHaveLength(200)
     expect(AttentionItem.safeParse(result.items[0]).success).toBe(true)
-  })
-
-  it('classifies waiting on budget before approval', () => {
-    const result = buildAttentionItems({
-      now,
-      tasks: [
-        {
-          taskId: 't1',
-          title: '等预算',
-          status: 'waiting_input',
-          attention: 'needs_approval',
-          waitingReason: 'budget',
-          waitingSince: now - 60_000,
-          updatedAt: now - 60_000,
-          acceptance: null,
-          budget: null,
-          proposalId: null,
-          lastFailure: null,
-        },
-      ],
-    })
-    expect(result.items[0]?.kind).toBe('budget')
-    expect(result.counts.budget).toBe(1)
   })
 
   it('classifies stalled tasks as stale', () => {
@@ -188,7 +158,6 @@ describe('buildAttentionItems', () => {
           waitingSince: now - 31 * 60_000,
           updatedAt: now - 31 * 60_000,
           acceptance: null,
-          budget: null,
           proposalId: null,
           lastFailure: null,
         },

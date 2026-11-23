@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { Id, Timestamp } from './common.js'
 
-export const AttentionKind = z.enum(['approval', 'reply', 'review', 'failed', 'budget', 'stale'])
+export const AttentionKind = z.enum(['approval', 'reply', 'review', 'failed', 'stale'])
 export type AttentionKind = z.infer<typeof AttentionKind>
 
 export const AttentionItem = z
@@ -27,7 +27,6 @@ export const AttentionCounts = z
     reply: z.number().int().nonnegative(),
     review: z.number().int().nonnegative(),
     failed: z.number().int().nonnegative(),
-    budget: z.number().int().nonnegative(),
     stale: z.number().int().nonnegative(),
   })
   .strict()
@@ -38,7 +37,6 @@ export const EMPTY_ATTENTION_COUNTS: AttentionCounts = {
   reply: 0,
   review: 0,
   failed: 0,
-  budget: 0,
   stale: 0,
 }
 

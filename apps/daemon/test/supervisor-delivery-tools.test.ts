@@ -50,9 +50,6 @@ function setup() {
     maxConcurrency: 1,
     maxLiveSessions: 5,
     claudeMaxTurns: 30,
-    claudeMaxBudgetUsd: 2,
-    verifierBudgetUsd: 0.5,
-    maxTaskBudgetUsd: 50,
     claudeProjectHooks: 'on',
     allowBypassPermissions: false,
     killSwitch: false,
@@ -86,7 +83,6 @@ function setup() {
   const tools = createSupervisorTools({
     db: database.db,
     workspacesRoot: root,
-    claudeMaxBudgetUsd: 2,
     taskService,
     now: () => 10,
     newId,

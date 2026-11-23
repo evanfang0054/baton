@@ -2,11 +2,7 @@ import { join } from 'node:path'
 import type { AcceptanceItem } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
 import { getAcceptanceResponse } from '../src/acceptance/report-service.js'
-import {
-  getAcceptanceBundle,
-  replaceAcceptanceItems,
-  updateAcceptanceRun,
-} from '../src/db/acceptance-repository.js'
+import { getAcceptanceBundle, replaceAcceptanceItems } from '../src/db/acceptance-repository.js'
 import { getTask, updateReviewDiff } from '../src/db/repositories.js'
 import { resolveWorkspaceDir } from '../src/workspace/resolver.js'
 import { createTestRuntime, type TestRuntimeHandle } from './helpers/runtime.js'
@@ -98,26 +94,12 @@ describe('acceptance report service', () => {
       ],
     })
 
-    // 验收员在独立任务里跑，成本要单独计入预算展示。
-    const verifier = handle.createTask()
-    handle.database.raw
-      .prepare(
-        `insert into session (id, task_id, adapter, engine_session_id, status, cost_usd, turns, started_at, ended_at)
-         values ('verifier-session', ?, 'claude-sdk', null, 'ended', 0.125, 1, 2, 3)`,
-      )
-      .run(verifier)
-    handle.database.db.transaction((tx) =>
-      updateAcceptanceRun(tx, bundle!.run!.id, { verifierTaskId: verifier }),
-    )
-    handle.database.raw
-      .prepare('update session set cost_usd = 0.5, turns = 2 where id = ?')
-      .run(handle.seeded.sessionId)
-
     const task = getTask(handle.database.db, handle.seeded.taskId)!
     const response = getAcceptanceResponse(handle.database.db, task, handle.config)
     expect(response).not.toBeNull()
     const { report } = response!
 
+    expect(report).not.toHaveProperty('usage')
     expect(report.goal).toBe('demo')
     expect(report.contractVersion).toBe(1)
     expect(report.contractRevision).toBe(1)
@@ -131,13 +113,6 @@ describe('acceptance report service', () => {
     expect(report.acceptance.verdict).toBe('fail')
     expect(report.changes.files).toEqual(['src/login.tsx', '<external>'])
     expect(report.verify.outputSummary).toContain('<workspace>')
-    expect(report.usage).toMatchObject({
-      workerCostUsd: 0.5,
-      verifierCostUsd: 0.125,
-      budgetUsd: 2,
-      spentUsd: 0.5,
-      turns: 2,
-    })
 
     expect(report.hash).toMatch(/^[0-9a-f]{64}$/)
     expect(JSON.stringify(report)).not.toContain(workspaceRoot)

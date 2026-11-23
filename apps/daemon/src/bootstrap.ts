@@ -42,7 +42,6 @@ export async function bootstrap(config: Config): Promise<BootstrapResult> {
       {},
       {
         maxTurns: config.claudeMaxTurns,
-        maxBudgetUsd: config.claudeMaxBudgetUsd,
         projectHooksGlobal: config.claudeProjectHooks !== 'off',
       },
     ),

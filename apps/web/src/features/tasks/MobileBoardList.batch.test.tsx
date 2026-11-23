@@ -23,7 +23,6 @@ function task(id: string, title: string): TaskSummary {
     worktreePath: null,
     verifyCommand: null,
     dangerouslySkipPermissions: false,
-    budgetUsd: null,
     enqueuedAt: null,
     retryCount: 0,
     createdAt: 1,
@@ -31,7 +30,6 @@ function task(id: string, title: string): TaskSummary {
     attention: 'none',
     waitingSince: null,
     acceptance: null,
-    budget: null,
   }
 }
 

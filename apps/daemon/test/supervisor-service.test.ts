@@ -47,9 +47,6 @@ function setup(
     maxConcurrency: 1,
     maxLiveSessions: 5,
     claudeMaxTurns: 30,
-    claudeMaxBudgetUsd: 2,
-    verifierBudgetUsd: 0.5,
-    maxTaskBudgetUsd: 50,
     claudeProjectHooks: 'on' as const,
     allowBypassPermissions: false,
     killSwitch: false,
@@ -72,8 +69,6 @@ function setup(
     db: database.db,
     eventStore,
     dataDir: root,
-    claudeMaxBudgetUsd: 2,
-    verifierBudgetUsd: 0.5,
     taskService,
     defaultEngine: 'claude-sdk',
     enqueueTask: () => ({ ok: true, status: 'queued' }),
@@ -832,10 +827,7 @@ describe('guardAcceptanceClaims', () => {
     expect(guarded.flagged).toBe(true)
   })
 
-  it('never allows budget raise or approval claims', () => {
-    const raised = guardAcceptanceClaims('已经提额到 $5。', [])
-    expect(raised.flagged).toBe(true)
-    expect(raised.text).toContain('没有提额工具')
+  it('never allows approval claims', () => {
     const approved = guardAcceptanceClaims('老板已批准。', [])
     expect(approved.flagged).toBe(true)
     expect(approved.text).toContain('审批记录为准')

@@ -58,7 +58,6 @@ const task: TaskSummary = {
   worktreePath: null,
   verifyCommand: null,
   dangerouslySkipPermissions: false,
-  budgetUsd: null,
   enqueuedAt: null,
   retryCount: 0,
   createdAt: 1,
@@ -66,7 +65,6 @@ const task: TaskSummary = {
   attention: 'none',
   waitingSince: null,
   acceptance: null,
-  budget: null,
 }
 
 const review: ReviewView = {

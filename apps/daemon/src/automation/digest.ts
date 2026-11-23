@@ -17,7 +17,6 @@ import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
 import type { FailureService } from '../failures/service.js'
 import type { createSupervisorActionService } from '../supervisor/actions.js'
-import { listTaskBudgetSummaries } from '../budget/service.js'
 import { loadPolicy } from '../workspace/policy.js'
 import { resolveWorkspaceDir } from '../workspace/resolver.js'
 import type { Config } from '../config.js'
@@ -106,7 +105,6 @@ export function createDigestService(deps: DigestServiceDeps): DigestService {
       deps.db,
       tasks.map((task) => task.id),
     )
-    const budgets = listTaskBudgetSummaries(deps.db, tasks, deps.config)
     const attention = buildAttentionItems({
       now,
       tasks: tasks.map((task) => ({
@@ -118,7 +116,6 @@ export function createDigestService(deps: DigestServiceDeps): DigestService {
         waitingSince: waitingSinceFor(task),
         updatedAt: task.updatedAt,
         acceptance: acceptance.get(task.id) ?? null,
-        budget: budgets.get(task.id) ?? null,
         proposalId: proposalByTask.get(task.id) ?? null,
         lastFailure: failures.get(task.id) ?? null,
       })),

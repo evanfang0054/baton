@@ -9,7 +9,6 @@ import {
 } from '@baton/protocol'
 import type { FastifyInstance } from 'fastify'
 import { getAcceptanceResponse } from '../acceptance/report-service.js'
-import { getTaskBudgetSummary } from '../budget/service.js'
 import type { Config } from '../config.js'
 import { listAcceptanceSummaries } from '../db/acceptance-repository.js'
 import {
@@ -62,7 +61,6 @@ export function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesDeps): 
       attention: attentionFor(task.status, task.waitingReason),
       waitingSince: waitingSinceFor(task),
       acceptance: acceptance.get(task.id) ?? null,
-      budget: getTaskBudgetSummary(deps.db, task, deps.config),
     }))
     return TaskListResponse.parse({ tasks })
   })
@@ -118,7 +116,6 @@ export function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesDeps): 
       waitingSince: waitingSinceFor(task),
       attention: attentionFor(task.status, task.waitingReason),
       acceptance,
-      budget: getTaskBudgetSummary(deps.db, task, deps.config),
       ...(lastOutcome ? { lastOutcome } : {}),
       // 任务详情只暴露摘要字段；TaskFailure 的 id/attempt 等账本字段不外泄。
       lastFailure: lastFailure

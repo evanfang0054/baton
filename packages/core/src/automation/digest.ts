@@ -112,7 +112,7 @@ export function buildDigest(input: DigestInput): DigestReport {
     },
     attention: {
       items: [],
-      counts: { approval: 0, reply: 0, review: 0, failed: 0, budget: 0, stale: 0 },
+      counts: { approval: 0, reply: 0, review: 0, failed: 0, stale: 0 },
     },
     oldestWaiting,
   }

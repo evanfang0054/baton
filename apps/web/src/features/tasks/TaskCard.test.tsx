@@ -18,7 +18,6 @@ const task: TaskSummary = {
   worktreePath: null,
   verifyCommand: null,
   dangerouslySkipPermissions: false,
-  budgetUsd: null,
   enqueuedAt: null,
   retryCount: 0,
   createdAt: 1,
@@ -26,7 +25,6 @@ const task: TaskSummary = {
   attention: 'needs_reply',
   waitingSince: Date.now() - 3 * 60_000,
   acceptance: null,
-  budget: null,
 }
 
 describe('TaskCard', () => {
@@ -94,7 +92,6 @@ describe('TaskCard', () => {
 
   it('does not render legacy budget badges', () => {
     const legacy = {
-      budgetUsd: 2,
       spentUsd: 3,
       remainingUsd: 0,
       ratio: 1.5,
@@ -105,10 +102,7 @@ describe('TaskCard', () => {
       turns: 1,
     }
     render(
-      <TaskCard
-        task={{ ...task, budget: legacy } as unknown as TaskSummary}
-        onSelect={vi.fn()}
-      />,
+      <TaskCard task={{ ...task, budget: legacy } as unknown as TaskSummary} onSelect={vi.fn()} />,
     )
     expect(screen.queryByText('超预算')).not.toBeInTheDocument()
     expect(screen.queryByText('接近预算')).not.toBeInTheDocument()

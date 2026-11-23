@@ -1,7 +1,7 @@
 import type { ContextSnapshot, DropReason, NodeType } from '@baton/protocol'
 
 const reasonLabels: Record<DropReason, string> = {
-  budget: '超出预算',
+  budget: '超出上下文预算',
   sensitive: '敏感文件已排除',
   limit: '超出节点上限',
   not_found: '节点已不存在',

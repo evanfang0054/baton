@@ -26,7 +26,6 @@ import {
   Session,
   Task,
   TaskAcceptanceSummary,
-  TaskBudgetSummary,
   TaskDetail,
   Workspace,
 } from './entities/index.js'
@@ -132,7 +131,6 @@ export const TaskSummary = Task.extend({
   attention: Attention,
   waitingSince: Timestamp.nullable(),
   acceptance: TaskAcceptanceSummary.nullable().default(null),
-  budget: TaskBudgetSummary.nullable().default(null),
 })
 export type TaskSummary = z.infer<typeof TaskSummary>
 
@@ -200,7 +198,6 @@ export const TaskDetailResponse = z.object({
   waitingSince: Timestamp.nullable(),
   attention: Attention,
   acceptance: TaskAcceptanceSummary.nullable().default(null),
-  budget: TaskBudgetSummary.nullable().default(null),
   lastFailure: FailureSummary.nullable().default(null),
   lastOutcome: z
     .object({ outcome: SessionOutcome, reason: z.string().nullable() })
@@ -216,7 +213,6 @@ export const TaskAcceptanceResponse = z.object({
   items: AcceptanceItems,
   run: AcceptanceRun.nullable(),
   report: AcceptanceReport,
-  budget: TaskBudgetSummary,
 })
 export type TaskAcceptanceResponse = z.infer<typeof TaskAcceptanceResponse>
 
@@ -301,7 +297,6 @@ export const DeliveryCreateInput = z.object({
   playbookId: z.string().min(1).max(64).optional(),
   contextNodeIds: z.array(Id).max(40).default([]),
   engine: Engine.default('claude-sdk'),
-  budgetUsd: z.number().finite().positive().optional(),
 })
 export type DeliveryCreateInput = z.infer<typeof DeliveryCreateInput>
 
