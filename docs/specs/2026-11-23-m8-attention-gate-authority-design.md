@@ -3,7 +3,7 @@ spec_topic: m8-attention-gate-authority
 decision_summary: "M8 注意力闭环：总管会话闸门卡、工作区授权自动批非 deny、交付取消级联、预算彻底退场；总管仍不 approve/reject"
 design_approved: true
 user_approved_at: 2026-11-23T14:28:38+08:00
-gates: [design-approved]
+gates: [design-approved, user-review-passed]
 spec_ref: 2026-11-22-m7-delivery-playbook-design.md
 domain_terms:
   [
