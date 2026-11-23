@@ -179,6 +179,7 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
             killSwitch: deps.killSwitch(),
             workspaceTrusted: workspace?.trusted === true,
             delegatedAuthority,
+            workspaceAuthority: true,
           })
     const escapes =
       evaluated !== null &&
@@ -240,9 +241,11 @@ export function createSessionRunner(deps: SessionRunnerDeps): SessionRunner {
             detail: {
               approvalId,
               taskId: active.taskId,
+              toolName: request.toolName,
               risk: decision.risk,
               matchedRule: decision.matchedRule,
               policyVersion: hashPolicy(policy),
+              ...(decision.authority ? { authority: decision.authority } : {}),
             },
           })
         })
