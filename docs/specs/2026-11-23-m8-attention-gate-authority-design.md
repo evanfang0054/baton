@@ -232,7 +232,7 @@ M7 已完成交付工作台，真实 Claude 与 deekseek 总管链路都已跑�
 - 验收已决定/过期：`already_decided` / `review_expired` 刷新卡片。
 - 取消交付重复调用：幂等返回当前 cancelled 状态。
 - 工作区授权下 deny 命中：返回 deny，不执行；审计 `approval.auto_deny` 或现有 deny 路径。
-- 预算移除后旧客户端发送 `task.set_budget`：返回 `unknown_command` 或 `invalid_payload`；不静默成功。
+- 预算移除后旧客户端发送 `task.set_budget`：返回 `unsupported_command` 或 `invalid_payload`；不静默成功。
 
 ## 8. 测试与验收
 
