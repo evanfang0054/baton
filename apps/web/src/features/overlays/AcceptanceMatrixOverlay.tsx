@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getTask, getTaskAcceptance } from '../../lib/api'
 import { useCommand } from '../../lib/command-context'
 import { queryKeys } from '../../lib/query'
+import { needsAcceptanceOverride } from '../tasks/acceptance-gate'
 import { Overlay } from './Overlay'
 
 export function AcceptanceMatrixOverlay({
@@ -30,15 +31,23 @@ export function AcceptanceMatrixOverlay({
   })
   const review = task.data?.review ?? null
   const items = acceptance.data?.items ?? []
+  const summary = acceptance.data?.report.acceptance ?? null
 
   const decide = async (decision: 'approve' | 'reject') => {
     if (!review) return
-    const unresolved = items.some((item) => item.status === 'fail' || item.status === 'pending')
+    // 与任务详情的验收卡保持一致：verify 未过、AC 缺失/未过/待验时，通过必须写理由。
+    const needsOverride = needsAcceptanceOverride(review, summary)
+    const overridePrompt =
+      summary && summary.counts.total === 0
+        ? '还没有验收项，仍要直接通过吗？'
+        : summary && summary.counts.fail > 0
+          ? '仍有验收项未通过，仍要通过吗？'
+          : summary && summary.counts.pending > 0
+            ? '还有验收项待验证，仍要通过吗？'
+            : '校验未通过，仍要通过吗？'
     const overrideReason =
-      decision === 'approve' && unresolved
-        ? window.prompt('仍有验收项未通过，填写通过理由')?.trim()
-        : undefined
-    if (decision === 'approve' && unresolved && !overrideReason) return
+      decision === 'approve' && needsOverride ? window.prompt(overridePrompt)?.trim() : undefined
+    if (decision === 'approve' && needsOverride && !overrideReason) return
     try {
       await send({
         type: 'review.decide',
