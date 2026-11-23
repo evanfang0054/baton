@@ -28,6 +28,18 @@ describe('attention schemas', () => {
     })
   })
 
+  it('ignores the legacy budget count from old digests', () => {
+    expect(
+      DigestAttention.parse({
+        items: [],
+        counts: { approval: 1, reply: 0, review: 0, failed: 0, stale: 0, budget: 3 },
+      }),
+    ).toEqual({
+      items: [],
+      counts: { approval: 1, reply: 0, review: 0, failed: 0, stale: 0 },
+    })
+  })
+
   it('rejects an unknown attention kind', () => {
     expect(
       AttentionItem.safeParse({

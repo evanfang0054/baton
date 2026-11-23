@@ -29,7 +29,8 @@ export const AttentionCounts = z
     failed: z.number().int().nonnegative(),
     stale: z.number().int().nonnegative(),
   })
-  .strict()
+  // 旧 digest 可能带已删除的 budget 计数；按忽略处理，避免历史 notice 解析失败。
+  .strip()
 export type AttentionCounts = z.infer<typeof AttentionCounts>
 
 export const EMPTY_ATTENTION_COUNTS: AttentionCounts = {

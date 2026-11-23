@@ -15,3 +15,7 @@ export const Session = z.object({
   endedAt: Timestamp.nullable(),
 })
 export type Session = z.infer<typeof Session>
+
+// cost/turn 只用于内部采集与日志；API 展示（任务详情/历史）不返回这两个字段。
+export const SessionView = Session.omit({ costUsd: true, turns: true })
+export type SessionView = z.infer<typeof SessionView>

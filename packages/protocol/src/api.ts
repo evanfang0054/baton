@@ -23,7 +23,7 @@ import {
   Node,
   Notice,
   Review,
-  Session,
+  SessionView,
   Task,
   TaskAcceptanceSummary,
   TaskDetail,
@@ -192,7 +192,7 @@ export const TaskDetailResponse = z.object({
   task: TaskDetail,
   contextInvalid: z.boolean().default(false),
   originInvalid: z.boolean().default(false),
-  sessions: z.array(Session),
+  sessions: z.array(SessionView),
   approvals: z.array(Approval),
   review: ReviewView.nullable(),
   waitingSince: Timestamp.nullable(),
@@ -236,7 +236,7 @@ export type TaskStatusHistoryItem = z.infer<typeof TaskStatusHistoryItem>
 export const TaskHistoryResponse = z.object({
   taskId: Id,
   statusEvents: z.array(TaskStatusHistoryItem),
-  sessions: z.array(Session),
+  sessions: z.array(SessionView),
   reviews: z.array(ReviewView),
   nextBeforeOrdinal: z.number().int().nonnegative().optional(),
 })
