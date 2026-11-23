@@ -102,8 +102,9 @@
 - 交付取消只有 API，没有 UI 控件。
 - 验收矩阵 override 仍使用 `window.prompt`，交互一致性弱于 ReviewCard 的内联确认区。
 - `canvas-group` 拖拽在 headless 下偶发，Playwright retry 通过，仍是已知 flake。
-- 总管真实模型链路未跑；工具契约由单测覆盖。
-- 并发/预算耗尽未做压力级真实 Claude 验证；预算展示与设置 UI 已覆盖。
+- 总管真实链路已用 deepseek-flash 跑过：能建交付/开工，但工具审批与阶段闸门必须人工在任务详情完成，不能只靠总管闭环；详见 `supervisor-only-flow.md`。
+- 阶段任务取消曾让交付推导为 running 并指向未创建的下一阶段；已修复为 cancelled，currentStageKey 为 null。
+- 并发与预算耗尽未做压力级真实 Claude 验证；任务预算的预先设置入口已移除，保留全局成本上限与超预算提额恢复。
 - 本轮真实验收使用 `BATON_CLAUDE_MAX_TURNS=60`，默认 30 对较重验收仍可能偏紧。
 
 ## 回归结果

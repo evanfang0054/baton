@@ -11,6 +11,7 @@
 - 新交付 e2e：交付看板 → 交付画布 → 快速标注层。
 - 真实 Claude 全链路：4 阶段全部完成，验收 A1–A8 全 PASS，见 [`real-chain/README.md`](real-chain/README.md)。
 - 全场景覆盖矩阵：工作区信任、交付推进/取消、产物/画板、验收矩阵、ReviewCard、审批、自动化、标注、移动端、实时事件，见 [`coverage-matrix.md`](coverage-matrix.md)。
+- 总管-only 闭环验证：真实 deepseek-flash 总管可建交付/开工，但工具审批与阶段闸门必须人工在任务详情完成；见 [`supervisor-only-flow.md`](supervisor-only-flow.md)。
 
 ## 已知后置
 
