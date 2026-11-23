@@ -35,7 +35,12 @@ export function CreateDeliveryDialog({
         contextNodeIds: [],
         engine: 'claude-sdk',
       })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.deliveries(workspaceId) })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.deliveries(workspaceId) }),
+        // 创建交付会同时生成第一阶段任务；不刷新任务缓存会让看板一直显示 0。
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) }),
+      ])
       onCreated(created.delivery.id)
       onOpenChange(false)
       setTitle('')
