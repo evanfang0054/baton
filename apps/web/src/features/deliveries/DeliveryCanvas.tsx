@@ -78,6 +78,7 @@ export function DeliveryCanvas({
         onSelectNode={onSelectNode}
         onSelectNodes={onSelectNodes}
         onOpenTask={onOpenTask}
+        onCreateDrawing={onCreateDrawing}
         onOpenNode={(node) => {
           if (node.type === 'artifact') {
             const artifact = artifacts.find((item) => item.id === node.data.artifactId)
@@ -146,9 +147,6 @@ export function DeliveryCanvas({
             </Button>
             <Button size="sm" variant="tertiary" onPress={onOpenAcceptance}>
               验收矩阵
-            </Button>
-            <Button size="sm" variant="tertiary" onPress={onCreateDrawing}>
-              新建画板
             </Button>
             {canCancelDeliveryStatus(delivery.status) ? (
               <Button size="sm" variant="danger-soft" onPress={() => onCancelDelivery(delivery.id)}>

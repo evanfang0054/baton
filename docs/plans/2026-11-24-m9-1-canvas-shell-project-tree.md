@@ -243,7 +243,7 @@ Seam: `CanvasToolbar` buttons + `CanvasPanel` drag/drop
 - 文本/图片按钮与 `CreateImageNodeDialog` 删除；image 节点类型与 `resolveImageUrl` 保留（上下文/兼容）。
 - `DeliveryCanvas` 移除浮动卡「新建画板」，把 `onCreateDrawing` 透传给 `CanvasPanel`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 // 工具栏渲染「画板」「文件」「分组」「Agent」；不渲染「添加文本」「添加图片」
@@ -252,13 +252,13 @@ Seam: `CanvasToolbar` buttons + `CanvasPanel` drag/drop
 // CanvasPanel 不响应 drop：fireEvent.drop 不产生 node.create/upload
 ```
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
 Run: `pnpm --filter @baton/web exec vitest run src/features/canvas/CanvasToolbar.test.tsx`
 
 Expected: FAIL。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - `CanvasToolbar`：删除 `Type`/`ImageIcon` 按钮；新增 `PenLine`「画板」。
 - `model.ts`：`CanvasAddType` 改为四值；`CUSTOM_TYPES` 不变。
@@ -268,13 +268,13 @@ Expected: FAIL。
 - `DeliveryCanvas`：把 `onCreateDrawing` 传给 `CanvasPanel`；移除浮动卡按钮。
 - 删除图片对话框与测试；`CreateFileNodeDialog` 不动。
 
-- [ ] **Step 4: 运行并确认通过**
+- [x] **Step 4: 运行并确认通过**
 
 Run: `pnpm --filter @baton/web exec vitest run src/features/canvas`
 
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/web/src/features/canvas apps/web/src/features/deliveries/DeliveryCanvas.tsx apps/web/src/App.tsx

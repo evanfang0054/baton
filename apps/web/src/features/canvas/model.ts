@@ -34,7 +34,7 @@ export interface CanvasRenderOptions {
   artifacts?: Artifact[]
 }
 
-export type CanvasAddType = 'text' | 'file' | 'image' | 'agent' | 'group'
+export type CanvasAddType = 'drawing' | 'file' | 'agent' | 'group'
 
 const CUSTOM_TYPES = new Set<ProtocolNode['type']>([
   'text',

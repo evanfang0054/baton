@@ -38,10 +38,9 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { DragEvent as ReactDragEvent, ForwardedRef } from 'react'
-import { getTask, uploadWorkspaceFile } from '../../lib/api'
+import type { ForwardedRef } from 'react'
+import { getTask } from '../../lib/api'
 import { useCommand } from '../../lib/command-context'
-import { fileToBase64 } from '../../lib/file'
 import { queryKeys } from '../../lib/query'
 import { CommandError } from '../../lib/ws'
 import { useAppStore, type SelectionNode } from '../../stores/app'
@@ -49,7 +48,6 @@ import { SavedAnnotationOverlay } from '../annotations/SavedAnnotationOverlay'
 import { CanvasActionsProvider } from './actions'
 import { CanvasToolbar } from './CanvasToolbar'
 import { CreateFileNodeDialog } from './CreateFileNodeDialog'
-import { CreateImageNodeDialog } from './CreateImageNodeDialog'
 import { InjectContextDialog } from './InjectContextDialog'
 import {
   dropPatch,
@@ -89,6 +87,7 @@ interface CanvasPanelProps {
   onOpenTask?: (taskId: string) => void
   onOpenNode?: (node: ProtocolNode) => void
   onAnnotate?: () => void
+  onCreateDrawing?: () => void
   delivery?: DeliverySummary | null
   /** 交付画布：刷新时必须失效 deliveryCanvas，而不是 workspace canvas。 */
   deliveryId?: string | null
@@ -108,12 +107,6 @@ const nodeTypes = {
   drawing: DrawingNode,
 }
 const DEFAULT_SIZE = { w: 320, h: 200 }
-const IMAGE_SIZE = { w: 320, h: 240 }
-
-const DROP_OVERLAY_CLASS = [
-  'pointer-events-none absolute inset-0 z-20 flex items-center justify-center',
-  'bg-accent/10 ring-2 ring-accent ring-inset',
-].join(' ')
 
 export const CanvasPanel = forwardRef<CanvasPanelHandle, CanvasPanelProps>(
   function CanvasPanel(props, ref) {
@@ -134,6 +127,7 @@ function FlowCanvas({
   onOpenTask,
   onOpenNode,
   onAnnotate,
+  onCreateDrawing,
   delivery,
   deliveryId,
   annotations = [],
@@ -150,11 +144,9 @@ function FlowCanvas({
   const { screenToFlowPosition, fitView, zoomIn, zoomOut, getViewport, setViewport } =
     useReactFlow()
   const [fileDialogOpen, setFileDialogOpen] = useState(false)
-  const [imageDialogOpen, setImageDialogOpen] = useState(false)
   const [injectOpen, setInjectOpen] = useState(false)
   const [injectTaskId, setInjectTaskId] = useState<string | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
-  const [dropActive, setDropActive] = useState(false)
   const [arranging, setArranging] = useState(false)
   const selectedNodeIds = useAppStore((state) => state.selectedNodeIds)
   const sceneTaskId = useAppStore((state) => state.sceneTaskId)
@@ -514,12 +506,12 @@ function FlowCanvas({
     (type: CanvasAddType) => {
       if (!canvas) return
       if (sceneActive) return
-      if (type === 'file') {
-        setFileDialogOpen(true)
+      if (type === 'drawing') {
+        onCreateDrawing?.()
         return
       }
-      if (type === 'image') {
-        setImageDialogOpen(true)
+      if (type === 'file') {
+        setFileDialogOpen(true)
         return
       }
       if (type === 'group') {
@@ -527,17 +519,6 @@ function FlowCanvas({
         return
       }
       const position = centerPosition()
-      if (type === 'text') {
-        void createNode({
-          type: 'text',
-          ...position,
-          w: DEFAULT_SIZE.w,
-          h: DEFAULT_SIZE.h,
-          groupId: null,
-          data: { content: '新文本节点' },
-        })
-        return
-      }
       const agentCount = canvas.nodes.filter((node) => node.type === 'agent').length
       void createNode({
         type: 'agent',
@@ -548,7 +529,7 @@ function FlowCanvas({
         data: { title: `Agent ${agentCount + 1}`, engine: 'claude-sdk', taskId: null },
       })
     },
-    [canvas, centerPosition, createGroupFromSelection, createNode, sceneActive],
+    [canvas, centerPosition, createGroupFromSelection, createNode, onCreateDrawing, sceneActive],
   )
 
   const exitScene = useCallback(() => {
@@ -564,109 +545,6 @@ function FlowCanvas({
     [fitView, flowNodes],
   )
   useImperativeHandle(handleRef, () => ({ addNode, focusNode }), [addNode, focusNode])
-
-  const handleDrop = useCallback(
-    async (event: ReactDragEvent<HTMLElement>) => {
-      event.preventDefault()
-      event.stopPropagation()
-      setDropActive(false)
-      if (!canvas || sceneActive) return
-      const files = Array.from(event.dataTransfer.files)
-      if (files.length === 0) return
-
-      const rect = containerRef.current?.getBoundingClientRect()
-      const point = screenToFlowPosition({ x: event.clientX, y: event.clientY })
-      const bounds = rect
-        ? (() => {
-            const topLeft = screenToFlowPosition({ x: rect.left, y: rect.top })
-            const bottomRight = screenToFlowPosition({ x: rect.right, y: rect.bottom })
-            return {
-              minX: topLeft.x,
-              minY: topLeft.y,
-              maxX: bottomRight.x,
-              maxY: bottomRight.y,
-            }
-          })()
-        : undefined
-
-      const accepted = files.slice(0, 10)
-      if (files.length > accepted.length) {
-        toast.danger('一次最多拖入 10 个文件')
-      }
-
-      let added = 0
-      let failed = 0
-      const createdNodeIds: string[] = []
-      const created: Array<{ x: number; y: number; w: number; h: number }> = []
-      for (const file of accepted) {
-        try {
-          const dataBase64 = await fileToBase64(file)
-          const uploaded = await uploadWorkspaceFile(canvas.canvas.workspaceId, {
-            name: file.name,
-            ...(file.type ? { mime: file.type } : {}),
-            dataBase64,
-          })
-          const position = nextNodePosition(
-            point,
-            DEFAULT_SIZE,
-            [...canvas.nodes, ...created],
-            24,
-            bounds,
-          )
-          const result = (await send({
-            type: 'node.create',
-            payload: {
-              canvasId: canvas.canvas.id,
-              node: {
-                type: 'file',
-                ...position,
-                w: DEFAULT_SIZE.w,
-                h: DEFAULT_SIZE.h,
-                groupId: null,
-                data: {
-                  name: uploaded.name,
-                  path: uploaded.path,
-                  ...(uploaded.mime ? { mime: uploaded.mime } : {}),
-                },
-              },
-            },
-          })) as { nodeId?: string } | undefined
-          created.push({ ...position, w: DEFAULT_SIZE.w, h: DEFAULT_SIZE.h })
-          if (result?.nodeId) {
-            createdNodeIds.push(result.nodeId)
-            added += 1
-          }
-        } catch {
-          failed += 1
-        }
-      }
-
-      await refreshCanvas()
-      if (createdNodeIds.length > 0) {
-        onSelectNode(createdNodeIds[createdNodeIds.length - 1]!)
-        const outside =
-          bounds !== undefined &&
-          created.some(
-            (rect) =>
-              rect.x < bounds.minX ||
-              rect.y < bounds.minY ||
-              rect.x + rect.w > bounds.maxX ||
-              rect.y + rect.h > bounds.maxY,
-          )
-        if (outside) {
-          void fitView({
-            nodes: createdNodeIds.map((id) => ({ id })),
-            duration: 300,
-            padding: 1.5,
-            maxZoom: 1,
-          })
-        }
-      }
-      if (added > 0) toast.success(`已添加 ${added} 个文件节点`)
-      if (failed > 0) toast.danger(`${failed} 个文件上传失败`)
-    },
-    [canvas, fitView, onSelectNode, refreshCanvas, sceneActive, screenToFlowPosition, send],
-  )
 
   const actions = useMemo(
     () => ({
@@ -705,7 +583,7 @@ function FlowCanvas({
         data-testid="canvas"
         className="flex h-full items-center justify-center bg-background text-sm text-muted"
       >
-        尚未选择工作区
+        尚未选择需求
       </section>
     )
   }
@@ -715,17 +593,6 @@ function FlowCanvas({
       ref={containerRef}
       data-testid="canvas"
       className="relative h-full bg-background"
-      onDragOver={(event) => {
-        if (sceneActive || !event.dataTransfer.types.includes('Files')) return
-        event.preventDefault()
-        event.dataTransfer.dropEffect = 'copy'
-        setDropActive(true)
-      }}
-      onDragLeave={(event) => {
-        if (event.currentTarget.contains(event.relatedTarget as globalThis.Node | null)) return
-        setDropActive(false)
-      }}
-      onDrop={(event) => void handleDrop(event)}
     >
       <CanvasToolbar
         onAdd={addNode}
@@ -775,13 +642,6 @@ function FlowCanvas({
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="rounded-xl border border-dashed border-separator px-6 py-10 text-sm text-muted">
             画布暂无内容
-          </div>
-        </div>
-      ) : null}
-      {dropActive ? (
-        <div className={DROP_OVERLAY_CLASS}>
-          <div className="rounded-lg border border-accent bg-surface px-4 py-2 text-sm text-foreground shadow-overlay">
-            松开以添加文件节点
           </div>
         </div>
       ) : null}
@@ -896,22 +756,6 @@ function FlowCanvas({
             h: DEFAULT_SIZE.h,
             groupId: null,
             data: file,
-          })
-        }}
-      />
-      <CreateImageNodeDialog
-        workspaceId={canvas.canvas.workspaceId}
-        open={imageDialogOpen}
-        onOpenChange={setImageDialogOpen}
-        onCreate={(image) => {
-          const position = centerPosition()
-          void createNode({
-            type: 'image',
-            ...position,
-            w: IMAGE_SIZE.w,
-            h: IMAGE_SIZE.h,
-            groupId: null,
-            data: image,
           })
         }}
       />
