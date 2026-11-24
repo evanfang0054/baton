@@ -6,8 +6,7 @@
 
 ## 状态
 
-M2 已收口：总管 Router v0、无人值守与汇报、移动端响应式控制台。
-M3-1 交付验收增强（diff 视图、worktree 隔离、retry/reopen 与任务历史）已实现，分支 `feat/m3-1-diff` 待合并。v1 不使用 Docker。
+M7 交付工作台与 M8 注意力闭环已收口：一条需求一块画布，需求 → 设计 → 开发 → 验收四阶段；总管负责派活、汇报与会话闸门卡，人只在闸门做决定。真实 Claude + DeepSeek 总管链路已跑通 4/4 阶段。v1 不使用 Docker。
 
 ## 本地运行
 
@@ -34,6 +33,7 @@ pnpm pack:check   # npm pack 安装链路自检
 ## 文档
 
 - [架构设计与工程规范](docs/specs/2026-11-16-baton-architecture-design.md)
-- [M0 骨架合同](docs/contracts/M0-skeleton.contract.md)
-- [M0 实施计划](docs/plans/2026-11-16-m0-skeleton.md)
+- [M7 交付 playbook](docs/specs/2026-11-22-m7-delivery-playbook-design.md)
+- [M8 注意力闸门与工作区授权](docs/specs/2026-11-23-m8-attention-gate-authority-design.md)
+- [M8 实跑与修复记录](docs/evidence/2026-11-24-dogfood-m8/README.md)
 - [项目宪法](docs/constitution.md)
