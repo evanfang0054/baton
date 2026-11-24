@@ -22,6 +22,7 @@ export interface CanvasNodeData extends Record<string, unknown> {
   injected?: boolean
   stage?: StageSummary | null
   artifact?: Artifact | null
+  previewUrl?: string
 }
 
 export interface CanvasRenderOptions {
@@ -32,6 +33,7 @@ export interface CanvasRenderOptions {
   delivery?: DeliverySummary | null
   stages?: StageSummary[]
   artifacts?: Artifact[]
+  deliveryId?: string
 }
 
 export type CanvasAddType = 'drawing' | 'file' | 'agent' | 'group'
@@ -59,6 +61,19 @@ export function resolveImageUrl(src: string, workspaceId?: string): string | und
   if (!src.startsWith(prefix)) return src.startsWith('https://') ? src : undefined
   if (!workspaceId) return undefined
   return `/api/workspaces/${workspaceId}/uploads/${encodeURIComponent(src.slice(prefix.length))}`
+}
+
+function drawingPreviewUrl(
+  node: ProtocolNode,
+  artifactById: Map<string, Artifact>,
+  deliveryId: string | undefined,
+): string | undefined {
+  if (node.type !== 'drawing' || !deliveryId) return undefined
+  const artifact = artifactById.get(node.data.artifactId)
+  const version = artifact?.updatedAt ?? node.updatedAt
+  return `/api/deliveries/${encodeURIComponent(deliveryId)}/artifacts/${encodeURIComponent(
+    node.data.artifactId,
+  )}/content?variant=preview&v=${version}`
 }
 
 export function toFlowNodes(
@@ -126,6 +141,9 @@ export function toFlowNodes(
             : {}),
           ...(node.type === 'artifact'
             ? { artifact: artifactById.get(node.data.artifactId) ?? null }
+            : {}),
+          ...(node.type === 'drawing'
+            ? { previewUrl: drawingPreviewUrl(node, artifactById, options.deliveryId) }
             : {}),
         },
       }

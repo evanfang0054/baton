@@ -1,4 +1,5 @@
 import type {
+  Artifact,
   Edge as ProtocolEdge,
   Node as ProtocolNode,
   ReviewView,
@@ -107,6 +108,44 @@ function imageNode(id: string, src: string): ProtocolNode {
 }
 
 describe('canvas model', () => {
+  it('builds a cache-busted preview URL for drawing nodes', () => {
+    const drawing: ProtocolNode = {
+      ...textNode,
+      id: 'd1',
+      type: 'drawing',
+      data: {
+        artifactId: 'a1',
+        title: '画板 1',
+        thumbnailPath: null,
+        status: 'ready',
+      },
+    }
+    const artifact: Artifact = {
+      id: 'a1',
+      workspaceId: 'w1',
+      deliveryId: 'd1',
+      stageKey: 'requirement',
+      taskId: null,
+      kind: 'drawing',
+      name: 'drawing.png',
+      path: '.baton/deliveries/d1/requirement/drawing.png',
+      sourcePath: null,
+      svgPath: null,
+      mime: 'image/png',
+      size: 1,
+      sha256: '0'.repeat(64),
+      version: 1,
+      status: 'ready',
+      createdAt: 1,
+      updatedAt: 42,
+    }
+    const flow = toFlowNodes([drawing], [], { deliveryId: 'd1', artifacts: [artifact] })
+    expect(flow[0]?.data.previewUrl).toBe(
+      '/api/deliveries/d1/artifacts/a1/content?variant=preview&v=42',
+    )
+    expect(toFlowNodes([drawing], [], { artifacts: [artifact] })[0]?.data.previewUrl).toBeUndefined()
+  })
+
   it('maps protocol nodes to flow nodes with size and task', () => {
     const flow = toFlowNodes([textNode, agentNode], [task])
     expect(flow[0]).toMatchObject({

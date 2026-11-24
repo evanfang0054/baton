@@ -188,6 +188,7 @@ function FlowCanvas({
       workspaceId: canvas.canvas.workspaceId,
       injectedNodeIds,
       delivery: delivery ?? null,
+      deliveryId: deliveryId ?? undefined,
       stages,
       artifacts,
     })

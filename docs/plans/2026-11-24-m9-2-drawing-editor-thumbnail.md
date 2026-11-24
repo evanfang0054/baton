@@ -200,28 +200,28 @@ Seam: `DrawingNode` preview URL + query invalidation
 - `DrawingNode`：顶部「画板 + 状态」；主体 `<img src=previewUrl>` `object-contain`；无 URL/失败显示占位；`previewStale` 显示「画板已更新，缩略图刷新中」。
 - `artifact.updated` → 失效 `artifacts(deliveryId)` + `deliveryCanvas(workspaceId, deliveryId)`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 - `toFlowNodes` 为 drawing 节点生成带 `v` 的 preview URL；无 deliveryId/artifact 时 `previewUrl` 为空。
 - `DrawingNode` 渲染 `<img>`；`previewStale` 显示提示；无预览显示占位。
 - `onSaved` 触发 `deliveryCanvas` 失效（App 测试或组件测试）。
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
 Run: `pnpm --filter @baton/web exec vitest run src/features/canvas/canvas-model.test.ts src/features/canvas/nodes/nodes.test.tsx`
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - `CanvasPanel` 的 `toFlowNodes` 传入 `deliveryId`。
 - `DrawingNode` 不引入 Excalidraw；只用 `<img>`。
 - 缩略图使用 `object-contain` 与 `bg-surface`；状态用现有 `text-muted/foreground/warning` token。
 - `RealtimeProvider` 的 `artifact.updated` 分支补 `artifacts`/`deliveryCanvas` 失效。
 
-- [ ] **Step 4: 运行并确认通过**
+- [x] **Step 4: 运行并确认通过**
 
 Run: `pnpm --filter @baton/web test`
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/web/src/features/canvas apps/web/src/App.tsx apps/web/src/features/realtime/RealtimeProvider.tsx

@@ -254,6 +254,8 @@ function AppShell() {
     const stageKey = delivery.data?.currentStageKey ?? delivery.data?.stages[0]?.key
     if (!stageKey) return
     try {
+      const drawingIndex =
+        deliveryCanvas.data.nodes.filter((node) => node.type === 'drawing').length + 1
       const artifact = await createArtifactDraft(activeDeliveryId, stageKey, {
         stageKey,
         kind: 'drawing',
@@ -270,12 +272,12 @@ function AppShell() {
             type: 'drawing',
             x: (group?.x ?? 0) + 40,
             y: (group?.y ?? 0) + 80,
-            w: 320,
-            h: 200,
+            w: 360,
+            h: 260,
             groupId: group?.id ?? null,
             data: {
               artifactId: artifact.id,
-              title: artifact.name,
+              title: `画板 ${drawingIndex}`,
               thumbnailPath: null,
               status: 'draft',
             },
@@ -722,6 +724,9 @@ function AppShell() {
                   })
                   void queryClient.invalidateQueries({
                     queryKey: queryKeys.delivery(overlay.deliveryId),
+                  })
+                  void queryClient.invalidateQueries({
+                    queryKey: queryKeys.deliveryCanvas(activeWorkspaceId ?? '', overlay.deliveryId),
                   })
                 }}
               />
