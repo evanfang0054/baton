@@ -57,6 +57,14 @@ export function ReviewCard({
           ? '还有验收项待验证，仍要通过吗？'
           : '校验未通过，仍要通过吗？'
   const overrideReasonMissing = needsOverride && overrideReason.trim().length === 0
+  const missingArtifacts =
+    action.errorCode === 'artifact_missing' &&
+    Array.isArray((action.errorDetails as { missing?: unknown } | null)?.missing)
+      ? ((action.errorDetails as { missing: unknown[] }).missing.filter(
+          (item): item is string => typeof item === 'string',
+        ) as string[])
+      : []
+  const artifactBlocked = missingArtifacts.length > 0
 
   // 选择被清空后不能留下一个不可见的“附带上下文”开关。
   useEffect(() => {
@@ -98,9 +106,20 @@ export function ReviewCard({
         </div>
       </div>
       {action.error ? (
-        <p role="alert" className="mt-2 text-sm text-danger">
-          {action.error}
-        </p>
+        artifactBlocked ? (
+          <div role="alert" className="mt-2 rounded-lg border border-warning bg-warning/10 p-3">
+            <p className="text-sm font-medium text-warning">
+              缺少必需产物：{missingArtifacts.join('、')}
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              必需产物未写入交付目录，不能通过验收。请打回任务重新执行，产物落盘后再验收。
+            </p>
+          </div>
+        ) : (
+          <p role="alert" className="mt-2 text-sm text-danger">
+            {action.error}
+          </p>
+        )
       ) : null}
       <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted">
         <span title="仅统计 Git 已跟踪文件；非 git 工作区或未跟踪文件不计入">
@@ -165,13 +184,34 @@ export function ReviewCard({
           {overrideReasonMissing ? (
             <p className="text-xs text-warning">通过前请填写通过理由。</p>
           ) : null}
+          {artifactBlocked ? (
+            <div className="rounded border border-warning bg-surface p-2">
+              <p className="text-xs text-warning">
+                缺少必需产物：{missingArtifacts.join('、')}。补齐前不能通过。
+              </p>
+              <div className="mt-2 flex justify-end">
+                <Button
+                  variant="secondary"
+                  onPress={() => {
+                    setConfirmingApprove(false)
+                    setRejecting(true)
+                    setFeedback(
+                      `缺少必需产物：${missingArtifacts.join('、')}，请重新执行并写入交付目录。`,
+                    )
+                  }}
+                >
+                  打回并重新执行
+                </Button>
+              </div>
+            </div>
+          ) : null}
           <div className="flex justify-end gap-2">
             <Button variant="tertiary" onPress={() => setConfirmingApprove(false)}>
               取消
             </Button>
             <Button
               variant="primary"
-              isDisabled={action.pending || overrideReasonMissing}
+              isDisabled={action.pending || overrideReasonMissing || artifactBlocked}
               onPress={approve}
             >
               确认通过

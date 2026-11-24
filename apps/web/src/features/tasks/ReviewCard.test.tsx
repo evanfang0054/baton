@@ -184,6 +184,43 @@ describe('ReviewCard', () => {
     expect(screen.getByRole('button', { name: '确认打回' })).toBeDisabled()
   })
 
+  it('blocks approval when required artifacts are missing and offers a retry path', async () => {
+    const error = Object.assign(new Error('required artifacts are missing'), {
+      code: 'artifact_missing',
+      details: { missing: ['spec.md'] },
+    })
+    const send = vi.fn().mockRejectedValue(error)
+    render(
+      <CommandProvider send={send}>
+        <ReviewCard
+          review={review}
+          acceptance={{
+            contractId: 'ac1',
+            version: 1,
+            revision: 0,
+            status: 'draft',
+            counts: { total: 1, pass: 0, fail: 0, pending: 1, waived: 0 },
+            verdict: 'incomplete',
+            topFailures: [],
+          }}
+          onDone={vi.fn()}
+        />
+      </CommandProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '通过' }))
+    fireEvent.change(screen.getByLabelText('通过理由'), { target: { value: '验收通过' } })
+    fireEvent.click(screen.getByRole('button', { name: '确认通过' }))
+
+    expect((await screen.findAllByText(/缺少必需产物：spec\.md/)).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: '确认通过' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: '打回并重新执行' }))
+    expect(screen.getByLabelText('打回反馈')).toHaveValue(
+      '缺少必需产物：spec.md，请重新执行并写入交付目录。',
+    )
+  })
+
   it('shows preliminary verdict and keeps human gate', () => {
     render(
       <CommandProvider send={vi.fn()}>
