@@ -132,15 +132,20 @@ export function registerDeliveryRoutes(app: FastifyInstance, deps: DeliveryRoute
     })
   })
 
-  app.put('/api/deliveries/:deliveryId/artifacts/:artifactId', async (req) => {
-    const { artifactId } = req.params as { artifactId: string }
-    const input = ArtifactSaveInput.safeParse(req.body)
-    if (!input.success)
-      throw appError('invalid_payload', 'invalid artifact payload', input.error.issues)
-    return ArtifactResponse.parse({
-      artifact: deps.artifacts.saveArtifactContent({ artifactId, ...input.data }),
-    })
-  })
+  // 画板同时提交 .excalidraw + PNG + SVG，默认 1MB body 限制会直接 413。
+  app.put(
+    '/api/deliveries/:deliveryId/artifacts/:artifactId',
+    { bodyLimit: 48 * 1024 * 1024 },
+    async (req) => {
+      const { artifactId } = req.params as { artifactId: string }
+      const input = ArtifactSaveInput.safeParse(req.body)
+      if (!input.success)
+        throw appError('invalid_payload', 'invalid artifact payload', input.error.issues)
+      return ArtifactResponse.parse({
+        artifact: deps.artifacts.saveArtifactContent({ artifactId, ...input.data }),
+      })
+    },
+  )
 
   app.get('/api/deliveries/:deliveryId/annotations', async (req) => {
     const { deliveryId } = req.params as { deliveryId: string }

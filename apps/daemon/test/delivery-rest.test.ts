@@ -159,6 +159,37 @@ describe('delivery REST', () => {
     expect(content.rawPayload.toString()).toBe('hello')
   })
 
+  it('accepts drawing saves larger than the default 1MB body limit', async () => {
+    const { app, deliveryId } = await setup()
+    const draft = await app.inject({
+      method: 'POST',
+      url: `/api/deliveries/${deliveryId}/stages/design/artifacts`,
+      payload: { stageKey: 'design', kind: 'drawing', name: 'large.excalidraw' },
+    })
+    const artifactId = (draft.json() as { artifact: { id: string } }).artifact.id
+    const saved = await app.inject({
+      method: 'PUT',
+      url: `/api/deliveries/${deliveryId}/artifacts/${artifactId}`,
+      payload: { previewBase64: 'A'.repeat(1_500_000) },
+    })
+    expect(saved.statusCode, saved.body).toBe(200)
+  })
+
+  it('returns payload_too_large for oversized bodies outside drawing saves', async () => {
+    const { app, handle } = await setup()
+    const oversized = await app.inject({
+      method: 'POST',
+      url: '/api/deliveries',
+      payload: {
+        workspaceId: handle.seeded.workspaceId,
+        title: 'x'.repeat(1_500_000),
+        goal: 'g',
+      },
+    })
+    expect(oversized.statusCode).toBe(413)
+    expect((oversized.json() as { code: string }).code).toBe('payload_too_large')
+  })
+
   it('creates and lists annotations', async () => {
     const { app, handle, deliveryId } = await setup()
     const canvas = getCanvasByDelivery(handle.database.db, deliveryId)
