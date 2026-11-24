@@ -1,3 +1,4 @@
+import { upgradeLegacyPolicy } from '@baton/core'
 import { PolicySchema, type Policy } from '@baton/protocol'
 import {
   closeSync,
@@ -32,7 +33,10 @@ export function loadPolicy(workspacePath: string): Policy {
     if (real !== realRoot && !real.startsWith(`${realRoot}${sep}`)) {
       throw new Error('policy escapes workspace')
     }
-    return PolicySchema.parse(JSON.parse(readFileSync(real, 'utf8')))
+    const parsed = PolicySchema.parse(JSON.parse(readFileSync(real, 'utf8')))
+    // 旧工作区的 policy.json 里仍可能留着 M7 之前的 `.baton/**` 全量 deny；
+    // 加载时收窄，避免交付产物永远写不进去。
+    return upgradeLegacyPolicy(parsed)
   } catch {
     throw appError('invalid_policy', 'invalid .baton/policy.json')
   }
