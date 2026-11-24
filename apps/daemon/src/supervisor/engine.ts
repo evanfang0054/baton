@@ -176,6 +176,11 @@ export function createAiSdkSupervisorEngine(config: SupervisorConfig): Superviso
           inputSchema: tools.get_annotation.parameters,
           execute: (input) => tools.get_annotation.execute(input),
         }),
+        get_drawing: tool({
+          description: tools.get_drawing.description,
+          inputSchema: tools.get_drawing.parameters,
+          execute: (input) => tools.get_drawing.execute(input),
+        }),
       }
 
       const result = streamText({

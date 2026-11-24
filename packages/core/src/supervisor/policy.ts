@@ -38,6 +38,7 @@ export const SUPERVISOR_POLICY: SupervisorPolicy = {
     'cancel_delivery',
     'list_annotations',
     'get_annotation',
+    'get_drawing',
   ],
   maxSteps: 4,
   timeoutMs: 60_000,

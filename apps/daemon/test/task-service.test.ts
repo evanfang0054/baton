@@ -94,26 +94,36 @@ describe('createTask', () => {
         cancelledAt: null,
       }),
     )
-    for (const [id, type, data] of [
-      ['agent-d1', 'agent', { title: 'Agent', engine: 'claude-sdk', taskId: null }],
-      ['text-d1', 'text', { content: '需求正文' }],
-    ] as const) {
-      database.db.transaction((tx) =>
-        insertNode(tx, {
-          id,
-          canvasId: deliveryCanvasId,
-          type,
-          x: 0,
-          y: 0,
-          w: 320,
-          h: 200,
-          groupId: null,
-          data,
-          createdAt: 1,
-          updatedAt: 1,
-        }),
-      )
-    }
+    database.db.transaction((tx) =>
+      insertNode(tx, {
+        id: 'agent-d1',
+        canvasId: deliveryCanvasId,
+        type: 'agent',
+        x: 0,
+        y: 0,
+        w: 320,
+        h: 200,
+        groupId: null,
+        data: { title: 'Agent', engine: 'claude-sdk', taskId: null },
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    )
+    database.db.transaction((tx) =>
+      insertNode(tx, {
+        id: 'text-d1',
+        canvasId: deliveryCanvasId,
+        type: 'text',
+        x: 0,
+        y: 0,
+        w: 320,
+        h: 200,
+        groupId: null,
+        data: { content: '需求正文' },
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    )
 
     const result = service.createTask({
       ...input(seeded),

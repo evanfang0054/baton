@@ -134,9 +134,10 @@ describe('supervisor scope', () => {
         stageKey: 'requirement',
       }),
     ).toMatchObject({ deliveryId: 'd1', stageKey: 'requirement' })
-    expect(
-      SupervisorMessageMeta.parse({ contextNodeIds: [], targetNodeId: null }),
-    ).toMatchObject({ deliveryId: null, stageKey: null })
+    expect(SupervisorMessageMeta.parse({ contextNodeIds: [], targetNodeId: null })).toMatchObject({
+      deliveryId: null,
+      stageKey: null,
+    })
   })
 })
 

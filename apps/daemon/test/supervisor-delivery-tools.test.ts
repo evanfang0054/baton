@@ -116,6 +116,9 @@ function setup() {
   function ctx(): ToolContext {
     return {
       workspaceId: seeded.workspaceId,
+      deliveryId: null,
+      stageKey: null,
+      allowWorkspaceCanvas: true,
       threadId: 'th1',
       triggerId: 'r1',
       text: '做一条交付',

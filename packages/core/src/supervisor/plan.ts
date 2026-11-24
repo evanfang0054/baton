@@ -9,6 +9,8 @@ export function buildPlan(input: {
   templateId: PlanPayload['templateId']
   items: PlanItem[]
   contextDigest: PlanPayload['contextDigest']
+  deliveryId?: string | null
+  stageKey?: string | null
   now: number
 }): { payload: PlanPayload; expiresAt: number } {
   const items = input.items.slice(0, 6).map((item) => ({
@@ -24,6 +26,8 @@ export function buildPlan(input: {
       contextDigest: input.contextDigest.slice(0, 5),
       source: input.source,
       triggerId: input.triggerId,
+      deliveryId: input.deliveryId ?? null,
+      stageKey: input.stageKey ?? null,
     },
     expiresAt: input.now + PLAN_TTL_MS,
   }

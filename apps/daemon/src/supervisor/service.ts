@@ -1,6 +1,7 @@
 import {
   acceptanceSummary,
   buildTaskOrigin,
+  parsePlaybook,
   SUPERVISOR_POLICY,
   supervisorPolicyVersion,
 } from '@baton/core'
@@ -49,6 +50,7 @@ import {
   replaceAcceptanceItems,
   updateAcceptanceRun,
 } from '../db/acceptance-repository.js'
+import { getCanvasByDelivery, getDelivery } from '../db/delivery-repositories.js'
 import type { Db } from '../db/types.js'
 import type { EventStore } from '../db/event-store.js'
 import type { FailureService } from '../failures/service.js'
@@ -57,6 +59,7 @@ import type { Logger } from '../log.js'
 import type { TaskService } from '../runtime/task-service.js'
 import type { TransitionOutcome } from '../runtime/types.js'
 import type { AnnotationService } from '../annotation/service.js'
+import type { ArtifactService } from '../artifact/service.js'
 import type { DeliveryService } from '../delivery/service.js'
 import { buildWsFrame } from '../ws/hub.js'
 import { canvasOverviewXml, nodeTitle } from './canvas-summary.js'
@@ -108,6 +111,9 @@ export interface SupervisorServiceDeps {
   failures?: FailureService
   deliveries?: () => DeliveryService | undefined
   annotations?: () => AnnotationService | undefined
+  artifacts?: () => ArtifactService | undefined
+  /** 仅旧测试/迁移期允许回退到工作区画布；生产路径必须显式选中需求。 */
+  allowWorkspaceCanvas?: boolean
   remindAttention?: (input: {
     workspaceId: string
     taskId: string
@@ -153,6 +159,9 @@ function candidateCard(input: {
   targetNodeId?: string
   policyVersion: string
   defaultEngine: string
+  scope: 'delivery' | 'none'
+  deliveryTitle?: string
+  stageKey?: string | null
 }): string {
   const selected = input.nodes
     .map(
@@ -170,8 +179,14 @@ function candidateCard(input: {
   const target = input.targetNodeId
     ? `\n<target_agent id="${xmlEscape(input.targetNodeId)}" />`
     : ''
+  const scopeAttrs = [
+    `scope="${input.scope}"`,
+    ...(input.deliveryTitle ? [`delivery="${xmlEscape(input.deliveryTitle)}"`] : []),
+    ...(input.stageKey ? [`stage="${xmlEscape(input.stageKey)}"`] : []),
+  ].join(' ')
   return `<workspace id="${xmlEscape(input.workspaceId)}" name="${xmlEscape(input.workspaceName)}" />
 <thread id="${xmlEscape(input.threadId)}" />
+<canvas_scope ${scopeAttrs} />
 <user_message>${xmlEscape(input.text)}</user_message>
 ${canvasOverviewXml(input.canvasNodes, input.edgeCount)}
 <selection>
@@ -250,6 +265,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     cancelTask: deps.cancelTask,
     ...(deps.requireMandate ? { requireMandate: deps.requireMandate } : {}),
     ...(deps.actions ? { actions: deps.actions } : {}),
+    ...(deps.artifacts ? { artifacts: deps.artifacts } : {}),
     assertAutomationAllowed: (workspaceId: string) => {
       if (deps.killSwitch()) {
         return appError('automation_paused', '自动化已暂停，需要你手动恢复')
@@ -1044,13 +1060,31 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           workspaceId: input.request.workspaceId,
         })
       }
-      const canvas = getCanvasByWorkspace(deps.db, input.request.workspaceId)
-      if (!canvas) {
-        throw appError('canvas_not_found', 'canvas not found', {
-          workspaceId: input.request.workspaceId,
-        })
+      const deliveryId = input.request.deliveryId ?? null
+      const stageKey = input.request.stageKey ?? null
+      if (stageKey && !deliveryId) {
+        throw appError('invalid_payload', 'stageKey requires deliveryId')
       }
-      const nodes = listNodes(deps.db, canvas.id)
+      const delivery = deliveryId ? getDelivery(deps.db, deliveryId) : null
+      if (deliveryId && (!delivery || delivery.workspaceId !== workspace.id)) {
+        throw appError('delivery_not_found', 'delivery not found', { deliveryId })
+      }
+      if (delivery && stageKey) {
+        try {
+          const parsed = parsePlaybook(JSON.parse(delivery.playbookJson))
+          if (!parsed.ok || !parsed.playbook.stages.some((stage) => stage.key === stageKey)) {
+            throw new Error('stage_not_found')
+          }
+        } catch {
+          throw appError('stage_not_found', 'stage not found', { deliveryId, stageKey })
+        }
+      }
+      const canvas = delivery
+        ? getCanvasByDelivery(deps.db, delivery.id)
+        : deps.allowWorkspaceCanvas
+          ? getCanvasByWorkspace(deps.db, workspace.id)
+          : undefined
+      const nodes = canvas ? listNodes(deps.db, canvas.id) : []
       const selectedIds = new Set(input.request.contextNodeIds)
       if (input.request.targetNodeId) selectedIds.add(input.request.targetNodeId)
       const selected = nodes.filter((node) => selectedIds.has(node.id))
@@ -1070,6 +1104,9 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
 
       const toolContext: ToolContext = {
         workspaceId: input.request.workspaceId,
+        deliveryId: delivery?.id ?? null,
+        stageKey: stageKey ?? null,
+        allowWorkspaceCanvas: deps.allowWorkspaceCanvas === true,
         threadId: input.threadId,
         triggerId: input.request.requestId,
         text: input.request.text,
@@ -1250,6 +1287,12 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           input.assistantMessageId,
           input.threadId,
         ),
+        get_drawing: wrapTool(
+          'get_drawing',
+          bound.get_drawing,
+          input.assistantMessageId,
+          input.threadId,
+        ),
       }
       const history = trimHistory(store.listMessages(input.threadId, 21).messages.slice(-20))
       const engine = deps.engine ?? createAiSdkSupervisorEngine(input.config)
@@ -1261,10 +1304,13 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           text: input.request.text,
           nodes: selected,
           canvasNodes: nodes,
-          edgeCount: countEdges(deps.db, canvas.id),
+          edgeCount: canvas ? countEdges(deps.db, canvas.id) : 0,
           targetNodeId,
           policyVersion,
           defaultEngine: deps.defaultEngine,
+          scope: delivery ? 'delivery' : 'none',
+          ...(delivery ? { deliveryTitle: delivery.title } : {}),
+          stageKey,
         })}`,
         messages: history,
         tools: wrapped,

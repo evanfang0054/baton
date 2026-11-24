@@ -21,7 +21,7 @@ afterEach(() => {
 
 function setup(
   engine: SupervisorEngine,
-  options: { trusted?: boolean; killSwitch?: boolean } = {},
+  options: { trusted?: boolean; killSwitch?: boolean; allowWorkspaceCanvas?: boolean } = {},
 ) {
   const root = mkdtempSync(join(tmpdir(), 'baton-svc-'))
   dirs.push(root)
@@ -98,6 +98,7 @@ function setup(
     }),
     workspacesRoot: root,
     killSwitch: () => options.killSwitch === true,
+    allowWorkspaceCanvas: options.allowWorkspaceCanvas !== false,
     engine,
     now: () => 10,
     newId: () => `id-${++sequence}`,
@@ -309,6 +310,34 @@ describe('supervisor service', () => {
     expect((canvasResult as { nodes: Array<{ title: string }> }).nodes).toContainEqual(
       expect.objectContaining({ title: '需求 A' }),
     )
+  })
+
+  it('does not fall back to the workspace canvas without a requirement', async () => {
+    let toolError: unknown
+    const engine: SupervisorEngine = {
+      async run({ tools }) {
+        try {
+          await tools.list_canvas.execute({})
+        } catch (cause) {
+          toolError = cause
+        }
+        return { text: '请先选择一个需求。', toolCalls: [], finishReason: 'stop' }
+      },
+    }
+    const { seeded, service } = setup(engine, { allowWorkspaceCanvas: false })
+
+    service.send({
+      workspaceId: seeded.workspaceId,
+      requestId: 'r-canvas-strict',
+      text: '画布上有什么？',
+      contextNodeIds: [],
+    })
+    await service.waitForIdle()
+
+    expect(toolError).toMatchObject({
+      code: 'canvas_not_found',
+      message: expect.stringContaining('选择一个需求'),
+    })
   })
 
   it('records an error message when the engine throws', async () => {

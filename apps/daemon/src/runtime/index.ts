@@ -144,6 +144,7 @@ export function createRuntime(deps: RuntimeDeps) {
   const transitionRunnerHolder: { value?: ReturnType<typeof createTransitionRunner> } = {}
   const deliveryServiceHolder: { value?: ReturnType<typeof createDeliveryService> } = {}
   const annotationServiceHolder: { value?: ReturnType<typeof createAnnotationService> } = {}
+  const artifactServiceHolder: { value?: ReturnType<typeof createArtifactService> } = {}
   let closing = false
   let booting = false
 
@@ -443,6 +444,9 @@ export function createRuntime(deps: RuntimeDeps) {
           target = resolver.resolveAgentTarget(
             {
               workspaceId: action.workspaceId,
+              deliveryId: payload.deliveryId,
+              stageKey: payload.stageKey,
+              allowWorkspaceCanvas: !payload.deliveryId,
               selection: { contextNodeIds: [], agentCandidates: [] },
               memo: {},
             },
@@ -481,6 +485,8 @@ export function createRuntime(deps: RuntimeDeps) {
             engine: resolver.resolveEngine(item.engine ?? undefined, target),
             workspaceMode: 'main',
             dangerouslySkipPermissions: false,
+            ...(payload.deliveryId ? { deliveryId: payload.deliveryId } : {}),
+            ...(payload.stageKey ? { stageKey: payload.stageKey } : {}),
             ...(item.annotationIds ? { annotationIds: item.annotationIds } : {}),
           },
           {
@@ -560,6 +566,7 @@ export function createRuntime(deps: RuntimeDeps) {
     failures,
     deliveries: () => deliveryServiceHolder.value,
     annotations: () => annotationServiceHolder.value,
+    artifacts: () => artifactServiceHolder.value,
     remindAttention,
     loadPolicy: (workspaceId) => loadWorkspacePolicy(deps.db, deps.config, workspaceId),
     requireMandate: (taskId, action, strength) => requireMandate(taskId, action, strength),
@@ -601,6 +608,7 @@ export function createRuntime(deps: RuntimeDeps) {
     newId,
     emit: publish,
   })
+  artifactServiceHolder.value = artifacts
   deliveryServiceHolder.value = createDeliveryService({
     db: deps.db,
     config: deps.config,
