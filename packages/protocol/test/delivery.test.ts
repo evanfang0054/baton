@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ArtifactNode,
+  ArtifactSaveInput,
   DeliveryDetail,
   DeliverySummary,
   DrawingNode,
@@ -117,6 +118,15 @@ describe('node additions', () => {
       GroupNode.parse({ ...base, type: 'group', data: { label: '② 设计', stageKey: 'design' } })
         .data.stageKey,
     ).toBe('design')
+  })
+})
+
+describe('artifact save input', () => {
+  it('defaults to full save and accepts source/preview modes', () => {
+    expect(ArtifactSaveInput.parse({})).toEqual({ mode: 'full' })
+    expect(ArtifactSaveInput.parse({ mode: 'source' }).mode).toBe('source')
+    expect(ArtifactSaveInput.parse({ mode: 'preview' }).mode).toBe('preview')
+    expect(() => ArtifactSaveInput.parse({ mode: 'nope' })).toThrow()
   })
 })
 

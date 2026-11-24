@@ -43,7 +43,7 @@ Seam: `extractDrawingContent` + protocol schemas
   `{ elements: Array<{ id, type, x, y, w, h, text? }>, texts: Array<{ id, text, x, y }>, counts: Record<string, number>, totalElements, totalTexts, bounds: { minX, minY, maxX, maxY } | null, truncated: boolean }`
 - `drawingSummary(scene: unknown)` → `{ summary: string, textCount: number, imageCount: number }`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `drawing-scene.test.ts`：
 - 文字、矩形、箭头、图片、freedraw 各一；断言 texts 顺序按 y→x，counts 正确，bounds 正确。
@@ -52,26 +52,26 @@ Seam: `extractDrawingContent` + protocol schemas
 - 5001 个元素或超 200k 文本字符时 `truncated=true`。
 - `drawingSummary` 取前 3 条文字、统计图片数量。
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
 Run: `pnpm --filter @baton/core exec vitest run test/drawing-scene.test.ts`
 
 Expected: FAIL，模块不存在。
 
-- [ ] **Step 3: 实现协议与 core**
+- [x] **Step 3: 实现协议与 core**
 
 - `scene.ts` 不 import Node 内置模块；只做纯解析与排序。
 - 过滤 `isDeleted`；`type==='text'` 才进 `texts`；所有元素进 `elements`（图片不含 base64）。
 - 硬上限常量：`maxElements=5000`、`maxTextChars=200_000`。
 - 协议字段保持可选/默认，旧客户端兼容。
 
-- [ ] **Step 4: 运行并确认通过**
+- [x] **Step 4: 运行并确认通过**
 
 Run: `pnpm --filter @baton/core exec vitest run test/drawing-scene.test.ts && pnpm --filter @baton/protocol test`
 
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add packages/protocol/src packages/core/src packages/core/test packages/protocol/test

@@ -77,6 +77,8 @@ export const DrawingNode = NodeBase.extend({
     title: z.string().min(1).max(120),
     thumbnailPath: z.string().min(1).max(1024).nullable().optional(),
     status: ArtifactStatus,
+    /** 总管只写 source 后为 true；预览生成后清除。 */
+    previewStale: z.boolean().optional(),
   }),
 })
 

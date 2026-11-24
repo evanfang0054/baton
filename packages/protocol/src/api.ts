@@ -365,6 +365,8 @@ export const ArtifactSaveInput = z.object({
   previewBase64: z.string().max(14_000_000).optional(),
   sourceBase64: z.string().max(14_000_000).optional(),
   svgBase64: z.string().max(14_000_000).optional(),
+  /** source：编辑器自动保存；full：显式保存/关闭；preview：后台缩略图渲染。 */
+  mode: z.enum(['full', 'source', 'preview']).default('full'),
 })
 export type ArtifactSaveInput = z.infer<typeof ArtifactSaveInput>
 
