@@ -4,10 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createEventStore } from '../src/db/event-store.js'
 import { createContextService } from '../src/runtime/context-service.js'
-import { getTaskDetail } from '../src/db/repositories.js'
+import { getTaskDetail, insertNode } from '../src/db/repositories.js'
 import { createTestDb, seedTask, seedTextNode } from './helpers/db.js'
 
-function setup() {
+function setup(options: { readDrawingContent?: (id: string) => string } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'baton-m6-svc-'))
   const database = createTestDb()
   const seeded = seedTask(database.raw, { taskStatus: 'todo', withSession: false })
@@ -49,6 +49,7 @@ function setup() {
     broadcast: () => {},
     now: () => 1_700_000_000_000,
     newId: () => `id-${tick++}`,
+    ...(options.readDrawingContent ? { readDrawingContent: options.readDrawingContent } : {}),
   })
   return { database, seeded, service, transitions }
 }
@@ -227,5 +228,36 @@ describe('context service', () => {
       .prepare("select actor from audit where action = 'supervisor.context.inject'")
       .get() as { actor: string } | undefined
     expect(audit).toEqual({ actor: 'supervisor' })
+  })
+
+  it('injects drawing text like other content nodes', () => {
+    const { database, seeded, service } = setup({
+      readDrawingContent: (artifactId) => (artifactId === 'a1' ? '入口 → 支付' : 'unreadable'),
+    })
+    database.db.transaction((tx) =>
+      insertNode(tx, {
+        id: 'drawing-1',
+        canvasId: seeded.canvasId,
+        type: 'drawing',
+        x: 0,
+        y: 0,
+        w: 360,
+        h: 260,
+        groupId: null,
+        data: { artifactId: 'a1', title: '流程草图', thumbnailPath: null, status: 'ready' },
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    )
+    const result = service.injectContext({
+      taskId: seeded.taskId,
+      nodeIds: ['drawing-1'],
+      source: 'user',
+      actor: 'user',
+    })
+    expect(result.ok).toBe(true)
+    const detail = getTaskDetail(database.db, seeded.taskId)
+    expect(detail?.task.prompt).toContain('入口 → 支付')
+    expect(detail?.task.context?.injections[0]).toMatchObject({ nodeIds: ['drawing-1'] })
   })
 })

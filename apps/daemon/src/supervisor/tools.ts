@@ -253,11 +253,11 @@ const getDrawingInput = z
     message: 'exactly one of nodeId or artifactId is required',
   })
 
-const drawingOperations = z.array(DrawingOperation).min(1).max(100)
+const drawingOperations = z.array(DrawingOperation).min(1).max(50)
 
 const createDrawingInput = z.object({
   title: z.string().trim().min(1).max(80).optional(),
-  operations: z.array(DrawingOperation).max(100).default([]),
+  operations: z.array(DrawingOperation).max(50).default([]),
 })
 
 const updateDrawingInput = z

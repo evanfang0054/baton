@@ -57,7 +57,16 @@ describe('drawing service', () => {
       deliveryId,
       stageKey,
       operations: [
-        { op: 'add_rectangle', id: 'box', x: 20, y: 20, w: 200, h: 100, text: '入口' },
+        {
+          op: 'add_shape',
+          shape: 'rectangle',
+          id: 'box',
+          x: 20,
+          y: 20,
+          w: 200,
+          h: 100,
+          text: '入口',
+        },
         { op: 'add_arrow', id: 'arrow', x: 220, y: 70, w: 80, h: 0, fromId: 'box' },
       ],
     })
@@ -78,9 +87,7 @@ describe('drawing service', () => {
     const source = artifacts.readArtifactContent(card.artifactId, 'source')
     const scene = JSON.parse(source.data.toString('utf8')) as { elements: unknown[] }
     expect(scene.elements).toHaveLength(3)
-    expect(
-      listAudit(handle.database.db, { actionPrefix: 'supervisor.drawing', limit: 10 }),
-    ).toHaveLength(1)
+    expect(listAudit(handle.database.db, { actionPrefix: 'drawing', limit: 10 })).toHaveLength(1)
     expect(
       events.some(
         (event) =>
@@ -158,5 +165,54 @@ describe('drawing service', () => {
         operations: [{ op: 'add_text', x: 0, y: 0, text: 'hi' }],
       }),
     ).rejects.toMatchObject({ code: 'drawing_not_found' })
+  })
+
+  it('renames the drawing node through set_title', async () => {
+    const { handle, drawings, deliveryId, stageKey } = setup()
+    const card = await drawings.createDrawing({ deliveryId, stageKey, title: '旧标题' })
+    const updated = await drawings.mutateDrawing({
+      artifactId: card.artifactId,
+      operations: [{ op: 'set_title', title: '新标题' }],
+    })
+    expect(updated.title).toBe('新标题')
+    const canvas = getCanvasByDelivery(handle.database.db, deliveryId)
+    const node = listNodes(handle.database.db, canvas!.id).find((item) => item.type === 'drawing')
+    expect(node).toMatchObject({ data: { title: '新标题' } })
+  })
+
+  it('rejects oversized images and source files', async () => {
+    const { handle, artifacts, drawings, deliveryId, stageKey } = setup()
+    const workspace = join(handle.root, handle.seeded.relPath)
+    mkdirSync(join(workspace, 'assets'), { recursive: true })
+    writeFileSync(join(workspace, 'assets/huge.png'), Buffer.alloc(5 * 1024 * 1024 + 1))
+    const card = await drawings.createDrawing({ deliveryId, stageKey })
+    await expect(
+      drawings.mutateDrawing({
+        artifactId: card.artifactId,
+        operations: [{ op: 'add_image', path: 'assets/huge.png', x: 0, y: 0 }],
+      }),
+    ).rejects.toMatchObject({ code: 'image_too_large' })
+
+    expect(() =>
+      artifacts.updateDrawingSource({
+        artifactId: card.artifactId,
+        sourceBase64: Buffer.alloc(10 * 1024 * 1024 + 1).toString('base64'),
+        previewStale: true,
+      }),
+    ).toThrowError(/source exceeds 10MB/)
+  })
+
+  it('audits drawing.update on mutations', async () => {
+    const { handle, drawings, deliveryId, stageKey } = setup()
+    const card = await drawings.createDrawing({ deliveryId, stageKey })
+    await drawings.mutateDrawing({
+      artifactId: card.artifactId,
+      operations: [{ op: 'set_title', title: '改名' }],
+    })
+    expect(
+      listAudit(handle.database.db, { actionPrefix: 'drawing.', limit: 10 }).map(
+        (entry) => entry.action,
+      ),
+    ).toEqual(expect.arrayContaining(['drawing.create', 'drawing.update']))
   })
 })

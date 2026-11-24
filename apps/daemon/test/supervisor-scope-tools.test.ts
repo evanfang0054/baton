@@ -298,7 +298,16 @@ describe('supervisor scoped canvas and drawing tools', () => {
       {
         title: '流程草图',
         operations: [
-          { op: 'add_rectangle', id: 'box', x: 20, y: 20, w: 200, h: 80, text: '入口' },
+          {
+            op: 'add_shape',
+            shape: 'rectangle',
+            id: 'box',
+            x: 20,
+            y: 20,
+            w: 200,
+            h: 80,
+            text: '入口',
+          },
           { op: 'add_image', path: 'assets/logo.png', x: 20, y: 140 },
         ],
       },

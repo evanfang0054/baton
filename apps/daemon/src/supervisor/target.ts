@@ -26,7 +26,7 @@ export interface TargetResolverDeps {
   newId: () => string
 }
 
-const CONTENT_TYPES = new Set(['text', 'file', 'image'])
+const CONTENT_TYPES = new Set(['text', 'file', 'image', 'drawing'])
 
 /** 建单前解析目标 Agent 与上下文；tools 与 plan apply 共用，避免复制画布规则。 */
 export function createTargetResolver(deps: TargetResolverDeps) {

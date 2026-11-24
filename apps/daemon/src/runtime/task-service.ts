@@ -28,6 +28,8 @@ export interface TaskServiceDeps {
   config: Config
   now: () => number
   newId: () => string
+  /** 画板文字预读；失败时由 workspace/context 输出「画板内容不可读」。 */
+  readDrawingContent?: (artifactId: string) => string
 }
 
 export type CreateTaskResult = { ok: true; taskId: string } | { ok: false; error: AppError }
@@ -203,7 +205,11 @@ export function createTaskService(deps: TaskServiceDeps) {
 
       // 创建时就校验策略；执行期会把同一份快照传给适配器。
       loadPolicy(workspacePath)
-      const { contentByNodeId } = buildContextContent({ nodes, workspacePath })
+      const { contentByNodeId } = buildContextContent({
+        nodes,
+        workspacePath,
+        ...(deps.readDrawingContent ? { readDrawingContent: deps.readDrawingContent } : {}),
+      })
       const assembled = assembleContext({
         taskPrompt,
         targetNodeId: input.nodeId,

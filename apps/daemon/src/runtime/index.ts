@@ -3,6 +3,7 @@ import {
   buildMandate,
   buildTaskOrigin,
   canAcceptUserInput,
+  extractDrawingContent,
   templateById,
   validateMandate,
   validatePlanApply,
@@ -147,6 +148,14 @@ export function createRuntime(deps: RuntimeDeps) {
   const annotationServiceHolder: { value?: ReturnType<typeof createAnnotationService> } = {}
   const artifactServiceHolder: { value?: ReturnType<typeof createArtifactService> } = {}
   const drawingServiceHolder: { value?: ReturnType<typeof createDrawingService> } = {}
+  function readDrawingContent(artifactId: string): string {
+    const artifacts = artifactServiceHolder.value
+    if (!artifacts) throw new Error('artifact service is not ready')
+    const { data } = artifacts.readArtifactContent(artifactId, 'source')
+    return extractDrawingContent(JSON.parse(data.toString('utf8')) as unknown)
+      .texts.map((text) => text.text)
+      .join('\n')
+  }
   let closing = false
   let booting = false
 
@@ -227,7 +236,13 @@ export function createRuntime(deps: RuntimeDeps) {
     },
   }
 
-  const taskService = createTaskService({ db: deps.db, config: deps.config, now, newId })
+  const taskService = createTaskService({
+    db: deps.db,
+    config: deps.config,
+    now,
+    newId,
+    readDrawingContent,
+  })
   const contextService = createContextService({
     db: deps.db,
     config: deps.config,
@@ -240,6 +255,7 @@ export function createRuntime(deps: RuntimeDeps) {
     broadcast: deps.broadcast,
     now,
     newId,
+    readDrawingContent,
   })
   let persistedKillSwitch: boolean
   try {

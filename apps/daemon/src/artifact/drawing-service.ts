@@ -12,7 +12,7 @@ import { isAbsolute } from 'node:path'
 import type { Config } from '../config.js'
 import { getArtifact, getCanvasByDelivery, getDelivery } from '../db/delivery-repositories.js'
 import type { Db } from '../db/types.js'
-import { insertAudit, insertNode, listNodes } from '../db/repositories.js'
+import { insertAudit, insertNode, listNodes, updateNode } from '../db/repositories.js'
 import { appError } from '../errors.js'
 import { resolveWithin } from '../workspace/resolver.js'
 import type { ArtifactService } from './service.js'
@@ -29,6 +29,7 @@ const IMAGE_MIME: Record<string, string> = {
   jpeg: 'image/jpeg',
   webp: 'image/webp',
   gif: 'image/gif',
+  svg: 'image/svg+xml',
 }
 
 export interface DrawingServiceDeps {
@@ -195,6 +196,14 @@ export function createDrawingService(deps: DrawingServiceDeps) {
     }
   }
 
+  function titleFromOperations(operations: DrawingOperation[]): string | null {
+    for (let index = operations.length - 1; index >= 0; index -= 1) {
+      const operation = operations[index]!
+      if (operation.op === 'set_title') return operation.title
+    }
+    return null
+  }
+
   function defaultTitle(deliveryId: string): string {
     const canvas = getCanvasByDelivery(deps.db, deliveryId)
     const count = canvas
@@ -225,7 +234,11 @@ export function createDrawingService(deps: DrawingServiceDeps) {
   }): Promise<SupervisorDrawingCard> {
     return withArtifactLock(`create:${input.deliveryId}`, () => {
       validateStage(input.deliveryId, input.stageKey)
-      const title = (input.title ?? defaultTitle(input.deliveryId)).slice(0, 80)
+      const title = (
+        input.title ??
+        titleFromOperations(input.operations ?? []) ??
+        defaultTitle(input.deliveryId)
+      ).slice(0, 80)
       const artifact = deps.artifacts.createDraftArtifact({
         deliveryId: input.deliveryId,
         stageKey: input.stageKey,
@@ -279,7 +292,7 @@ export function createDrawingService(deps: DrawingServiceDeps) {
           id: deps.newId(),
           ts: deps.now(),
           actor: 'supervisor',
-          action: 'supervisor.drawing.create',
+          action: 'drawing.create',
           detail: {
             artifactId: artifact.id,
             deliveryId: input.deliveryId,
@@ -312,6 +325,23 @@ export function createDrawingService(deps: DrawingServiceDeps) {
         // 新画板还没有 source 时允许从空场景开始写入。
       }
       const next = applyScene(scene, input.operations, artifact.deliveryId)
+      const title = titleFromOperations(input.operations)
+      if (title) {
+        const canvas = getCanvasByDelivery(deps.db, artifact.deliveryId)
+        const node = canvas
+          ? listNodes(deps.db, canvas.id).find(
+              (item) => item.type === 'drawing' && item.data.artifactId === artifact.id,
+            )
+          : undefined
+        if (node && node.type === 'drawing') {
+          deps.db.transaction((tx) =>
+            updateNode(tx, node.id, {
+              data: { ...node.data, title },
+              updatedAt: deps.now(),
+            }),
+          )
+        }
+      }
       const updated = deps.artifacts.updateDrawingSource({
         artifactId: artifact.id,
         sourceBase64: Buffer.from(JSON.stringify(next)).toString('base64'),
@@ -323,7 +353,7 @@ export function createDrawingService(deps: DrawingServiceDeps) {
           id: deps.newId(),
           ts: deps.now(),
           actor: 'supervisor',
-          action: 'supervisor.drawing.update',
+          action: 'drawing.update',
           detail: {
             artifactId: artifact.id,
             deliveryId: artifact.deliveryId,

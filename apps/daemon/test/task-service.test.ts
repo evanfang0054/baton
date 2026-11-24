@@ -21,7 +21,9 @@ interface Setup {
   service: ReturnType<typeof createTaskService>
 }
 
-function setup(options: { allowBypassPermissions?: boolean } = {}): Setup {
+function setup(
+  options: { allowBypassPermissions?: boolean; readDrawingContent?: (id: string) => string } = {},
+): Setup {
   const root = mkdtempSync(join(tmpdir(), 'baton-task-'))
   dirs.push(root)
   const database = createTestDb()
@@ -50,6 +52,7 @@ function setup(options: { allowBypassPermissions?: boolean } = {}): Setup {
     config,
     now: () => 10,
     newId: () => 'task-new',
+    ...(options.readDrawingContent ? { readDrawingContent: options.readDrawingContent } : {}),
   })
   return { database, seeded, workspacePath, service }
 }
@@ -282,5 +285,37 @@ describe('createTask', () => {
       expect(task?.workspaceMode).toBe('worktree')
       expect(task?.worktreePath).toBeNull()
     }
+  })
+
+  it('includes drawing text in the task context', () => {
+    const { database, seeded, service } = setup({
+      readDrawingContent: (artifactId) => (artifactId === 'a1' ? '入口 → 支付' : '画板内容不可读'),
+    })
+    database.db.transaction((tx) =>
+      insertNode(tx, {
+        id: 'drawing-1',
+        canvasId: seeded.canvasId,
+        type: 'drawing',
+        x: 40,
+        y: 40,
+        w: 360,
+        h: 260,
+        groupId: null,
+        data: { artifactId: 'a1', title: '流程草图', thumbnailPath: null, status: 'ready' },
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    )
+    const result = service.createTask({ ...input(seeded), contextNodeIds: ['drawing-1'] })
+    expect(result).toEqual({ ok: true, taskId: 'task-new' })
+    const task = getTask(database.db, 'task-new')
+    expect(task?.prompt).toContain('<node id="drawing-1" type="drawing" title="流程草图">')
+    expect(task?.prompt).toContain('入口 → 支付')
+    const row = database.raw
+      .prepare('select context_json from task where id = ?')
+      .get('task-new') as { context_json: string }
+    expect(JSON.parse(row.context_json).included).toEqual([
+      expect.objectContaining({ id: 'drawing-1', title: '流程草图' }),
+    ])
   })
 })

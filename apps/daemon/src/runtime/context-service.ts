@@ -37,6 +37,7 @@ export interface ContextServiceDeps {
   broadcast(event: BroadcastEvent): void
   now(): number
   newId(): string
+  readDrawingContent?: (artifactId: string) => string
 }
 
 export interface InjectContextInput {
@@ -157,7 +158,11 @@ export function createContextService(deps: ContextServiceDeps) {
     }
 
     const workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
-    const { contentByNodeId } = buildContextContent({ nodes, workspacePath })
+    const { contentByNodeId } = buildContextContent({
+      nodes,
+      workspacePath,
+      ...(deps.readDrawingContent ? { readDrawingContent: deps.readDrawingContent } : {}),
+    })
     const assembled = assembleContextInjection({
       selectedNodeIds: input.nodeIds,
       nodes,
