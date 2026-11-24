@@ -27,6 +27,7 @@ import {
   AnnotationCreateInput,
   AnnotationResponse,
   AnnotationUpdateInput,
+  WorkspaceAnnotationCreateInput,
   ArtifactCreateInput,
   ArtifactListResponse,
   ArtifactResponse,
@@ -292,6 +293,37 @@ export async function updateAnnotation(
       },
     ),
   ).annotation
+}
+
+export async function listWorkspaceAnnotations(
+  workspaceId: string,
+  filter: { status?: 'open' | 'resolved' | 'dismissed' } = {},
+) {
+  const params = new URLSearchParams()
+  if (filter.status) params.set('status', filter.status)
+  const query = params.toString()
+  return AnnotationListResponse.parse(
+    await request(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/annotations${query ? `?${query}` : ''}`,
+    ),
+  ).annotations
+}
+
+export async function createWorkspaceAnnotation(
+  workspaceId: string,
+  input: WorkspaceAnnotationCreateInput,
+) {
+  return AnnotationResponse.parse(
+    await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/annotations`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    }),
+  ).annotation
+}
+
+export async function deleteAnnotation(annotationId: string) {
+  await request(`/api/annotations/${encodeURIComponent(annotationId)}`, { method: 'DELETE' })
 }
 
 export async function getTask(taskId: string) {

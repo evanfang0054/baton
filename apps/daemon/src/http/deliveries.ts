@@ -14,6 +14,7 @@ import {
   DeliveryDetailResponse,
   DeliveryListQuery,
   DeliveryListResponse,
+  WorkspaceAnnotationCreateInput,
 } from '@baton/protocol'
 import type { ClientMessage } from '@baton/protocol'
 import type { FastifyInstance } from 'fastify'
@@ -167,6 +168,35 @@ export function registerDeliveryRoutes(app: FastifyInstance, deps: DeliveryRoute
       throw appError('invalid_payload', 'invalid annotation update', input.error.issues)
     return AnnotationResponse.parse({
       annotation: deps.annotations.updateAnnotation({ annotationId, ...input.data }),
+    })
+  })
+
+  app.delete('/api/annotations/:annotationId', async (req) => {
+    const { annotationId } = req.params as { annotationId: string }
+    deps.annotations.removeAnnotation(annotationId)
+    return { ok: true }
+  })
+
+  app.get('/api/workspaces/:workspaceId/annotations', async (req) => {
+    const { workspaceId } = req.params as { workspaceId: string }
+    const query = AnnotationListQuery.safeParse(req.query)
+    if (!query.success)
+      throw appError('invalid_payload', 'invalid annotation query', query.error.issues)
+    return AnnotationListResponse.parse({
+      annotations: deps.annotations.listWorkspaceScopeAnnotations({
+        workspaceId,
+        ...(query.data.status ? { status: query.data.status } : {}),
+      }),
+    })
+  })
+
+  app.post('/api/workspaces/:workspaceId/annotations', async (req) => {
+    const { workspaceId } = req.params as { workspaceId: string }
+    const input = WorkspaceAnnotationCreateInput.safeParse(req.body)
+    if (!input.success)
+      throw appError('invalid_payload', 'invalid annotation input', input.error.issues)
+    return AnnotationResponse.parse({
+      annotation: deps.annotations.createWorkspaceAnnotation({ workspaceId, ...input.data }),
     })
   })
 }

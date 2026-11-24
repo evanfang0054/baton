@@ -13,6 +13,7 @@ export const queryKeys = {
     ['delivery-canvas', workspaceId, deliveryId] as const,
   artifacts: (deliveryId: string) => ['artifacts', deliveryId] as const,
   annotations: (deliveryId: string) => ['annotations', deliveryId] as const,
+  workspaceAnnotations: (workspaceId: string) => ['workspace-annotations', workspaceId] as const,
   task: (taskId: string) => ['task', taskId] as const,
   taskHistory: (taskId: string) => ['task-history', taskId] as const,
   taskAcceptance: (taskId: string) => ['task-acceptance', taskId] as const,

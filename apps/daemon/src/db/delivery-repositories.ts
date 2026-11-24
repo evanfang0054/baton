@@ -7,7 +7,7 @@ import type {
   Delivery,
   Playbook,
 } from '@baton/protocol'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import { annotation, artifact, canvas, delivery } from './schema.js'
 import type { Db, Tx } from './types.js'
 
@@ -281,6 +281,25 @@ export function listAnnotations(
     .orderBy(desc(annotation.createdAt))
     .all()
     .map(toAnnotation)
+}
+
+export function listWorkspaceAnnotations(
+  db: Db,
+  filter: { workspaceId: string; status?: AnnotationStatus },
+): Annotation[] {
+  const clauses = [eq(annotation.workspaceId, filter.workspaceId), isNull(annotation.deliveryId)]
+  if (filter.status) clauses.push(eq(annotation.status, filter.status))
+  return db
+    .select()
+    .from(annotation)
+    .where(and(...clauses))
+    .orderBy(desc(annotation.createdAt))
+    .all()
+    .map(toAnnotation)
+}
+
+export function deleteAnnotation(tx: Tx, id: string): boolean {
+  return tx.delete(annotation).where(eq(annotation.id, id)).run().changes > 0
 }
 
 export function updateAnnotation(

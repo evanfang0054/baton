@@ -5,7 +5,7 @@ import { toast } from '@heroui/react/toast'
 import { toPng } from 'html-to-image'
 import { getStroke } from 'perfect-freehand'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createAnnotation } from '../../lib/api'
+import { createAnnotation, createWorkspaceAnnotation } from '../../lib/api'
 
 export type QuickTool = 'pen' | 'highlight' | 'eraser'
 
@@ -64,15 +64,18 @@ function distanceToStroke(point: [number, number], stroke: QuickStroke): number 
   return best
 }
 
+type QuickAnnotationTarget =
+  | { deliveryId: string; stageKey: string; workspaceId?: never }
+  | { workspaceId: string; deliveryId?: never; stageKey?: never }
+
 export function QuickAnnotationLayer({
   deliveryId,
   stageKey,
+  workspaceId,
   annotations,
   onClose,
   onSaved,
-}: {
-  deliveryId: string
-  stageKey: string
+}: QuickAnnotationTarget & {
   annotations: AnnotationSummary[]
   onClose: () => void
   onSaved: () => void
@@ -171,14 +174,24 @@ export function QuickAnnotationLayer({
       imageBase64 = FALLBACK_PNG
     }
     try {
-      await createAnnotation(deliveryId, {
-        stageKey,
-        targetNodeIds: [],
-        note: note.trim(),
-        strokesJson: JSON.stringify({ strokes }),
-        bbox,
-        imageBase64,
-      })
+      if (deliveryId) {
+        await createAnnotation(deliveryId, {
+          stageKey: stageKey!,
+          targetNodeIds: [],
+          note: note.trim(),
+          strokesJson: JSON.stringify({ strokes }),
+          bbox,
+          imageBase64,
+        })
+      } else {
+        await createWorkspaceAnnotation(workspaceId!, {
+          targetNodeIds: [],
+          note: note.trim(),
+          strokesJson: JSON.stringify({ strokes }),
+          bbox,
+          imageBase64,
+        })
+      }
       onSaved()
       onClose()
     } catch (cause) {

@@ -186,5 +186,62 @@ describe('delivery REST', () => {
     })
     expect(list.statusCode).toBe(200)
     expect((list.json() as { annotations: unknown[] }).annotations).toHaveLength(1)
+
+    const annotationId = (created.json() as { annotation: { id: string } }).annotation.id
+    const removed = await app.inject({
+      method: 'DELETE',
+      url: `/api/annotations/${annotationId}`,
+    })
+    expect(removed.statusCode).toBe(200)
+    const after = await app.inject({
+      method: 'GET',
+      url: `/api/deliveries/${deliveryId}/annotations`,
+    })
+    expect((after.json() as { annotations: unknown[] }).annotations).toHaveLength(0)
+  })
+
+  it('creates, lists and deletes workspace-scoped annotations', async () => {
+    const { app, handle, deliveryId } = await setup()
+
+    const created = await app.inject({
+      method: 'POST',
+      url: `/api/workspaces/${handle.seeded.workspaceId}/annotations`,
+      payload: {
+        targetNodeIds: ['text-1'],
+        note: '工作区备注',
+        strokesJson: '[]',
+        bbox: { x: 0, y: 0, w: 10, h: 10 },
+        imageBase64: Buffer.from('png').toString('base64'),
+      },
+    })
+    expect(created.statusCode, created.body).toBe(200)
+    const annotation = (created.json() as { annotation: { id: string; deliveryId: string | null } })
+      .annotation
+    expect(annotation.deliveryId).toBeNull()
+
+    const list = await app.inject({
+      method: 'GET',
+      url: `/api/workspaces/${handle.seeded.workspaceId}/annotations?status=open`,
+    })
+    expect(list.statusCode).toBe(200)
+    expect((list.json() as { annotations: unknown[] }).annotations).toHaveLength(1)
+
+    const deliveryList = await app.inject({
+      method: 'GET',
+      url: `/api/deliveries/${deliveryId}/annotations`,
+    })
+    expect((deliveryList.json() as { annotations: unknown[] }).annotations).toHaveLength(0)
+
+    const removed = await app.inject({
+      method: 'DELETE',
+      url: `/api/annotations/${annotation.id}`,
+    })
+    expect(removed.statusCode).toBe(200)
+
+    const after = await app.inject({
+      method: 'GET',
+      url: `/api/workspaces/${handle.seeded.workspaceId}/annotations`,
+    })
+    expect((after.json() as { annotations: unknown[] }).annotations).toHaveLength(0)
   })
 })

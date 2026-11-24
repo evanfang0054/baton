@@ -231,8 +231,8 @@ export const AnnotationUpdatedEvent = ReplayableBase.extend({
   type: z.literal('annotation.updated'),
   payload: z.object({
     annotationId: Id,
-    deliveryId: Id,
-    stageKey: z.string().min(1),
+    deliveryId: Id.nullable(),
+    stageKey: z.string().min(1).nullable(),
     status: AnnotationStatus,
   }),
 })

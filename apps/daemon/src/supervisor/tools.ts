@@ -256,7 +256,8 @@ const cancelDeliveryInput = z.object({
 })
 
 const listAnnotationsInput = z.object({
-  deliveryId: z.string().min(1),
+  // 不传 deliveryId 时返回当前工作区级标注；工作区画布上的标注不再挂到某个交付。
+  deliveryId: z.string().min(1).optional(),
   stageKey: z.string().min(1).max(32).optional(),
   status: z.enum(['open', 'resolved', 'dismissed']).optional(),
 })
@@ -1931,17 +1932,26 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     },
 
     list_annotations: {
-      description: '列出交付/阶段的标注；用户说“按标注改”时先查这里，不要把笔迹当上下文猜。',
+      description:
+        '列出当前工作区级标注（不传 deliveryId）或某个交付/阶段的标注；用户说“按标注改”时先查这里，不要把笔迹当上下文猜。',
       parameters: listAnnotationsInput,
       async execute(input, ctx) {
         const parsed = listAnnotationsInput.parse(input)
-        requireDelivery(ctx, parsed.deliveryId)
         const service = deps.annotations?.()
         if (!service) throw appError('annotation_unavailable', 'annotation service is unavailable')
+        if (parsed.deliveryId) {
+          requireDelivery(ctx, parsed.deliveryId)
+          return {
+            annotations: service.listAnnotations({
+              deliveryId: parsed.deliveryId,
+              ...(parsed.stageKey ? { stageKey: parsed.stageKey } : {}),
+              ...(parsed.status ? { status: parsed.status } : {}),
+            }),
+          }
+        }
         return {
-          annotations: service.listAnnotations({
-            deliveryId: parsed.deliveryId,
-            ...(parsed.stageKey ? { stageKey: parsed.stageKey } : {}),
+          annotations: service.listWorkspaceScopeAnnotations({
+            workspaceId: ctx.workspaceId,
             ...(parsed.status ? { status: parsed.status } : {}),
           }),
         }
@@ -1957,7 +1967,11 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         if (!service) throw appError('annotation_unavailable', 'annotation service is unavailable')
         const annotation = service.getAnnotationForSupervisor(parsed.annotationId)
         if (!annotation) throw appError('annotation_not_found', 'annotation not found')
-        requireDelivery(ctx, annotation.deliveryId)
+        if (annotation.deliveryId) {
+          requireDelivery(ctx, annotation.deliveryId)
+        } else if (annotation.workspaceId !== ctx.workspaceId) {
+          throw appError('annotation_not_found', 'annotation not found')
+        }
         return { annotation }
       },
     },

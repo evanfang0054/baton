@@ -89,6 +89,7 @@ describe('migrateDb', () => {
       'acceptance_run_task_created_idx',
       'annotation_delivery_idx',
       'annotation_task_idx',
+      'annotation_workspace_idx',
       'approval_session_request_idx',
       'artifact_delivery_idx',
       'artifact_name_idx',

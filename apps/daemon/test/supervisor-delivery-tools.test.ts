@@ -405,4 +405,41 @@ describe('supervisor delivery and annotation tools', () => {
       tools.get_annotation.execute({ annotationId: annotation.id }, other),
     ).rejects.toMatchObject({ code: 'delivery_not_found' })
   })
+
+  it('lists and reads workspace-scoped annotations without a delivery', async () => {
+    const { seeded, tools, annotations, ctx } = setup()
+    const annotation = annotations.createWorkspaceAnnotation({
+      workspaceId: seeded.workspaceId,
+      targetNodeIds: ['text-1'],
+      note: '工作区画布上的备注',
+      strokesJson: '[]',
+      bbox: { x: 0, y: 0, w: 10, h: 10 },
+      imageBase64: Buffer.from('fake-png').toString('base64'),
+    })
+
+    const listed = (await tools.list_annotations.execute({}, ctx())) as {
+      annotations: Array<Record<string, unknown>>
+    }
+    expect(listed.annotations[0]).toMatchObject({
+      id: annotation.id,
+      workspaceId: seeded.workspaceId,
+      deliveryId: null,
+      note: '工作区画布上的备注',
+    })
+
+    const fetched = (await tools.get_annotation.execute(
+      { annotationId: annotation.id },
+      ctx(),
+    )) as { annotation: Record<string, unknown> }
+    expect(fetched.annotation.imagePath).toContain('.baton/annotations/')
+
+    const other = { ...ctx(), workspaceId: 'other-workspace' }
+    const otherList = (await tools.list_annotations.execute({}, other)) as {
+      annotations: unknown[]
+    }
+    expect(otherList.annotations).toHaveLength(0)
+    await expect(
+      tools.get_annotation.execute({ annotationId: annotation.id }, other),
+    ).rejects.toMatchObject({ code: 'annotation_not_found' })
+  })
 })

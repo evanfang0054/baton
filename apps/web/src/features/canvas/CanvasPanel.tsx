@@ -86,7 +86,10 @@ interface CanvasPanelProps {
   onSelectNodes: (nodes: SelectionNode[]) => void
   onOpenTask?: (taskId: string) => void
   onOpenNode?: (node: ProtocolNode) => void
+  onAnnotate?: () => void
   delivery?: DeliverySummary | null
+  /** 交付画布：刷新时必须失效 deliveryCanvas，而不是 workspace canvas。 */
+  deliveryId?: string | null
   stages?: StageSummary[]
   artifacts?: Artifact[]
 }
@@ -127,7 +130,9 @@ function FlowCanvas({
   onSelectNodes,
   onOpenTask,
   onOpenNode,
+  onAnnotate,
   delivery,
+  deliveryId,
   stages,
   artifacts,
   handleRef,
@@ -319,7 +324,12 @@ function FlowCanvas({
     await queryClient.invalidateQueries({
       queryKey: queryKeys.canvas(canvas.canvas.workspaceId),
     })
-  }, [canvas, queryClient])
+    if (deliveryId) {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.deliveryCanvas(canvas.canvas.workspaceId, deliveryId),
+      })
+    }
+  }, [canvas, deliveryId, queryClient])
 
   const updateNode = useCallback(
     async (nodeId: string, patch: Record<string, unknown>, refresh = true) => {
@@ -722,6 +732,7 @@ function FlowCanvas({
         onZoomOut={() => void zoomOut()}
         onInject={() => openInject()}
         injectDisabled={injectableSelectedNodes.length === 0 || injectableTasks.length === 0}
+        {...(onAnnotate ? { onAnnotate } : {})}
         readOnly={sceneActive}
       />
       {sceneTaskId !== null ? (

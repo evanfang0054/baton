@@ -1,12 +1,7 @@
 import { assembleContext, buildAnnotationBlock } from '@baton/core'
 import type { AppError, Node, TaskCreateInput, TaskOrigin } from '@baton/protocol'
 import type { Config } from '../config.js'
-import {
-  getAnnotation,
-  getArtifact,
-  getDelivery,
-  updateAnnotation,
-} from '../db/delivery-repositories.js'
+import { getAnnotation, getArtifact, updateAnnotation } from '../db/delivery-repositories.js'
 import {
   getCanvasByWorkspace,
   getWorkspace,
@@ -143,8 +138,7 @@ export function createTaskService(deps: TaskServiceDeps) {
       }
       for (const annotation of loadedAnnotations) {
         if (!annotation) continue
-        const annotationDelivery = getDelivery(deps.db, annotation.deliveryId)
-        if (!annotationDelivery || annotationDelivery.workspaceId !== workspace.id) {
+        if (annotation.workspaceId !== workspace.id) {
           return {
             ok: false,
             error: appError('annotation_not_found', 'annotation not found', {

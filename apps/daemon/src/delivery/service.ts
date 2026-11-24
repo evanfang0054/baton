@@ -354,6 +354,7 @@ function buildSummaries(
 function annotationSummary(annotation: Annotation): AnnotationSummary {
   return {
     id: annotation.id,
+    workspaceId: annotation.workspaceId,
     deliveryId: annotation.deliveryId,
     stageKey: annotation.stageKey,
     targetNodeIds: annotation.targetNodeIds,

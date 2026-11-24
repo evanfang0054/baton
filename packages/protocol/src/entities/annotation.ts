@@ -15,8 +15,9 @@ export type AnnotationBBox = z.infer<typeof AnnotationBBox>
 export const Annotation = z.object({
   id: Id,
   workspaceId: Id,
-  deliveryId: Id,
-  stageKey: z.string().min(1).max(32),
+  /** 为空表示工作区级标注；非空表示交付阶段标注。 */
+  deliveryId: Id.nullable(),
+  stageKey: z.string().min(1).max(32).nullable(),
   targetNodeIds: z.array(Id).max(20),
   targetArtifactId: Id.nullable(),
   note: z.string().max(2000),
@@ -33,6 +34,7 @@ export type Annotation = z.infer<typeof Annotation>
 
 export const AnnotationSummary = Annotation.pick({
   id: true,
+  workspaceId: true,
   deliveryId: true,
   stageKey: true,
   targetNodeIds: true,
