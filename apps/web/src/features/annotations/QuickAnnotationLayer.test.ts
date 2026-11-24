@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { pointsBBox, strokePath } from './QuickAnnotationLayer'
+import {
+  pointsBBox,
+  selectionBBox,
+  strokePath,
+  textBBox,
+  type QuickText,
+} from './QuickAnnotationLayer'
 
 describe('quick annotation geometry', () => {
   it('builds a closed svg path from points', () => {
@@ -31,5 +37,43 @@ describe('quick annotation geometry', () => {
     const box = pointsBBox([[5, 5]], 2)
     expect(box.w).toBeGreaterThan(0)
     expect(box.h).toBeGreaterThan(0)
+  })
+
+  it('builds a bbox from text annotations without strokes', () => {
+    const text: QuickText = { id: 't1', x: 40, y: 60, text: '按钮右对齐', color: 'var(--accent)' }
+    expect(textBBox(text)).toMatchObject({ x: 40, y: 60, h: 34 })
+    const box = selectionBBox([], [text])
+    expect(box.x).toBeLessThanOrEqual(40)
+    expect(box.y).toBeLessThanOrEqual(60)
+    expect(box.w).toBeGreaterThanOrEqual(textBBox(text).w)
+    expect(box.h).toBeGreaterThanOrEqual(34)
+  })
+
+  it('merges strokes and text into one annotation bbox', () => {
+    const text: QuickText = {
+      id: 't1',
+      x: 200,
+      y: 120,
+      text: '这里要改',
+      color: 'var(--foreground)',
+    }
+    const box = selectionBBox(
+      [
+        {
+          tool: 'pen',
+          color: 'var(--accent)',
+          size: 4,
+          points: [
+            [0, 0],
+            [30, 40],
+          ],
+        },
+      ],
+      [text],
+    )
+    expect(box.x).toBeLessThanOrEqual(0)
+    expect(box.y).toBeLessThanOrEqual(0)
+    expect(box.x + box.w).toBeGreaterThanOrEqual(200)
+    expect(box.y + box.h).toBeGreaterThanOrEqual(120)
   })
 })

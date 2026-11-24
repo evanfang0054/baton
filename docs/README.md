@@ -39,6 +39,7 @@
 - [2026-11-22 M7 交付工作台与 SOP 流程设计](specs/2026-11-22-m7-delivery-playbook-design.md)
 - [2026-11-24 总管右栏收敛为聊天流设计](specs/2026-11-24-supervisor-chat-only-digest-design.md)
 - [2026-11-24 工作区标注与画布删除设计](specs/2026-11-24-workspace-annotations-canvas-delete-design.md)
+- [2026-11-24 标注文字与验收清单反馈设计](specs/2026-11-24-annotation-text-and-acceptance-feedback-design.md)
 
 ## 现行 ADR
 
