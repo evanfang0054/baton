@@ -58,7 +58,7 @@ function markTask(
 }
 
 function service(db: Db) {
-  return createAttentionService({ db, now: () => 100 })
+  return createAttentionService({ db })
 }
 
 describe('attention service', () => {
@@ -95,8 +95,21 @@ describe('attention service', () => {
       updatedAt: 1,
     })
 
+    const failed = seedTask(database.raw, { now: 5 })
+    const deliveryFailed = addDelivery(database, failed.workspaceId, '失败需求', 5)
+    markTask(database, failed.taskId, {
+      deliveryId: deliveryFailed,
+      stageKey: 'build',
+      status: 'failed',
+      updatedAt: 15,
+    })
+
     const items = service(database.db).list(20).items
-    expect(items.map((item) => item.taskId)).toEqual([workspaceB.taskId, workspaceA.taskId])
+    expect(items.map((item) => item.taskId)).toEqual([
+      workspaceB.taskId,
+      workspaceA.taskId,
+      failed.taskId,
+    ])
     expect(items[0]).toMatchObject({
       workspaceId: workspaceB.workspaceId,
       workspaceName: 'demo',
@@ -111,6 +124,12 @@ describe('attention service', () => {
       deliveryTitle: '需求 A',
       kind: 'needs_reply',
       waitingSince: 30,
+    })
+    expect(items[2]).toMatchObject({
+      deliveryId: deliveryFailed,
+      deliveryTitle: '失败需求',
+      kind: 'failed',
+      waitingSince: null,
     })
   })
 

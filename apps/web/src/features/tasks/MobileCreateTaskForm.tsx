@@ -127,7 +127,7 @@ export function MobileCreateTaskForm({
         taskId = result.taskId
         createdTaskId.current = taskId
         await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
-        await queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+        await queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
       }
       if (createAndStart) {
         try {

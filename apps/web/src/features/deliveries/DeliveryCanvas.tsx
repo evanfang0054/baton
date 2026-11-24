@@ -4,6 +4,9 @@ import { Button } from '@heroui/react/button'
 import { useMemo, useRef, useState } from 'react'
 import { QuickAnnotationLayer } from '../annotations/QuickAnnotationLayer'
 import { CanvasPanel, type CanvasPanelHandle } from '../canvas/CanvasPanel'
+import { NodePanel } from '../canvas/NodePanel'
+import { Overlay } from '../overlays/Overlay'
+import { useAppStore } from '../../stores/app'
 import { DELIVERY_STATUS_LABELS, STAGE_STATUS_LABELS, formatWaiting } from './delivery-labels'
 
 function stageStatusTone(status: string): string {
@@ -16,6 +19,7 @@ function stageStatusTone(status: string): string {
 
 export function DeliveryCanvas({
   workspaceId,
+  workspaceTrusted,
   delivery,
   canvas,
   tasks,
@@ -33,6 +37,7 @@ export function DeliveryCanvas({
   onCancelDelivery,
 }: {
   workspaceId: string
+  workspaceTrusted: boolean
   delivery: DeliveryDetail
   canvas: CanvasResponse | null
   tasks: TaskSummary[]
@@ -51,9 +56,15 @@ export function DeliveryCanvas({
 }) {
   const canvasRef = useRef<CanvasPanelHandle>(null)
   const [annotating, setAnnotating] = useState(false)
+  const [detailNode, setDetailNode] = useState<Node | null>(null)
+  const contextNodeIds = useAppStore((state) => state.contextNodeIds)
   const currentStage = useMemo(
     () => delivery.stages.find((stage) => stage.key === delivery.currentStageKey) ?? null,
     [delivery.currentStageKey, delivery.stages],
+  )
+  const contextNodes = useMemo(
+    () => (canvas?.nodes ?? []).filter((node) => contextNodeIds.includes(node.id)),
+    [canvas?.nodes, contextNodeIds],
   )
   const groupByStage = useMemo(() => {
     const map = new Map<string, string>()
@@ -79,6 +90,7 @@ export function DeliveryCanvas({
         onSelectNodes={onSelectNodes}
         onOpenTask={onOpenTask}
         onCreateDrawing={onCreateDrawing}
+        onAnnotate={() => setAnnotating(true)}
         onOpenNode={(node) => {
           if (node.type === 'artifact') {
             const artifact = artifacts.find((item) => item.id === node.data.artifactId)
@@ -93,6 +105,15 @@ export function DeliveryCanvas({
           if (node.type === 'agent') {
             const task = tasks.find((item) => item.nodeId === node.id)
             if (task) onOpenTask(task.id)
+            return
+          }
+          if (
+            node.type === 'text' ||
+            node.type === 'file' ||
+            node.type === 'image' ||
+            node.type === 'group'
+          ) {
+            setDetailNode(node)
           }
         }}
         delivery={delivery}
@@ -101,7 +122,8 @@ export function DeliveryCanvas({
         stages={delivery.stages}
         artifacts={artifacts}
       />
-      <div className="pointer-events-none absolute left-4 top-4 z-10 w-[min(420px,calc(100%-2rem))]">
+      {/* 工具栏固定在左上角；需求卡下移，避免遮住画板/文件/投喂等入口。 */}
+      <div className="pointer-events-none absolute left-4 top-16 z-10 w-[min(420px,calc(100%-2rem))]">
         <div className="pointer-events-auto rounded-xl border border-separator bg-surface/95 p-3 shadow-overlay backdrop-blur">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
@@ -164,6 +186,27 @@ export function DeliveryCanvas({
           <p className="mt-1 text-[10px] text-muted">工作区 {workspaceId.slice(0, 8)}</p>
         </div>
       </div>
+      {detailNode ? (
+        <Overlay title="节点" onClose={() => setDetailNode(null)} width="min(720px, 92vw)">
+          <NodePanel
+            key={detailNode.id}
+            node={detailNode}
+            task={tasks.find((item) => item.nodeId === detailNode.id) ?? null}
+            workspaceId={workspaceId}
+            workspaceTrusted={workspaceTrusted}
+            contextNodes={contextNodes}
+            groupChildCount={(canvas?.nodes ?? []).filter(
+              (item) => item.groupId === detailNode.id,
+            ).length}
+            onOpenTask={(taskId) => {
+              setDetailNode(null)
+              onOpenTask(taskId)
+            }}
+            onDeleted={() => setDetailNode(null)}
+            onClose={() => setDetailNode(null)}
+          />
+        </Overlay>
+      ) : null}
       {annotating ? (
         <QuickAnnotationLayer
           deliveryId={delivery.id}

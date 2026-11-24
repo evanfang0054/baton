@@ -52,6 +52,7 @@ function renderCanvas(input: DeliveryDetail, onCancelDelivery = vi.fn()) {
   render(
     <DeliveryCanvas
       workspaceId="w1"
+      workspaceTrusted={false}
       delivery={input}
       canvas={null}
       tasks={[]}

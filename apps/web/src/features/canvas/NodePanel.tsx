@@ -93,7 +93,7 @@ export function NodePanel({
           type: 'node.update',
           payload: { nodeId: node.id, patch: { data: { title: next } } },
         })
-        await queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+        await queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : '节点更新失败'
         setEditError(message)
@@ -113,7 +113,7 @@ export function NodePanel({
           type: 'node.update',
           payload: { nodeId: node.id, patch: { data: { content: draft } } },
         })
-        await queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+        await queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : '节点更新失败'
         setEditError(message)
@@ -136,7 +136,7 @@ export function NodePanel({
             patch: { data: node.type === 'image' ? { alt: draft } : { label: next } },
           },
         })
-        await queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+        await queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : '节点更新失败'
         setEditError(message)
@@ -156,7 +156,7 @@ export function NodePanel({
         type: 'node.update',
         payload: { nodeId: node.id, patch: { data: { collapsed: !node.data.collapsed } } },
       })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : '分组更新失败'
       setEditError(message)
@@ -171,7 +171,7 @@ export function NodePanel({
     setError(null)
     try {
       await send({ type: 'node.delete', payload: { nodeId: node.id } })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
       onDeleted()
     } catch (cause) {
       const message =

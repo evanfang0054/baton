@@ -317,13 +317,12 @@ function FlowCanvas({
 
   const refreshCanvas = useCallback(async () => {
     if (!canvas) return
-    await queryClient.invalidateQueries({
-      queryKey: queryKeys.canvas(canvas.canvas.workspaceId),
-    })
     if (deliveryId) {
       await queryClient.invalidateQueries({
         queryKey: queryKeys.deliveryCanvas(canvas.canvas.workspaceId, deliveryId),
       })
+    } else {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
     }
   }, [canvas, deliveryId, queryClient])
 
@@ -767,9 +766,7 @@ function FlowCanvas({
         onOpenChange={setInjectOpen}
         onDone={() => {
           if (!canvas) return
-          void queryClient.invalidateQueries({
-            queryKey: queryKeys.canvas(canvas.canvas.workspaceId),
-          })
+          void queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
           void queryClient.invalidateQueries({
             queryKey: queryKeys.tasks(canvas.canvas.workspaceId),
           })

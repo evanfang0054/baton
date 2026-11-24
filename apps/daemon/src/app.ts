@@ -77,7 +77,7 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
   })
   registerCanvasRoutes(app, { db: deps.db })
   registerAttentionRoutes(app, {
-    attention: createAttentionService({ db: deps.db, now: deps.now }),
+    attention: createAttentionService({ db: deps.db }),
   })
   const artifacts = deps.runtime.artifacts
   const deliveries = createDeliveryService({

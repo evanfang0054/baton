@@ -12,7 +12,7 @@ export interface AttentionService {
   list(limit?: number): { items: AttentionInboxItem[]; total: number }
 }
 
-export function createAttentionService(deps: { db: Db; now: () => number }): AttentionService {
+export function createAttentionService(deps: { db: Db }): AttentionService {
   function list(limit = DEFAULT_LIMIT): { items: AttentionInboxItem[]; total: number } {
     const bounded = Math.min(Math.max(1, Math.trunc(limit)), MAX_LIMIT)
     const rows: Array<{ item: AttentionInboxItem; updatedAt: number }> = []
@@ -29,7 +29,8 @@ export function createAttentionService(deps: { db: Db; now: () => number }): Att
       for (const task of tasks) {
         const attention = attentionFor(task.status, task.waitingReason)
         const acceptanceFail = (acceptance.get(task.id)?.counts.fail ?? 0) > 0
-        if (!needsPerson({ status: task.status, attention }) && !acceptanceFail) continue
+        const failed = task.status === 'failed'
+        if (!needsPerson({ status: task.status, attention }) && !acceptanceFail && !failed) continue
         const delivery = task.deliveryId ? getDelivery(deps.db, task.deliveryId) : null
         if (!delivery) continue
         rows.push({
@@ -41,7 +42,7 @@ export function createAttentionService(deps: { db: Db; now: () => number }): Att
             stageKey: task.stageKey ?? null,
             taskId: task.id,
             title: task.title,
-            kind: attention === 'none' ? 'acceptance' : attention,
+            kind: failed ? 'failed' : attention === 'none' ? 'acceptance' : attention,
             waitingSince: waitingSinceFor(task),
           },
           updatedAt: task.updatedAt,

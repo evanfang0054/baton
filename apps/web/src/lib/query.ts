@@ -12,6 +12,7 @@ export const queryKeys = {
   delivery: (deliveryId: string) => ['delivery', deliveryId] as const,
   deliveryCanvas: (workspaceId: string, deliveryId: string) =>
     ['delivery-canvas', workspaceId, deliveryId] as const,
+  deliveryCanvases: ['delivery-canvas'] as const,
   artifacts: (deliveryId: string) => ['artifacts', deliveryId] as const,
   annotations: (deliveryId: string) => ['annotations', deliveryId] as const,
   annotationDrawing: (annotationId: string) => ['annotation-drawing', annotationId] as const,

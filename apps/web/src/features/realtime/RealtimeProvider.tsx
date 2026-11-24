@@ -60,6 +60,7 @@ export function RealtimeProvider({
         invalidateTimer = undefined
         void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
         void queryClient.invalidateQueries({ queryKey: queryKeys.automation(workspaceId) })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.attention })
         const taskId = useAppStore.getState().activeTaskId
         if (taskId) {
           void queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
@@ -106,7 +107,7 @@ export function RealtimeProvider({
         // daemon 重启或首屏失败后，用一次重连把 REST 快照补齐。
         void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces })
         void queryClient.invalidateQueries({ queryKey: queryKeys.automation(workspaceId) })
-        void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
         void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
         void queryClient.invalidateQueries({ queryKey: queryKeys.supervisorStatus })
         void queryClient.invalidateQueries({
@@ -151,7 +152,7 @@ export function RealtimeProvider({
             event.payload.ok !== false &&
             CANVAS_MUTATING_TOOLS.has(event.payload.name)
           ) {
-            void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+            void queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
             if (TASK_MUTATING_TOOLS.has(event.payload.name)) {
               void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
             }
@@ -186,7 +187,7 @@ export function RealtimeProvider({
                 (call) => call.ok && CANVAS_MUTATING_TOOLS.has(call.name),
               )
             ) {
-              void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+              void queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
             }
             const taskId = event.payload.decision?.taskId
             if (taskId) {
@@ -225,7 +226,7 @@ export function RealtimeProvider({
           return
         }
         if (event.type === 'context.injected') {
-          void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+          void queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
           void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
           void queryClient.invalidateQueries({ queryKey: queryKeys.task(event.payload.taskId) })
           return

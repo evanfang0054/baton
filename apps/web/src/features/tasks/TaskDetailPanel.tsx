@@ -66,7 +66,12 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
   const activeSession =
     sessions.find((session) => session.id === selectedSessionId) ?? sessions.at(-1) ?? null
   // 时间线只读；节点是否存在直接从画布缓存判断，不为详情额外发请求。
-  const canvas = queryClient.getQueryData<CanvasResponse>(queryKeys.canvas(activeWorkspaceId ?? ''))
+  const taskForCanvas = detail.data?.task
+  const canvas = taskForCanvas?.deliveryId
+    ? queryClient.getQueryData<CanvasResponse>(
+        queryKeys.deliveryCanvas(taskForCanvas.workspaceId, taskForCanvas.deliveryId),
+      )
+    : undefined
   const knownNodeIds = canvas ? new Set(canvas.nodes.map((node) => node.id)) : undefined
   const selectedContextNodes = canvas
     ? canvas.nodes.filter((node) => selectedContextNodeIds.includes(node.id))

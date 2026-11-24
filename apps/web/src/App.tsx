@@ -417,14 +417,6 @@ function AppShell() {
               onOpenSettings={() => setAutomationSettingsOpen(true)}
             />
           ) : null}
-          {!isMobile ? (
-            <CreateWorkspaceDialog
-              onCreated={(id) => {
-                setWorkspace(id)
-                writeUrlState({ workspaceId: id })
-              }}
-            />
-          ) : null}
         </div>
       </header>
       {unauthorized ? (
@@ -547,15 +539,6 @@ function AppShell() {
               onClose={() => setMobileNodesOpen(false)}
             />
           ) : null}
-          <CreateWorkspaceDialog
-            onCreated={(id) => {
-              setWorkspace(id)
-              writeUrlState({ workspaceId: id })
-            }}
-            open={createWorkspaceOpen}
-            onOpenChange={setCreateWorkspaceOpen}
-            mobile
-          />
         </div>
       ) : (
         <div className="flex min-h-0 flex-1">
@@ -607,6 +590,7 @@ function AppShell() {
             ) : deliveryView === 'canvas' && activeDeliveryId && delivery.data ? (
               <DeliveryCanvas
                 workspaceId={activeWorkspaceId ?? ''}
+                workspaceTrusted={activeWorkspace?.trusted ?? false}
                 delivery={delivery.data}
                 canvas={deliveryCanvas.data ?? null}
                 tasks={deliveryTasks}
@@ -683,6 +667,15 @@ function AppShell() {
           />
         </div>
       )}
+      <CreateWorkspaceDialog
+        onCreated={(id) => {
+          setWorkspace(id)
+          writeUrlState({ workspaceId: id })
+        }}
+        open={createWorkspaceOpen}
+        onOpenChange={setCreateWorkspaceOpen}
+        mobile={isMobile}
+      />
       <CreateDeliveryDialog
         workspaceId={deliveryDialogWorkspaceId ?? activeWorkspaceId ?? ''}
         open={deliveryDialogWorkspaceId !== null}

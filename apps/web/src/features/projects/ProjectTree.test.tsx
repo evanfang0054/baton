@@ -136,7 +136,7 @@ describe('ProjectTree', () => {
   })
 
   it('expands only the active project initially and lazily loads another project', async () => {
-    renderTree({
+    const props = renderTree({
       workspaces: [workspace(), workspace({ id: 'w2', name: 'beta', relPath: 'beta' })],
     })
     expect(listDeliveries).toHaveBeenCalledTimes(1)
@@ -145,6 +145,8 @@ describe('ProjectTree', () => {
     await userEvent.click(screen.getByRole('button', { name: '展开项目 beta' }))
     await waitFor(() => expect(listDeliveries).toHaveBeenCalledWith('w2'))
     expect(listDeliveries).toHaveBeenCalledTimes(2)
+    expect(props.onOpenBoard).not.toHaveBeenCalled()
+    expect(props.onOpenDelivery).not.toHaveBeenCalled()
   })
 
   it('opens a requirement, its board and a new requirement from the project group', async () => {
@@ -163,7 +165,7 @@ describe('ProjectTree', () => {
     const item = attentionItem()
     const props = renderTree({ attention: { items: [item], total: 1 } })
     expect(screen.getByText('通知 1')).toBeInTheDocument()
-    expect(screen.getByLabelText('有通知')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /1 条通知/ })).toBeInTheDocument()
     await userEvent.click(
       screen.getByRole('button', { name: 'demo 优惠券领取页 待验收' }),
     )

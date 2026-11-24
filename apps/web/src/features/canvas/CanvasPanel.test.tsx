@@ -202,6 +202,14 @@ describe('CanvasPanel', () => {
     expect(send).not.toHaveBeenCalled()
   })
 
+  it('ignores dropped files', () => {
+    const { send } = renderPanel()
+    fireEvent.drop(screen.getByTestId('canvas'), {
+      dataTransfer: { files: [new File(['x'], 'a.txt')] },
+    })
+    expect(send).not.toHaveBeenCalled()
+  })
+
   it('arranges canvas nodes through one move_many command', async () => {
     const { send } = renderPanel()
     fireEvent.click(screen.getByRole('button', { name: '整理画布' }))

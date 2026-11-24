@@ -187,7 +187,7 @@ describe('App shell', () => {
   it('opens the create-workspace dialog', async () => {
     const user = userEvent.setup()
     renderApp()
-    await user.click(await screen.findByRole('button', { name: '新建工作区' }))
+    await user.click(await screen.findByRole('button', { name: '新建项目' }))
     expect(await screen.findByRole('heading', { name: '新建工作区' })).toBeInTheDocument()
     expect(screen.getByLabelText('工作区名称')).toBeInTheDocument()
     expect(screen.getByText('工作区目录')).toBeInTheDocument()
@@ -213,7 +213,7 @@ describe('App shell', () => {
       }),
     )
     renderApp()
-    await user.click(await screen.findByRole('button', { name: '新建工作区' }))
+    await user.click(await screen.findByRole('button', { name: '新建项目' }))
     await user.click(screen.getByRole('button', { name: '选择目录' }))
     await user.click(await screen.findByRole('button', { name: '选择目录 Desktop/baton' }))
 
@@ -243,7 +243,7 @@ describe('App shell', () => {
       }),
     )
     renderApp()
-    await user.click(await screen.findByRole('button', { name: '新建工作区' }))
+    await user.click(await screen.findByRole('button', { name: '新建项目' }))
     await user.click(screen.getByRole('button', { name: '选择目录' }))
     await screen.findByRole('button', { name: '选择目录 Desktop' })
     await user.type(screen.getByLabelText('搜索目录'), 'baton')

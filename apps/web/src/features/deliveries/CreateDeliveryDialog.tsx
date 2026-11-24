@@ -39,7 +39,7 @@ export function CreateDeliveryDialog({
         queryClient.invalidateQueries({ queryKey: queryKeys.deliveries(workspaceId) }),
         // 创建交付会同时生成第一阶段任务；不刷新任务缓存会让看板一直显示 0。
         queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases }),
       ])
       onCreated(created.delivery.id)
       onOpenChange(false)

@@ -10,6 +10,7 @@ import { ChevronRight, LayoutDashboard, Plus } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { listDeliveries } from '../../lib/api'
 import { queryKeys } from '../../lib/query'
+import type { DeliveryView } from '../../stores/app'
 import { DeliveryCard } from '../deliveries/DeliveryCard'
 import { formatWaiting } from '../deliveries/delivery-labels'
 
@@ -29,7 +30,7 @@ export function ProjectTree({
   attention: AttentionInboxResponse | null
   activeWorkspaceId: string | null
   activeDeliveryId: string | null
-  deliveryView: 'canvas' | 'board'
+  deliveryView: DeliveryView
   onCreateProject: () => void
   onCreateDelivery: (workspaceId: string) => void
   onOpenBoard: (workspaceId: string) => void
@@ -56,10 +57,13 @@ export function ProjectTree({
 
   const items = attention?.items ?? []
   const total = attention?.total ?? 0
-  const workspaceWithAttention = useMemo(
-    () => new Set(items.map((item) => item.workspaceId)),
-    [items],
-  )
+  const attentionCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const item of items) {
+      counts.set(item.workspaceId, (counts.get(item.workspaceId) ?? 0) + 1)
+    }
+    return counts
+  }, [items])
 
   const toggle = (workspaceId: string) => {
     setExpanded((prev) =>
@@ -90,10 +94,12 @@ export function ProjectTree({
           />
         </button>
         {notificationsOpen ? (
-          items.length === 0 ? (
+          attention === null ? (
+            <p className="px-3 pb-3 text-xs text-muted">正在加载通知…</p>
+          ) : items.length === 0 ? (
             <p className="px-3 pb-3 text-xs text-muted">没有需要你处理的</p>
           ) : (
-            <ul className="space-y-1 px-2 pb-2">
+            <ul className="max-h-[40vh] space-y-1 overflow-y-auto px-2 pb-2">
               {items.map((item) => (
                 <li key={item.taskId}>
                   <button
@@ -131,7 +137,7 @@ export function ProjectTree({
         </Button>
       </div>
 
-      <div role="tree" aria-label="项目树" className="min-h-0 flex-1 overflow-y-auto p-2">
+      <div aria-label="项目树" className="min-h-0 flex-1 overflow-y-auto p-2">
         {workspaces.length === 0 ? (
           <p className="px-2 py-6 text-center text-xs text-muted">还没有项目</p>
         ) : (
@@ -141,17 +147,17 @@ export function ProjectTree({
             const deliveries: DeliverySummary[] = query?.data ?? []
             const boardActive = deliveryView === 'board' && activeWorkspaceId === workspace.id
             return (
-              <div
-                key={workspace.id}
-                role="treeitem"
-                aria-expanded={isExpanded}
-                className="rounded-lg"
-              >
+              <div key={workspace.id} className="rounded-lg">
                 <button
                   type="button"
                   onClick={() => toggle(workspace.id)}
+                  aria-expanded={isExpanded}
                   className="flex w-full items-center gap-1 rounded-md px-1.5 py-1.5 text-left hover:bg-default/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                  aria-label={`${isExpanded ? '收起' : '展开'}项目 ${workspace.name}`}
+                  aria-label={`${isExpanded ? '收起' : '展开'}项目 ${workspace.name}${
+                    attentionCounts.get(workspace.id)
+                      ? `，${attentionCounts.get(workspace.id)} 条通知`
+                      : ''
+                  }`}
                 >
                   <ChevronRight
                     size={14}
@@ -163,16 +169,19 @@ export function ProjectTree({
                   <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                     {workspace.name}
                   </span>
-                  {workspaceWithAttention.has(workspace.id) ? (
+                  {attentionCounts.get(workspace.id) ? (
                     <span
-                      aria-label="有通知"
-                      className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning"
-                    />
+                      aria-hidden="true"
+                      className="flex shrink-0 items-center gap-1 text-[10px] text-warning"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-warning" />
+                      {attentionCounts.get(workspace.id)}
+                    </span>
                   ) : null}
                 </button>
 
                 {isExpanded ? (
-                  <div role="group" className="ml-4 border-l border-separator pb-2 pl-2">
+                  <div className="ml-4 border-l border-separator pb-2 pl-2">
                     <button
                       type="button"
                       onClick={() => onOpenBoard(workspace.id)}

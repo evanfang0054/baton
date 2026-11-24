@@ -109,6 +109,7 @@ export const AttentionInboxKind = z.enum([
   'needs_attention',
   'needs_review',
   'acceptance',
+  'failed',
 ])
 export type AttentionInboxKind = z.infer<typeof AttentionInboxKind>
 
