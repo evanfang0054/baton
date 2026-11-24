@@ -6,9 +6,11 @@ import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import type { Config } from './config.js'
 import { createAnnotationService } from './annotation/service.js'
+import { createAttentionService } from './attention/service.js'
 import { createDeliveryService } from './delivery/service.js'
 import type { Db } from './db/types.js'
 import { registerApiAuth } from './http/api-auth.js'
+import { registerAttentionRoutes } from './http/attention.js'
 import { registerAuditRoutes } from './http/audit.js'
 import { registerAuth } from './http/auth.js'
 import { registerAutomationRoutes } from './http/automation.js'
@@ -74,6 +76,9 @@ export async function buildApp(config: Config, deps: AppDeps): Promise<FastifyIn
     onTrustChanged: () => deps.runtime.rescheduleDigest(),
   })
   registerCanvasRoutes(app, { db: deps.db })
+  registerAttentionRoutes(app, {
+    attention: createAttentionService({ db: deps.db, now: deps.now }),
+  })
   const artifacts = deps.runtime.artifacts
   const deliveries = createDeliveryService({
     db: deps.db,

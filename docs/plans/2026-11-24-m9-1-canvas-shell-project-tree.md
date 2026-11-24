@@ -34,12 +34,12 @@ Seam: `GET /api/attention`
 - Test: `apps/daemon/test/attention-rest.test.ts`
 
 **Interfaces:**
-- `AttentionItem = { workspaceId, workspaceName, deliveryId, deliveryTitle, stageKey, taskId, title, kind, waitingSince }`
-- `AttentionListResponse = { items: AttentionItem[]; total: number }`
-- `createAttentionService({ db, now })` → `list(limit: number): AttentionItem[]`
+- `AttentionInboxItem = { workspaceId, workspaceName, deliveryId, deliveryTitle, stageKey, taskId, title, kind, waitingSince }`
+- `AttentionInboxResponse = { items: AttentionInboxItem[]; total: number }`
+- `createAttentionService({ db, now })` → `list(limit: number): { items: AttentionInboxItem[]; total: number }`
 - `GET /api/attention?limit=20`；`limit` 1..50，默认 20。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `attention-service.test.ts` 构造两个 workspace、若干 task：
 
@@ -52,26 +52,26 @@ Seam: `GET /api/attention`
 
 `attention-rest.test.ts` 断言 200、schema、limit 参数和非法 limit 的错误。
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
-Run: `pnpm --filter @baton/daemon exec vitest run test/attention-service.test.ts test/attention-rest.test.ts`
+Run: `pnpm --filter @evanfang0054/baton exec vitest run test/attention-service.test.ts test/attention-rest.test.ts`
 
 Expected: FAIL，`createAttentionService`/路由不存在。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - `attention/service.ts`：`listWorkspaces` → 每个 workspace `listTasks` → 过滤 `task.deliveryId` → `attentionFor(task.status, task.waitingReason)` + `needsPerson` + `listAcceptanceSummaries`（fail>0 也算）→ `getDelivery`/`getWorkspace` 补标题 → 排序、截断。
 - `http/attention.ts`：薄路由，`AttentionListResponse.parse`。
 - `packages/protocol/src/api.ts` 增加 schema；`app.ts` 注册。
 - 不新增表、不写事件、不做已读状态。
 
-- [ ] **Step 4: 运行并确认通过**
+- [x] **Step 4: 运行并确认通过**
 
-Run: `pnpm --filter @baton/daemon exec vitest run test/attention-service.test.ts test/attention-rest.test.ts`
+Run: `pnpm --filter @evanfang0054/baton exec vitest run test/attention-service.test.ts test/attention-rest.test.ts`
 
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/daemon/src/attention apps/daemon/src/http/attention.ts apps/daemon/src/app.ts packages/protocol/src/api.ts apps/daemon/test/attention-service.test.ts apps/daemon/test/attention-rest.test.ts

@@ -102,6 +102,40 @@ export const WorkspaceUploadResponse = z.object({
 })
 export type WorkspaceUploadResponse = z.infer<typeof WorkspaceUploadResponse>
 
+/** 跨项目通知：只包含需要人处理、且已绑定需求的任务。 */
+export const AttentionInboxKind = z.enum([
+  'needs_approval',
+  'needs_reply',
+  'needs_attention',
+  'needs_review',
+  'acceptance',
+])
+export type AttentionInboxKind = z.infer<typeof AttentionInboxKind>
+
+export const AttentionInboxItem = z.object({
+  workspaceId: Id,
+  workspaceName: z.string().min(1).max(200),
+  deliveryId: Id,
+  deliveryTitle: z.string().min(1).max(200),
+  stageKey: z.string().max(32).nullable(),
+  taskId: Id,
+  title: z.string().min(1).max(500),
+  kind: AttentionInboxKind,
+  waitingSince: Timestamp.nullable(),
+})
+export type AttentionInboxItem = z.infer<typeof AttentionInboxItem>
+
+export const AttentionInboxQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+})
+export type AttentionInboxQuery = z.infer<typeof AttentionInboxQuery>
+
+export const AttentionInboxResponse = z.object({
+  items: z.array(AttentionInboxItem),
+  total: z.number().int().nonnegative(),
+})
+export type AttentionInboxResponse = z.infer<typeof AttentionInboxResponse>
+
 export const EngineStatus = z.object({
   engine: Engine,
   status: z.enum(['available', 'unknown', 'unavailable']),
