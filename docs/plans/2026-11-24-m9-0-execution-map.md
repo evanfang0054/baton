@@ -58,6 +58,7 @@ M9-1 → M9-2 → M9-3 → M9-4 → M9-5
 - 12 条 legacy Playwright 仍按工作区画布编写，已列入 M9-5 迁移，不在 M9-1 的 `pnpm verify` 门内。
 - M9-2 已完成（2026-11-24）：source/full/preview 保存、drawing 节点同步、编辑器 fail-safe、缩略图与内容抽取；`pnpm verify` + `delivery.spec` 通过。
 - M9-3 已完成（2026-11-24）：总管消息作用域、需求画布解析、`list_canvas` 跨需求、`get_drawing` 全量读取、计划作用域落库、无需求明确报错；`pnpm verify` + `delivery.spec`/`supervisor.spec` 通过。
+- M9-4 已完成（2026-11-24）：画板场景纯函数、画板写入服务、`create_drawing`/`update_drawing`、图片路径校验、`previewStale`、浏览器后台预览、冲突横幅与画板工具卡；`pnpm verify` + 定向 e2e 通过。
 
 ## 数据重置
 
