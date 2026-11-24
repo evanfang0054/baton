@@ -16,6 +16,8 @@ const typeLabels: Record<NodeType, string> = {
   agent: 'Agent',
   review: '验收',
   group: '分组',
+  artifact: '产物',
+  drawing: '画板',
 }
 
 function relationBadge(

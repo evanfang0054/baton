@@ -15,7 +15,7 @@ import { DiffViewer } from './DiffViewer'
 import { useCommandAction } from './useCommandAction'
 import { verifyOutputClass } from './styles'
 
-const CONTEXT_TYPES = new Set<Node['type']>(['text', 'file', 'image', 'group'])
+const CONTEXT_TYPES = new Set<Node['type']>(['text', 'file', 'image', 'group', 'drawing'])
 
 export function ReviewCard({
   review,

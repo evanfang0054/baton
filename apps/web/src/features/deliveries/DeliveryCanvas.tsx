@@ -104,7 +104,11 @@ export function DeliveryCanvas({
           }
           if (node.type === 'agent') {
             const task = tasks.find((item) => item.nodeId === node.id)
-            if (task) onOpenTask(task.id)
+            if (task) {
+              onOpenTask(task.id)
+              return
+            }
+            setDetailNode(node)
             return
           }
           if (
@@ -124,7 +128,10 @@ export function DeliveryCanvas({
       />
       {/* 工具栏固定在左上角；需求卡下移，避免遮住画板/文件/投喂等入口。 */}
       <div className="pointer-events-none absolute left-4 top-16 z-10 w-[min(420px,calc(100%-2rem))]">
-        <div className="pointer-events-auto rounded-xl border border-separator bg-surface/95 p-3 shadow-overlay backdrop-blur">
+        <div
+          data-testid="delivery-summary-card"
+          className="pointer-events-auto rounded-xl border border-separator bg-surface/95 p-3 shadow-overlay backdrop-blur"
+        >
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-sm font-semibold text-foreground">{delivery.title}</h1>

@@ -18,7 +18,7 @@ export type AppOverlay =
   | { kind: 'annotations'; deliveryId: string }
   | { kind: 'acceptance'; deliveryId: string }
 
-const CONTEXT_TYPES = new Set<Node['type']>(['text', 'file', 'image', 'group'])
+const CONTEXT_TYPES = new Set<Node['type']>(['text', 'file', 'image', 'group', 'drawing'])
 
 function sameIds(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((id, index) => id === b[index])

@@ -202,7 +202,10 @@ function FlowCanvas({
     [canvas?.nodes, selectedNodeIds],
   )
   const injectableSelectedNodes = useMemo(
-    () => selectedNodes.filter((node) => ['text', 'file', 'image', 'group'].includes(node.type)),
+    () =>
+      selectedNodes.filter((node) =>
+        ['text', 'file', 'image', 'group', 'drawing'].includes(node.type),
+      ),
     [selectedNodes],
   )
   const injectableTasks = useMemo(

@@ -280,13 +280,6 @@ export function MobileNodeManager({
               <Button
                 size="sm"
                 variant="secondary"
-                onPress={() => setDraft({ type: 'text', content: '' })}
-              >
-                新建文本
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
                 onPress={() => setDraft({ type: 'file', name: '', path: '', mime: '' })}
               >
                 新建文件
