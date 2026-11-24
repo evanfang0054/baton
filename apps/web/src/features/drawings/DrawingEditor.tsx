@@ -7,6 +7,7 @@ import '@excalidraw/excalidraw/index.css'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, fetchArtifactText, saveArtifact } from '../../lib/api'
 import { fileToBase64 } from '../../lib/file'
+import { useDrawingStore } from './drawing-store'
 import { ConfirmDialog } from '../overlays/ConfirmDialog'
 import { Overlay } from '../overlays/Overlay'
 
@@ -50,6 +51,8 @@ export function DrawingEditor({
   const [saving, setSaving] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
   const [discardOpen, setDiscardOpen] = useState(false)
+  const conflict = useDrawingStore((state) => state.conflicts[artifact.id] === true)
+  const clearConflict = useDrawingStore((state) => state.clearConflict)
 
   const autosaveTimer = useRef<number | null>(null)
   const inFlight = useRef<Promise<boolean> | null>(null)
@@ -89,6 +92,39 @@ export function DrawingEditor({
     },
     [],
   )
+
+  useEffect(() => {
+    useDrawingStore.getState().beginEditing(artifact.id)
+    return () => {
+      useDrawingStore.getState().endEditing(artifact.id)
+      useDrawingStore.getState().clearConflict(artifact.id)
+    }
+  }, [artifact.id])
+
+  const loadLatest = async () => {
+    if (!api) return
+    try {
+      const text = await fetchArtifactText(deliveryId, artifact.id, 'source')
+      const parsed = JSON.parse(text) as {
+        elements?: never
+        appState?: never
+        files?: never
+      }
+      api.updateScene({
+        elements: parsed.elements ?? [],
+        ...(parsed.appState ? { appState: parsed.appState } : {}),
+        ...(parsed.files ? { files: parsed.files } : {}),
+      })
+      changeSeq.current += 1
+      savedSeq.current = changeSeq.current
+      setDirty(false)
+      setSaveError(null)
+      clearConflict(artifact.id)
+      toast.success('已加载最新画板')
+    } catch (cause) {
+      toast.danger(cause instanceof Error ? cause.message : '加载最新画板失败')
+    }
+  }
 
   useEffect(() => {
     if (!dirty) return
@@ -239,6 +275,25 @@ export function DrawingEditor({
           <span className="text-xs text-muted">画板会保存为 .excalidraw + PNG + SVG</span>
           <span className={dirty ? 'text-xs text-warning' : 'text-xs text-muted'}>{status}</span>
         </div>
+        {conflict ? (
+          <div
+            role="alert"
+            className="mb-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning"
+          >
+            <p className="font-medium">总管已更新这个画板</p>
+            <p className="mt-1 text-muted">
+              加载最新会放弃你本地当前修改；保留本地会在下次保存时覆盖远端。
+            </p>
+            <div className="mt-2 flex gap-2">
+              <Button size="sm" variant="secondary" onPress={() => void loadLatest()}>
+                加载最新
+              </Button>
+              <Button size="sm" variant="tertiary" onPress={() => clearConflict(artifact.id)}>
+                保留本地
+              </Button>
+            </div>
+          </div>
+        ) : null}
         {saveError ? (
           <div
             role="alert"

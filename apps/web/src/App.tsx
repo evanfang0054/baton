@@ -14,6 +14,7 @@ import { AnnotationListOverlay } from './features/overlays/AnnotationListOverlay
 import { AcceptanceMatrixOverlay } from './features/overlays/AcceptanceMatrixOverlay'
 import { ArtifactViewerOverlay } from './features/overlays/ArtifactViewerOverlay'
 import { ConfirmDialog } from './features/overlays/ConfirmDialog'
+import { previewQueue } from './features/drawings/preview-renderer'
 import { DrawingEditorOverlay } from './features/overlays/DrawingEditorOverlay'
 import { StageSceneOverlay } from './features/overlays/StageSceneOverlay'
 import { RealtimeProvider } from './features/realtime/RealtimeProvider'
@@ -152,6 +153,13 @@ function AppShell() {
   })
 
   const canvasNodes = deliveryCanvas.data?.nodes ?? []
+  useEffect(() => {
+    if (!activeDeliveryId) return
+    for (const node of canvasNodes) {
+      if (node.type !== 'drawing' || !node.data.previewStale) continue
+      previewQueue.enqueue(activeDeliveryId, node.data.artifactId)
+    }
+  }, [activeDeliveryId, canvasNodes])
   const contextNodes = useMemo(
     () => canvasNodes.filter((node) => contextNodeIds.includes(node.id)),
     [canvasNodes, contextNodeIds],

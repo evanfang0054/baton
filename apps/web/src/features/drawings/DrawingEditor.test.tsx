@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchArtifactText, saveArtifact, ApiError } from '../../lib/api'
 import { DrawingEditor } from './DrawingEditor'
+import { useDrawingStore } from './drawing-store'
 
 vi.mock('@excalidraw/excalidraw', async () => {
   const { useEffect } = await import('react')
@@ -13,6 +14,7 @@ vi.mock('@excalidraw/excalidraw', async () => {
     ],
     getAppState: () => ({}),
     getFiles: () => ({}),
+    updateScene: vi.fn(),
   }
   return {
     Excalidraw: ({
@@ -93,6 +95,7 @@ describe('DrawingEditor', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    useDrawingStore.setState({ editing: {}, conflicts: {} })
   })
 
   it('loads source and saves full on close', async () => {
@@ -156,5 +159,21 @@ describe('DrawingEditor', () => {
 
     expect(await screen.findByText('放弃未保存修改？')).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('shows a conflict banner and can keep local or load latest', async () => {
+    vi.mocked(fetchArtifactText).mockResolvedValue('{"type":"excalidraw","elements":[]}')
+    useDrawingStore.setState({ conflicts: { a1: true } })
+    renderEditor(artifact({ sourcePath: 'drawing.excalidraw' }))
+
+    expect(await screen.findByText('总管已更新这个画板')).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: '保留本地' }))
+    expect(screen.queryByText('总管已更新这个画板')).toBeNull()
+
+    useDrawingStore.setState({ conflicts: { a1: true } })
+    expect(await screen.findByText('总管已更新这个画板')).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: '加载最新' }))
+    await waitFor(() => expect(useDrawingStore.getState().conflicts.a1).toBeUndefined())
+    expect(screen.queryByText('总管已更新这个画板')).toBeNull()
   })
 })

@@ -1,7 +1,7 @@
 import type { SupervisorMessage as SupervisorMessageRecord } from '@baton/protocol'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { CommandProvider } from '../../lib/command-context'
 import { SupervisorMessage } from './SupervisorMessage'
 
@@ -177,5 +177,40 @@ describe('SupervisorMessage', () => {
     )
     expect(screen.getByText('计划：1 个任务')).toBeVisible()
     expect(screen.getByRole('button', { name: '应用全部' })).toBeVisible()
+  })
+
+  it('renders a drawing card from create_drawing and opens it', () => {
+    const onOpenDrawing = vi.fn()
+    render(
+      <SupervisorMessage
+        message={{
+          ...message,
+          id: 'm-drawing',
+          content: '画好了。',
+          toolCalls: [
+            {
+              id: 'tc-drawing',
+              name: 'create_drawing',
+              args: {},
+              ok: true,
+              result: {
+                artifactId: 'a1',
+                deliveryId: 'd1',
+                nodeId: 'n1',
+                title: '流程草图',
+                elements: 3,
+                texts: 1,
+                previewStale: true,
+              },
+            },
+          ],
+        }}
+        onOpenDrawing={onOpenDrawing}
+      />,
+    )
+    expect(screen.getByText('流程草图')).toBeVisible()
+    expect(screen.getByText('元素 3 个 · 文字 1 段 · 预览生成中')).toBeVisible()
+    screen.getByRole('button', { name: '打开画板' }).click()
+    expect(onOpenDrawing).toHaveBeenCalledWith('d1', 'a1')
   })
 })

@@ -154,6 +154,12 @@ export function SupervisorPanel({
     state.setSelectedNode(null)
     state.openStage(taskId)
   }
+  const openDrawing = (drawingDeliveryId: string, artifactId: string) => {
+    const state = useAppStore.getState()
+    state.setSelectedNode(null)
+    state.setDelivery(drawingDeliveryId)
+    state.setOverlay({ kind: 'drawing', deliveryId: drawingDeliveryId, artifactId })
+  }
   const applyProposal = async (proposalId: string): Promise<boolean> => {
     if (!workspaceId) return false
     try {
@@ -238,6 +244,7 @@ export function SupervisorPanel({
             setQuickPrompt((previous) => ({ text, seq: previous.seq + 1 }))
           }
           onOpenTask={openTask}
+          onOpenDrawing={openDrawing}
           onApplyProposal={applyProposal}
         />
       ) : null}

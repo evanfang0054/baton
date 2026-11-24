@@ -68,6 +68,7 @@ export function SupervisorMessageList({
   onRetryIncomplete,
   onPickQuickPrompt,
   onOpenTask,
+  onOpenDrawing,
   onApplyProposal,
 }: {
   messages: SupervisorMessageRecord[]
@@ -80,6 +81,7 @@ export function SupervisorMessageList({
   onRetryIncomplete: () => void
   onPickQuickPrompt: (text: string) => void
   onOpenTask?: (taskId: string) => void
+  onOpenDrawing?: (deliveryId: string, artifactId: string) => void
   onApplyProposal?: (proposalId: string) => Promise<boolean> | boolean | void
 }) {
   const logRef = useRef<HTMLDivElement>(null)
@@ -127,6 +129,7 @@ export function SupervisorMessageList({
           message={message}
           onRetry={message.status === 'error' ? () => onRetry(message) : undefined}
           onOpenTask={onOpenTask}
+          onOpenDrawing={onOpenDrawing}
           onApplyProposal={onApplyProposal}
           digestActions={message.id === latestDigestId}
         />

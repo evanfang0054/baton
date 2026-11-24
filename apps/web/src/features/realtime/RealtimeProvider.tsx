@@ -12,6 +12,8 @@ import { createWsClient } from '../../lib/ws'
 import { useAppStore } from '../../stores/app'
 import { useSupervisorStreamStore } from '../supervisor/stream-store'
 import { appendSessionEvents } from './session-cache'
+import { isDrawingEditing, useDrawingStore } from '../drawings/drawing-store'
+import { previewQueue } from '../drawings/preview-renderer'
 
 const INVALIDATING_EVENTS = new Set(['task.status', 'approval.request', 'verify.result'])
 const TASK_CREATE_TOOLS = ['create_task', 'create_tasks', 'handoff_task'] as const
@@ -236,7 +238,14 @@ export function RealtimeProvider({
           return
         }
         if (event.type === 'artifact.updated') {
-          const { deliveryId } = event.payload
+          const { deliveryId, artifactId, previewStale } = event.payload
+          if (previewStale) {
+            if (isDrawingEditing(artifactId)) {
+              useDrawingStore.getState().markConflict(artifactId)
+            } else {
+              previewQueue.enqueue(deliveryId, artifactId)
+            }
+          }
           void queryClient.invalidateQueries({ queryKey: queryKeys.artifacts(deliveryId) })
           void queryClient.invalidateQueries({ queryKey: queryKeys.delivery(deliveryId) })
           void queryClient.invalidateQueries({
