@@ -227,7 +227,7 @@ export function SupervisorPanel({
             setQuickPrompt((previous) => ({ text, seq: previous.seq + 1 }))
           }
           onOpenTask={openTask}
-          onApplyProposal={(proposalId) => void applyProposal(proposalId)}
+          onApplyProposal={applyProposal}
         />
       ) : null}
       {workspaceId && history.data ? (

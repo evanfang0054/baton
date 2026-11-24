@@ -14,6 +14,7 @@ vi.mock('../../lib/api', () => ({
   listNotices: vi.fn().mockResolvedValue({ notices: [] }),
   readNotice: vi.fn().mockResolvedValue(undefined),
 }))
+vi.mock('@heroui/react/toast', () => ({ toast: { success: vi.fn(), danger: vi.fn() } }))
 
 function renderPanel(send = vi.fn().mockResolvedValue(undefined)) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -174,6 +175,53 @@ describe('SupervisorPanel', () => {
     renderPanel()
 
     await waitFor(() => expect(readNotice).toHaveBeenCalledWith('n1'))
+  })
+
+  it('keeps the apply action when the decision fails', async () => {
+    vi.mocked(getSupervisorMessages).mockResolvedValue({
+      threadId: 'th1',
+      messages: [
+        {
+          id: 'm-digest',
+          threadId: 'th1',
+          role: 'assistant',
+          content: '本轮汇报 · 11/24 10:00',
+          toolCalls: [],
+          decision: null,
+          meta: {
+            contextNodeIds: [],
+            targetNodeId: null,
+            digest: {
+              noticeId: 'n1',
+              trigger: 'schedule',
+              generatedAt: 1,
+              items: [
+                {
+                  taskId: 't1',
+                  title: '登录页修复',
+                  kind: 'failed',
+                  reason: '运行失败，建议重试',
+                  waitingSince: null,
+                  proposalId: 'act-1',
+                  action: { type: 'apply_proposal', proposalId: 'act-1' },
+                },
+              ],
+            },
+          },
+          status: 'ok',
+          error: null,
+          createdAt: 2,
+        },
+      ],
+    })
+    const send = vi.fn().mockRejectedValue(new Error('decision failed'))
+    renderPanel(send)
+
+    await userEvent.click(await screen.findByRole('button', { name: '应用建议' }))
+    await waitFor(() => expect(send).toHaveBeenCalled())
+    // 失败时不能把动作改成“已应用”，否则用户会以为已经生效。
+    expect(screen.getByRole('button', { name: '应用建议' })).toBeVisible()
+    expect(screen.queryByText('已应用')).toBeNull()
   })
 
   it('retries a failed turn with the previous user message', async () => {
