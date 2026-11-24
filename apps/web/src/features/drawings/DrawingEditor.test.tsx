@@ -176,4 +176,15 @@ describe('DrawingEditor', () => {
     await waitFor(() => expect(useDrawingStore.getState().conflicts.a1).toBeUndefined())
     expect(screen.queryByText('总管已更新这个画板')).toBeNull()
   })
+
+  it('suspends autosave while a supervisor conflict is unresolved', async () => {
+    vi.mocked(fetchArtifactText).mockResolvedValue('{"type":"excalidraw","elements":[]}')
+    useDrawingStore.setState({ conflicts: { a1: true } })
+    renderEditor(artifact({ sourcePath: 'drawing.excalidraw' }))
+
+    await screen.findByRole('button', { name: 'fake edit' })
+    await userEvent.click(screen.getByRole('button', { name: 'fake edit' }))
+    await new Promise((resolve) => setTimeout(resolve, 2300))
+    expect(saveArtifact).not.toHaveBeenCalled()
+  })
 })

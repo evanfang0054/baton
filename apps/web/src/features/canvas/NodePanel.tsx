@@ -36,6 +36,8 @@ export function NodePanel({
   workspaceTrusted,
   contextNodes,
   groupChildCount = 0,
+  deliveryId = null,
+  stageKey = null,
   onOpenTask,
   onDeleted,
   onClose,
@@ -46,6 +48,8 @@ export function NodePanel({
   workspaceTrusted: boolean
   contextNodes: ProtocolNode[]
   groupChildCount?: number
+  deliveryId?: string | null
+  stageKey?: string | null
   onOpenTask: (taskId: string) => void
   onDeleted: () => void
   onClose: () => void
@@ -340,6 +344,8 @@ export function NodePanel({
           workspaceTrusted={workspaceTrusted}
           defaultTitle={node.data.title}
           contextNodes={contextNodes}
+          deliveryId={deliveryId}
+          stageKey={stageKey}
           onCreated={onOpenTask}
         />
       ) : null}

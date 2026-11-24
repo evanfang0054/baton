@@ -56,6 +56,8 @@ export function CreateTaskForm({
   workspaceTrusted,
   defaultTitle,
   contextNodes = [],
+  deliveryId = null,
+  stageKey = null,
   onCreated,
 }: {
   nodeId: string
@@ -63,6 +65,8 @@ export function CreateTaskForm({
   workspaceTrusted: boolean
   defaultTitle: string
   contextNodes?: ProtocolNode[]
+  deliveryId?: string | null
+  stageKey?: string | null
   onCreated: (taskId: string) => void
 }) {
   const send = useCommand()
@@ -117,6 +121,8 @@ export function CreateTaskForm({
           engine,
           workspaceMode,
           dangerouslySkipPermissions: skipPermissions && workspaceTrusted,
+          ...(deliveryId ? { deliveryId } : {}),
+          ...(deliveryId && stageKey ? { stageKey } : {}),
           ...(verifyCommand.trim() ? { verifyCommand: verifyCommand.trim() } : {}),
         },
       })) as { taskId?: string } | undefined

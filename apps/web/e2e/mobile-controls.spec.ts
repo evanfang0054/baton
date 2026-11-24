@@ -161,6 +161,8 @@ test('creates a task from mobile with agent and context', async ({ page }) => {
       contextNodeIds: ['n1'],
       title: '移动建任务',
       engine: 'claude-sdk',
+      deliveryId: 'd1',
+      stageKey: 'requirement',
     })
   await expect(page.getByLabel('任务标题')).toHaveCount(0)
 })

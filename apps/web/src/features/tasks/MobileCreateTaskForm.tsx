@@ -17,6 +17,8 @@ export function MobileCreateTaskForm({
   canvasId,
   workspaceTrusted,
   nodes,
+  deliveryId = null,
+  stageKey = null,
   onCreated,
   onCancel,
 }: {
@@ -24,6 +26,8 @@ export function MobileCreateTaskForm({
   canvasId: string
   workspaceTrusted: boolean
   nodes: Node[]
+  deliveryId?: string | null
+  stageKey?: string | null
   onCreated: (taskId: string) => void
   onCancel: () => void
 }) {
@@ -120,6 +124,8 @@ export function MobileCreateTaskForm({
             engine: effectiveEngine,
             workspaceMode,
             dangerouslySkipPermissions: skipPermissions && workspaceTrusted,
+            ...(deliveryId ? { deliveryId } : {}),
+            ...(deliveryId && stageKey ? { stageKey } : {}),
             ...(verifyCommand.trim() ? { verifyCommand: verifyCommand.trim() } : {}),
           },
         })) as { taskId?: string } | undefined

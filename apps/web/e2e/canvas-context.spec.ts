@@ -191,6 +191,10 @@ test('creates a task with canvas context', async ({ page }) => {
       return payload?.contextNodeIds?.slice().sort().join(',') ?? ''
     })
     .toBe('t1,t2')
+  expect(commands.find((message) => message.type === 'task.create')?.payload).toMatchObject({
+    deliveryId: 'd1',
+    stageKey: 'requirement',
+  })
 
   await expect(page.getByText('上下文快照')).toBeVisible()
   await expect(page.getByText('注入 2 个')).toBeVisible()

@@ -1,6 +1,7 @@
 import type { SupervisorDrawingCard as SupervisorDrawingCardData } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
+import { useState } from 'react'
 import { artifactContentUrl } from '../../lib/api'
 
 export function SupervisorDrawingCard({
@@ -10,6 +11,7 @@ export function SupervisorDrawingCard({
   card: SupervisorDrawingCardData
   onOpen?: (deliveryId: string, artifactId: string) => void
 }) {
+  const [previewFailed, setPreviewFailed] = useState(false)
   return (
     <section
       aria-label={`画板 ${card.title}`}
@@ -21,11 +23,18 @@ export function SupervisorDrawingCard({
           画板
         </Chip>
       </div>
-      <img
-        src={artifactContentUrl(card.deliveryId, card.artifactId, 'preview')}
-        alt={`${card.title} 缩略图`}
-        className="mt-2 max-h-40 w-full rounded-md border border-separator object-contain"
-      />
+      {previewFailed ? (
+        <div className="mt-2 flex h-24 items-center justify-center rounded-md border border-dashed border-separator text-xs text-muted">
+          预览生成中
+        </div>
+      ) : (
+        <img
+          src={artifactContentUrl(card.deliveryId, card.artifactId, 'preview')}
+          alt={`${card.title} 缩略图`}
+          onError={() => setPreviewFailed(true)}
+          className="mt-2 max-h-40 w-full rounded-md border border-separator object-contain"
+        />
+      )}
       <p className="mt-2 text-xs text-muted">
         元素 {card.elements} 个 · 文字 {card.texts} 段{card.previewStale ? ' · 预览生成中' : ''}
       </p>

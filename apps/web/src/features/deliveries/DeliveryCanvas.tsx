@@ -195,6 +195,8 @@ export function DeliveryCanvas({
             workspaceId={workspaceId}
             workspaceTrusted={workspaceTrusted}
             contextNodes={contextNodes}
+            deliveryId={delivery.id}
+            stageKey={delivery.currentStageKey}
             groupChildCount={
               (canvas?.nodes ?? []).filter((item) => item.groupId === detailNode.id).length
             }

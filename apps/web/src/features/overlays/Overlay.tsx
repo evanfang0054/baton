@@ -16,14 +16,19 @@ export function Overlay({
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
+  const closeOnEscapeRef = useRef(closeOnEscape)
+  onCloseRef.current = onClose
+  closeOnEscapeRef.current = closeOnEscape
 
+  // 只在挂载时抢焦点；编辑器自动保存会反复重渲染，不能每次都把焦点从画布抢走。
   useEffect(() => {
     returnFocusRef.current = document.activeElement as HTMLElement | null
     panelRef.current?.focus()
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation()
-        if (closeOnEscape) onClose()
+        if (closeOnEscapeRef.current) onCloseRef.current()
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -31,7 +36,7 @@ export function Overlay({
       window.removeEventListener('keydown', onKeyDown)
       returnFocusRef.current?.focus()
     }
-  }, [closeOnEscape, onClose])
+  }, [])
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-[6vh]">

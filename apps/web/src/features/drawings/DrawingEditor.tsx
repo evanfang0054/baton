@@ -101,8 +101,22 @@ export function DrawingEditor({
     }
   }, [artifact.id])
 
+  // 冲突期间暂停自动保存，否则本地 2s 自动保存会立刻覆盖总管刚写入的 source。
+  useEffect(() => {
+    if (!conflict) return
+    if (autosaveTimer.current !== null) {
+      window.clearTimeout(autosaveTimer.current)
+      autosaveTimer.current = null
+    }
+  }, [conflict])
+
   const loadLatest = async () => {
     if (!api) return
+    if (autosaveTimer.current !== null) {
+      window.clearTimeout(autosaveTimer.current)
+      autosaveTimer.current = null
+    }
+    if (inFlight.current) await inFlight.current
     try {
       const text = await fetchArtifactText(deliveryId, artifact.id, 'source')
       const parsed = JSON.parse(text) as {
@@ -139,6 +153,7 @@ export function DrawingEditor({
   const saveNow = useCallback(
     async (mode: SaveMode): Promise<boolean> => {
       if (!api || loadState !== 'ready') return false
+      if (mode === 'source' && conflict) return false
       if (inFlight.current) {
         pending.current = true
         return false
@@ -192,7 +207,7 @@ export function DrawingEditor({
       inFlight.current = promise
       return promise
     },
-    [api, artifact.id, deliveryId, loadState],
+    [api, artifact.id, conflict, deliveryId, loadState],
   )
   saveNowRef.current = saveNow
 
@@ -201,12 +216,13 @@ export function DrawingEditor({
     changeSeq.current += 1
     setDirty(true)
     setSaveError(null)
+    if (conflict) return
     if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current)
     autosaveTimer.current = window.setTimeout(() => {
       autosaveTimer.current = null
       void saveNowRef.current('source')
     }, 2000)
-  }, [loadState])
+  }, [conflict, loadState])
 
   const requestClose = useCallback(async () => {
     if (autosaveTimer.current !== null) {
@@ -219,11 +235,18 @@ export function DrawingEditor({
     }
     if (inFlight.current) await inFlight.current
     pending.current = false
-    const saved = await saveNowRef.current('full')
-    if (saved) {
-      onSaved?.()
-      onClose()
-      return
+    // 保存期间继续编辑时再补一次 full save，避免关闭丢掉最后几笔。
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const saved = await saveNowRef.current('full')
+      if (!saved) {
+        setDiscardOpen(true)
+        return
+      }
+      if (changeSeq.current === savedSeq.current) {
+        onSaved?.()
+        onClose()
+        return
+      }
     }
     setDiscardOpen(true)
   }, [api, loadState, onClose, onSaved])
@@ -239,7 +262,7 @@ export function DrawingEditor({
     }
   }
 
-  const canSave = loadState === 'ready' && Boolean(api) && !saving
+  const canSave = loadState === 'ready' && Boolean(api) && !saving && !conflict
   const status = saving
     ? '保存中…'
     : dirty

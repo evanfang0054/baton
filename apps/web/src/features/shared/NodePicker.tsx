@@ -43,7 +43,7 @@ export function NodePicker({
   const available = useMemo(() => {
     const keyword = search.trim().toLowerCase()
     return nodes.filter((node) => {
-      if (!['text', 'file', 'agent'].includes(node.type)) return false
+      if (!['text', 'file', 'image', 'agent', 'drawing'].includes(node.type)) return false
       if (excludeIds.includes(node.id)) return false
       if (!keyword) return true
       return nodeTitle(node).toLowerCase().includes(keyword)

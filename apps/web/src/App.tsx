@@ -542,6 +542,8 @@ function AppShell() {
               canvasId={deliveryCanvas.data.canvas.id}
               workspaceTrusted={activeWorkspace?.trusted ?? false}
               nodes={deliveryCanvas.data.nodes}
+              deliveryId={activeDeliveryId}
+              stageKey={delivery.data?.currentStageKey ?? null}
               onCreated={(taskId) => {
                 setMobileTaskFormOpen(false)
                 setTask(taskId)
