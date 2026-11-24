@@ -174,7 +174,7 @@ Seam: App main-view conditions + breadcrumb
 - `deliveryDialogWorkspaceId: string | null` 取代布尔 `deliveryDialogOpen`；ProjectTree 的「新建需求」传入 workspaceId。
 - 移动端隐藏 `MobileNodeManager`、`MobileCreateTaskForm` 入口；保留看板与总管。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `App.test.tsx`：
 
@@ -187,13 +187,13 @@ Seam: App main-view conditions + breadcrumb
 // 点击需求看板后主区切到 DeliveryBoard
 ```
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
 Run: `pnpm --filter @baton/web exec vitest run src/App.test.tsx`
 
 Expected: FAIL。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - 删除 `workspaceCanvas`/`showWorkspace`/`hasNoDeliveries` 分支；`canvasRef` 只绑定需求画布。
 - `TaskBoard` 的 `agentNodes` 从当前需求画布的 agent 节点取；无画布时 `[]`。
@@ -202,13 +202,13 @@ Expected: FAIL。
 - 空态用 `surface`/`separator`/`muted`，提供「新建需求」按钮。
 - 移动端移除 workspace 画布相关入口，保留 `mobileTab` board/supervisor。
 
-- [ ] **Step 4: 运行并确认通过**
+- [x] **Step 4: 运行并确认通过**
 
 Run: `pnpm --filter @baton/web exec vitest run src/App.test.tsx src/features/deliveries`
 
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/web/src/App.tsx apps/web/src/App.test.tsx apps/web/src/features/deliveries apps/web/src/features/workspaces

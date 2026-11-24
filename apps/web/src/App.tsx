@@ -3,23 +3,19 @@ import type { AttentionInboxItem } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AutomationSettingsDialog } from './features/automation/AutomationSettingsDialog'
 import { AutomationStatus } from './features/automation/AutomationStatus'
-import { CanvasPanel } from './features/canvas/CanvasPanel'
 import { MobileNodeManager } from './features/canvas/MobileNodeManager'
-import { NodePanel } from './features/canvas/NodePanel'
 import { CreateDeliveryDialog } from './features/deliveries/CreateDeliveryDialog'
 import { DeliveryBoard } from './features/deliveries/DeliveryBoard'
 import { DeliveryCanvas } from './features/deliveries/DeliveryCanvas'
 import { ProjectTree } from './features/projects/ProjectTree'
 import { AnnotationListOverlay } from './features/overlays/AnnotationListOverlay'
-import { QuickAnnotationLayer } from './features/annotations/QuickAnnotationLayer'
 import { AcceptanceMatrixOverlay } from './features/overlays/AcceptanceMatrixOverlay'
 import { ArtifactViewerOverlay } from './features/overlays/ArtifactViewerOverlay'
 import { ConfirmDialog } from './features/overlays/ConfirmDialog'
 import { DrawingEditorOverlay } from './features/overlays/DrawingEditorOverlay'
-import { Overlay } from './features/overlays/Overlay'
 import { StageSceneOverlay } from './features/overlays/StageSceneOverlay'
 import { RealtimeProvider } from './features/realtime/RealtimeProvider'
 import { RightPanel } from './features/right-panel/RightPanel'
@@ -49,7 +45,6 @@ import {
   listDeliveries,
   listNotices,
   listTasks,
-  listWorkspaceAnnotations,
   listWorkspaces,
   setKillSwitch,
   UnauthorizedError,
@@ -105,7 +100,6 @@ function AppShell() {
   const isMobile = viewport === 'mobile'
   const queryClient = useQueryClient()
   const send = useCommand()
-  const canvasRef = useRef<import('./features/canvas/CanvasPanel').CanvasPanelHandle>(null)
   const [trustDialogOpen, setTrustDialogOpen] = useState(false)
   const [trustPromptedFor, setTrustPromptedFor] = useState<string | null>(null)
   const [automationSettingsOpen, setAutomationSettingsOpen] = useState(false)
@@ -116,9 +110,6 @@ function AppShell() {
   const [deliveryDialogWorkspaceId, setDeliveryDialogWorkspaceId] = useState<string | null>(null)
   const [cancelDeliveryId, setCancelDeliveryId] = useState<string | null>(null)
   const [showTasks, setShowTasks] = useState(false)
-  const [showWorkspace, setShowWorkspace] = useState(false)
-  const [workspaceAnnotating, setWorkspaceAnnotating] = useState(false)
-  const [workspaceAnnotationsOpen, setWorkspaceAnnotationsOpen] = useState(false)
 
   const workspaces = useQuery({ queryKey: queryKeys.workspaces, queryFn: listWorkspaces })
   const attention = useQuery({
@@ -151,11 +142,6 @@ function AppShell() {
     queryFn: () => listArtifacts(activeDeliveryId!),
     enabled: Boolean(activeDeliveryId),
   })
-  const workspaceCanvas = useQuery({
-    queryKey: queryKeys.canvas(activeWorkspaceId ?? ''),
-    queryFn: () => getCanvas(activeWorkspaceId!),
-    enabled: Boolean(activeWorkspaceId),
-  })
   const automation = useQuery({
     queryKey: queryKeys.automation(activeWorkspaceId ?? ''),
     queryFn: () => getAutomation(activeWorkspaceId!),
@@ -166,16 +152,8 @@ function AppShell() {
     queryFn: () => listNotices(activeWorkspaceId!, { kind: 'digest', limit: 5 }),
     enabled: Boolean(activeWorkspaceId),
   })
-  const workspaceAnnotations = useQuery({
-    queryKey: queryKeys.workspaceAnnotations(activeWorkspaceId ?? ''),
-    queryFn: () => listWorkspaceAnnotations(activeWorkspaceId!),
-    enabled: Boolean(activeWorkspaceId),
-  })
 
-  const hasNoDeliveries =
-    Boolean(activeWorkspaceId) && !deliveries.isLoading && (deliveries.data?.length ?? 0) === 0
-  const canvasForContext = showWorkspace || hasNoDeliveries ? workspaceCanvas : deliveryCanvas
-  const canvasNodes = canvasForContext.data?.nodes ?? []
+  const canvasNodes = deliveryCanvas.data?.nodes ?? []
   const contextNodes = useMemo(
     () => canvasNodes.filter((node) => contextNodeIds.includes(node.id)),
     [canvasNodes, contextNodeIds],
@@ -205,10 +183,8 @@ function AppShell() {
     }
   }, [tasks.data])
 
-  const selectedNode = canvasNodes.find((node) => node.id === selectedNodeId) ?? null
   const activeWorkspace =
     workspaces.data?.find((workspace) => workspace.id === activeWorkspaceId) ?? null
-  const nodeTask = selectedNode && tasks.data?.find((task) => task.nodeId === selectedNode.id)
   const unauthorized =
     wsStatus === 'unauthorized' ||
     [workspaces.error, tasks.error, deliveries.error].some(
@@ -320,7 +296,6 @@ function AppShell() {
   const selectDelivery = (deliveryId: string) => {
     setDelivery(deliveryId)
     setShowTasks(false)
-    setShowWorkspace(false)
     setOverlay(null)
   }
   const stopDelivery = (deliveryId: string) => setCancelDeliveryId(deliveryId)
@@ -334,17 +309,10 @@ function AppShell() {
       toast.danger(cause instanceof Error ? cause.message : '停止交付失败')
     }
   }
-  const goBoard = () => {
-    setDelivery(null)
-    setShowTasks(false)
-    setShowWorkspace(false)
-  }
-
   const openDelivery = (workspaceId: string, deliveryId: string) => {
     if (workspaceId !== activeWorkspaceId) setWorkspace(workspaceId)
     setDelivery(deliveryId)
     setShowTasks(false)
-    setShowWorkspace(false)
     setOverlay(null)
     writeUrlState({
       workspaceId,
@@ -360,7 +328,6 @@ function AppShell() {
     setDelivery(null)
     setDeliveryView('board')
     setShowTasks(false)
-    setShowWorkspace(false)
     setOverlay(null)
     writeUrlState({ workspaceId, deliveryId: null, taskId: null })
   }
@@ -369,7 +336,6 @@ function AppShell() {
     if (item.workspaceId !== activeWorkspaceId) setWorkspace(item.workspaceId)
     setDelivery(item.deliveryId)
     setShowTasks(false)
-    setShowWorkspace(false)
     openTask(item.taskId)
     writeUrlState({
       workspaceId: item.workspaceId,
@@ -430,30 +396,11 @@ function AppShell() {
             <div className="flex items-center gap-1 rounded-lg border border-separator p-0.5">
               <button
                 type="button"
-                className={`${viewButtonClass} ${!showTasks && !showWorkspace ? 'bg-default text-foreground' : 'text-muted'}`}
-                onClick={goBoard}
-                aria-pressed={!showTasks && !showWorkspace}
-              >
-                交付
-              </button>
-              <button
-                type="button"
                 className={`${viewButtonClass} ${showTasks ? 'bg-default text-foreground' : 'text-muted'}`}
-                onClick={() => setShowTasks(true)}
+                onClick={() => setShowTasks(!showTasks)}
                 aria-pressed={showTasks}
               >
                 任务
-              </button>
-              <button
-                type="button"
-                className={`${viewButtonClass} ${showWorkspace ? 'bg-default text-foreground' : 'text-muted'}`}
-                onClick={() => {
-                  setShowWorkspace(true)
-                  setShowTasks(false)
-                }}
-                aria-pressed={showWorkspace}
-              >
-                工作区画布
               </button>
             </div>
           ) : null}
@@ -579,12 +526,12 @@ function AppShell() {
               )
             }
           />
-          {mobileTaskFormOpen && activeWorkspaceId && workspaceCanvas.data ? (
+          {mobileTaskFormOpen && activeWorkspaceId && deliveryCanvas.data ? (
             <MobileCreateTaskForm
               workspaceId={activeWorkspaceId}
-              canvasId={workspaceCanvas.data.canvas.id}
+              canvasId={deliveryCanvas.data.canvas.id}
               workspaceTrusted={activeWorkspace?.trusted ?? false}
-              nodes={workspaceCanvas.data.nodes}
+              nodes={deliveryCanvas.data.nodes}
               onCreated={(taskId) => {
                 setMobileTaskFormOpen(false)
                 setTask(taskId)
@@ -593,10 +540,10 @@ function AppShell() {
               onCancel={() => setMobileTaskFormOpen(false)}
             />
           ) : null}
-          {mobileNodesOpen && workspaceCanvas.data ? (
+          {mobileNodesOpen && deliveryCanvas.data ? (
             <MobileNodeManager
-              canvasId={workspaceCanvas.data.canvas.id}
-              nodes={workspaceCanvas.data.nodes}
+              canvasId={deliveryCanvas.data.canvas.id}
+              nodes={deliveryCanvas.data.nodes}
               onClose={() => setMobileNodesOpen(false)}
             />
           ) : null}
@@ -625,10 +572,31 @@ function AppShell() {
             onOpenAttention={openAttention}
           />
           <main className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="flex h-10 shrink-0 items-center gap-2 border-b border-separator px-4 text-xs text-muted">
+              <span className="min-w-0 truncate">{activeWorkspace?.name ?? '选择一个项目'}</span>
+              {showTasks ? (
+                <>
+                  <span aria-hidden="true">/</span>
+                  <span className="text-foreground">任务看板</span>
+                </>
+              ) : null}
+              {!showTasks && deliveryView === 'board' && activeWorkspace ? (
+                <>
+                  <span aria-hidden="true">/</span>
+                  <span className="text-foreground">需求看板</span>
+                </>
+              ) : null}
+              {!showTasks && deliveryView === 'canvas' && delivery.data ? (
+                <>
+                  <span aria-hidden="true">/</span>
+                  <span className="min-w-0 truncate text-foreground">{delivery.data.title}</span>
+                </>
+              ) : null}
+            </div>
             {showTasks ? (
               <TaskBoard
                 tasks={tasks.data ?? []}
-                agentNodes={workspaceCanvas.data?.nodes ?? []}
+                agentNodes={deliveryCanvas.data?.nodes ?? []}
                 selectedTaskId={activeTaskId}
                 expanded
                 pinned={false}
@@ -636,51 +604,7 @@ function AppShell() {
                 onOpenScene={openTask}
                 onClose={() => setShowTasks(false)}
               />
-            ) : showWorkspace || hasNoDeliveries ? (
-              <section className="relative flex min-h-0 flex-1 flex-col">
-                <CanvasPanel
-                  ref={canvasRef}
-                  canvas={workspaceCanvas.data ?? null}
-                  tasks={tasks.data ?? []}
-                  selectedNodeId={selectedNodeId}
-                  onSelectNode={(id) => setSelectedNode(id)}
-                  onSelectNodes={setSelection}
-                  onOpenTask={openTask}
-                  onAnnotate={() => setWorkspaceAnnotating(true)}
-                  annotations={workspaceAnnotations.data ?? []}
-                />
-                <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
-                  {(workspaceAnnotations.data ?? []).filter((item) => item.status === 'open')
-                    .length > 0 ? (
-                    <Button
-                      size="sm"
-                      variant="tertiary"
-                      onPress={() => setWorkspaceAnnotationsOpen(true)}
-                    >
-                      标注{' '}
-                      {
-                        (workspaceAnnotations.data ?? []).filter((item) => item.status === 'open')
-                          .length
-                      }
-                    </Button>
-                  ) : null}
-                </div>
-                {workspaceAnnotating && activeWorkspaceId ? (
-                  <QuickAnnotationLayer
-                    workspaceId={activeWorkspaceId}
-                    annotations={(workspaceAnnotations.data ?? []).filter(
-                      (item) => item.status === 'open',
-                    )}
-                    onClose={() => setWorkspaceAnnotating(false)}
-                    onSaved={() =>
-                      void queryClient.invalidateQueries({
-                        queryKey: queryKeys.workspaceAnnotations(activeWorkspaceId),
-                      })
-                    }
-                  />
-                ) : null}
-              </section>
-            ) : activeDeliveryId && delivery.data ? (
+            ) : deliveryView === 'canvas' && activeDeliveryId && delivery.data ? (
               <DeliveryCanvas
                 workspaceId={activeWorkspaceId ?? ''}
                 delivery={delivery.data}
@@ -717,13 +641,30 @@ function AppShell() {
                   })
                 }}
               />
-            ) : (
+            ) : deliveryView === 'board' && activeWorkspaceId ? (
               <DeliveryBoard
                 deliveries={deliveries.data ?? []}
                 onSelect={selectDelivery}
                 onCancelDelivery={(deliveryId) => void stopDelivery(deliveryId)}
                 onOpenTaskView={() => setShowTasks(true)}
               />
+            ) : (
+              <section
+                data-testid="empty-canvas"
+                className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-8 text-center"
+              >
+                <p className="text-sm text-muted">
+                  {activeWorkspaceId ? '选择一个需求，或新建需求' : '先在左侧新建或选择一个项目'}
+                </p>
+                {activeWorkspaceId ? (
+                  <Button
+                    variant="primary"
+                    onPress={() => setDeliveryDialogWorkspaceId(activeWorkspaceId)}
+                  >
+                    新建需求
+                  </Button>
+                ) : null}
+              </section>
             )}
           </main>
           <RightPanel
@@ -842,47 +783,6 @@ function AppShell() {
               )
           }}
         />
-      ) : null}
-      {workspaceAnnotationsOpen && activeWorkspaceId ? (
-        <AnnotationListOverlay
-          annotations={workspaceAnnotations.data ?? []}
-          onClose={() => setWorkspaceAnnotationsOpen(false)}
-          onLocate={(annotation) => {
-            const nodeId = annotation.targetNodeIds[0]
-            if (nodeId) setSelectedNode(nodeId)
-            setWorkspaceAnnotationsOpen(false)
-          }}
-          onDelete={(annotation) => {
-            void deleteAnnotation(annotation.id)
-              .then(() =>
-                queryClient.invalidateQueries({
-                  queryKey: queryKeys.workspaceAnnotations(activeWorkspaceId),
-                }),
-              )
-              .catch((cause: unknown) =>
-                toast.danger(cause instanceof Error ? cause.message : '删除标注失败'),
-              )
-          }}
-        />
-      ) : null}
-      {(showWorkspace || hasNoDeliveries) && selectedNode && activeWorkspaceId ? (
-        <Overlay title="节点" onClose={() => setSelectedNode(null)} width="min(720px, 92vw)">
-          <NodePanel
-            key={selectedNode.id}
-            node={selectedNode}
-            task={nodeTask ?? null}
-            workspaceId={activeWorkspaceId}
-            workspaceTrusted={activeWorkspace?.trusted ?? false}
-            contextNodes={contextNodes}
-            groupChildCount={canvasNodes.filter((node) => node.groupId === selectedNode.id).length}
-            onOpenTask={(id) => {
-              setSelectedNode(null)
-              openTask(id)
-            }}
-            onDeleted={() => setSelectedNode(null)}
-            onClose={() => setSelectedNode(null)}
-          />
-        </Overlay>
       ) : null}
     </div>
   )

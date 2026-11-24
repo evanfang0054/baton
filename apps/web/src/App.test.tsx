@@ -102,6 +102,9 @@ function stubTaskApi() {
       if (url.startsWith('/api/tasks?workspaceId=w1')) {
         return json({ tasks: [{ ...task, attention: 'needs_reply', waitingSince: 2 }] })
       }
+      if (url.startsWith('/api/attention')) {
+        return json({ items: [], total: 0 })
+      }
       if (url.startsWith('/api/canvas?workspaceId=w1')) {
         return json({
           canvas: { id: 'c1', workspaceId: 'w1', viewport: { x: 0, y: 0, zoom: 1 } },
@@ -169,18 +172,16 @@ describe('App shell', () => {
     expect(screen.queryByTestId('right-panel')).not.toBeInTheDocument()
   })
 
-  it('renders the desktop shell with project tree, board and supervisor only', async () => {
+  it('renders the desktop shell with project tree, empty canvas and supervisor only', async () => {
     renderApp()
     expect(screen.getByText('baton')).toBeInTheDocument()
     expect(await screen.findByLabelText('项目与需求')).toBeInTheDocument()
-    expect(screen.getByLabelText('交付看板')).toBeInTheDocument()
+    expect(screen.getByTestId('empty-canvas')).toBeInTheDocument()
+    expect(screen.getByText('先在左侧新建或选择一个项目')).toBeInTheDocument()
     expect(screen.getByTestId('right-panel')).toBeInTheDocument()
     expect(screen.getByText('精灵总管')).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: '任务' })).not.toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: '节点' })).not.toBeInTheDocument()
-    expect(
-      await screen.findByText('还没有交付。在左侧点“新建交付”，把第一条需求放到画布上。'),
-    ).toBeInTheDocument()
   })
 
   it('opens the create-workspace dialog', async () => {
