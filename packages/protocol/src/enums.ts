@@ -21,7 +21,16 @@ export function isHandoffable(status: TaskStatus): status is HandoffableStatus {
   return (HANDOFFABLE_STATUSES as readonly TaskStatus[]).includes(status)
 }
 
-export const NodeType = z.enum(['text', 'image', 'file', 'agent', 'review', 'group'])
+export const NodeType = z.enum([
+  'text',
+  'image',
+  'file',
+  'agent',
+  'review',
+  'group',
+  'artifact',
+  'drawing',
+])
 export type NodeType = z.infer<typeof NodeType>
 
 export const EdgeType = z.literal('context')

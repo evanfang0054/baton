@@ -404,4 +404,34 @@ describe('assembleContext', () => {
   it('keeps the defensive relation limits', () => {
     expect(RELATION_LIMITS).toEqual({ maxEdges: 200, maxChars: 4_000 })
   })
+
+  it('renders drawing text and falls back to the title', () => {
+    const drawing = node(
+      'n9',
+      'drawing',
+      { artifactId: 'a1', title: '流程草图', status: 'ready' },
+      80,
+      80,
+    )
+    const present = assembleContext({
+      taskPrompt: '按草图实现',
+      targetNodeId: 'n4',
+      selectedNodeIds: ['n9'],
+      nodes: [...nodes, drawing],
+      edges,
+      contentByNodeId: { n9: '入口 → 支付' },
+    })
+    expect(present.prompt).toContain('<node id="n9" type="drawing" title="流程草图">')
+    expect(present.prompt).toContain('入口 → 支付')
+
+    const empty = assembleContext({
+      taskPrompt: '按草图实现',
+      targetNodeId: 'n4',
+      selectedNodeIds: ['n9'],
+      nodes: [...nodes, drawing],
+      edges,
+      contentByNodeId: { n9: null },
+    })
+    expect(empty.prompt).toContain('[画板] 流程草图')
+  })
 })

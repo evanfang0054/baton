@@ -96,8 +96,17 @@ describe('applyDrawingOperations', () => {
     const scene = applyDrawingOperations(
       createEmptyScene(),
       [
-        { op: 'add_rectangle', id: 'box', x: 10, y: 10, w: 200, h: 100, text: '入口' },
-        { op: 'add_ellipse', id: 'oval', x: 300, y: 10, w: 120, h: 80 },
+        {
+          op: 'add_shape',
+          shape: 'rectangle',
+          id: 'box',
+          x: 10,
+          y: 10,
+          w: 200,
+          h: 100,
+          text: '入口',
+        },
+        { op: 'add_shape', shape: 'ellipse', id: 'oval', x: 300, y: 10, w: 120, h: 80 },
         { op: 'add_arrow', id: 'arrow', x: 210, y: 60, w: 90, h: 0, fromId: 'box', toId: 'oval' },
         {
           op: 'add_image',
@@ -145,8 +154,18 @@ describe('applyDrawingOperations', () => {
     const scene = applyDrawingOperations(
       createEmptyScene(),
       [
-        { op: 'add_rectangle', id: 'box', x: 10, y: 10, w: 200, h: 100, text: '旧标题' },
-        { op: 'update_element', id: 'box', x: 60, y: 40, text: '新标题' },
+        {
+          op: 'add_shape',
+          shape: 'rectangle',
+          id: 'box',
+          x: 10,
+          y: 10,
+          w: 200,
+          h: 100,
+          text: '旧标题',
+        },
+        { op: 'move_element', id: 'box', x: 60, y: 40 },
+        { op: 'update_text', id: 'n-1', text: '新标题' },
       ],
       { newId: ids(), now: 100 },
     )
@@ -160,8 +179,8 @@ describe('applyDrawingOperations', () => {
     const scene = applyDrawingOperations(
       createEmptyScene(),
       [
-        { op: 'add_rectangle', id: 'box', x: 0, y: 0, w: 100, h: 50, text: '删掉' },
-        { op: 'delete_element', id: 'box' },
+        { op: 'add_shape', shape: 'rectangle', id: 'box', x: 0, y: 0, w: 100, h: 50, text: '删掉' },
+        { op: 'delete_elements', ids: ['box'] },
       ],
       { newId: ids(), now: 100 },
     )
@@ -171,7 +190,7 @@ describe('applyDrawingOperations', () => {
 
   it('enforces element and text limits and invalid references', () => {
     expect(() =>
-      applyDrawingOperations(createEmptyScene(), [{ op: 'delete_element', id: 'missing' }], {
+      applyDrawingOperations(createEmptyScene(), [{ op: 'delete_elements', ids: ['missing'] }], {
         newId: ids(),
         now: 1,
       }),
@@ -195,5 +214,76 @@ describe('applyDrawingOperations', () => {
         limits: { maxTextChars: 3 },
       }),
     ).toThrowError(/text is too large/)
+  })
+
+  it('supports line, freedraw, style, move, resize and multi-delete', () => {
+    const scene = applyDrawingOperations(
+      createEmptyScene(),
+      [
+        { op: 'add_line', id: 'line', x: 0, y: 0, w: 100, h: 0 },
+        {
+          op: 'add_freedraw',
+          id: 'free',
+          x: 200,
+          y: 200,
+          points: [
+            { x: 0, y: 0 },
+            { x: 20, y: 30 },
+          ],
+        },
+        { op: 'add_shape', shape: 'rectangle', id: 'box', x: 20, y: 20, w: 100, h: 60, text: '旧' },
+        { op: 'set_style', id: 'box', strokeColor: '#ff0000', strokeWidth: 4, opacity: 50 },
+        { op: 'move_element', id: 'box', dx: 10, dy: 10 },
+        { op: 'resize_element', id: 'box', w: 200, h: 120 },
+        { op: 'update_text', id: 'n-1', text: '新' },
+        { op: 'delete_elements', ids: ['line', 'free'] },
+      ],
+      { newId: ids(), now: 100 },
+    )
+    expect(scene.elements.find((element) => element.id === 'box')).toMatchObject({
+      x: 30,
+      y: 30,
+      width: 200,
+      height: 120,
+      strokeColor: '#ff0000',
+      strokeWidth: 4,
+      opacity: 50,
+    })
+    expect(scene.elements.find((element) => element.id === 'n-1')).toMatchObject({ text: '新' })
+    expect(scene.elements.find((element) => element.id === 'line')?.isDeleted).toBe(true)
+    expect(scene.elements.find((element) => element.id === 'free')?.isDeleted).toBe(true)
+  })
+
+  it('rejects more than 50 operations', () => {
+    const operations = Array.from({ length: 51 }, (_, index) => ({
+      op: 'add_text' as const,
+      x: index,
+      y: 0,
+      text: 'x',
+    }))
+    expect(() =>
+      applyDrawingOperations(createEmptyScene(), operations, { newId: ids(), now: 1 }),
+    ).toThrowError(/too many operations/)
+  })
+
+  it('rejects writes beyond 500 elements', () => {
+    const existing = {
+      type: 'excalidraw',
+      version: 2,
+      elements: Array.from({ length: 500 }, (_, index) => ({
+        id: `r-${index}`,
+        type: 'rectangle',
+        x: index,
+        y: 0,
+        width: 1,
+        height: 1,
+      })),
+    }
+    expect(() =>
+      applyDrawingOperations(existing, [{ op: 'add_text', x: 0, y: 0, text: '超出' }], {
+        newId: ids(),
+        now: 1,
+      }),
+    ).toThrowError(/too many elements/)
   })
 })

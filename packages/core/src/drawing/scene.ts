@@ -44,6 +44,13 @@ export const DRAWING_LIMITS = {
   maxTextChars: 200_000,
 } as const
 
+/** 写入限制比读取上限更严格：模型一次写入不能撑爆画板或请求体。 */
+export const DRAWING_WRITE_LIMITS = {
+  maxElements: 500,
+  maxTextChars: 200_000,
+  maxOperations: 50,
+} as const
+
 function elementsOf(scene: unknown): unknown[] {
   if (Array.isArray(scene)) return scene
   if (!scene || typeof scene !== 'object') return []
@@ -210,7 +217,7 @@ export class DrawingOperationError extends Error {
 }
 
 const DEFAULT_FONT_SIZE = 20
-const MAX_OPERATIONS = 100
+const MAX_OPERATIONS = DRAWING_WRITE_LIMITS.maxOperations
 
 function hashNumber(input: string): number {
   let hash = 0x811c9dc5
@@ -284,7 +291,12 @@ function elementBase(input: {
     opacity: 100,
     groupIds: [],
     frameId: null,
-    roundness: input.type === 'arrow' || input.type === 'text' ? null : { type: 3 },
+    roundness:
+      input.type === 'arrow' || input.type === 'text'
+        ? null
+        : input.type === 'diamond'
+          ? { type: 2 }
+          : { type: 3 },
     seed: hashNumber(input.id),
     version: 1,
     versionNonce: hashNumber(`${input.id}:nonce`),
@@ -400,6 +412,24 @@ function addLabel(
   scene.elements.push(label)
 }
 
+function moveBoundElements(
+  scene: DrawingScene,
+  element: SceneElement,
+  dx: number,
+  dy: number,
+): void {
+  for (const item of scene.elements) {
+    const inContainer = item.containerId === element.id
+    const boundTo = (item.boundElements as Array<{ id: string }> | undefined)?.some(
+      (bound) => bound.id === element.id,
+    )
+    if (inContainer || boundTo) {
+      item.x = Number(item.x) + dx
+      item.y = Number(item.y) + dy
+    }
+  }
+}
+
 function applyOperation(
   scene: DrawingScene,
   operation: ResolvedDrawingOperation,
@@ -423,11 +453,10 @@ function applyOperation(
       )
       return
     }
-    case 'add_rectangle':
-    case 'add_ellipse': {
+    case 'add_shape': {
       const shape = elementBase({
         id: nextId(options, operation.id),
-        type: operation.op === 'add_rectangle' ? 'rectangle' : 'ellipse',
+        type: operation.shape,
         x: operation.x,
         y: operation.y,
         w: operation.w,
@@ -439,10 +468,11 @@ function applyOperation(
       if (operation.text) addLabel(scene, shape, operation.text, options)
       return
     }
-    case 'add_arrow': {
-      const arrow = elementBase({
+    case 'add_arrow':
+    case 'add_line': {
+      const line = elementBase({
         id: nextId(options, operation.id),
-        type: 'arrow',
+        type: operation.op === 'add_arrow' ? 'arrow' : 'line',
         x: operation.x,
         y: operation.y,
         w: operation.w,
@@ -450,32 +480,65 @@ function applyOperation(
         index: scene.elements.length,
         now: options.now,
       })
-      Object.assign(arrow, {
+      Object.assign(line, {
+        // Excalidraw 序列化时 points 是 [x, y] 数组，不是 {x, y} 对象。
         points: [
-          { x: 0, y: 0 },
-          { x: operation.w, y: operation.h },
+          [0, 0],
+          [operation.w, operation.h],
         ],
         lastCommittedPoint: null,
-        startBinding: operation.fromId ? { elementId: operation.fromId, focus: 0, gap: 8 } : null,
-        endBinding: operation.toId ? { elementId: operation.toId, focus: 0, gap: 8 } : null,
+        startBinding:
+          operation.op === 'add_arrow' && operation.fromId
+            ? { elementId: operation.fromId, focus: 0, gap: 8 }
+            : null,
+        endBinding:
+          operation.op === 'add_arrow' && operation.toId
+            ? { elementId: operation.toId, focus: 0, gap: 8 }
+            : null,
         startArrowhead: null,
-        endArrowhead: 'arrow',
+        endArrowhead: operation.op === 'add_arrow' ? 'arrow' : null,
       })
-      if (operation.fromId) {
+      if (operation.op === 'add_arrow' && operation.fromId) {
         const from = findElement(scene, operation.fromId)
         from.boundElements = [
           ...((from.boundElements as Array<{ id: string; type: string }> | undefined) ?? []),
-          { id: arrow.id, type: 'arrow' },
+          { id: line.id, type: 'arrow' },
         ]
       }
-      if (operation.toId) {
+      if (operation.op === 'add_arrow' && operation.toId) {
         const to = findElement(scene, operation.toId)
         to.boundElements = [
           ...((to.boundElements as Array<{ id: string; type: string }> | undefined) ?? []),
-          { id: arrow.id, type: 'arrow' },
+          { id: line.id, type: 'arrow' },
         ]
       }
-      scene.elements.push(arrow)
+      scene.elements.push(line)
+      return
+    }
+    case 'add_freedraw': {
+      const xs = operation.points.map((point) => point.x)
+      const ys = operation.points.map((point) => point.y)
+      const minX = Math.min(...xs)
+      const minY = Math.min(...ys)
+      const width = Math.max(1, Math.max(...xs) - minX)
+      const height = Math.max(1, Math.max(...ys) - minY)
+      const free = elementBase({
+        id: nextId(options, operation.id),
+        type: 'freedraw',
+        x: operation.x + minX,
+        y: operation.y + minY,
+        w: width,
+        h: height,
+        index: scene.elements.length,
+        now: options.now,
+      })
+      Object.assign(free, {
+        points: operation.points.map((point) => [point.x - minX, point.y - minY]),
+        pressures: [],
+        simulatePressure: true,
+        lastCommittedPoint: null,
+      })
+      scene.elements.push(free)
       return
     }
     case 'add_image': {
@@ -511,58 +574,76 @@ function applyOperation(
       scene.elements.push(image)
       return
     }
-    case 'update_element': {
+    case 'update_text': {
       const element = findElement(scene, operation.id)
-      const dx = operation.x === undefined ? 0 : operation.x - Number(element.x)
-      const dy = operation.y === undefined ? 0 : operation.y - Number(element.y)
-      if (operation.x !== undefined) element.x = operation.x
-      if (operation.y !== undefined) element.y = operation.y
-      if (operation.w !== undefined) element.width = operation.w
-      if (operation.h !== undefined) element.height = operation.h
-      if (operation.text !== undefined) {
-        if (element.type === 'text') {
-          element.text = operation.text
-          element.originalText = operation.text
-        } else {
-          const label = boundText(scene, element)
-          if (label) {
-            label.text = operation.text
-            label.originalText = operation.text
-          } else {
-            addLabel(scene, element, operation.text, options)
-          }
-        }
+      if (element.type !== 'text') {
+        throw new DrawingOperationError(
+          'drawing_operation_invalid',
+          `element is not text: ${operation.id}`,
+        )
       }
-      if (dx !== 0 || dy !== 0) {
-        for (const item of scene.elements) {
-          if (
-            item.containerId === element.id ||
-            (item.boundElements as Array<{ id: string }> | undefined)?.some(
-              (bound) => bound.id === element.id,
-            )
-          ) {
-            item.x = Number(item.x) + dx
-            item.y = Number(item.y) + dy
-          }
-        }
-      }
+      element.text = operation.text
+      element.originalText = operation.text
       return
     }
-    case 'delete_element': {
+    case 'move_element': {
       const element = findElement(scene, operation.id)
-      element.isDeleted = true
-      if (element.type === 'text' && element.containerId) {
-        const container = scene.elements.find((item) => item.id === element.containerId)
-        if (container) {
-          container.boundElements = (
-            (container.boundElements as Array<{ id: string; type: string }> | undefined) ?? []
-          ).filter((bound) => bound.id !== element.id)
-        }
-      }
+      const targetX = operation.x ?? Number(element.x) + (operation.dx ?? 0)
+      const targetY = operation.y ?? Number(element.y) + (operation.dy ?? 0)
+      const dx = targetX - Number(element.x)
+      const dy = targetY - Number(element.y)
+      element.x = targetX
+      element.y = targetY
+      if (dx !== 0 || dy !== 0) moveBoundElements(scene, element, dx, dy)
+      return
+    }
+    case 'resize_element': {
+      const element = findElement(scene, operation.id)
+      element.width = operation.w
+      element.height = operation.h
       const label = boundText(scene, element)
-      if (label) label.isDeleted = true
+      if (label) {
+        label.x = Number(element.x) + 12
+        label.y = Number(element.y) + Number(element.height) / 2 - 12
+        label.width = Math.max(24, Number(element.width) - 24)
+      }
       return
     }
+    case 'delete_elements': {
+      for (const id of operation.ids) {
+        const element = findElement(scene, id)
+        element.isDeleted = true
+        if (element.type === 'text' && element.containerId) {
+          const container = scene.elements.find((item) => item.id === element.containerId)
+          if (container) {
+            container.boundElements = (
+              (container.boundElements as Array<{ id: string; type: string }> | undefined) ?? []
+            ).filter((bound) => bound.id !== element.id)
+          }
+        }
+        const label = boundText(scene, element)
+        if (label) label.isDeleted = true
+      }
+      return
+    }
+    case 'set_style': {
+      const element = findElement(scene, operation.id)
+      for (const key of [
+        'strokeColor',
+        'backgroundColor',
+        'fillStyle',
+        'strokeWidth',
+        'strokeStyle',
+        'roughness',
+        'opacity',
+      ] as const) {
+        if (operation[key] !== undefined) element[key] = operation[key]
+      }
+      return
+    }
+    case 'set_title':
+      // 标题存在画布节点上，不在 scene 里；由 daemon 画板服务处理。
+      return
   }
 }
 
@@ -583,7 +664,7 @@ export function applyDrawingOperations(
     )
   }
   const next = structuredClone(sceneOf(scene))
-  const use = drawLimits(input.limits)
+  const use = drawLimits(input.limits, DRAWING_WRITE_LIMITS)
   const options: DrawingOperationOptions = {
     newId: input.newId,
     now: input.now,
@@ -611,12 +692,15 @@ export function applyDrawingOperations(
   return next
 }
 
-export function drawLimits(input?: Partial<{ maxElements: number; maxTextChars: number }>): {
+export function drawLimits(
+  input?: Partial<{ maxElements: number; maxTextChars: number }>,
+  fallback: { maxElements: number; maxTextChars: number } = DRAWING_LIMITS,
+): {
   maxElements: number
   maxTextChars: number
 } {
-  const maxElements = input?.maxElements ?? DRAWING_LIMITS.maxElements
-  const maxTextChars = input?.maxTextChars ?? DRAWING_LIMITS.maxTextChars
+  const maxElements = input?.maxElements ?? fallback.maxElements
+  const maxTextChars = input?.maxTextChars ?? fallback.maxTextChars
   return {
     maxElements: Math.max(0, Math.floor(maxElements)),
     maxTextChars: Math.max(0, Math.floor(maxTextChars)),
