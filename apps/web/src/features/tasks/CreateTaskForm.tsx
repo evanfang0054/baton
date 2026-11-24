@@ -56,6 +56,8 @@ export function CreateTaskForm({
   workspaceTrusted,
   defaultTitle,
   contextNodes = [],
+  deliveryId = null,
+  stageKey = null,
   onCreated,
 }: {
   nodeId: string
@@ -63,6 +65,8 @@ export function CreateTaskForm({
   workspaceTrusted: boolean
   defaultTitle: string
   contextNodes?: ProtocolNode[]
+  deliveryId?: string | null
+  stageKey?: string | null
   onCreated: (taskId: string) => void
 }) {
   const send = useCommand()
@@ -117,6 +121,8 @@ export function CreateTaskForm({
           engine,
           workspaceMode,
           dangerouslySkipPermissions: skipPermissions && workspaceTrusted,
+          ...(deliveryId ? { deliveryId } : {}),
+          ...(deliveryId && stageKey ? { stageKey } : {}),
           ...(verifyCommand.trim() ? { verifyCommand: verifyCommand.trim() } : {}),
         },
       })) as { taskId?: string } | undefined
@@ -215,7 +221,7 @@ export function CreateTaskForm({
             使用独立工作树
             <br />
             {capabilities.data?.worktree === false
-              ? '该工作区不是 git 仓库，不能使用独立工作树。'
+              ? '该项目不是 git 仓库，不能使用独立工作树。'
               : '任务在独立分支与目录中执行；结束后保留，可手动清理。'}
           </span>
         </label>
@@ -269,7 +275,7 @@ export function CreateTaskForm({
             <br />
             {workspaceTrusted
               ? '仅对本任务生效；需服务端开启 BATON_ALLOW_BYPASS_PERMISSIONS。'
-              : '仅已信任的工作区可用；先在顶部信任此工作区。'}
+              : '仅已信任的项目可用；先在顶部信任此项目。'}
           </span>
         </label>
         {engines.isError ? (

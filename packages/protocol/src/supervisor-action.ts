@@ -59,6 +59,8 @@ export const PlanPayload = z
       })
       .strict(),
     triggerId: Id,
+    deliveryId: Id.nullable().default(null),
+    stageKey: z.string().max(32).nullable().default(null),
   })
   .strict()
 export type PlanPayload = z.infer<typeof PlanPayload>

@@ -147,11 +147,34 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
     })
   }
 
+  /**
+   * 画板节点与 artifact 一一对应；保存时同步缩略图、状态与 stale 标记。
+   * 自动保存 source 不调用这里，避免每个 2 秒 chunk 都写节点。
+   */
+  function syncDrawingNode(tx: Tx, artifact: Artifact, previewStale: boolean): void {
+    if (artifact.kind !== 'drawing') return
+    const canvas = getCanvasByDelivery(deps.db, artifact.deliveryId)
+    if (!canvas) return
+    const now = deps.now()
+    for (const node of listNodes(deps.db, canvas.id)) {
+      if (node.type !== 'drawing' || node.data.artifactId !== artifact.id) continue
+      updateNode(tx, node.id, {
+        data: {
+          ...node.data,
+          thumbnailPath: previewStale ? (node.data.thumbnailPath ?? null) : artifact.path,
+          status: previewStale ? node.data.status : 'ready',
+          previewStale,
+        },
+        updatedAt: now,
+      })
+    }
+  }
+
   function listArtifacts(deliveryId: string): Artifact[] {
     return listArtifactsByDelivery(deps.db, deliveryId)
   }
 
-  function emitArtifact(artifact: Artifact): void {
+  function emitArtifact(artifact: Artifact, previewStale?: boolean): void {
     deps.emit?.({
       type: 'artifact.updated',
       payload: {
@@ -159,6 +182,7 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
         deliveryId: artifact.deliveryId,
         stageKey: artifact.stageKey,
         status: artifact.status,
+        ...(previewStale === undefined ? {} : { previewStale }),
       },
       ts: artifact.updatedAt,
     })
@@ -271,14 +295,22 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
     previewBase64?: string
     sourceBase64?: string
     svgBase64?: string
+    mode?: 'full' | 'source' | 'preview'
   }): Artifact {
     const artifact = getArtifact(deps.db, input.artifactId)
     if (!artifact) throw appError('artifact_not_found', 'artifact not found')
     const workspacePath = workspacePathOf(deps.db, deps.config, artifact.deliveryId)
     if (!workspacePath) throw appError('workspace_not_found', 'workspace not found')
+    const mode = input.mode ?? 'full'
     const preview = input.previewBase64 ? Buffer.from(input.previewBase64, 'base64') : null
     const source = input.sourceBase64 ? Buffer.from(input.sourceBase64, 'base64') : null
     const svg = input.svgBase64 ? Buffer.from(input.svgBase64, 'base64') : null
+    if (mode === 'source' && !source) {
+      throw appError('invalid_payload', 'source is required for source mode')
+    }
+    if (mode === 'preview' && !preview) {
+      throw appError('invalid_payload', 'preview is required for preview mode')
+    }
     for (const [name, buffer] of [
       ['preview', preview],
       ['source', source],
@@ -288,20 +320,23 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
         throw appError('payload_too_large', `${name} exceeds 10MB`)
       }
     }
+    const writePreview = mode !== 'source' ? preview : null
+    const writeSource = mode !== 'preview' ? source : null
+    const writeSvg = mode === 'full' ? svg : null
     const updated: Artifact = {
       ...artifact,
       sourcePath:
-        source && !artifact.sourcePath
+        writeSource && !artifact.sourcePath
           ? artifact.path.replace(/\.(png|jpg|jpeg|webp)$/i, '.excalidraw')
           : artifact.sourcePath,
       svgPath:
-        svg && !artifact.svgPath
+        writeSvg && !artifact.svgPath
           ? artifact.path.replace(/\.(png|jpg|jpeg|webp)$/i, '.svg')
           : artifact.svgPath,
-      size: preview?.length ?? artifact.size,
-      sha256: preview ? sha256(preview) : artifact.sha256,
-      mime: preview ? mimeOf(artifact.path) : artifact.mime,
-      status: 'ready',
+      size: writePreview?.length ?? artifact.size,
+      sha256: writePreview ? sha256(writePreview) : artifact.sha256,
+      mime: writePreview ? mimeOf(artifact.path) : artifact.mime,
+      status: mode === 'source' ? artifact.status : 'ready',
       updatedAt: deps.now(),
     }
     deps.db.transaction((tx) => {
@@ -309,20 +344,61 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
         if (!rel || !buffer) return
         writeFileSync(safeRootPath(workspacePath, rel), buffer)
       }
-      write(updated.path, preview)
-      write(updated.sourcePath, source)
-      write(updated.svgPath, svg)
+      write(updated.path, writePreview)
+      write(updated.sourcePath, writeSource)
+      write(updated.svgPath, writeSvg)
       upsertArtifact(tx, updated)
-      if (updated.kind !== 'drawing') syncArtifactNode(tx, updated)
-      insertAudit(tx, {
-        id: deps.newId(),
-        ts: updated.updatedAt,
-        actor: 'human',
-        action: 'artifact.save',
-        detail: { artifactId: updated.id, size: updated.size },
-      })
+      if (mode !== 'source') {
+        if (updated.kind === 'drawing') syncDrawingNode(tx, updated, false)
+        else syncArtifactNode(tx, updated)
+      }
+      if (mode === 'full') {
+        insertAudit(tx, {
+          id: deps.newId(),
+          ts: updated.updatedAt,
+          actor: 'human',
+          action: 'artifact.save',
+          detail: { artifactId: updated.id, size: updated.size },
+        })
+      }
     })
-    emitArtifact(updated)
+    if (mode !== 'source') emitArtifact(updated)
+    return updated
+  }
+
+  /**
+   * 总管/画板服务写 source 时使用：更新 updatedAt 与 previewStale，并广播。
+   * 编辑器自动保存仍走 saveArtifactContent(mode='source')，不会触发这里。
+   */
+  function updateDrawingSource(input: {
+    artifactId: string
+    sourceBase64: string
+    previewStale: boolean
+  }): Artifact {
+    const artifact = getArtifact(deps.db, input.artifactId)
+    if (!artifact) throw appError('artifact_not_found', 'artifact not found')
+    if (artifact.kind !== 'drawing') {
+      throw appError('invalid_payload', 'artifact is not a drawing')
+    }
+    const workspacePath = workspacePathOf(deps.db, deps.config, artifact.deliveryId)
+    if (!workspacePath) throw appError('workspace_not_found', 'workspace not found')
+    const source = Buffer.from(input.sourceBase64, 'base64')
+    if (source.length > MAX_ARTIFACT_BYTES) {
+      throw appError('payload_too_large', 'source exceeds 10MB')
+    }
+    const sourcePath =
+      artifact.sourcePath ?? artifact.path.replace(/\.(png|jpg|jpeg|webp)$/i, '.excalidraw')
+    const updated: Artifact = {
+      ...artifact,
+      sourcePath,
+      updatedAt: deps.now(),
+    }
+    deps.db.transaction((tx) => {
+      writeFileSync(safeRootPath(workspacePath, sourcePath), source)
+      upsertArtifact(tx, updated)
+      syncDrawingNode(tx, updated, input.previewStale)
+    })
+    emitArtifact(updated, input.previewStale)
     return updated
   }
 
@@ -353,6 +429,7 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
     checkRequiredArtifacts,
     createDraftArtifact,
     saveArtifactContent,
+    updateDrawingSource,
     readArtifactContent,
     workspacePathOf: (deliveryId: string) => workspacePathOf(deps.db, deps.config, deliveryId),
   }

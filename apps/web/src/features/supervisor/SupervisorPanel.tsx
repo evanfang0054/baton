@@ -16,12 +16,18 @@ import { useSupervisorStream, useSupervisorStreamStore } from './stream-store'
 
 export function SupervisorPanel({
   workspaceId,
+  deliveryId = null,
+  stageKey = null,
+  scopeLabel,
   contextNodes,
   targetAgent,
   mobile = false,
   nodes = [],
 }: {
   workspaceId: string | null
+  deliveryId?: string | null
+  stageKey?: string | null
+  scopeLabel?: string
   contextNodes: ProtocolNode[]
   targetAgent: SupervisorTargetAgent | null
   mobile?: boolean
@@ -109,6 +115,10 @@ export function SupervisorPanel({
   const resend = async (userMessage: SupervisorMessage) => {
     if (!workspaceId || retrying || stream.status === 'streaming') return
     const meta = userMessage.meta
+    const scope =
+      meta?.deliveryId && meta.stageKey
+        ? { deliveryId: meta.deliveryId, stageKey: meta.stageKey }
+        : null
     setRetrying(true)
     // 与输入框保持一致：重试后立刻进入“正在思考”，避免重复点击再发一轮。
     useSupervisorStreamStore.getState().waitForReply()
@@ -121,6 +131,7 @@ export function SupervisorPanel({
           text: userMessage.content,
           contextNodeIds: meta?.contextNodeIds ?? [],
           ...(meta?.targetNodeId ? { targetNodeId: meta.targetNodeId } : {}),
+          ...(scope ?? {}),
         },
       })
     } catch (cause) {
@@ -143,6 +154,12 @@ export function SupervisorPanel({
     state.setSelectedNode(null)
     state.openStage(taskId)
   }
+  const openDrawing = (drawingDeliveryId: string, artifactId: string) => {
+    const state = useAppStore.getState()
+    state.setSelectedNode(null)
+    state.setDelivery(drawingDeliveryId)
+    state.setOverlay({ kind: 'drawing', deliveryId: drawingDeliveryId, artifactId })
+  }
   const applyProposal = async (proposalId: string): Promise<boolean> => {
     if (!workspaceId) return false
     try {
@@ -162,7 +179,7 @@ export function SupervisorPanel({
   return (
     <div data-testid="supervisor-panel" className="flex h-full min-h-0 flex-col">
       <SupervisorStatusBar status={status.data} />
-      {!workspaceId ? <p className="p-4 text-sm text-muted">先选择一个工作区</p> : null}
+      {!workspaceId ? <p className="p-4 text-sm text-muted">先选择一个项目</p> : null}
       {workspaceId && status.isError ? (
         <div role="alert" className="m-4 rounded-lg border border-danger bg-danger/10 p-3">
           <p className="text-sm font-medium text-danger">无法读取总管状态</p>
@@ -227,12 +244,16 @@ export function SupervisorPanel({
             setQuickPrompt((previous) => ({ text, seq: previous.seq + 1 }))
           }
           onOpenTask={openTask}
+          onOpenDrawing={openDrawing}
           onApplyProposal={applyProposal}
         />
       ) : null}
       {workspaceId && history.data ? (
         <SupervisorComposer
           workspaceId={workspaceId}
+          deliveryId={deliveryId}
+          stageKey={stageKey}
+          {...(scopeLabel ? { scopeLabel } : {})}
           contextNodes={contextNodes}
           targetAgent={targetAgent}
           initialText={quickPrompt.text}

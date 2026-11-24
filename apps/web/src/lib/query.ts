@@ -2,6 +2,7 @@ import { QueryClient } from '@tanstack/react-query'
 
 export const queryKeys = {
   workspaces: ['workspaces'] as const,
+  attention: ['attention'] as const,
   workspaceCapabilities: (workspaceId: string) => ['workspace-capabilities', workspaceId] as const,
   workspaceBrowse: (path: string, query: string) => ['workspace-browse', path, query] as const,
   engines: ['engines'] as const,
@@ -11,6 +12,7 @@ export const queryKeys = {
   delivery: (deliveryId: string) => ['delivery', deliveryId] as const,
   deliveryCanvas: (workspaceId: string, deliveryId: string) =>
     ['delivery-canvas', workspaceId, deliveryId] as const,
+  deliveryCanvases: ['delivery-canvas'] as const,
   artifacts: (deliveryId: string) => ['artifacts', deliveryId] as const,
   annotations: (deliveryId: string) => ['annotations', deliveryId] as const,
   annotationDrawing: (annotationId: string) => ['annotation-drawing', annotationId] as const,
@@ -51,7 +53,7 @@ export async function invalidateTaskQueries(
   }
 }
 
-/** 交付命令后统一刷新交付/画布/任务查询，避免人工入口与实时入口漏键。 */
+/** 需求命令后统一刷新需求/画布/任务查询，避免人工入口与实时入口漏键。 */
 export async function invalidateDeliveryQueries(
   client: QueryClient,
   workspaceId: string,

@@ -18,7 +18,7 @@ export type AppOverlay =
   | { kind: 'annotations'; deliveryId: string }
   | { kind: 'acceptance'; deliveryId: string }
 
-const CONTEXT_TYPES = new Set<Node['type']>(['text', 'file', 'image', 'group'])
+const CONTEXT_TYPES = new Set<Node['type']>(['text', 'file', 'image', 'group', 'drawing'])
 
 function sameIds(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((id, index) => id === b[index])
@@ -65,7 +65,7 @@ export const useAppStore = create<AppState>((set) => ({
   activeWorkspaceId: null,
   activeTaskId: null,
   activeDeliveryId: null,
-  deliveryView: 'board',
+  deliveryView: 'canvas',
   overlay: null,
   rightPanelCollapsed: false,
   selectedNodeId: null,
@@ -83,7 +83,7 @@ export const useAppStore = create<AppState>((set) => ({
       activeWorkspaceId,
       activeTaskId: null,
       activeDeliveryId: null,
-      deliveryView: 'board',
+      deliveryView: 'canvas',
       overlay: null,
       selectedNodeId: null,
       selectedNodeIds: [],
@@ -111,7 +111,7 @@ export const useAppStore = create<AppState>((set) => ({
       selectedNodeId: null,
       selectedNodeIds: [],
       overlay: null,
-      deliveryView: activeDeliveryId ? 'canvas' : 'board',
+      deliveryView: 'canvas',
     }),
   setDeliveryView: (deliveryView) => set({ deliveryView }),
   setOverlay: (overlay) => set({ overlay }),

@@ -105,7 +105,7 @@ describe('AutomationSettingsDialog', () => {
     vi.mocked(listAudit).mockResolvedValue([])
     wrap()
 
-    expect(await screen.findByText('先信任工作区，才能启用自动化。')).toBeInTheDocument()
+    expect(await screen.findByText('先信任项目，才能启用自动化。')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
   })
 

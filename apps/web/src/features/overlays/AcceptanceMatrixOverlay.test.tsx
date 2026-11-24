@@ -15,7 +15,7 @@ vi.mock('../../lib/api', () => ({
 
 const delivery = {
   id: 'd1',
-  title: '演示交付',
+  title: '演示需求',
   goal: '验证验收矩阵通过时的 override 理由',
   status: 'waiting_person',
   currentStageKey: 'acceptance',

@@ -5,7 +5,10 @@ import type { TaskCreateInput } from '@baton/protocol'
 import { execa } from 'execa'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Config } from '../src/config.js'
-import { getTask } from '../src/db/repositories.js'
+import { randomUUID } from 'node:crypto'
+import { insertDelivery } from '../src/db/delivery-repositories.js'
+import { STANDARD_PLAYBOOK } from '../src/delivery/playbook.js'
+import { getTask, insertNode } from '../src/db/repositories.js'
 import { createTaskService } from '../src/runtime/task-service.js'
 import { createTestDb, seedTask, seedTextNode, type TestDb } from './helpers/db.js'
 
@@ -19,7 +22,9 @@ interface Setup {
   service: ReturnType<typeof createTaskService>
 }
 
-function setup(options: { allowBypassPermissions?: boolean } = {}): Setup {
+function setup(
+  options: { allowBypassPermissions?: boolean; readDrawingContent?: (id: string) => string } = {},
+): Setup {
   const root = mkdtempSync(join(tmpdir(), 'baton-task-'))
   dirs.push(root)
   const database = createTestDb()
@@ -48,6 +53,7 @@ function setup(options: { allowBypassPermissions?: boolean } = {}): Setup {
     config,
     now: () => 10,
     newId: () => 'task-new',
+    ...(options.readDrawingContent ? { readDrawingContent: options.readDrawingContent } : {}),
   })
   return { database, seeded, workspacePath, service }
 }
@@ -71,6 +77,76 @@ afterEach(() => {
 })
 
 describe('createTask', () => {
+  it('creates a delivery-scoped task on the delivery canvas', () => {
+    const { database, seeded, service } = setup()
+    const deliveryCanvasId = randomUUID()
+    database.raw
+      .prepare('insert into canvas (id, workspace_id, viewport_json) values (?, ?, ?)')
+      .run(deliveryCanvasId, seeded.workspaceId, JSON.stringify({ x: 0, y: 0, zoom: 1 }))
+    database.db.transaction((tx) =>
+      insertDelivery(tx, {
+        id: 'd1',
+        workspaceId: seeded.workspaceId,
+        canvasId: deliveryCanvasId,
+        title: '需求',
+        goal: '',
+        playbookId: 'standard-delivery',
+        playbookVersion: 1,
+        playbookJson: JSON.stringify(STANDARD_PLAYBOOK),
+        createdAt: 1,
+        updatedAt: 1,
+        cancelledAt: null,
+      }),
+    )
+    database.raw
+      .prepare('update canvas set delivery_id = ? where id = ?')
+      .run('d1', deliveryCanvasId)
+    database.db.transaction((tx) =>
+      insertNode(tx, {
+        id: 'agent-d1',
+        canvasId: deliveryCanvasId,
+        type: 'agent',
+        x: 0,
+        y: 0,
+        w: 320,
+        h: 200,
+        groupId: null,
+        data: { title: 'Agent', engine: 'claude-sdk', taskId: null },
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    )
+    database.db.transaction((tx) =>
+      insertNode(tx, {
+        id: 'text-d1',
+        canvasId: deliveryCanvasId,
+        type: 'text',
+        x: 0,
+        y: 0,
+        w: 320,
+        h: 200,
+        groupId: null,
+        data: { content: '需求正文' },
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    )
+
+    const result = service.createTask({
+      ...input(seeded),
+      nodeId: 'agent-d1',
+      contextNodeIds: ['text-d1'],
+      deliveryId: 'd1',
+      stageKey: 'requirement',
+    })
+    expect(result).toEqual({ ok: true, taskId: 'task-new' })
+    expect(getTask(database.db, 'task-new')).toMatchObject({
+      deliveryId: 'd1',
+      stageKey: 'requirement',
+      nodeId: 'agent-d1',
+    })
+  })
+
   it('assembles context and persists a todo task', () => {
     const { database, seeded, service } = setup()
     const result = service.createTask(input(seeded))
@@ -213,5 +289,51 @@ describe('createTask', () => {
       expect(task?.workspaceMode).toBe('worktree')
       expect(task?.worktreePath).toBeNull()
     }
+  })
+
+  it('includes drawing text in the task context', () => {
+    const { database, seeded, service } = setup({
+      readDrawingContent: (artifactId) => (artifactId === 'a1' ? '入口 → 支付' : '画板内容不可读'),
+    })
+    database.db.transaction((tx) =>
+      insertNode(tx, {
+        id: 'drawing-1',
+        canvasId: seeded.canvasId,
+        type: 'drawing',
+        x: 40,
+        y: 40,
+        w: 360,
+        h: 260,
+        groupId: null,
+        data: { artifactId: 'a1', title: '流程草图', thumbnailPath: null, status: 'ready' },
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    )
+    const result = service.createTask({ ...input(seeded), contextNodeIds: ['drawing-1'] })
+    expect(result).toEqual({ ok: true, taskId: 'task-new' })
+    const task = getTask(database.db, 'task-new')
+    expect(task?.prompt).toContain('<node id="drawing-1" type="drawing" title="流程草图">')
+    expect(task?.prompt).toContain('入口 → 支付')
+    const row = database.raw
+      .prepare('select context_json from task where id = ?')
+      .get('task-new') as { context_json: string }
+    expect(JSON.parse(row.context_json).included).toEqual([
+      expect.objectContaining({ id: 'drawing-1', title: '流程草图' }),
+    ])
+  })
+
+  it('validates delivery and stage binding from client input', () => {
+    const { seeded, service } = setup()
+    const withoutDelivery = service.createTask({ ...input(seeded), stageKey: 'requirement' })
+    expect(withoutDelivery).toMatchObject({
+      ok: false,
+      error: { code: 'invalid_payload' },
+    })
+    const missingDelivery = service.createTask({ ...input(seeded), deliveryId: 'missing' })
+    expect(missingDelivery).toMatchObject({
+      ok: false,
+      error: { code: 'delivery_not_found' },
+    })
   })
 })

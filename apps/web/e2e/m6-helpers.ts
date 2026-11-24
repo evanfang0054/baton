@@ -44,6 +44,8 @@ export function task(overrides: Partial<TaskSummary> = {}): TaskSummary {
     attention: 'needs_review',
     waitingSince: Date.now() - 40 * 60_000,
     acceptance: null,
+    deliveryId: 'd1',
+    stageKey: 'requirement',
     ...overrides,
   }
 }
@@ -294,6 +296,62 @@ export function sceneDetail(): TaskDetailResponse {
   }
 }
 
+const deliveryStages = [
+  { key: 'requirement', label: '需求', ordinal: 1, gate: 'human', status: 'running' },
+  { key: 'design', label: '设计', ordinal: 2, gate: 'human', status: 'pending' },
+  { key: 'build', label: '开发', ordinal: 3, gate: 'auto', status: 'pending' },
+  { key: 'acceptance', label: '验收', ordinal: 4, gate: 'human', status: 'pending' },
+].map((stage) => ({
+  ...stage,
+  taskId: null,
+  taskStatus: null,
+  attention: 'none',
+  waitingSince: null,
+  artifactCount: 0,
+  openAnnotationCount: 0,
+  skillId: null,
+  skillStatus: null,
+}))
+
+export const mockDelivery = {
+  id: 'd1',
+  workspaceId: 'w1',
+  canvasId: 'c1',
+  title: '需求 A',
+  goal: '目标 A',
+  playbookId: 'standard-delivery',
+  playbookVersion: 1,
+  status: 'running',
+  currentStageKey: 'requirement',
+  stageProgress: { done: 0, total: 4 },
+  stages: deliveryStages,
+  attention: 'none',
+  waitingSince: null,
+  openAnnotationCount: 0,
+  createdAt: 1,
+  updatedAt: 1,
+  cancelledAt: null,
+}
+
+export const mockDeliveryDetail = {
+  ...mockDelivery,
+  playbook: {
+    id: 'standard-delivery',
+    version: 1,
+    label: '标准交付',
+    stages: deliveryStages.map((stage) => ({
+      key: stage.key,
+      label: stage.label,
+      gate: stage.gate,
+      skill: null,
+      produces: [],
+      acceptance: { checklist: [], verify: false },
+    })),
+  },
+  artifacts: [],
+  annotations: [],
+}
+
 /**
  * 固定 API 数据；WS 由各 spec 自己接管，便于断言命令和按命令改状态。
  */
@@ -342,6 +400,14 @@ export async function mockWorkspace(
             ],
           },
         })
+      case '/api/deliveries':
+        return route.fulfill({ json: { deliveries: [mockDelivery] } })
+      case '/api/deliveries/d1':
+        return route.fulfill({ json: { delivery: mockDeliveryDetail } })
+      case '/api/deliveries/d1/artifacts':
+        return route.fulfill({ json: { artifacts: [] } })
+      case '/api/attention':
+        return route.fulfill({ json: { items: [], total: 0 } })
       case '/api/canvas':
         return route.fulfill({
           json: {

@@ -3,12 +3,11 @@ import {
   Bot,
   FileText,
   FolderPlus,
-  Image as ImageIcon,
   LayoutGrid,
   Maximize,
   PenLine,
+  PenTool,
   Send,
-  Type,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
@@ -76,14 +75,11 @@ export function CanvasToolbar({
     <div className={toolbarClass}>
       {readOnly ? null : (
         <>
-          <ToolButton label="添加文本" hint="添加文本节点" onPress={() => onAdd('text')}>
-            <Type size={16} />
+          <ToolButton label="画板" hint="新建画板" onPress={() => onAdd('drawing')}>
+            <PenTool size={16} />
           </ToolButton>
           <ToolButton label="添加文件" hint="添加文件节点" onPress={() => onAdd('file')}>
             <FileText size={16} />
-          </ToolButton>
-          <ToolButton label="添加图片" hint="添加图片节点" onPress={() => onAdd('image')}>
-            <ImageIcon size={16} />
           </ToolButton>
           <ToolButton label="建分组" hint="把选中节点放进新分组" onPress={() => onAdd('group')}>
             <FolderPlus size={16} />

@@ -35,8 +35,11 @@ describe('supervisor policy', () => {
       'cancel_delivery',
       'list_annotations',
       'get_annotation',
+      'get_drawing',
+      'create_drawing',
+      'update_drawing',
     ])
-    expect(SUPERVISOR_POLICY.allowedTools).toHaveLength(29)
+    expect(SUPERVISOR_POLICY.allowedTools).toHaveLength(32)
     expect(supervisorPolicyVersion(SUPERVISOR_POLICY, 'v1')).toMatch(/^[a-f0-9]{12}$/)
   })
 

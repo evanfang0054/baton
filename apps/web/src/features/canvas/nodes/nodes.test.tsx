@@ -4,6 +4,7 @@ import { ReactFlowProvider } from '@xyflow/react'
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { CanvasActionsProvider, type CanvasActions } from '../actions'
+import { DrawingNode } from './DrawingNode'
 import { GroupNode } from './GroupNode'
 import { ImageNode } from './ImageNode'
 import { ReviewCardNode } from './ReviewCardNode'
@@ -117,6 +118,33 @@ describe('canvas nodes', () => {
     const img = screen.getByRole('img')
     fireEvent.error(img)
     expect(screen.getByText('图片无法加载')).toBeInTheDocument()
+  })
+
+  it('renders a drawing thumbnail with a fallback and stale label', () => {
+    const node: ProtocolNode = {
+      ...taskNode(),
+      id: 'd1',
+      type: 'drawing',
+      data: {
+        artifactId: 'a1',
+        title: '画板 1',
+        thumbnailPath: null,
+        status: 'ready',
+      },
+    }
+    const previewUrl = '/api/deliveries/d1/artifacts/a1/content?variant=preview&v=2'
+    renderNode(<DrawingNode {...props(node, { previewUrl })} />)
+    const img = screen.getByRole('img', { name: '画板缩略图 画板 1' })
+    expect(img).toHaveAttribute('src', previewUrl)
+    fireEvent.error(img)
+    expect(screen.getByText('暂无缩略图')).toBeInTheDocument()
+
+    renderNode(
+      <DrawingNode
+        {...props({ ...node, data: { ...node.data, previewStale: true } }, { previewUrl })}
+      />,
+    )
+    expect(screen.getByText('画板已更新，缩略图刷新中')).toBeInTheDocument()
   })
 
   it('renders group child count and collapse button', () => {

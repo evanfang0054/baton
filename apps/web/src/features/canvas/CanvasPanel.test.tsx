@@ -103,6 +103,7 @@ afterEach(() => {
 function renderPanel(
   send = vi.fn().mockResolvedValue({ nodeId: 'n-new' }),
   detail?: TaskDetailResponse,
+  onCreateDrawing = vi.fn(),
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   if (detail) client.setQueryData(queryKeys.task(detail.task.id), detail)
@@ -117,11 +118,12 @@ function renderPanel(
           selectedNodeId={null}
           onSelectNode={vi.fn()}
           onSelectNodes={vi.fn()}
+          onCreateDrawing={onCreateDrawing}
         />
       </CommandProvider>
     </QueryClientProvider>,
   )
-  return { send, ref }
+  return { send, ref, onCreateDrawing }
 }
 
 describe('CanvasPanel', () => {
@@ -193,10 +195,18 @@ describe('CanvasPanel', () => {
     )
   })
 
-  it('opens the image dialog from the toolbar action', async () => {
+  it('creates a drawing from the toolbar action', () => {
+    const { send, onCreateDrawing } = renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: '画板' }))
+    expect(onCreateDrawing).toHaveBeenCalledTimes(1)
+    expect(send).not.toHaveBeenCalled()
+  })
+
+  it('ignores dropped files', () => {
     const { send } = renderPanel()
-    fireEvent.click(screen.getByRole('button', { name: '添加图片' }))
-    expect(await screen.findByRole('heading', { name: '添加图片节点' })).toBeInTheDocument()
+    fireEvent.drop(screen.getByTestId('canvas'), {
+      dataTransfer: { files: [new File(['x'], 'a.txt')] },
+    })
     expect(send).not.toHaveBeenCalled()
   })
 
@@ -233,7 +243,7 @@ describe('CanvasPanel', () => {
     expect(screen.getByText(/上下文 1 个/)).toBeInTheDocument()
     expect(screen.getByText(/已注入 0 次/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '投喂' })).toBeDisabled()
-    expect(screen.queryByRole('button', { name: '添加文本' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '画板' })).not.toBeInTheDocument()
     expect(send).not.toHaveBeenCalled()
 
     fireEvent.doubleClick(screen.getByText('画布里的文本'))
@@ -251,7 +261,7 @@ describe('CanvasPanel', () => {
     const { send } = renderPanel()
 
     expect(await screen.findByText('画布里的文本')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '添加文本' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '画板' })).not.toBeInTheDocument()
     expect(screen.getByTestId('task-scene-loading')).toBeInTheDocument()
 
     fireEvent.doubleClick(screen.getByText('画布里的文本'))

@@ -1,12 +1,14 @@
 import type { SupervisorMessage as SupervisorMessageRecord, ToolCallRecord } from '@baton/protocol'
 import {
   PlanToolResult,
+  SupervisorDrawingCard as SupervisorDrawingCardSchema,
   SupervisorHandoffResult,
   SupervisorTaskCard as SupervisorTaskCardSchema,
 } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { AlertTriangle } from 'lucide-react'
 import { SupervisorDigestActions } from './SupervisorDigestActions'
+import { SupervisorDrawingCard } from './SupervisorDrawingCard'
 import { SupervisorPlanCard } from './SupervisorPlanCard'
 import { SupervisorTaskCard } from './SupervisorTaskCard'
 import { SupervisorToolCard, type SupervisorToolView } from './SupervisorToolCard'
@@ -42,12 +44,14 @@ export function SupervisorMessage({
   message,
   onRetry,
   onOpenTask,
+  onOpenDrawing,
   onApplyProposal,
   digestActions = true,
 }: {
   message: SupervisorMessageRecord
   onRetry?: () => void
   onOpenTask?: (taskId: string) => void
+  onOpenDrawing?: (deliveryId: string, artifactId: string) => void
   onApplyProposal?: (proposalId: string) => Promise<boolean> | boolean | void
   digestActions?: boolean
 }) {
@@ -73,6 +77,12 @@ export function SupervisorMessage({
     .filter((call) => call.name === 'handoff_task' && call.ok)
     .map((call) => SupervisorHandoffResult.safeParse(call.result))
     .flatMap((parsed) => (parsed.success ? [parsed.data] : []))
+
+  const drawingCards = message.toolCalls
+    .filter((call) => (call.name === 'create_drawing' || call.name === 'update_drawing') && call.ok)
+    .map((call) => SupervisorDrawingCardSchema.safeParse(call.result))
+    .flatMap((parsed) => (parsed.success ? [parsed.data] : []))
+  const uniqueDrawings = [...new Map(drawingCards.map((card) => [card.artifactId, card])).values()]
 
   const planResults = message.toolCalls
     .filter((call) => call.name === 'plan_tasks' && call.ok)
@@ -125,6 +135,13 @@ export function SupervisorMessage({
         ) : null}
         {uniqueCards.map((card) => (
           <SupervisorTaskCard key={card.taskId} card={card} />
+        ))}
+        {uniqueDrawings.map((card) => (
+          <SupervisorDrawingCard
+            key={card.artifactId}
+            card={card}
+            {...(onOpenDrawing ? { onOpen: onOpenDrawing } : {})}
+          />
         ))}
         {planResults.map((result) => (
           <SupervisorPlanCard

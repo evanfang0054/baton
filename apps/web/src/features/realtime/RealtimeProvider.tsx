@@ -12,6 +12,8 @@ import { createWsClient } from '../../lib/ws'
 import { useAppStore } from '../../stores/app'
 import { useSupervisorStreamStore } from '../supervisor/stream-store'
 import { appendSessionEvents } from './session-cache'
+import { isDrawingEditing, useDrawingStore } from '../drawings/drawing-store'
+import { previewQueue } from '../drawings/preview-renderer'
 
 const INVALIDATING_EVENTS = new Set(['task.status', 'approval.request', 'verify.result'])
 const TASK_CREATE_TOOLS = ['create_task', 'create_tasks', 'handoff_task'] as const
@@ -60,6 +62,7 @@ export function RealtimeProvider({
         invalidateTimer = undefined
         void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
         void queryClient.invalidateQueries({ queryKey: queryKeys.automation(workspaceId) })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.attention })
         const taskId = useAppStore.getState().activeTaskId
         if (taskId) {
           void queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) })
@@ -106,7 +109,7 @@ export function RealtimeProvider({
         // daemon 重启或首屏失败后，用一次重连把 REST 快照补齐。
         void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces })
         void queryClient.invalidateQueries({ queryKey: queryKeys.automation(workspaceId) })
-        void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
         void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
         void queryClient.invalidateQueries({ queryKey: queryKeys.supervisorStatus })
         void queryClient.invalidateQueries({
@@ -151,7 +154,7 @@ export function RealtimeProvider({
             event.payload.ok !== false &&
             CANVAS_MUTATING_TOOLS.has(event.payload.name)
           ) {
-            void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+            void queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
             if (TASK_MUTATING_TOOLS.has(event.payload.name)) {
               void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
             }
@@ -186,7 +189,7 @@ export function RealtimeProvider({
                 (call) => call.ok && CANVAS_MUTATING_TOOLS.has(call.name),
               )
             ) {
-              void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+              void queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
             }
             const taskId = event.payload.decision?.taskId
             if (taskId) {
@@ -225,7 +228,7 @@ export function RealtimeProvider({
           return
         }
         if (event.type === 'context.injected') {
-          void queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+          void queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
           void queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
           void queryClient.invalidateQueries({ queryKey: queryKeys.task(event.payload.taskId) })
           return
@@ -235,7 +238,14 @@ export function RealtimeProvider({
           return
         }
         if (event.type === 'artifact.updated') {
-          const { deliveryId } = event.payload
+          const { deliveryId, artifactId, previewStale } = event.payload
+          if (previewStale) {
+            if (isDrawingEditing(artifactId)) {
+              useDrawingStore.getState().markConflict(artifactId)
+            } else {
+              previewQueue.enqueue(deliveryId, artifactId)
+            }
+          }
           void queryClient.invalidateQueries({ queryKey: queryKeys.artifacts(deliveryId) })
           void queryClient.invalidateQueries({ queryKey: queryKeys.delivery(deliveryId) })
           void queryClient.invalidateQueries({

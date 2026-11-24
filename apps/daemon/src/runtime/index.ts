@@ -3,6 +3,7 @@ import {
   buildMandate,
   buildTaskOrigin,
   canAcceptUserInput,
+  extractDrawingContent,
   templateById,
   validateMandate,
   validatePlanApply,
@@ -72,6 +73,7 @@ import { handleAcceptanceUpdate } from './acceptance-command.js'
 import { createEdge, deleteEdge } from './edge-service.js'
 import { createHandoffNode } from '../handoff/service.js'
 import { createDeliveryService } from '../delivery/service.js'
+import { createDrawingService } from '../artifact/drawing-service.js'
 import { createArtifactService } from '../artifact/service.js'
 import { createAnnotationService } from '../annotation/service.js'
 import type { EngineRegistry } from './engines.js'
@@ -144,6 +146,16 @@ export function createRuntime(deps: RuntimeDeps) {
   const transitionRunnerHolder: { value?: ReturnType<typeof createTransitionRunner> } = {}
   const deliveryServiceHolder: { value?: ReturnType<typeof createDeliveryService> } = {}
   const annotationServiceHolder: { value?: ReturnType<typeof createAnnotationService> } = {}
+  const artifactServiceHolder: { value?: ReturnType<typeof createArtifactService> } = {}
+  const drawingServiceHolder: { value?: ReturnType<typeof createDrawingService> } = {}
+  function readDrawingContent(artifactId: string): string {
+    const artifacts = artifactServiceHolder.value
+    if (!artifacts) throw new Error('artifact service is not ready')
+    const { data } = artifacts.readArtifactContent(artifactId, 'source')
+    return extractDrawingContent(JSON.parse(data.toString('utf8')) as unknown)
+      .texts.map((text) => text.text)
+      .join('\n')
+  }
   let closing = false
   let booting = false
 
@@ -224,7 +236,13 @@ export function createRuntime(deps: RuntimeDeps) {
     },
   }
 
-  const taskService = createTaskService({ db: deps.db, config: deps.config, now, newId })
+  const taskService = createTaskService({
+    db: deps.db,
+    config: deps.config,
+    now,
+    newId,
+    readDrawingContent,
+  })
   const contextService = createContextService({
     db: deps.db,
     config: deps.config,
@@ -237,6 +255,7 @@ export function createRuntime(deps: RuntimeDeps) {
     broadcast: deps.broadcast,
     now,
     newId,
+    readDrawingContent,
   })
   let persistedKillSwitch: boolean
   try {
@@ -443,6 +462,9 @@ export function createRuntime(deps: RuntimeDeps) {
           target = resolver.resolveAgentTarget(
             {
               workspaceId: action.workspaceId,
+              deliveryId: payload.deliveryId,
+              stageKey: payload.stageKey,
+              allowWorkspaceCanvas: !payload.deliveryId,
               selection: { contextNodeIds: [], agentCandidates: [] },
               memo: {},
             },
@@ -481,6 +503,8 @@ export function createRuntime(deps: RuntimeDeps) {
             engine: resolver.resolveEngine(item.engine ?? undefined, target),
             workspaceMode: 'main',
             dangerouslySkipPermissions: false,
+            ...(payload.deliveryId ? { deliveryId: payload.deliveryId } : {}),
+            ...(payload.stageKey ? { stageKey: payload.stageKey } : {}),
             ...(item.annotationIds ? { annotationIds: item.annotationIds } : {}),
           },
           {
@@ -560,6 +584,8 @@ export function createRuntime(deps: RuntimeDeps) {
     failures,
     deliveries: () => deliveryServiceHolder.value,
     annotations: () => annotationServiceHolder.value,
+    artifacts: () => artifactServiceHolder.value,
+    drawings: () => drawingServiceHolder.value,
     remindAttention,
     loadPolicy: (workspaceId) => loadWorkspacePolicy(deps.db, deps.config, workspaceId),
     requireMandate: (taskId, action, strength) => requireMandate(taskId, action, strength),
@@ -600,6 +626,14 @@ export function createRuntime(deps: RuntimeDeps) {
     now,
     newId,
     emit: publish,
+  })
+  artifactServiceHolder.value = artifacts
+  drawingServiceHolder.value = createDrawingService({
+    db: deps.db,
+    config: deps.config,
+    artifacts,
+    now,
+    newId,
   })
   deliveryServiceHolder.value = createDeliveryService({
     db: deps.db,

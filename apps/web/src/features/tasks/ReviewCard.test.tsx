@@ -217,7 +217,7 @@ describe('ReviewCard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '打回并重新执行' }))
     expect(screen.getByLabelText('打回反馈')).toHaveValue(
-      '缺少必需产物：spec.md，请重新执行并写入交付目录。',
+      '缺少必需产物：spec.md，请重新执行并写入需求目录。',
     )
   })
 

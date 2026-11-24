@@ -102,6 +102,9 @@ function stubTaskApi() {
       if (url.startsWith('/api/tasks?workspaceId=w1')) {
         return json({ tasks: [{ ...task, attention: 'needs_reply', waitingSince: 2 }] })
       }
+      if (url.startsWith('/api/attention')) {
+        return json({ items: [], total: 0 })
+      }
       if (url.startsWith('/api/canvas?workspaceId=w1')) {
         return json({
           canvas: { id: 'c1', workspaceId: 'w1', viewport: { x: 0, y: 0, zoom: 1 } },
@@ -169,27 +172,25 @@ describe('App shell', () => {
     expect(screen.queryByTestId('right-panel')).not.toBeInTheDocument()
   })
 
-  it('renders the desktop shell with delivery rail, board and supervisor only', async () => {
+  it('renders the desktop shell with project tree, empty canvas and supervisor only', async () => {
     renderApp()
     expect(screen.getByText('baton')).toBeInTheDocument()
-    expect(await screen.findByLabelText('交付列表')).toBeInTheDocument()
-    expect(screen.getByLabelText('交付看板')).toBeInTheDocument()
+    expect(await screen.findByLabelText('项目与需求')).toBeInTheDocument()
+    expect(screen.getByTestId('empty-canvas')).toBeInTheDocument()
+    expect(screen.getByText('先在左侧新建或选择一个项目')).toBeInTheDocument()
     expect(screen.getByTestId('right-panel')).toBeInTheDocument()
     expect(screen.getByText('精灵总管')).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: '任务' })).not.toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: '节点' })).not.toBeInTheDocument()
-    expect(
-      await screen.findByText('还没有交付。在左侧点“新建交付”，把第一条需求放到画布上。'),
-    ).toBeInTheDocument()
   })
 
   it('opens the create-workspace dialog', async () => {
     const user = userEvent.setup()
     renderApp()
-    await user.click(await screen.findByRole('button', { name: '新建工作区' }))
-    expect(await screen.findByRole('heading', { name: '新建工作区' })).toBeInTheDocument()
-    expect(screen.getByLabelText('工作区名称')).toBeInTheDocument()
-    expect(screen.getByText('工作区目录')).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: '新建项目' }))
+    expect(await screen.findByRole('heading', { name: '新建项目' })).toBeInTheDocument()
+    expect(screen.getByLabelText('项目名称')).toBeInTheDocument()
+    expect(screen.getByText('项目目录')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '选择目录' })).toBeInTheDocument()
   })
 
@@ -212,12 +213,12 @@ describe('App shell', () => {
       }),
     )
     renderApp()
-    await user.click(await screen.findByRole('button', { name: '新建工作区' }))
+    await user.click(await screen.findByRole('button', { name: '新建项目' }))
     await user.click(screen.getByRole('button', { name: '选择目录' }))
     await user.click(await screen.findByRole('button', { name: '选择目录 Desktop/baton' }))
 
     expect(screen.getByText('Desktop/baton')).toBeInTheDocument()
-    expect(screen.getByLabelText('工作区名称')).toHaveValue('baton')
+    expect(screen.getByLabelText('项目名称')).toHaveValue('baton')
   })
 
   it('searches directories and selects a nested result', async () => {
@@ -242,7 +243,7 @@ describe('App shell', () => {
       }),
     )
     renderApp()
-    await user.click(await screen.findByRole('button', { name: '新建工作区' }))
+    await user.click(await screen.findByRole('button', { name: '新建项目' }))
     await user.click(screen.getByRole('button', { name: '选择目录' }))
     await screen.findByRole('button', { name: '选择目录 Desktop' })
     await user.type(screen.getByLabelText('搜索目录'), 'baton')

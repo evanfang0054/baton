@@ -27,7 +27,7 @@ export function HandoffButton({
         type: 'task.handoff',
         payload: { taskId, workspaceId },
       })) as { warnings?: string[] } | null
-      await queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
       toast.success('已生成交接节点，可在画布中选中它创建下一个任务')
       for (const warning of ack?.warnings ?? []) toast.info(warning)
     } catch (cause) {

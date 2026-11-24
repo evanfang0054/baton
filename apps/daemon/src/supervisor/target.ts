@@ -1,10 +1,14 @@
 import { Engine, Node, type Engine as EngineValue } from '@baton/protocol'
+import { getCanvasByDelivery } from '../db/delivery-repositories.js'
 import { getCanvasByWorkspace, getNode, insertNode, listNodes } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import { appError } from '../errors.js'
 
 export interface TargetContext {
   workspaceId: string
+  deliveryId?: string | null
+  stageKey?: string | null
+  allowWorkspaceCanvas?: boolean
   selection: {
     contextNodeIds: string[]
     targetNodeId?: string
@@ -22,16 +26,26 @@ export interface TargetResolverDeps {
   newId: () => string
 }
 
-const CONTENT_TYPES = new Set(['text', 'file', 'image'])
+const CONTENT_TYPES = new Set(['text', 'file', 'image', 'drawing'])
 
 /** 建单前解析目标 Agent 与上下文；tools 与 plan apply 共用，避免复制画布规则。 */
 export function createTargetResolver(deps: TargetResolverDeps) {
   function canvasFor(ctx: TargetContext) {
-    const canvas = getCanvasByWorkspace(deps.db, ctx.workspaceId)
-    if (!canvas) {
-      throw appError('canvas_not_found', 'canvas not found', { workspaceId: ctx.workspaceId })
+    if (ctx.deliveryId) {
+      const canvas = getCanvasByDelivery(deps.db, ctx.deliveryId)
+      if (canvas) return canvas
+      throw appError('canvas_not_found', 'requirement canvas not found', {
+        deliveryId: ctx.deliveryId,
+      })
     }
-    return canvas
+    // 生产路径要求有当前需求；仅测试/旧调用允许显式回退工作区画布。
+    if (ctx.allowWorkspaceCanvas) {
+      const canvas = getCanvasByWorkspace(deps.db, ctx.workspaceId)
+      if (canvas) return canvas
+    }
+    throw appError('canvas_not_found', '请先在左侧选择一个需求', {
+      workspaceId: ctx.workspaceId,
+    })
   }
 
   function nextNodeY(canvasId: string): number {

@@ -178,7 +178,7 @@ export function AutomationSettingsDialog({
                   ) : null}
                   {!current.trusted ? (
                     <p className="rounded-md border border-warning bg-warning/10 p-2 text-xs text-warning">
-                      先信任工作区，才能启用自动化。
+                      先信任项目，才能启用自动化。
                     </p>
                   ) : null}
                   <label className="flex items-center justify-between gap-3 text-sm">
@@ -192,7 +192,7 @@ export function AutomationSettingsDialog({
                     />
                   </label>
                   <p className="text-xs text-muted">
-                    开启后，信任工作区内所有非 deny 操作（含高风险 Bash）自动批准；deny、kill switch
+                    开启后，信任项目内所有非 deny 操作（含高风险 Bash）自动批准；deny、kill switch
                     与审计仍然生效。
                   </p>
                   <label className="flex items-center justify-between gap-3 text-sm">
@@ -294,8 +294,8 @@ export function AutomationSettingsDialog({
                     </select>
                   </label>
                   <p className="text-xs text-muted">
-                    修改只影响新启动的会话；运行中的任务使用启动时的策略快照。工作区授权命中时不受风险上限限制；风险上限仅对
-                    delegated（非工作区授权）自动批准生效。
+                    修改只影响新启动的会话；运行中的任务使用启动时的策略快照。项目授权命中时不受风险上限限制；风险上限仅对
+                    delegated（非项目授权）自动批准生效。
                   </p>
                   {current.digestCronUnsupported ? (
                     <p className="text-xs text-warning">

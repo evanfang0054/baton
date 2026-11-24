@@ -52,6 +52,7 @@ function renderCanvas(input: DeliveryDetail, onCancelDelivery = vi.fn()) {
   render(
     <DeliveryCanvas
       workspaceId="w1"
+      workspaceTrusted={false}
       delivery={input}
       canvas={null}
       tasks={[]}
@@ -75,12 +76,12 @@ function renderCanvas(input: DeliveryDetail, onCancelDelivery = vi.fn()) {
 describe('DeliveryCanvas', () => {
   it('calls onCancelDelivery from the top card', async () => {
     const { onCancelDelivery } = renderCanvas(delivery())
-    await userEvent.click(screen.getByRole('button', { name: '停止交付' }))
+    await userEvent.click(screen.getByRole('button', { name: '停止需求' }))
     expect(onCancelDelivery).toHaveBeenCalledWith('d1')
   })
 
   it('hides stop delivery after cancellation', () => {
     renderCanvas(delivery({ status: 'cancelled', cancelledAt: 2 }))
-    expect(screen.queryByRole('button', { name: '停止交付' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '停止需求' })).not.toBeInTheDocument()
   })
 })

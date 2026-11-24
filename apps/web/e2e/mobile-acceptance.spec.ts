@@ -47,6 +47,8 @@ async function mockTabletWorkspace(page: Page) {
       })
     }
     if (path === '/api/tasks') return route.fulfill({ json: { tasks: [] } })
+    if (path === '/api/deliveries') return route.fulfill({ json: { deliveries: [] } })
+    if (path === '/api/attention') return route.fulfill({ json: { items: [], total: 0 } })
     if (path === '/api/notices') return route.fulfill({ json: { notices: [] } })
     return route.fulfill({ json: {} })
   })
@@ -79,8 +81,8 @@ test('tablet keeps canvas and collapses the board', async ({ page }) => {
   await mockTabletWorkspace(page)
   await page.goto('/')
 
-  await expect(page.getByTestId('canvas')).toBeVisible()
-  await expect(page.locator('aside[aria-label="交付列表"]')).toBeVisible()
+  await expect(page.getByTestId('empty-canvas')).toBeVisible()
+  await expect(page.locator('aside[aria-label="项目与需求"]')).toBeVisible()
   await expect(page.getByTestId('right-panel')).toBeVisible()
   await expect(page.getByTestId('task-board-overlay')).toHaveCount(0)
   await expect(page.getByRole('navigation', { name: '移动端导航' })).toHaveCount(0)
@@ -101,8 +103,8 @@ test('desktop keeps the existing three-pane shell', async ({ page }) => {
   await mockEmpty(page)
   await page.goto('/')
 
-  await expect(page.getByLabel('交付看板')).toBeVisible()
-  await expect(page.locator('aside[aria-label="交付列表"]')).toBeVisible()
+  await expect(page.getByTestId('empty-canvas')).toBeVisible()
+  await expect(page.locator('aside[aria-label="项目与需求"]')).toBeVisible()
   await expect(page.getByTestId('right-panel')).toBeVisible()
   await expect(page.getByRole('navigation', { name: '移动端导航' })).toHaveCount(0)
 })

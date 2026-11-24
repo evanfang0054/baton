@@ -22,9 +22,8 @@ describe('CanvasToolbar', () => {
       />,
     )
 
-    await userEvent.click(screen.getByRole('button', { name: '添加文本' }))
+    await userEvent.click(screen.getByRole('button', { name: '画板' }))
     await userEvent.click(screen.getByRole('button', { name: '添加文件' }))
-    await userEvent.click(screen.getByRole('button', { name: '添加图片' }))
     await userEvent.click(screen.getByRole('button', { name: '建分组' }))
     await userEvent.click(screen.getByRole('button', { name: '添加 Agent' }))
     await userEvent.click(screen.getByRole('button', { name: '整理画布' }))
@@ -33,7 +32,7 @@ describe('CanvasToolbar', () => {
     await userEvent.click(screen.getByRole('button', { name: '放大' }))
     await userEvent.click(screen.getByRole('button', { name: '缩小' }))
 
-    expect(onAdd.mock.calls).toEqual([['text'], ['file'], ['image'], ['group'], ['agent']])
+    expect(onAdd.mock.calls).toEqual([['drawing'], ['file'], ['group'], ['agent']])
     expect(onArrange).toHaveBeenCalled()
     expect(onInject).toHaveBeenCalled()
     expect(onFit).toHaveBeenCalled()
@@ -69,7 +68,7 @@ describe('CanvasToolbar', () => {
         readOnly
       />,
     )
-    expect(screen.queryByRole('button', { name: '添加文本' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '画板' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '整理画布' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '投喂给任务' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '适应视图' })).toBeInTheDocument()

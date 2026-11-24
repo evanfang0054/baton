@@ -5,7 +5,7 @@ export const DELIVERY_STATUS_LABELS: Record<DeliveryStatus, string> = {
   running: '进行中',
   waiting_person: '待我处理',
   blocked: '已阻断',
-  done: '已交付',
+  done: '已完成',
   cancelled: '已取消',
 }
 

@@ -48,8 +48,15 @@ export function nodeSummary(node: Node): Record<string, unknown> {
     h: node.h,
   }
   switch (node.type) {
-    case 'text':
-      return { ...base, preview: node.data.content.slice(0, TEXT_PREVIEW) }
+    case 'text': {
+      const content = node.data.content.slice(0, 2000)
+      return {
+        ...base,
+        preview: node.data.content.slice(0, TEXT_PREVIEW),
+        content,
+        truncated: node.data.content.length > content.length,
+      }
+    }
     case 'file':
       return { ...base, path: node.data.path, mime: node.data.mime ?? null }
     case 'agent':

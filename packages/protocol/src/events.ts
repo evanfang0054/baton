@@ -223,6 +223,7 @@ export const ArtifactUpdatedEvent = ReplayableBase.extend({
     deliveryId: Id,
     stageKey: z.string().min(1),
     status: ArtifactStatus,
+    previewStale: z.boolean().optional(),
   }),
 })
 export type ArtifactUpdatedEvent = z.infer<typeof ArtifactUpdatedEvent>

@@ -53,24 +53,9 @@ function renderManager(nodes: Node[] = []) {
   )
 }
 
-it('creates a text node', async () => {
+it('does not offer manual text node creation', () => {
   renderManager()
-
-  await userEvent.click(screen.getByRole('button', { name: '新建文本' }))
-  await userEvent.type(screen.getByLabelText('文本内容'), '一条上下文')
-  await userEvent.click(screen.getByRole('button', { name: '保存' }))
-
-  await waitFor(() =>
-    expect(send).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'node.create',
-        payload: expect.objectContaining({
-          canvasId: 'c1',
-          node: expect.objectContaining({ type: 'text', data: { content: '一条上下文' } }),
-        }),
-      }),
-    ),
-  )
+  expect(screen.queryByRole('button', { name: '新建文本' })).toBeNull()
 })
 
 it('creates a file node with mime and validates the relative path', async () => {

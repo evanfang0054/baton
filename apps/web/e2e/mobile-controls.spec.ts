@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { mockDelivery, mockDeliveryDetail } from './m6-helpers'
 
 test.use({ viewport: { width: 390, height: 844 } })
 
@@ -56,6 +57,18 @@ async function mockApi(page: Page, sent: Sent[], state: { paused: boolean }) {
           ],
         },
       })
+    }
+    if (path === '/api/deliveries') {
+      return route.fulfill({ json: { deliveries: [mockDelivery] } })
+    }
+    if (path === '/api/deliveries/d1') {
+      return route.fulfill({ json: { delivery: mockDeliveryDetail } })
+    }
+    if (path === '/api/deliveries/d1/artifacts') {
+      return route.fulfill({ json: { artifacts: [] } })
+    }
+    if (path === '/api/attention') {
+      return route.fulfill({ json: { items: [], total: 0 } })
     }
     if (path === '/api/canvas') {
       return route.fulfill({
@@ -125,7 +138,7 @@ test('creates a task from mobile with agent and context', async ({ page }) => {
   const sent: Sent[] = []
   const state = { paused: false }
   await mockApi(page, sent, state)
-  await page.goto('/')
+  await page.goto('/?workspace=w1&delivery=d1')
   await expect(page.getByText('在线')).toBeVisible()
 
   await page.getByRole('button', { name: '更多' }).click()
@@ -148,26 +161,22 @@ test('creates a task from mobile with agent and context', async ({ page }) => {
       contextNodeIds: ['n1'],
       title: '移动建任务',
       engine: 'claude-sdk',
+      deliveryId: 'd1',
+      stageKey: 'requirement',
     })
   await expect(page.getByLabel('任务标题')).toHaveCount(0)
 })
 
-test('creates a text node from the node list', async ({ page }) => {
+test('does not offer manual text node creation in the node list', async ({ page }) => {
   const sent: Sent[] = []
   const state = { paused: false }
   await mockApi(page, sent, state)
-  await page.goto('/')
+  await page.goto('/?workspace=w1&delivery=d1')
 
   await page.getByRole('button', { name: '更多' }).click()
-  await page.getByRole('button', { name: '节点列表' }).click()
-  await page.getByRole('button', { name: '新建文本' }).click()
-  await page.getByLabel('文本内容').fill('新的上下文')
-  await page.getByRole('button', { name: '保存' }).click()
-
-  await expect
-    .poll(() => sent.find((item) => item.type === 'node.create')?.payload)
-    .toMatchObject({ canvasId: 'c1', node: { type: 'text', data: { content: '新的上下文' } } })
-  await expect(page.getByLabel('文本内容')).toHaveCount(0)
+  const more = page.getByRole('dialog', { name: '更多操作' })
+  await expect(more.getByRole('button', { name: '节点列表' })).toHaveCount(0)
+  await expect(more.getByRole('button', { name: '新建文本' })).toHaveCount(0)
 })
 
 test('pauses automation from the more menu', async ({ page }) => {

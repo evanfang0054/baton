@@ -66,4 +66,32 @@ describe('buildContextContent', () => {
     expect(contentByNodeId['file-4']).toBeNull()
     expect(contentByNodeId['text-1']).toBeUndefined()
   })
+
+  it('pre-reads drawing text and marks unreadable drawings', () => {
+    const root = tempDir()
+    const nodes: Node[] = [
+      {
+        ...base,
+        id: 'drawing-1',
+        type: 'drawing',
+        data: { artifactId: 'a1', title: '流程草图', status: 'ready' },
+      },
+      {
+        ...base,
+        id: 'drawing-2',
+        type: 'drawing',
+        data: { artifactId: 'a2', title: '坏画板', status: 'ready' },
+      },
+    ]
+    const { contentByNodeId } = buildContextContent({
+      nodes,
+      workspacePath: root,
+      readDrawingContent: (artifactId) => {
+        if (artifactId === 'a2') throw new Error('broken scene')
+        return '入口 → 支付'
+      },
+    })
+    expect(contentByNodeId['drawing-1']).toBe('入口 → 支付')
+    expect(contentByNodeId['drawing-2']).toBe('画板内容不可读')
+  })
 })

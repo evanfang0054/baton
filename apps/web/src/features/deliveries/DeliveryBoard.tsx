@@ -56,9 +56,9 @@ export function DeliveryBoard({
   const firstWaiting = visible.find((delivery) => delivery.waitingSince != null)
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col" aria-label="交付看板">
+    <section className="flex min-h-0 flex-1 flex-col" aria-label="需求看板">
       <div className="flex flex-wrap items-center gap-2 border-b border-separator px-4 py-2">
-        <div role="group" aria-label="交付筛选" className="flex gap-1">
+        <div role="group" aria-label="需求筛选" className="flex gap-1">
           <Button
             size="sm"
             variant={filter === 'all' ? 'primary' : 'tertiary'}
@@ -75,8 +75,8 @@ export function DeliveryBoard({
           </Button>
         </div>
         <Input
-          aria-label="搜索交付"
-          placeholder="搜索交付标题"
+          aria-label="搜索需求"
+          placeholder="搜索需求标题"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           className="max-w-64"
@@ -119,15 +119,15 @@ export function DeliveryBoard({
       {deliveries.length === 0 ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <p className="rounded-lg border border-dashed border-separator bg-surface px-6 py-4 text-sm text-muted">
-            还没有交付。在左侧点“新建交付”，把第一条需求放到画布上。
+            还没有需求。在左侧点“新建需求”，把第一条需求放到画布上。
           </p>
         </div>
       ) : null}
       {visible.length === 0 && deliveries.length > 0 ? (
-        <p className="px-4 pb-4 text-xs text-muted">没有匹配的交付。</p>
+        <p className="px-4 pb-4 text-xs text-muted">没有匹配的需求。</p>
       ) : null}
       <p className="sr-only">
-        当前最先等待的交付：
+        当前最先等待的需求：
         {firstWaiting
           ? `${firstWaiting.title}（${formatWaiting(firstWaiting.waitingSince)}）`
           : '无'}

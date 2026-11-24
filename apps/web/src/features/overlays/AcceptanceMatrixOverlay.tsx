@@ -75,7 +75,7 @@ export function AcceptanceMatrixOverlay({
   return (
     <Overlay title="验收矩阵" onClose={onClose} width="min(1100px, 96vw)">
       <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-muted">
-        <span>交付：{delivery.title}</span>
+        <span>需求：{delivery.title}</span>
         <span>阶段：{acceptanceStage?.status ?? '未开始'}</span>
         {review ? <span>review：{review.verdict ?? '待决定'}</span> : null}
         {review && taskId ? (

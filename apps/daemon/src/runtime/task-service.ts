@@ -1,4 +1,4 @@
-import { annotationRegion, assembleContext, buildAnnotationBlock } from '@baton/core'
+import { annotationRegion, assembleContext, buildAnnotationBlock, parsePlaybook } from '@baton/core'
 import { annotationCoordinateSpace } from '@baton/protocol'
 import type { AppError, Node, TaskCreateInput, TaskOrigin } from '@baton/protocol'
 import type { Config } from '../config.js'
@@ -6,10 +6,11 @@ import {
   getAnnotation,
   getArtifact,
   getCanvasByDelivery,
+  getDelivery,
   updateAnnotation,
 } from '../db/delivery-repositories.js'
 import {
-  getCanvasByWorkspace,
+  getNode,
   getWorkspace,
   insertAudit,
   insertTask,
@@ -28,6 +29,8 @@ export interface TaskServiceDeps {
   config: Config
   now: () => number
   newId: () => string
+  /** 画板文字预读；失败时由 workspace/context 输出「画板内容不可读」。 */
+  readDrawingContent?: (artifactId: string) => string
 }
 
 export type CreateTaskResult = { ok: true; taskId: string } | { ok: false; error: AppError }
@@ -96,16 +99,15 @@ export function createTaskService(deps: TaskServiceDeps) {
         }
       }
 
-      const canvas = getCanvasByWorkspace(deps.db, workspace.id)
-      if (!canvas) {
+      const targetNode = getNode(deps.db, input.nodeId)
+      if (!targetNode) {
         return {
           ok: false,
-          error: appError('canvas_not_found', 'canvas not found', { workspaceId: workspace.id }),
+          error: appError('node_not_found', 'target node not found', { nodeId: input.nodeId }),
         }
       }
-
-      const nodes = listNodes(deps.db, canvas.id)
-      const edges = listEdges(deps.db, canvas.id)
+      const nodes = listNodes(deps.db, targetNode.canvasId)
+      const edges = listEdges(deps.db, targetNode.canvasId)
       const target = nodes.find((node) => node.id === input.nodeId)
       if (!target) {
         return {
@@ -119,6 +121,53 @@ export function createTaskService(deps: TaskServiceDeps) {
           error: appError('invalid_payload', 'target node must be an agent node', {
             nodeId: input.nodeId,
           }),
+        }
+      }
+
+      if (input.stageKey && !input.deliveryId) {
+        return {
+          ok: false,
+          error: appError('invalid_payload', 'stageKey requires deliveryId'),
+        }
+      }
+      if (input.deliveryId) {
+        const delivery = getDelivery(deps.db, input.deliveryId)
+        if (!delivery || delivery.workspaceId !== workspace.id) {
+          return {
+            ok: false,
+            error: appError('delivery_not_found', 'delivery not found', {
+              deliveryId: input.deliveryId,
+            }),
+          }
+        }
+        const deliveryCanvas = getCanvasByDelivery(deps.db, delivery.id)
+        if (!deliveryCanvas || deliveryCanvas.id !== target.canvasId) {
+          return {
+            ok: false,
+            error: appError('canvas_not_found', 'target node is not on the delivery canvas', {
+              deliveryId: delivery.id,
+              nodeId: target.id,
+            }),
+          }
+        }
+        if (input.stageKey) {
+          let valid = false
+          try {
+            const parsed = parsePlaybook(JSON.parse(delivery.playbookJson) as unknown)
+            valid =
+              parsed.ok && parsed.playbook.stages.some((stage) => stage.key === input.stageKey)
+          } catch {
+            valid = false
+          }
+          if (!valid) {
+            return {
+              ok: false,
+              error: appError('stage_not_found', 'stage not found', {
+                deliveryId: delivery.id,
+                stageKey: input.stageKey,
+              }),
+            }
+          }
         }
       }
 
@@ -204,7 +253,11 @@ export function createTaskService(deps: TaskServiceDeps) {
 
       // 创建时就校验策略；执行期会把同一份快照传给适配器。
       loadPolicy(workspacePath)
-      const { contentByNodeId } = buildContextContent({ nodes, workspacePath })
+      const { contentByNodeId } = buildContextContent({
+        nodes,
+        workspacePath,
+        ...(deps.readDrawingContent ? { readDrawingContent: deps.readDrawingContent } : {}),
+      })
       const assembled = assembleContext({
         taskPrompt,
         targetNodeId: input.nodeId,
@@ -242,6 +295,8 @@ export function createTaskService(deps: TaskServiceDeps) {
             verifyCommand: input.verifyCommand ?? null,
             retryCount: 0,
             dangerouslySkipPermissions: input.dangerouslySkipPermissions,
+            deliveryId: input.deliveryId ?? null,
+            stageKey: input.stageKey ?? null,
             ...(input.annotationIds ? { annotationIds: input.annotationIds } : {}),
             createdAt: now,
             updatedAt: now,

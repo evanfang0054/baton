@@ -30,10 +30,12 @@ interface Rendered {
   seed: boolean
 }
 
-type ContentNode = Extract<Node, { type: 'text' | 'file' | 'image' }>
+type ContentNode = Extract<Node, { type: 'text' | 'file' | 'image' | 'drawing' }>
 
 function isContentNode(node: Node): node is ContentNode {
-  return node.type === 'text' || node.type === 'file' || node.type === 'image'
+  return (
+    node.type === 'text' || node.type === 'file' || node.type === 'image' || node.type === 'drawing'
+  )
 }
 
 function compareNode(a: Node, b: Node): number {
@@ -64,6 +66,8 @@ function titleOf(node: ContentNode): string {
       return node.data.name
     case 'image':
       return node.data.alt ?? 'image'
+    case 'drawing':
+      return node.data.title
   }
 }
 
@@ -115,6 +119,14 @@ function renderContent(
     case 'image': {
       const alt = node.data.alt ? ` alt="${escapeAttr(node.data.alt)}"` : ''
       return `<image src="${escapeAttr(node.data.src)}"${alt}/>`
+    }
+    case 'drawing': {
+      const content =
+        contentByNodeId && Object.hasOwn(contentByNodeId, node.id)
+          ? contentByNodeId[node.id]
+          : undefined
+      const text = content?.trim()
+      return text && text.length > 0 ? text : `[画板] ${node.data.title}`
     }
   }
 }

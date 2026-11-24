@@ -41,6 +41,7 @@
 - [2026-11-24 工作区标注与画布删除设计](specs/2026-11-24-workspace-annotations-canvas-delete-design.md)
 - [2026-11-24 标注文字与验收清单反馈设计](specs/2026-11-24-annotation-text-and-acceptance-feedback-design.md)
 - [2026-11-24 标注定位与常驻显示设计](specs/2026-11-24-annotation-anchoring-display-design.md)
+- [2026-11-24 画布与画板收敛设计](specs/2026-11-24-canvas-drawing-scope-design.md)
 
 ## 现行 ADR
 
@@ -54,6 +55,7 @@
 - [0008 总管委派验收与委派审批（代验收被 0009 取代）](adr/0008-supervisor-delegated-authority.md)
 - [0009 总管预验收与人工终审](adr/0009-supervisor-preliminary-review.md)
 - [0011 交付拥有画布](adr/0011-delivery-owned-canvas.md)
+- [0012 需求画布唯一与总管画板权限](adr/0012-requirement-only-canvas.md)
 
 ## 现行 contract
 
@@ -76,6 +78,7 @@
 - [M6-3 验收证据与放权护栏](contracts/M6-3-acceptance-evidence.contract.md)
 - [M6-5 总管自治与注意力](contracts/M6-5-supervisor-autonomy.contract.md)
 - [M7 交付工作台与 SOP 流程](contracts/M7-delivery-playbook.contract.md)
+- [画布与画板收敛](contracts/canvas-drawing-scope.contract.md)
 
 ## 现行 plan
 

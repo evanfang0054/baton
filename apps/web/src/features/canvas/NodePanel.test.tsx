@@ -218,12 +218,12 @@ describe('NodePanel', () => {
 
     expect(screen.getByText('0 个节点')).toBeInTheDocument()
     const input = screen.getByLabelText('分组名称')
-    fireEvent.change(input, { target: { value: '交付区' } })
+    fireEvent.change(input, { target: { value: '需求分组' } })
     fireEvent.click(screen.getByRole('button', { name: '保存修改' }))
     await waitFor(() =>
       expect(send).toHaveBeenCalledWith({
         type: 'node.update',
-        payload: { nodeId: 'n-group', patch: { data: { label: '交付区' } } },
+        payload: { nodeId: 'n-group', patch: { data: { label: '需求分组' } } },
       }),
     )
 

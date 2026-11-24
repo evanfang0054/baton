@@ -159,6 +159,9 @@ function setup() {
 function ctx(seeded: ReturnType<typeof seedTask>): ToolContext {
   return {
     workspaceId: seeded.workspaceId,
+    deliveryId: null,
+    stageKey: null,
+    allowWorkspaceCanvas: true,
     threadId: 'th1',
     triggerId: 'r1',
     text: '给这个 Agent 建个任务',
@@ -175,6 +178,19 @@ function ctx(seeded: ReturnType<typeof seedTask>): ToolContext {
 }
 
 describe('supervisor tools', () => {
+  it('requires a requirement for canvas tools', async () => {
+    const { seeded, tools } = setup()
+    await expect(
+      tools.list_canvas.execute(
+        {},
+        { ...ctx(seeded), deliveryId: null, stageKey: null, allowWorkspaceCanvas: false },
+      ),
+    ).rejects.toMatchObject({
+      code: 'canvas_not_found',
+      message: '请先在左侧选择一个需求',
+    })
+  })
+
   it('creates a todo task with origin and audit, never enqueues', async () => {
     const { database, seeded, tools } = setup()
     const result = (await tools.create_task.execute(

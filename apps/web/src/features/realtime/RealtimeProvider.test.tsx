@@ -231,7 +231,7 @@ describe('RealtimeProvider', () => {
       },
     })
     await waitFor(() =>
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.canvas('w1') }),
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.deliveryCanvases }),
     )
 
     invalidate.mockClear()
@@ -249,7 +249,7 @@ describe('RealtimeProvider', () => {
       },
     })
     await waitFor(() =>
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.canvas('w1') }),
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.deliveryCanvases }),
     )
 
     invalidate.mockClear()
@@ -267,7 +267,7 @@ describe('RealtimeProvider', () => {
       },
     })
     await waitFor(() =>
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.canvas('w1') }),
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.deliveryCanvases }),
     )
 
     invalidate.mockClear()
@@ -284,7 +284,7 @@ describe('RealtimeProvider', () => {
         ok: false,
       },
     })
-    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: queryKeys.canvas('w1') })
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: queryKeys.deliveryCanvases })
   })
 
   it('invalidates tasks and canvas after a successful batch create', async () => {
@@ -310,7 +310,7 @@ describe('RealtimeProvider', () => {
     })
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.tasks('w1') })
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.canvas('w1') })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.deliveryCanvases })
     })
   })
 
@@ -337,7 +337,7 @@ describe('RealtimeProvider', () => {
     })
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.tasks('w1') })
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.canvas('w1') })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.deliveryCanvases })
     })
   })
 
@@ -369,7 +369,7 @@ describe('RealtimeProvider', () => {
       },
     })
     await waitFor(() =>
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.canvas('w1') }),
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.deliveryCanvases }),
     )
   })
 
@@ -502,8 +502,8 @@ describe('RealtimeProvider', () => {
     })
 
     await waitFor(() => expect(invalidate).toHaveBeenCalled())
-    // tasks + 当前任务详情/自动化记录各一次。
-    expect(invalidate).toHaveBeenCalledTimes(2)
+    // tasks + 当前任务详情/自动化记录 + 全局通知各一次。
+    expect(invalidate).toHaveBeenCalledTimes(3)
 
     socket.message({
       v: 1,
@@ -586,7 +586,7 @@ describe('RealtimeProvider', () => {
     })
 
     await waitFor(() => {
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.canvas('w1') })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.deliveryCanvases })
       expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.tasks('w1') })
       expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.task('t1') })
     })

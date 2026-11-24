@@ -54,7 +54,7 @@ function delivery(overrides: Partial<DeliverySummary> = {}): DeliverySummary {
 describe('DeliveryBoard', () => {
   it('renders six columns and delivery cards with stage chips', () => {
     render(<DeliveryBoard deliveries={[delivery()]} onSelect={() => {}} />)
-    for (const label of ['草稿', '进行中', '待我处理', '已阻断', '已交付', '已取消']) {
+    for (const label of ['草稿', '进行中', '待我处理', '已阻断', '已完成', '已取消']) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0)
     }
     expect(screen.getByText('优惠券领取页')).toBeInTheDocument()
@@ -80,7 +80,7 @@ describe('DeliveryBoard', () => {
     expect(screen.getByText('个人中心改版')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /全部/ }))
-    await userEvent.type(screen.getByLabelText('搜索交付'), '优惠')
+    await userEvent.type(screen.getByLabelText('搜索需求'), '优惠')
     expect(screen.getByText('优惠券领取页')).toBeInTheDocument()
     expect(screen.queryByText('个人中心改版')).not.toBeInTheDocument()
   })
@@ -88,7 +88,7 @@ describe('DeliveryBoard', () => {
   it('calls onSelect when a card is clicked', async () => {
     const onSelect = vi.fn()
     render(<DeliveryBoard deliveries={[delivery()]} onSelect={onSelect} />)
-    await userEvent.click(screen.getByRole('button', { name: '打开交付 优惠券领取页' }))
+    await userEvent.click(screen.getByRole('button', { name: '打开需求 优惠券领取页' }))
     expect(onSelect).toHaveBeenCalledWith('d1')
   })
 
@@ -102,7 +102,7 @@ describe('DeliveryBoard', () => {
         onCancelDelivery={onCancelDelivery}
       />,
     )
-    await userEvent.click(screen.getByRole('button', { name: '停止交付 优惠券领取页' }))
+    await userEvent.click(screen.getByRole('button', { name: '停止需求 优惠券领取页' }))
     expect(onCancelDelivery).toHaveBeenCalledWith('d1')
     expect(onSelect).not.toHaveBeenCalled()
   })
@@ -115,15 +115,15 @@ describe('DeliveryBoard', () => {
         onCancelDelivery={() => {}}
       />,
     )
-    expect(screen.queryByRole('button', { name: /停止交付/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /停止需求/ })).not.toBeInTheDocument()
   })
 
   it('announces only the first waiting delivery to screen readers', () => {
     const list = [
-      delivery({ id: 'd1', title: '已取消的交付', status: 'cancelled', waitingSince: null }),
+      delivery({ id: 'd1', title: '已取消的需求', status: 'cancelled', waitingSince: null }),
       delivery({
         id: 'd2',
-        title: '等待中的交付',
+        title: '等待中的需求',
         status: 'waiting_person',
         attention: 'needs_review',
         waitingSince: 60_000,
@@ -132,10 +132,10 @@ describe('DeliveryBoard', () => {
     render(<DeliveryBoard deliveries={list} onSelect={() => {}} />)
     const summary = screen.getByText(
       (_, element) =>
-        element?.tagName === 'P' && element.textContent?.includes('当前最先等待的交付') === true,
+        element?.tagName === 'P' && element.textContent?.includes('当前最先等待的需求') === true,
     )
-    expect(summary).toHaveTextContent('等待中的交付')
-    expect(summary).not.toHaveTextContent('已取消的交付')
+    expect(summary).toHaveTextContent('等待中的需求')
+    expect(summary).not.toHaveTextContent('已取消的需求')
   })
 
   it('sorts by waiting time and flags stale deliveries', () => {

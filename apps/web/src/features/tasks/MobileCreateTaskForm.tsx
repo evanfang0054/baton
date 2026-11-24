@@ -17,6 +17,8 @@ export function MobileCreateTaskForm({
   canvasId,
   workspaceTrusted,
   nodes,
+  deliveryId = null,
+  stageKey = null,
   onCreated,
   onCancel,
 }: {
@@ -24,6 +26,8 @@ export function MobileCreateTaskForm({
   canvasId: string
   workspaceTrusted: boolean
   nodes: Node[]
+  deliveryId?: string | null
+  stageKey?: string | null
   onCreated: (taskId: string) => void
   onCancel: () => void
 }) {
@@ -120,6 +124,8 @@ export function MobileCreateTaskForm({
             engine: effectiveEngine,
             workspaceMode,
             dangerouslySkipPermissions: skipPermissions && workspaceTrusted,
+            ...(deliveryId ? { deliveryId } : {}),
+            ...(deliveryId && stageKey ? { stageKey } : {}),
             ...(verifyCommand.trim() ? { verifyCommand: verifyCommand.trim() } : {}),
           },
         })) as { taskId?: string } | undefined
@@ -127,7 +133,7 @@ export function MobileCreateTaskForm({
         taskId = result.taskId
         createdTaskId.current = taskId
         await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
-        await queryClient.invalidateQueries({ queryKey: queryKeys.canvas(workspaceId) })
+        await queryClient.invalidateQueries({ queryKey: queryKeys.deliveryCanvases })
       }
       if (createAndStart) {
         try {
@@ -270,7 +276,7 @@ export function MobileCreateTaskForm({
               使用独立工作树
               <br />
               {capabilities.data?.worktree === false
-                ? '该工作区不是 git 仓库。'
+                ? '该项目不是 git 仓库。'
                 : '任务在独立目录执行，结束后保留。'}
             </span>
           </label>

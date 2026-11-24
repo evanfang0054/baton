@@ -1,5 +1,6 @@
 import {
   AppError,
+  AttentionInboxResponse,
   AuditListResponse,
   AutomationPolicyPatch,
   AutomationSummary,
@@ -85,6 +86,10 @@ async function request(path: string, init?: RequestInit): Promise<unknown> {
 
 export async function listWorkspaces() {
   return WorkspaceListResponse.parse(await request('/api/workspaces')).workspaces
+}
+
+export async function listAttention(limit = 20) {
+  return AttentionInboxResponse.parse(await request(`/api/attention?limit=${limit}`))
 }
 
 export async function createWorkspace(input: WorkspaceCreateInput) {

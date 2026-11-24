@@ -3,6 +3,8 @@ import {
   buildPlan,
   buildTaskOrigin,
   boardColumn,
+  drawingSummary,
+  extractDrawingContent,
   attentionFor,
   canInjectContext,
   matchTemplate,
@@ -11,7 +13,9 @@ import {
   waitingSinceFor,
 } from '@baton/core'
 import {
+  DrawingOperation,
   Engine,
+  SupervisorDrawingCard,
   SupervisorHandoffResult,
   SupervisorTaskCard,
   TaskStatus,
@@ -33,8 +37,16 @@ import {
 import { z } from 'zod'
 import { getAcceptanceResponse } from '../acceptance/report-service.js'
 import type { AnnotationService } from '../annotation/service.js'
+import type { DrawingService } from '../artifact/drawing-service.js'
+import type { ArtifactService } from '../artifact/service.js'
 import type { DeliveryService } from '../delivery/service.js'
 import { listAcceptanceSummaries } from '../db/acceptance-repository.js'
+import {
+  getArtifact,
+  getCanvasByDelivery,
+  getDelivery,
+  getDeliveryByCanvas,
+} from '../db/delivery-repositories.js'
 import {
   getNode,
   getReviewByTask,
@@ -72,6 +84,9 @@ export interface AgentCandidate {
 
 export interface ToolContext {
   workspaceId: string
+  deliveryId?: string | null
+  stageKey?: string | null
+  allowWorkspaceCanvas?: boolean
   threadId: string
   triggerId: string
   text: string
@@ -126,6 +141,9 @@ export interface SupervisorToolset {
   cancel_delivery: SupervisorTool
   list_annotations: SupervisorTool
   get_annotation: SupervisorTool
+  get_drawing: SupervisorTool
+  create_drawing: SupervisorTool
+  update_drawing: SupervisorTool
 }
 
 export interface BoundTool {
@@ -164,6 +182,9 @@ export interface BoundToolset {
   cancel_delivery: BoundTool
   list_annotations: BoundTool
   get_annotation: BoundTool
+  get_drawing: BoundTool
+  create_drawing: BoundTool
+  update_drawing: BoundTool
 }
 
 export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundToolset {
@@ -202,6 +223,9 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     cancel_delivery: bind(tools.cancel_delivery),
     list_annotations: bind(tools.list_annotations),
     get_annotation: bind(tools.get_annotation),
+    get_drawing: bind(tools.get_drawing),
+    create_drawing: bind(tools.create_drawing),
+    update_drawing: bind(tools.update_drawing),
   }
 }
 
@@ -214,7 +238,37 @@ const listTasksInput = z.object({
 
 const listCanvasInput = z.object({
   limit: z.number().int().min(1).max(200).default(100),
+  scope: z.enum(['current', 'delivery']).default('current'),
+  deliveryId: z.string().min(1).optional(),
 })
+
+const getDrawingInput = z
+  .object({
+    nodeId: z.string().min(1).optional(),
+    artifactId: z.string().min(1).optional(),
+    offset: z.number().int().nonnegative().default(0),
+    limit: z.number().int().min(1).max(500).optional(),
+  })
+  .refine((value) => Boolean(value.nodeId) !== Boolean(value.artifactId), {
+    message: 'exactly one of nodeId or artifactId is required',
+  })
+
+const drawingOperations = z.array(DrawingOperation).min(1).max(50)
+
+const createDrawingInput = z.object({
+  title: z.string().trim().min(1).max(80).optional(),
+  operations: z.array(DrawingOperation).max(50).default([]),
+})
+
+const updateDrawingInput = z
+  .object({
+    nodeId: z.string().min(1).optional(),
+    artifactId: z.string().min(1).optional(),
+    operations: drawingOperations,
+  })
+  .refine((value) => Boolean(value.nodeId) !== Boolean(value.artifactId), {
+    message: 'exactly one of nodeId or artifactId is required',
+  })
 
 const getTaskInput = z.object({ taskId: z.string().min(1) })
 
@@ -441,6 +495,8 @@ export interface SupervisorToolsDeps {
   failures?: FailureService
   deliveries?: () => DeliveryService | undefined
   annotations?: () => AnnotationService | undefined
+  artifacts?: () => ArtifactService | undefined
+  drawings?: () => DrawingService | undefined
   logger?: Logger
 }
 
@@ -615,6 +671,8 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         engine: input.engine,
         workspaceMode: input.workspaceMode,
         dangerouslySkipPermissions: false,
+        ...(ctx.deliveryId ? { deliveryId: ctx.deliveryId } : {}),
+        ...(ctx.stageKey ? { stageKey: ctx.stageKey } : {}),
         ...(input.annotationIds ? { annotationIds: input.annotationIds } : {}),
       },
       {
@@ -655,6 +713,12 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     }
   }
 
+  function requireDrawings(): DrawingService {
+    const service = deps.drawings?.()
+    if (!service) throw appError('artifact_unavailable', 'drawing service is unavailable')
+    return service
+  }
+
   function audit(
     action: string,
     taskId: string,
@@ -689,14 +753,46 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       parameters: listCanvasInput,
       async execute(input, ctx) {
         const parsed = listCanvasInput.parse(input)
-        const canvas = resolver.canvasFor(ctx)
+        let canvas = resolver.canvasFor(ctx)
+        if (parsed.scope === 'delivery') {
+          if (!parsed.deliveryId) {
+            throw appError('invalid_payload', 'deliveryId is required for delivery scope')
+          }
+          const delivery = getDelivery(deps.db, parsed.deliveryId)
+          if (!delivery || delivery.workspaceId !== ctx.workspaceId) {
+            throw appError('delivery_not_found', 'delivery not found', {
+              deliveryId: parsed.deliveryId,
+            })
+          }
+          const scoped = getCanvasByDelivery(deps.db, delivery.id)
+          if (!scoped) {
+            throw appError('canvas_not_found', 'delivery canvas not found', {
+              deliveryId: delivery.id,
+            })
+          }
+          canvas = scoped
+        }
         const nodes = listNodes(deps.db, canvas.id)
         const edges = listEdges(deps.db, canvas.id)
         const shownNodes = nodes.slice(0, parsed.limit)
         const shownEdges = edges.slice(0, 200)
+        const artifactService = deps.artifacts?.()
+        const summaries = shownNodes.map((node) => {
+          const base = nodeSummary(node)
+          if (node.type !== 'drawing' || !artifactService) return base
+          try {
+            const { data } = artifactService.readArtifactContent(node.data.artifactId, 'source')
+            const summary = drawingSummary(JSON.parse(data.toString('utf8')))
+            return { ...base, ...summary }
+          } catch {
+            return base
+          }
+        })
         return {
           canvasId: canvas.id,
-          nodes: shownNodes.map(nodeSummary),
+          scope: parsed.scope,
+          deliveryId: parsed.deliveryId ?? null,
+          nodes: summaries,
           edges: shownEdges.map((edge) => ({
             id: edge.id,
             sourceId: edge.sourceId,
@@ -1236,6 +1332,8 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
               engine,
               workspaceMode: 'main',
               dangerouslySkipPermissions: false,
+              ...(ctx.deliveryId ? { deliveryId: ctx.deliveryId } : {}),
+              ...(ctx.stageKey ? { stageKey: ctx.stageKey } : {}),
               ...(parsed.annotationIdsByNode?.[node.id]
                 ? { annotationIds: parsed.annotationIdsByNode[node.id] }
                 : {}),
@@ -1372,6 +1470,8 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
           templateId: templateId ?? null,
           items,
           contextDigest: deps.contextDigest?.(ctx.workspaceId, items) ?? [],
+          deliveryId: ctx.deliveryId,
+          stageKey: ctx.stageKey,
           now: deps.now(),
         })
         const proposed = deps.actions.propose({
@@ -1965,6 +2065,133 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
               targets: service.describeAnnotationTargets(annotation),
             })),
         }
+      },
+    },
+
+    get_drawing: {
+      description:
+        '读取画板的全部可读内容：文字、元素结构、bounds、元素计数；不返回 base64、appState 或路径。' +
+        '可按 nodeId 或 artifactId 读取同 workspace 的画板；默认不截断，超大画板用 offset/limit 分页。',
+      parameters: getDrawingInput,
+      async execute(input, ctx) {
+        const parsed = getDrawingInput.parse(input)
+        const node = parsed.nodeId ? getNode(deps.db, parsed.nodeId) : null
+        if (parsed.nodeId && (!node || node.type !== 'drawing')) {
+          throw appError('drawing_not_found', 'drawing node not found', { nodeId: parsed.nodeId })
+        }
+        if (node) {
+          const delivery = getDeliveryByCanvas(deps.db, node.canvasId)
+          if (!delivery || delivery.workspaceId !== ctx.workspaceId) {
+            throw appError('drawing_not_found', 'drawing node not found', { nodeId: node.id })
+          }
+        }
+        const artifactId =
+          parsed.artifactId ?? (node?.type === 'drawing' ? node.data.artifactId : null)
+        if (!artifactId) throw appError('drawing_not_found', 'drawing artifact not found')
+        const artifact = getArtifact(deps.db, artifactId)
+        if (!artifact || artifact.workspaceId !== ctx.workspaceId) {
+          throw appError('drawing_not_found', 'drawing artifact not found', { artifactId })
+        }
+        const service = deps.artifacts?.()
+        if (!service) throw appError('artifact_unavailable', 'artifact service is unavailable')
+        const empty = {
+          artifactId,
+          title: artifact.name,
+          updatedAt: artifact.updatedAt,
+          texts: [],
+          elements: [],
+          counts: {},
+          totalTexts: 0,
+          totalElements: 0,
+          bounds: null,
+          truncated: false,
+          empty: true,
+        }
+        try {
+          const { data } = service.readArtifactContent(artifactId, 'source')
+          const content = extractDrawingContent(JSON.parse(data.toString('utf8')))
+          const offset = parsed.offset
+          const limit = parsed.limit ?? content.texts.length
+          const texts = content.texts
+            .slice(offset, offset + limit)
+            .map((text, index) => ({ index: offset + index, ...text }))
+          const nextOffset =
+            offset + texts.length < content.texts.length ? offset + texts.length : undefined
+          return {
+            artifactId,
+            title: artifact.name,
+            updatedAt: artifact.updatedAt,
+            texts,
+            elements: content.elements,
+            counts: content.counts,
+            totalTexts: content.totalTexts,
+            totalElements: content.totalElements,
+            bounds: content.bounds,
+            truncated: content.truncated || nextOffset !== undefined,
+            ...(nextOffset !== undefined ? { nextOffset } : {}),
+          }
+        } catch {
+          return empty
+        }
+      },
+    },
+
+    create_drawing: {
+      description:
+        '在当前需求画板新建一个画板节点，可一次写入文字/矩形/椭圆/箭头/工作区图片。' +
+        '图片路径必须是工作区相对路径（如 assets/shot.png），不能传 base64、绝对路径或远程 URL。',
+      parameters: createDrawingInput,
+      async execute(input, ctx) {
+        const parsed = createDrawingInput.parse(input)
+        if (!ctx.deliveryId || !ctx.stageKey) {
+          throw appError('canvas_not_found', '请先在左侧选择一个有当前阶段的需求')
+        }
+        const card = await requireDrawings().createDrawing({
+          deliveryId: ctx.deliveryId,
+          stageKey: ctx.stageKey,
+          ...(parsed.title ? { title: parsed.title } : {}),
+          operations: parsed.operations,
+        })
+        return SupervisorDrawingCard.parse(card)
+      },
+    },
+
+    update_drawing: {
+      description:
+        '修改当前需求画板：按 nodeId 或 artifactId 指定画板，追加/更新/软删除元素。' +
+        '只允许写当前需求的画板；图片路径规则与 create_drawing 相同。',
+      parameters: updateDrawingInput,
+      async execute(input, ctx) {
+        const parsed = updateDrawingInput.parse(input)
+        const canvas = resolver.canvasFor(ctx)
+        let artifactId: string
+        if (parsed.nodeId) {
+          const node = getNode(deps.db, parsed.nodeId)
+          if (!node || node.type !== 'drawing' || node.canvasId !== canvas.id) {
+            throw appError('drawing_not_found', 'drawing node not found', {
+              nodeId: parsed.nodeId,
+            })
+          }
+          artifactId = node.data.artifactId
+        } else {
+          const artifact = getArtifact(deps.db, parsed.artifactId!)
+          if (
+            !artifact ||
+            artifact.kind !== 'drawing' ||
+            artifact.workspaceId !== ctx.workspaceId ||
+            artifact.deliveryId !== ctx.deliveryId
+          ) {
+            throw appError('drawing_not_found', 'drawing artifact not found', {
+              artifactId: parsed.artifactId,
+            })
+          }
+          artifactId = artifact.id
+        }
+        const card = await requireDrawings().mutateDrawing({
+          artifactId,
+          operations: parsed.operations,
+        })
+        return SupervisorDrawingCard.parse(card)
       },
     },
 

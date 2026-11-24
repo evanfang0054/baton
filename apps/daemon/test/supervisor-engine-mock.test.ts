@@ -122,6 +122,9 @@ function tools(): BoundToolset {
     cancel_delivery: noop,
     list_annotations: noop,
     get_annotation: noop,
+    create_drawing: noop,
+    update_drawing: noop,
+    get_drawing: noop,
     create_task: {
       description: 'create a todo task',
       parameters: z.object({ title: z.string().min(1) }),

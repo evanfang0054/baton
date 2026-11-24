@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { getCanvasByDelivery } from '../src/db/delivery-repositories.js'
+import { insertNode } from '../src/db/repositories.js'
+import { createDeliveryService } from '../src/delivery/service.js'
 import { loadWorkspacePolicy } from '../src/supervisor/autonomy.js'
 import { createTestRuntime, type TestRuntimeHandle } from './helpers/runtime.js'
 
@@ -154,5 +157,98 @@ describe('plan apply', () => {
     expect(handle.database.raw.prepare('select count(*) as count from task').get()).toEqual({
       count: 1,
     })
+  })
+
+  it('binds applied tasks to the plan requirement scope', async () => {
+    const handle = createTestRuntime({ trusted: true })
+    handles.push(handle)
+    const deliveries = createDeliveryService({
+      db: handle.database.db,
+      config: handle.config,
+      now: handle.now,
+      newId: handle.newId,
+    })
+    const created = deliveries.createDelivery({
+      workspaceId: handle.seeded.workspaceId,
+      title: '优惠券领取页',
+      goal: '做一个领取页',
+    })
+    if (!created.ok) throw new Error(created.message)
+    const detail = deliveries.getDeliveryDetail(created.deliveryId)
+    if (!detail) throw new Error('delivery missing')
+    const stageKey = detail.currentStageKey
+    if (!stageKey) throw new Error('stage missing')
+    const canvas = getCanvasByDelivery(handle.database.db, created.deliveryId)
+    if (!canvas) throw new Error('canvas missing')
+    handle.database.db.transaction((tx) =>
+      insertNode(tx, {
+        id: 'plan-text',
+        canvasId: canvas.id,
+        type: 'text',
+        x: 0,
+        y: 0,
+        w: 320,
+        h: 120,
+        groupId: null,
+        data: { content: '领取页支持优惠券' },
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    )
+    const policyVersion = loadWorkspacePolicy(
+      handle.database.db,
+      handle.config,
+      handle.seeded.workspaceId,
+    )!.policyVersion
+    const proposed = handle.runtime.actions.propose({
+      workspaceId: handle.seeded.workspaceId,
+      threadId: 'th1',
+      taskId: null,
+      kind: 'triage_plan',
+      strength: 'inferred',
+      mode: 'observe',
+      reason: '计划',
+      payload: {
+        triggerId: 'trigger-scoped',
+        source: { nodeIds: ['plan-text'] },
+        templateId: null,
+        contextDigest: [],
+        deliveryId: created.deliveryId,
+        stageKey,
+        items: [
+          {
+            title: '领取页支持优惠券',
+            templateId: null,
+            targetNodeId: null,
+            agentTitle: '需求 Agent',
+            contextNodeIds: [],
+            engine: 'claude-sdk',
+          },
+        ],
+      },
+      policyVersion,
+      dedupeKey: 'plan:apply:scoped',
+    })
+    if (!proposed.ok) throw new Error(proposed.error.message)
+
+    expect(
+      handle.runtime.handleCommand({
+        v: 1,
+        id: 'p-scoped',
+        ts: 1,
+        type: 'supervisor.action.decide',
+        payload: {
+          workspaceId: handle.seeded.workspaceId,
+          actionId: proposed.action.id,
+          decision: 'apply',
+        },
+      }).ok,
+    ).toBe(true)
+    const stored = handle.runtime.actions.get(proposed.action.id)
+    const result = stored?.result as { createdTaskIds: string[] }
+    const task = handle.database.raw
+      .prepare('select delivery_id, stage_key from task where id = ?')
+      .get(result.createdTaskIds[0]!) as { delivery_id: string; stage_key: string }
+    expect(task).toEqual({ delivery_id: created.deliveryId, stage_key: stageKey })
   })
 })
