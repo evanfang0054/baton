@@ -1,11 +1,11 @@
 ---
 spec_topic: canvas-drawing-scope
-decision_summary: "画布收敛为需求画布：多项目树按项目挂需求，工具栏以画板为主，画板缩略图与自动保存闭环，总管读写跟随当前需求，画板内容进入总管与任务上下文"
+decision_summary: "画布收敛为需求画布：多项目树按项目挂需求，工具栏以画板为主，画板缩略图与自动保存闭环，总管读写并完整编辑画板，画板内容进入总管与任务上下文"
 design_approved: true
 user_approved_at: 2026-11-24T17:10:52+08:00
 gates: [design-approved]
 spec_ref: 2026-11-22-m7-delivery-playbook-design.md
-domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail, canvas-scope, drawing-content, attention-inbox]
+domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail, canvas-scope, drawing-content, attention-inbox, drawing-agent]
 ---
 
 # 画布与画板收敛设计
@@ -16,13 +16,14 @@ domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail
 
 ## 1. 背景
 
-当前产品在画布与画板上有四个具体问题：
+当前产品在画布与画板上有六个具体问题：
 
 1. **工具栏职责重叠**：`apps/web/src/features/canvas/CanvasToolbar.tsx` 同时提供文本、文件、图片、分组、Agent、整理、投喂、标注；用户实际用画板承载文案、图片与圈画，文本/图片按钮成为噪声。
-2. **画板只显示空框**：`apps/web/src/features/canvas/nodes/DrawingNode.tsx` 只渲染标题；`thumbnailPath` 从创建起恒为 `null`，后端保存时明确跳过 drawing 节点同步（`apps/daemon/src/artifact/service.ts:89-92`、`:316`）。
-3. **画板会丢内容**：关闭遮罩一定触发保存（`apps/web/src/features/drawings/DrawingEditor.tsx:87`）；加载失败被静默吞掉（`apps/web/src/features/drawings/DrawingEditor.tsx:44-46`），编辑器以空场景打开，关闭时把空场景写回；没有自动保存、脏状态和未保存提示。
-4. **总管看不到需求画布**：总管硬编码读取项目画布（`apps/daemon/src/supervisor/service.ts:1047` 使用 `getCanvasByWorkspace`），`supervisor.send` 没有 `deliveryId`（`packages/protocol/src/supervisor.ts:134-144`）；需求画布与画板内容完全不进总管上下文。
-5. **信息架构混乱**：左栏是交付列表，顶栏是项目切换器，主区在项目画布/需求画布/看板之间切换；"项目"与"需求"的归属关系在界面上不可见。
+2. **上传入口分散**：画布拖拽上传文件/图片与工具栏并存，和"内容进画板"的方向冲突。
+3. **画板只显示空框**：`apps/web/src/features/canvas/nodes/DrawingNode.tsx` 只渲染标题；`thumbnailPath` 从创建起恒为 `null`，后端保存时明确跳过 drawing 节点同步（`apps/daemon/src/artifact/service.ts:89-92`、`:316`）。
+4. **画板会丢内容**：关闭遮罩一定触发保存（`apps/web/src/features/drawings/DrawingEditor.tsx:87`）；加载失败被静默吞掉（`apps/web/src/features/drawings/DrawingEditor.tsx:44-46`），编辑器以空场景打开，关闭时把空场景写回；没有自动保存、脏状态和未保存提示。
+5. **总管看不到需求画布、也不能写画板**：总管硬编码读取项目画布（`apps/daemon/src/supervisor/service.ts:1047` 使用 `getCanvasByWorkspace`），`supervisor.send` 没有 `deliveryId`（`packages/protocol/src/supervisor.ts:134-144`）；需求画布与画板内容完全不进总管上下文，更无法创建/修改画板。
+6. **信息架构混乱**：左栏是交付列表，顶栏是项目切换器，主区在项目画布/需求画布/看板之间切换；"项目"与"需求"的归属关系在界面上不可见。
 
 ## 2. 决策
 
@@ -51,7 +52,7 @@ domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail
 
 - 项目只是需求容器，**没有项目画布**。
 - 每个需求一张画布（沿用 ADR 0011 `delivery-owned-canvas`）。
-- 未选中需求时，主区显示空态「选择一个需求，或新建需求」；总管只做项目级问答，不读写画布。
+- 未选中需求时，主区显示空态「选择一个需求，或新建需求」；总管只做项目级问答与建需求，不读写画布。
 - 项目级 `canvas.delivery_id IS NULL` 不再进入新 UI；后端保留空行以兼容旧代码，不删除、不迁移。
 - **不新增 workspace 级 artifact**：画板只存在于需求画布，仍按 `deliveryId + stageKey` 存储。
 
@@ -61,13 +62,16 @@ domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail
 - 代码标识符、协议、数据库、文档内部仍使用 `workspace` / `delivery`。
 - 顶部移除项目切换器；主区改为只读面包屑「项目 A / 需求 A-1」。
 
-### D4 工具栏收敛
+### D4 工具栏与内容入口收敛
 
 - 固定按钮：画板、文件、分组、Agent、整理画布、投喂给任务、快速标注、适应视图/放大/缩小。
 - 移除「添加文本」「添加图片」按钮与图片对话框。
-- 拖拽上传文件/图片保留，仍生成 file/image 节点。
-- 文本节点模型保留：总管 `create_text`、任务结果节点、任务交接节点继续可用，只是工具栏不再手动新建。
+- **移除画布拖拽上传**：删除 `handleDrop` 与 drop/dragOver 处理；画布不再接受拖入文件/图片。
+- 「文件」按钮保留：它只添加文件引用节点，不是上传。
+- 图片内容只在画板内插入（Excalidraw 自带图片能力）。
+- **文本节点类型保留，但只由总管/系统创建**：`create_text`、任务结果节点、任务交接节点继续可用；用户内容一律进画板。
 - `CanvasAddType` 改为 `drawing | file | agent | group`；`CanvasPanel` 增加 `onCreateDrawing` 回调。
+- 若 `uploadWorkspaceFile` 与上传路由在移除拖拽后无调用方，一并删除并更新测试。
 - 需求浮层保留标题/目标/阶段条/进度/等待/验收矩阵/停止交付/快速标注/标注 N；移除「新建画板」（移到工具栏）。
 
 ### D5 画板节点与缩略图
@@ -76,12 +80,13 @@ domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail
 - 保存时后端在同一事务内同步 drawing 节点：
   - `data.status = 'ready'`；
   - `data.thumbnailPath = artifact.path`（PNG）；
+  - `data.previewStale`：有预览时为 `false`，仅写源文件时为 `true`；
   - `node.updatedAt = now`。
 - 前端 `model.ts` 为 drawing 节点注入预览 URL，`DrawingNode` 渲染缩略图：
   - 顶部：图标 +「画板」+ 状态；
   - 主体：`object-contain` 缩略图，背景用 `bg-surface`；
   - 底部：标题 +「双击编辑」；
-  - 无预览或加载失败时显示占位。
+  - 无预览或加载失败时显示占位；`previewStale` 时显示「画板已更新，缩略图刷新中」。
 - 新建画板节点尺寸 360×260；标题默认「画板 N」。
 - 预览 URL 带 `v=node.updatedAt` 做缓存失效；保存后前端失效 `artifacts + deliveryCanvas` 查询。
 
@@ -92,12 +97,12 @@ domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail
   - 网络或 JSON 解析失败 → error 态，显示错误与重试，**禁止保存**；
   - 未进入 ready 不挂 Excalidraw、不产生 api，关闭不写盘。
 - 自动保存：
-  - `onChange` 标记 dirty + 2s debounce，只写 `.excalidraw` 源文件（`autosave: true`）；
+  - `onChange` 标记 dirty + 2s debounce，以 `mode='source'` 只写 `.excalidraw` 源文件；
   - 不生成 PNG/SVG、不写审计、不广播 `artifact.updated`；
   - 单飞队列：保存中再次变更只标记 pending，完成后补一次；
   - 失败显示「自动保存失败 + 重试」，保留编辑内容。
 - 显式保存 / 关闭：
-  - 生成 source + PNG + SVG 三件套（`autosave: false`），写审计、`status=ready`、同步节点、广播 `artifact.updated`；
+  - 以 `mode='full'` 生成 source + PNG + SVG 三件套，写审计、`status=ready`、同步节点、广播 `artifact.updated`；
   - 关闭前 flush；失败不关闭，提供「重试」与「放弃并关闭（二次确认）」；
   - dirty 时 `beforeunload` 提示。
 - 画板 overlay `closeOnEscape=false`，避免编辑文字时按 Esc 误关；X 按钮走统一 `requestClose`。
@@ -107,29 +112,27 @@ domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail
 ### D7 画板内容抽取与 `get_drawing`
 
 - 新增 `packages/core/src/drawing/scene.ts` 纯函数：
-  - `extractDrawingContent(scene)` 返回全部文字元素（完整文本、位置、尺寸、绑定关系）与全部图形元素的紧凑结构 `{type,x,y,w,h,text?}`；
+  - `extractDrawingContent(scene)` 返回全部文字元素（id、完整文本、位置、尺寸、绑定关系）与全部图形元素的紧凑结构 `{id,type,x,y,w,h,text?}`；
   - 跳过 `isDeleted`；按 `y → x → index` 稳定排序；
-  - 图片只统计数量与 MIME，不读取 `files` 的 base64；
+  - 返回 `bounds`（画板内容包围盒）与 `counts`；
+  - 图片只返回 id/数量/MIME/尺寸，不读取 `files` 的 base64；
   - 不返回 `appState`、绝对路径；
   - 默认返回全部内容；只有超过硬上限（5000 元素或 200k 文本字符）才返回 `truncated` 并提供分页。
-- 总管新增 `get_drawing` 工具：
-  - 入参 `{ nodeId?, artifactId?, offset?, limit? }`，二选一；
-  - 返回 `{ title, updatedAt, texts, elements, counts, totalTexts, totalElements, truncated, nextOffset? }`；
-  - 校验节点/产物属于当前 workspace；不返回二进制。
+- 总管 `get_drawing` 工具返回全部可读内容与元素 id，便于后续 `update_drawing` 引用。
 - `list_canvas` 与 `<canvas_overview>` 仍是轻量摘要：文本预览、画板标题/摘要/计数；需要全文时用 `get_drawing`。
 
 ### D8 总管读写跟随当前需求
 
 - 协议：`SupervisorSendInput` 增加可选 `deliveryId`、`stageKey`（必须成对）；`SupervisorMessageMeta` 持久化同字段，重试保持作用域。
 - daemon `ToolContext` 增加 `deliveryId/stageKey`；`createTargetResolver.canvasFor` 使用当前需求画布，不再回退项目画布。
-- 写工具（`create_text`、`create_agent`、`create_task`、`create_tasks`、`plan_tasks`、`batch_tasks`、`handoff_task`、`create_edge`、`update_node`、`arrange_canvas`）全部落在当前需求画布；新建任务绑定当前 `deliveryId + stageKey`；跨画布建边拒绝。
+- 写工具（`create_text`、`create_agent`、`create_task`、`create_tasks`、`plan_tasks`、`batch_tasks`、`handoff_task`、`create_edge`、`update_node`、`arrange_canvas`、`create_drawing`、`update_drawing`）全部落在当前需求画布；新建任务绑定当前 `deliveryId + stageKey`；跨画布建边拒绝。
 - 读工具：
   - `<canvas_overview>` = 当前需求画布，带 `scope="delivery"`、`delivery`、`stage` 属性；
   - `list_canvas` 默认当前需求，支持 `scope='delivery' + deliveryId` 读同项目其他需求；
   - `get_drawing` 按节点/产物读取任意同 workspace 画板；
   - 输出确定性截断并带 `truncated` 标记。
 - 没有选中需求时：总管只做项目级问答与建需求（`create_delivery`），画布工具返回明确错误「先选择一个需求」。
-- prompt：工具清单 29→30；新增作用域规则、画板文字是反馈、读画板用 `get_drawing`、不要读图片 base64。
+- prompt：工具清单 29→32；新增作用域规则、画板文字是反馈、读画板用 `get_drawing`、画板写入用 `create_drawing/update_drawing`、不要传图片 base64、不要抓取远程图片。
 
 ### D9 画板进入任务上下文
 
@@ -156,7 +159,7 @@ domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail
 - 旧 `workspace canvas` 与未绑定需求的任务不进入新 UI；如未重置，任务看板与总管只展示 `deliveryId` 非空的任务。
 - 本地重置 runbook（不自动执行）：
   1. 停止 daemon；
-  2. 备份后删除 `~/.baton/baton.db`（以及需要清理的 `.baton/deliveries` 产物目录）；
+  2. 备份后删除 `~/.baton/baton.db`（以及需要清理的各工作区 `.baton/` 产物目录）；
   3. 重新启动，按新模型创建项目与需求。
 - 新的 `createWorkspace` 仍会创建一行 workspace canvas（兼容旧代码），但 UI 不再查询；后续单独清理。
 
@@ -166,18 +169,66 @@ domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail
 - 左栏「通知 N」使用该接口；有通知的项目在项目行显示圆点。
 - 不做通知已读/未读状态；不新增表。
 
+### D13 总管完整编辑画板
+
+总管新增两个写工具：
+
+- `create_drawing({ title?, operations? })`：在当前需求画布创建 drawing 节点与 artifact；可带初始操作，避免多轮往返。
+- `update_drawing({ nodeId | artifactId, operations })`：对已有画板批量应用操作。
+
+操作集（`packages/protocol/src/drawing.ts` 定义 zod，`packages/core/src/drawing/scene.ts` 实现）：
+
+- `add_text`：文本、位置、字号、颜色、对齐。
+- `add_shape`：矩形/椭圆/菱形，位置/尺寸/颜色/填充，可带标签（自动绑定 text 元素）。
+- `add_arrow`：起点/终点/折点，可带标签。
+- `add_line`：折线/直线。
+- `add_freedraw`：自由笔迹点集。
+- `add_image`：从**工作区相对路径**插入图片（png/jpeg/webp/gif/svg），生成 Excalidraw `fileId` + image 元素；禁止远程 URL。
+- `update_text`：修改已有文字元素。
+- `move_element` / `resize_element` / `delete_elements`：移动/缩放/软删除。
+- `set_style`：颜色、线宽、字号、填充、透明度。
+- `set_title`：重命名画板。
+
+约束：
+
+- 单次最多 50 个操作；单画板最多 500 个元素；单条文字最多 10k 字符；单画板最多 20 张图片。
+- 单图片 ≤5MB；画板源文件 ≤10MB；超出返回明确错误。
+- 图片路径必须过路径 jail 与敏感路径检查；只读，不写工作区。
+- 写入只允许当前需求画布；读任意同 workspace 画板。
+- 每个 artifact 一个串行队列，避免并发写覆盖；审计 `drawing.update`。
+- 写入后 `artifact.updated` 带 `previewStale=true`；不生成 PNG/SVG。
+- 与人类同时编辑同一画板时最后写入生效；前端提供冲突提示（见 D14）。
+
+### D14 缩略图后台刷新与冲突提示
+
+- 服务端不引入 Excalidraw 渲染器；PNG 预览由浏览器生成。
+- 新增 `apps/web/src/features/drawings/preview-renderer.ts`：
+  - 懒加载 `@excalidraw/excalidraw` 的 `exportToBlob`（不挂载编辑器 React 组件）；
+  - 队列去重、并发 1；读取 `.excalidraw` 源文件 → `exportToBlob` → 以 `mode='preview'` 保存 PNG；
+  - 跳过正在编辑的画板；失败保留 `previewStale` 并显示「缩略图待刷新」；
+  - 页面加载时扫描当前画布上 `previewStale=true` 的 drawing 节点并补渲染。
+- `artifact.updated` 增加 `previewStale?: boolean`；`DrawingNode.data.previewStale` 持久化在节点 JSON 中（无 DB migration）。
+- 若 `exportToBlob` 直接调用在浏览器中不可用，回退为隐藏的 Excalidraw 实例导出；实现时以真实浏览器验证。
+- 冲突提示：前端维护「正在编辑的 artifactId」集合；收到同一画板的 `previewStale` 更新时显示横幅「总管已更新此画板。加载最新会丢弃本地未保存修改。」提供「加载最新 / 保留本地」；自动保存仍按最后写入生效。
+- 预览保存不写审计、不改源文件、不触发新的 `previewStale`；完成后清除节点 stale 标记并刷新缩略图。
+
 ## 3. 协议与 API 变更
 
 ### 3.1 协议
 
 - `packages/protocol/src/enums.ts`：`NodeType` 增加 `artifact`、`drawing`。
+- `packages/protocol/src/entities/node.ts`：`DrawingNode.data` 增加 `previewStale?: boolean`。
 - `packages/protocol/src/supervisor.ts`：
   - `SupervisorSendInput` 增加 `deliveryId?: Id`、`stageKey?: string(1..32)`；
   - `SupervisorMessageMeta` 增加 `deliveryId: Id.nullable().default(null)`、`stageKey: string.nullable().default(null)`。
+- `packages/protocol/src/drawing.ts`：新增画板操作 zod schema 与类型。
+- `packages/protocol/src/api.ts`：
+  - `ArtifactSaveInput` 增加 `mode: 'full' | 'source' | 'preview' = 'full'`；
+  - 其余字段语义不变。
+- `packages/protocol/src/events.ts`：`artifact.updated` 增加 `previewStale?: boolean`。
 - `apps/daemon/src/supervisor/tools.ts`：
   - `listCanvasInput` 增加 `scope?: 'current' | 'delivery'`、`deliveryId?: Id`；
-  - 新增 `getDrawingInput`、`get_drawing` 工具。
-- `ArtifactSaveInput` 增加 `autosave: boolean = false`（不改变现有字段语义）。
+  - 新增 `create_drawing`、`update_drawing`、`get_drawing`。
 - 无数据库 schema 变更。
 
 ### 3.2 REST
@@ -185,27 +236,30 @@ domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail
 - `GET /api/attention?limit=20`：跨项目注意力聚合，只读。
 - 其余沿用现有接口：
   - 需求/画布：`GET /api/canvas?workspaceId&deliveryId`；
-  - 产物：现有 delivery 级创建/保存/内容路由；
+  - 产物：现有 delivery 级创建/保存/内容路由；保存支持 `mode`；
   - 总管：WS `supervisor.send`。
 
 ### 3.3 总管工具
 
 - `get_drawing({ nodeId?, artifactId?, offset?, limit? })`
+- `create_drawing({ title?, operations? })`
+- `update_drawing({ nodeId?, artifactId?, operations })`
 - `list_canvas({ limit?, scope?, deliveryId? })`
 - `<canvas_overview scope="delivery" delivery="..." stage="..." total shown truncated>`
-- 工具总数 30；prompt 同步更新。
+- 工具总数 32；prompt 同步更新。
 
 ## 4. 后端实现
 
 ### 4.1 画板保存与节点同步
 
 - `apps/daemon/src/artifact/service.ts`：
-  - `saveArtifactContent` 接收 `autosave`；
-  - `autosave=true`：只写 source，不写审计、不广播、不 bump version、不改 status；
-  - `autosave=false`：写三件套、审计、`status='ready'`、广播、同步 drawing 节点；
-  - 新增 `syncDrawingNode(tx, artifact)`：按 `artifactId` 找到 delivery canvas 上的 drawing 节点，更新 `status/thumbnailPath/updatedAt`。
-- `DrawingNode` 预览 URL 使用现有 `artifactContentUrl(deliveryId, artifactId, 'preview')` + `v=updatedAt`。
-- `RealtimeProvider` 在 `artifact.updated` 时失效当前 `deliveryCanvas + artifacts` 查询（如尚未失效）。
+  - `saveArtifactContent` 按 `mode` 分支：
+    - `mode='source'`：只写 source，不写审计、不广播、不 bump version、不改 status；用于编辑器自动保存。
+    - `mode='full'`：写三件套、审计、`status='ready'`、广播、同步 drawing 节点、`previewStale=false`。
+    - `mode='preview'`：只写 preview，不写审计、不改 source、不 bump version；`status='ready'`；广播 `artifact.updated`；同步节点 `previewStale=false`。
+  - `syncDrawingNode(tx, artifact, { previewStale })`：按 `artifactId` 找到 delivery canvas 上的 drawing 节点，更新 `status/thumbnailPath/previewStale/updatedAt`。
+- `apps/web` 预览 URL 使用现有 `artifactContentUrl(deliveryId, artifactId, 'preview')` + `v=updatedAt`。
+- `RealtimeProvider` 在 `artifact.updated` 时失效当前 `deliveryCanvas + artifacts` 查询，并按 `previewStale` 入队预览渲染。
 
 ### 4.2 总管作用域
 
@@ -214,7 +268,7 @@ domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail
 - 任务创建路径：`create_task/create_tasks/plan_tasks/batch_tasks/handoff_task` 在需求作用域下写入 `deliveryId/stageKey`。
 - `list_canvas`：`scope='current'` 用当前需求；`scope='delivery'` 按 `deliveryId` 读取并校验 workspace；无当前需求且未指定 scope 时返回 `canvas_not_found`。
 - `get_drawing`：解析 node/artifact → artifact service 读 source → core 抽取 → 分页返回。
-- prompt 更新：工具清单、作用域规则、画板规则。
+- prompt 更新：工具清单、作用域规则、画板写规则、图片路径规则。
 
 ### 4.3 任务上下文
 
@@ -229,6 +283,20 @@ domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail
   - 只返回 `deliveryId` 非空的任务；
   - 输出确定性排序（waitingSince → updatedAt → id）；
   - 上限 50，`limit` 默认 20。
+
+### 4.5 画板写入服务
+
+- 新增 `apps/daemon/src/artifact/drawing-service.ts`：
+  - `createDrawing({ deliveryId, stageKey, title?, operations? })`：创建 draft artifact + 空 scene source + drawing 节点；应用初始操作。
+  - `mutateDrawing({ artifactId, operations })`：读取 source → `applyDrawingOperations` → 校验/写回 → 更新 artifact 元数据 → 审计 → 广播 `artifact.updated`（`previewStale=true`）。
+  - `addImage`：工作区相对路径 → `resolveWithin` + `isSensitivePath` + MIME/大小校验 → base64 dataURL → scene `files` + image 元素。
+  - 每个 artifact 一个串行队列；同一需求画布内串行执行。
+  - 失败返回明确错误：`drawing_too_large`、`drawing_too_many_elements`、`image_too_large`、`image_type_unsupported`、`image_path_invalid`、`drawing_operation_invalid`。
+- `packages/core/src/drawing/scene.ts`：
+  - `createEmptyScene()`、`applyDrawingOperations(scene, ops, { newId, now })`、`extractDrawingContent(scene)`、`drawingSummary(scene)`。
+  - 元素结构与 Excalidraw 0.18 对齐（version、versionNonce、seed、updated、index、boundElements 等）；用真实编辑器打开做兼容性验证。
+  - 形状标签使用 Excalidraw 绑定（shape.boundElements ↔ text.containerId）。
+  - 删除使用 `isDeleted=true` 软删除。
 
 ## 5. 前端实现
 
@@ -251,17 +319,21 @@ domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail
 ### 5.2 画布与画板
 
 - `CanvasToolbar`：删除文本/图片按钮与 `CreateImageNodeDialog`；新增画板按钮。
-- `CanvasPanel`：新增 `onCreateDrawing`；可选节点加入 drawing；投喂提示更新。
+- `CanvasPanel`：删除 `handleDrop` 与拖拽处理；新增 `onCreateDrawing`；可选节点加入 drawing；投喂提示更新。
 - `createDrawing`：沿用当前 `App.tsx` 的需求阶段逻辑；节点标题「画板 N」。
-- `DrawingEditor`：按 D6 重写加载/自动保存/关闭逻辑；增加保存状态与错误 UI。
-- `DrawingNode`：按 D5 渲染缩略图与占位。
+- `DrawingEditor`：按 D6 重写加载/自动保存/关闭逻辑；增加保存状态与错误 UI；自动保存使用 `mode='source'`。
+- `DrawingNode`：按 D5 渲染缩略图、`previewStale` 徽标与占位。
 - `model.ts`：`CanvasNodeData` 增加 `previewUrl`；`toFlowNodes` 为 drawing 节点生成预览 URL；`CanvasRenderOptions` 增加 `deliveryId`。
+- `apps/web/src/features/drawings/preview-renderer.ts`：按 D14 实现队列、`exportToBlob`、`mode='preview'` 保存、失败重试与页面加载补渲染。
+- 正在编辑的 artifactId 注册表：用于跳过后台渲染与显示冲突横幅。
 
 ### 5.3 总管
 
 - `SupervisorPanel`/`SupervisorComposer` 接收 `deliveryId/stageKey`，随 `supervisor.send` 发送；消息 meta 保存作用域用于重试。
 - 作用域芯片显示「项目 / 需求 · 阶段」。
-- 无需求时输入框保留，提示「选择一个需求后可读写画布」。
+- 无需求时输入框保留，提示「选择一个需求后可读写画板」。
+- `create_drawing`/`update_drawing` 的工具结果渲染为画板卡片：显示标题、元素数、缩略图，提供「打开画板」；点击后切换到对应需求并打开编辑器。
+- 收到 `previewStale` 且该画板正在编辑时，显示冲突横幅与「加载最新 / 保留本地」。
 
 ### 5.4 文案
 
@@ -272,14 +344,17 @@ domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail
 
 1. 左栏是「通知 + 项目树」：无「全部项目」、无「项目画布」；项目展开显示需求看板、需求、新建需求。
 2. 未选需求时主区为空态；选中需求后进入需求画布；顶部是面包屑，无项目切换器。
-3. 工具栏只有画板、文件、分组、Agent、整理、投喂、标注、视口；无文本/图片按钮；拖拽上传仍可用。
+3. 工具栏只有画板、文件、分组、Agent、整理、投喂、标注、视口；无文本/图片按钮；画布不接受拖拽上传。
 4. 新建画板 → 编辑 → 关闭 → 画布节点显示缩略图；重开与刷新内容不丢。
 5. 画板加载失败显示错误与重试，不以空场景覆盖；关闭失败不丢编辑内容；无未保存静默关闭。
-6. 总管在需求画布上读写跟随当前需求；无需求时明确提示；`get_drawing` 返回画板全部可读内容；`list_canvas` 可读其他需求。
-7. 画板可投喂任务，任务上下文包含画板文字；文本/文件/图片行为不变。
-8. 需求级标注行为与现有测试完全一致；工作区级标注随项目画布隐藏，表/API/图片保留。
-9. 全局通知能跨项目聚合，点击跳到对应任务现场；它使用注意力项，不复用总管 digest 通知。
-10. `pnpm verify`、`pnpm verify:full` 通过；UI 改动附 ego-lite 截图（工具栏、缩略图、重开内容、项目-需求切换）。
+6. 总管在需求画布上读写跟随当前需求；无需求时明确提示；`get_drawing` 返回画板全部可读内容与元素 id；`list_canvas` 可读其他需求。
+7. 总管能 `create_drawing` 并 `update_drawing`：写文字、画矩形/箭头/线/自由笔迹、插入工作区图片、移动/缩放/删除/改样式；画布出现对应节点与内容。
+8. 总管写画板后，浏览器后台自动生成新缩略图；失败时显示「缩略图待刷新」，人打开画板后恢复。
+9. 人类正在编辑的画板被总管更新时，出现冲突横幅；选择「加载最新」能看到总管内容。
+10. 画板可投喂任务，任务上下文包含画板文字；文本/文件行为不变。
+11. 需求级标注行为与现有测试完全一致；工作区级标注随项目画布隐藏，表/API/图片保留。
+12. 全局通知能跨项目聚合，点击跳到对应任务现场；它使用注意力项，不复用总管 digest 通知。
+13. `pnpm verify`、`pnpm verify:full` 通过；UI 改动附 ego-lite 截图（工具栏、缩略图、重开内容、项目-需求切换、总管画板卡片）。
 
 ## 7. 非目标
 
@@ -287,45 +362,51 @@ domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail
 - 不做「全部项目」页面。
 - 不做旧数据迁移/归档/自动删除；测试数据按 runbook 重置。
 - 不退役标注系统；工作区级标注暂不迁移、不新增入口，后续单独决策。
-- 不做画板多人协作、实时同步、多标签冲突合并（最后写入生效）。
-- 不做画板重命名与模板。
+- 不做画板多人协作、实时同步、多标签冲突合并（最后写入生效 + 冲突提示）。
+- 不做画板模板。
 - 不做移动端画板编辑。
-- 不做总管写画板内容。
-- 不做画板内图片 OCR/多模态理解；图片只给数量与 MIME。
+- 不做总管删除画板节点（元素级删除可用；节点删除仍由人操作）。
+- 不做远程图片 URL 抓取；图片只从工作区文件插入。
+- 不做服务端 PNG 渲染；缩略图由浏览器后台生成。
+- 不做画板内图片 OCR/多模态理解。
 - 不做看板重构。
 
 ## 8. 测试
 
-- core：`extractDrawingContent` 单测（纯文字、图文、排序、损坏 JSON、硬上限）；`assembleContext` drawing 快照；`NodeType` 变更。
-- daemon：artifact autosave/manual 行为；drawing 节点同步；`get_drawing` 分页与截断；`list_canvas` 作用域；总管读写作用域；attention 聚合排序；投喂 drawing。
-- web：ProjectTree 展开/懒加载/通知跳转；DrawingEditor 三态、自动保存 debounce、关闭 flush、放弃确认；DrawingNode 缩略图；工具栏。
-- e2e：项目 → 需求 → 画板完整链路；刷新持久化；总管作用域（可用 mock 模型）；旧 workspace canvas 不出现在 UI。
+- core：`extractDrawingContent` 单测（纯文字、图文、排序、损坏 JSON、硬上限）；`applyDrawingOperations` 单测（每种操作、标签绑定、删除、样式）；`assembleContext` drawing 快照；`NodeType` 变更。
+- daemon：artifact `mode` 分支（source/full/preview）；drawing 节点同步与 `previewStale`；`create_drawing`/`update_drawing` 操作与限制；图片插入（路径 jail、MIME、大小）；`get_drawing` 分页与截断；`list_canvas` 作用域；总管读写作用域；attention 聚合排序；投喂 drawing。
+- web：ProjectTree 展开/懒加载/通知跳转；DrawingEditor 三态、自动保存 debounce、关闭 flush、放弃确认；DrawingNode 缩略图与 stale 徽标；预览渲染队列；冲突横幅；工具栏。
+- e2e：项目 → 需求 → 画板完整链路；刷新持久化；总管创建/编辑画板（可用 mock 模型）；缩略图自动刷新；旧 workspace canvas 不出现在 UI。
+- 兼容性：用真实 Excalidraw 编辑器打开总管生成的场景，验证文字/形状/箭头/图片/标签渲染正常。
 - 回归：标注、交付阶段、验收、打包检查。
 
 ## 9. 实施计划
 
 1. **P1 项目-需求树与需求画布壳**：App 壳、ProjectTree、顶部/面包屑、空态、需求看板/任务看板过滤、文案统一、`GET /api/attention` 与通知区。
-2. **P2 工具栏与画板入口**：工具栏收敛、`CanvasAddType`、`onCreateDrawing`、文本/图片按钮移除、拖拽保留、投喂文案。
-3. **P3 画板编辑器、缩略图与内容抽取**：core 抽取函数、DrawingEditor 三态/自动保存/关闭保护、`autosave`、drawing 节点同步、DrawingNode 缩略图、Realtime 失效。
+2. **P2 工具栏与内容入口**：工具栏收敛、`CanvasAddType`、`onCreateDrawing`、文本/图片按钮移除、拖拽上传移除、文件按钮保留、投喂文案。
+3. **P3 画板编辑器、缩略图与内容抽取**：core 抽取函数、DrawingEditor 三态/自动保存/关闭保护、`mode` 分支、drawing 节点同步、DrawingNode 缩略图、预览 URL、Realtime 失效。
 4. **P4 总管作用域与读取**：协议字段、消息 meta、ToolContext/resolver、overview、`list_canvas`、`get_drawing`、prompt。
-5. **P5 画板进任务上下文**：NodeType、assembleContext、drawing 预读、投喂白名单、快照与集成测试。
+5. **P5 总管画板写入与后台预览**：`create_drawing`/`update_drawing`、scene mutation、图片插入、限制/审计/串行队列、`previewStale`、浏览器预览渲染、冲突横幅、工具结果卡片。
+6. **P6 画板进任务上下文**：NodeType、assembleContext、drawing 预读、投喂白名单、快照与集成测试。
 
-P1/P2 可并行；P4 依赖 P1 作用域与 P3 抽取；P5 依赖 P3/P4。
+P1/P2 可并行；P4 依赖 P1 作用域与 P3 抽取；P5 依赖 P3/P4；P6 依赖 P3/P5。
 
 ## 10. 数据重置 runbook（不自动执行）
 
 当前数据均为测试数据，升级前由用户手动执行：
 
 1. 停止 daemon 与 web。
-2. 备份后删除 `~/.baton/baton.db`；如需彻底清理，删除 `.baton/deliveries` 等产物目录。
+2. 备份后删除 `~/.baton/baton.db`；如需彻底清理，删除各工作区 `.baton/` 产物目录。
 3. 重新启动，创建项目与需求。
 4. 旧 workspace canvas 与未绑定任务不再进入新 UI；不做破坏性 migration。
 
 ## 11. 风险
 
-- Excalidraw `onChange` 频繁触发；自动保存必须 debounce + 单飞，避免写放大。
-- 画板内嵌图片可能触及 10MB 上限；需要明确错误提示。
-- 多标签页编辑同一画板时最后写入生效；本 spec 不做锁。
+- Excalidraw 场景 JSON 版本漂移：服务端 mutation 必须用真实编辑器验证；元素字段以当前 0.18 为准。
+- 总管生成的坐标/尺寸可能重叠或出界；依赖 `get_drawing` 的 bounds 与 prompt 约束，必要时人工整理画布。
+- 画板内嵌图片可能触及 10MB 上限；需要明确错误提示与数量上限。
+- 浏览器后台 `exportToBlob` 可能受字体/DOM 影响；需要真实浏览器验证，失败时保留 stale 徽标。
+- 多标签页/人与总管同时编辑时最后写入生效；需要冲突横幅，无法完全避免覆盖。
 - 项目很多时左栏需求查询增多；按项目懒加载。
 - 总管作用域需要随消息重试持久化，否则会串画布。
 - 旧数据未重置时会出现不可见但残留的 workspace canvas 与未绑定任务；runbook 要求重置。
@@ -333,8 +414,8 @@ P1/P2 可并行；P4 依赖 P1 作用域与 P3 抽取；P5 依赖 P3/P4。
 
 ## 12. 文档与后续
 
-- 新增 ADR：`docs/adr/0012-requirement-only-canvas.md`，记录「取消项目画布、需求画布唯一、总管作用域跟随需求」三项决定，回链 ADR 0011。
+- 新增 ADR：`docs/adr/0012-requirement-only-canvas.md`，记录「取消项目画布、需求画布唯一、总管作用域跟随需求、总管拥有画板写权限」四项决定，回链 ADR 0011。
 - 更新 `docs/README.md` 的 spec/ADR 索引。
-- 不修改 `DESIGN.md`（缩略图使用现有 `surface/separator/muted/foreground` token）。
+- 不修改 `DESIGN.md`（缩略图/工具卡使用现有 `surface/separator/muted/foreground` token）。
 - 无新增依赖，`THIRD_PARTY_NOTICES.md` 不变。
-- 标注系统、验收、状态机不在本次改动范围。
+- 标注系统、验收、状态机除总管画板工具外不在本次改动范围。
