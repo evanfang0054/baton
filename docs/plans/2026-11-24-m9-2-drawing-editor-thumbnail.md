@@ -145,7 +145,7 @@ Seam: `DrawingEditor` load/save state
 - `Overlay closeOnEscape={false}`；X 走 `requestClose`。
 - `beforeunload` dirty 提示。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 Mock `@excalidraw/excalidraw` 与 `../../lib/api`：
 - 加载 404：显示空编辑器，允许保存。
@@ -154,11 +154,11 @@ Mock `@excalidraw/excalidraw` 与 `../../lib/api`：
 - 关闭时触发 full 保存；full 失败不调用 onClose；成功后 onClose。
 - dirty 时放弃关闭需要二次确认。
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
 Run: `pnpm --filter @baton/web exec vitest run src/features/drawings/DrawingEditor.test.tsx`
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - 用 `useRef` 保存 api/防抖计时器/单飞状态；不要用 localStorage。
 - 加载失败时不挂载 Excalidraw，避免空场景覆盖。
@@ -166,11 +166,11 @@ Run: `pnpm --filter @baton/web exec vitest run src/features/drawings/DrawingEdit
 - 关闭流程：`requestClose()` → clean 直接关；dirty 先 full，失败留在编辑器。
 - `Overlay` 增加 `closeOnEscape`，画板传 `false`。
 
-- [ ] **Step 4: 运行并确认通过**
+- [x] **Step 4: 运行并确认通过**
 
 Run: `pnpm --filter @baton/web exec vitest run src/features/drawings/DrawingEditor.test.tsx`
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/web/src/features/drawings apps/web/src/features/overlays/Overlay.tsx

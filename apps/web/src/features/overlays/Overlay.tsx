@@ -6,11 +6,13 @@ export function Overlay({
   children,
   onClose,
   width = 'min(880px, 92vw)',
+  closeOnEscape = true,
 }: {
   title: string
   children: ReactNode
   onClose: () => void
   width?: string
+  closeOnEscape?: boolean
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
@@ -21,7 +23,7 @@ export function Overlay({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation()
-        onClose()
+        if (closeOnEscape) onClose()
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -29,7 +31,7 @@ export function Overlay({
       window.removeEventListener('keydown', onKeyDown)
       returnFocusRef.current?.focus()
     }
-  }, [onClose])
+  }, [closeOnEscape, onClose])
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-[6vh]">
