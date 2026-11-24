@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { AttentionItem } from './attention.js'
 import { Id, Timestamp } from './common.js'
 import { Engine, TaskStatus } from './enums.js'
 import { AppError } from './errors.js'
@@ -93,6 +94,29 @@ export const SupervisorDecision = z.object({
 })
 export type SupervisorDecision = z.infer<typeof SupervisorDecision>
 
+/**
+ * 汇报投递到会话时的快照。items 是生成时刻的注意力项，
+ * 历史消息不随任务状态变化，避免聊天记录被后续状态改写。
+ */
+export const SupervisorDigestMeta = z
+  .object({
+    noticeId: Id,
+    trigger: z.enum(['manual', 'schedule', 'attention']),
+    generatedAt: Timestamp,
+    items: z.array(AttentionItem).max(20),
+  })
+  .strict()
+export type SupervisorDigestMeta = z.infer<typeof SupervisorDigestMeta>
+
+export const SupervisorMessageMeta = z
+  .object({
+    contextNodeIds: z.array(Id),
+    targetNodeId: Id.nullable(),
+    digest: SupervisorDigestMeta.nullable().default(null),
+  })
+  .strict()
+export type SupervisorMessageMeta = z.infer<typeof SupervisorMessageMeta>
+
 export const SupervisorMessage = z.object({
   id: Id,
   threadId: Id,
@@ -100,13 +124,7 @@ export const SupervisorMessage = z.object({
   content: z.string(),
   toolCalls: z.array(ToolCallRecord).default([]),
   decision: SupervisorDecision.nullable().default(null),
-  meta: z
-    .object({
-      contextNodeIds: z.array(Id),
-      targetNodeId: Id.nullable(),
-    })
-    .nullable()
-    .default(null),
+  meta: SupervisorMessageMeta.nullable().default(null),
   status: z.enum(['ok', 'error']).default('ok'),
   error: AppError.nullable().default(null),
   createdAt: Timestamp,

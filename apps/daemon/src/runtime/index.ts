@@ -571,6 +571,7 @@ export function createRuntime(deps: RuntimeDeps) {
     track: hooks.track,
   })
   supervisorHolder.value = supervisor
+  digestDeps.deliver = (input) => supervisor.deliverDigest(input)
   const transitionRunner = createTransitionRunner({
     db: deps.db,
     config: deps.config,

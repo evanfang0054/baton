@@ -1,10 +1,9 @@
-import { Clock, LayoutList, MessageSquare } from 'lucide-react'
+import { LayoutList, MessageSquare } from 'lucide-react'
 import type { MobileTab } from '../../stores/app'
 
 const TABS: Array<{ id: MobileTab; label: string; icon: typeof LayoutList }> = [
   { id: 'board', label: '看板', icon: LayoutList },
   { id: 'supervisor', label: '总管', icon: MessageSquare },
-  { id: 'digest', label: '汇报', icon: Clock },
 ]
 
 const tabClass = [
@@ -46,7 +45,7 @@ export function MobileNav({
                   <span className="sr-only">个待处理任务</span>
                 </span>
               ) : null}
-              {id === 'digest' && unread ? (
+              {id === 'supervisor' && unread ? (
                 <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-accent">
                   <span className="sr-only">有未读汇报</span>
                 </span>

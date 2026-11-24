@@ -9,9 +9,12 @@ import {
   SupervisorTaskCard,
   VERIFY_SKIPPED,
   type AppError,
+  type DigestReport,
   type Engine as EngineValue,
+  type Notice,
   type Review,
   type Strength,
+  type SupervisorDigestMeta,
   type SupervisorMessage,
   type SupervisorMessagesResponse,
   type SupervisorSendInput,
@@ -61,6 +64,7 @@ import type { createSupervisorActionService } from './actions.js'
 import type { loadWorkspacePolicy } from './autonomy.js'
 import { loadSupervisorConfig, type SupervisorConfig } from './config.js'
 import { createAiSdkSupervisorEngine, type SupervisorEngine } from './engine.js'
+import { buildDigestMeta, formatDigestMessage } from './digest-message.js'
 import { buildVerifierPrompt, parseVerdict } from './observe.js'
 import { parseAcceptanceReport, type ParsedAcceptanceReport } from './acceptance-parse.js'
 import { PROMPT_VERSION, REPORT_PROMPT, SUPERVISOR_PROMPT } from './prompt.js'
@@ -1425,6 +1429,44 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
 
     /** target 离开 review 时由 runtime 调用，取消这一轮仍在运行的验收员。 */
     cancelVerifiersForTarget,
+
+    /** 汇报同时进入聊天流；notice 仍保留给自动化与未读提示。 */
+    deliverDigest(input: {
+      workspaceId: string
+      notice: Notice
+      report: DigestReport
+      trigger: SupervisorDigestMeta['trigger']
+    }): void {
+      try {
+        const thread = store.getOrCreateThread(input.workspaceId)
+        const inserted = store.insertNotification({
+          threadId: thread.id,
+          dedupeKey: `digest:${input.notice.id}`,
+          content: formatDigestMessage(input.report, input.trigger),
+          meta: {
+            contextNodeIds: [],
+            targetNodeId: null,
+            digest: buildDigestMeta({
+              report: input.report,
+              noticeId: input.notice.id,
+              trigger: input.trigger,
+            }),
+          },
+        })
+        if (!inserted.duplicate) {
+          emit('supervisor.message', inserted.message.id, inserted.message)
+        }
+      } catch (error) {
+        deps.logger?.warn(
+          {
+            event: 'supervisor.digest_delivery_failed',
+            workspaceId: input.workspaceId,
+            message: error instanceof Error ? error.message : 'unknown error',
+          },
+          'supervisor digest delivery failed',
+        )
+      }
+    },
 
     send(input: SupervisorSendInput): SupervisorSendResult {
       const loaded = loadSupervisorConfig(deps.dataDir)

@@ -67,6 +67,8 @@ export function SupervisorMessageList({
   onRetry,
   onRetryIncomplete,
   onPickQuickPrompt,
+  onOpenTask,
+  onApplyProposal,
 }: {
   messages: SupervisorMessageRecord[]
   stream: SupervisorStreamProjection
@@ -77,6 +79,8 @@ export function SupervisorMessageList({
   onRetry: (message: SupervisorMessageRecord) => void
   onRetryIncomplete: () => void
   onPickQuickPrompt: (text: string) => void
+  onOpenTask?: (taskId: string) => void
+  onApplyProposal?: (proposalId: string) => Promise<boolean> | boolean | void
 }) {
   const logRef = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
@@ -94,6 +98,9 @@ export function SupervisorMessageList({
     if (!element) return
     stickToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80
   }
+
+  // 只有最新一条汇报保留动作；更早的汇报作为历史记录只读，避免对过期建议重复操作。
+  const latestDigestId = [...messages].reverse().find((message) => message.meta?.digest)?.id ?? null
 
   return (
     <div
@@ -119,6 +126,9 @@ export function SupervisorMessageList({
           key={message.id}
           message={message}
           onRetry={message.status === 'error' ? () => onRetry(message) : undefined}
+          onOpenTask={onOpenTask}
+          onApplyProposal={onApplyProposal}
+          digestActions={message.id === latestDigestId}
         />
       ))}
       {incomplete ? (

@@ -24,7 +24,6 @@ import { RightPanel } from './features/right-panel/RightPanel'
 import { ConnectionStatus } from './features/shared/ConnectionStatus'
 import { MobileMoreMenu } from './features/shared/MobileMoreMenu'
 import { MobileNav } from './features/shared/MobileNav'
-import { DigestCard } from './features/supervisor/DigestCard'
 import { SupervisorPanel } from './features/supervisor/SupervisorPanel'
 import type { SupervisorTargetAgent } from './features/supervisor/supervisor-model'
 import { MobileBoardList } from './features/tasks/MobileBoardList'
@@ -456,17 +455,6 @@ function AppShell() {
                 targetAgent={targetAgent}
                 mobile
                 nodes={canvasNodes}
-              />
-            </div>
-          ) : null}
-          {mobileTab === 'digest' ? (
-            <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-[calc(6rem+env(safe-area-inset-bottom))]">
-              <DigestCard
-                workspaceId={activeWorkspaceId ?? undefined}
-                onOpenTask={(id) => {
-                  setTask(id)
-                  writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
-                }}
               />
             </div>
           ) : null}

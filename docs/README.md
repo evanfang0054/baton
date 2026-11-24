@@ -37,6 +37,7 @@
 - [2026-11-21 M6-3 验收证据与放权护栏设计](specs/2026-11-21-m6-3-acceptance-evidence-design.md)
 - [2026-11-22 M6-5 总管自治与注意力设计](specs/2026-11-22-m6-5-supervisor-autonomy-design.md)
 - [2026-11-22 M7 交付工作台与 SOP 流程设计](specs/2026-11-22-m7-delivery-playbook-design.md)
+- [2026-11-24 总管右栏收敛为聊天流设计](specs/2026-11-24-supervisor-chat-only-digest-design.md)
 
 ## 现行 ADR
 

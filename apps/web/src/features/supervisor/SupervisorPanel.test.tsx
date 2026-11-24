@@ -1,9 +1,9 @@
 import type { SupervisorMessage } from '@baton/protocol'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getSupervisorMessages, getSupervisorStatus, getTask, listTasks } from '../../lib/api'
+import { getSupervisorMessages, getSupervisorStatus, listNotices, readNotice } from '../../lib/api'
 import { CommandProvider } from '../../lib/command-context'
 import { useAppStore } from '../../stores/app'
 import { SupervisorPanel } from './SupervisorPanel'
@@ -12,8 +12,7 @@ vi.mock('../../lib/api', () => ({
   getSupervisorStatus: vi.fn(),
   getSupervisorMessages: vi.fn(),
   listNotices: vi.fn().mockResolvedValue({ notices: [] }),
-  listTasks: vi.fn().mockResolvedValue([]),
-  getTask: vi.fn(),
+  readNotice: vi.fn().mockResolvedValue(undefined),
 }))
 
 function renderPanel(send = vi.fn().mockResolvedValue(undefined)) {
@@ -62,7 +61,7 @@ beforeEach(() => {
     policyVersion: 'p1',
   })
   vi.mocked(getSupervisorMessages).mockResolvedValue({ threadId: 'th1', messages: [] })
-  vi.mocked(listTasks).mockResolvedValue([])
+  vi.mocked(readNotice).mockResolvedValue(undefined)
 })
 
 describe('SupervisorPanel', () => {
@@ -109,79 +108,72 @@ describe('SupervisorPanel', () => {
     expect(useAppStore.getState().overlay).toEqual({ kind: 'stage', taskId: 't1' })
   })
 
-  it('shows pending approval tasks as gate cards', async () => {
-    vi.mocked(listTasks).mockResolvedValue([
-      {
-        id: 't1',
-        workspaceId: 'w1',
-        nodeId: null,
-        title: '登录页修复',
-        prompt: '',
-        status: 'waiting_input',
-        waitingReason: 'approval',
-        engine: 'claude-sdk',
-        workspaceMode: 'main',
-        branch: null,
-        worktreePath: null,
-        verifyCommand: null,
-        retryCount: 0,
-        dangerouslySkipPermissions: false,
-        enqueuedAt: null,
-        createdAt: 1,
-        updatedAt: 2,
-        attention: 'needs_approval',
-        waitingSince: Date.now() - 60_000,
-        acceptance: null,
-      },
-    ])
-    vi.mocked(getTask).mockResolvedValue({
-      task: {
-        id: 't1',
-        workspaceId: 'w1',
-        nodeId: null,
-        title: '登录页修复',
-        prompt: '',
-        status: 'waiting_input',
-        waitingReason: 'approval',
-        engine: 'claude-sdk',
-        workspaceMode: 'main',
-        branch: null,
-        worktreePath: null,
-        verifyCommand: null,
-        retryCount: 0,
-        dangerouslySkipPermissions: false,
-        enqueuedAt: null,
-        createdAt: 1,
-        updatedAt: 2,
-        context: null,
-        origin: null,
-      },
-      contextInvalid: false,
-      originInvalid: false,
-      sessions: [],
-      approvals: [
+  it('renders a digest message with inline actions and no report panel', async () => {
+    vi.mocked(getSupervisorMessages).mockResolvedValue({
+      threadId: 'th1',
+      messages: [
         {
-          id: 'a1',
-          sessionId: 's1',
-          request: { toolName: 'Bash', input: { command: 'pnpm test' }, risk: 'high' },
+          id: 'm-digest',
+          threadId: 'th1',
+          role: 'assistant',
+          content: '本轮汇报 · 11/24 10:00\n共 2 个任务：待处理 1，待验收 1，进行中 0',
+          toolCalls: [],
           decision: null,
-          decidedBy: null,
-          decidedAt: null,
-          response: null,
+          meta: {
+            contextNodeIds: [],
+            targetNodeId: null,
+            digest: {
+              noticeId: 'n1',
+              trigger: 'schedule',
+              generatedAt: 1,
+              items: [
+                {
+                  taskId: 't1',
+                  title: '登录页修复',
+                  kind: 'review',
+                  reason: '验收通过后等你确认',
+                  waitingSince: null,
+                  proposalId: null,
+                  action: { type: 'open_review' },
+                },
+              ],
+            },
+          },
+          status: 'ok',
+          error: null,
+          createdAt: 2,
         },
       ],
-      review: null,
-      waitingSince: Date.now() - 60_000,
-      attention: 'needs_approval',
-      acceptance: null,
-      lastFailure: null,
-      lastOutcome: null,
     })
     renderPanel()
 
-    expect(await screen.findByText('待我处理 1')).toBeVisible()
+    expect(await screen.findByText(/本轮汇报 · 11\/24 10:00/)).toBeVisible()
     expect(screen.getByText('登录页修复')).toBeVisible()
-    expect(screen.getByRole('button', { name: '允许' })).toBeVisible()
+    expect(screen.queryByRole('heading', { name: '本轮汇报' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '生成汇报' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '历史' })).toBeNull()
+    expect(screen.queryByText(/待我处理/)).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: '去验收' }))
+    expect(useAppStore.getState().activeTaskId).toBe('t1')
+  })
+
+  it('marks the latest digest notice read while the panel is open', async () => {
+    vi.mocked(listNotices).mockResolvedValue({
+      notices: [
+        {
+          id: 'n1',
+          workspaceId: 'w1',
+          ts: 1,
+          kind: 'digest',
+          payload: {},
+          readAt: null,
+        },
+      ],
+    })
+    renderPanel()
+
+    await waitFor(() => expect(readNotice).toHaveBeenCalledWith('n1'))
   })
 
   it('retries a failed turn with the previous user message', async () => {
@@ -195,7 +187,7 @@ describe('SupervisorPanel', () => {
           content: '建个任务',
           toolCalls: [],
           decision: null,
-          meta: { contextNodeIds: [], targetNodeId: null },
+          meta: { contextNodeIds: [], targetNodeId: null, digest: null },
           status: 'ok',
           error: null,
           createdAt: 1,

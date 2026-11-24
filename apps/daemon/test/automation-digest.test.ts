@@ -1,3 +1,4 @@
+import type { DigestReport } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
 import { getSetting, listAudit, listNotices } from '../src/db/repositories.js'
 import { waitFor } from './helpers/async.js'
@@ -69,5 +70,42 @@ describe('digest service', () => {
     expect(
       getSetting(handle.database.db, `digest:last:${handle.seeded.workspaceId}`),
     ).toMatchObject({ at: firstPayload.windowEnd })
+  })
+
+  it('delivers the digest into the supervisor chat with an attention snapshot', () => {
+    const handle = setup()
+    handle.database.raw
+      .prepare(
+        "update task set status='waiting_input', waiting_reason='approval', updated_at=10 where id=?",
+      )
+      .run(handle.seeded.taskId)
+
+    const notice = handle.runtime.digest.generate(handle.seeded.workspaceId, 'manual')
+    const history = handle.runtime.supervisor.history(handle.seeded.workspaceId, 10)
+    expect(history.messages).toHaveLength(1)
+    const message = history.messages[0]!
+    expect(message.role).toBe('assistant')
+    expect(message.content).toContain('本轮汇报')
+    expect(message.content).toContain('需要你决定 1 件')
+    expect(message.meta?.digest?.noticeId).toBe(notice?.id)
+    expect(message.meta?.digest?.trigger).toBe('manual')
+    expect(message.meta?.digest?.items).toHaveLength(1)
+    expect(message.meta?.digest?.items[0]?.action).toEqual({ type: 'open_task' })
+  })
+
+  it('dedupes repeated delivery for the same notice', () => {
+    const handle = setup()
+    const notice = handle.runtime.digest.generate(handle.seeded.workspaceId, 'manual')
+    const report = notice?.payload as DigestReport
+
+    handle.runtime.supervisor.deliverDigest({
+      workspaceId: handle.seeded.workspaceId,
+      notice: notice!,
+      report,
+      trigger: 'manual',
+    })
+    expect(handle.runtime.supervisor.history(handle.seeded.workspaceId, 10).messages).toHaveLength(
+      1,
+    )
   })
 })

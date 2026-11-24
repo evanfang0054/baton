@@ -407,28 +407,16 @@ test('shows env-forced pause without a restore action', async ({ page }) => {
   await expect(page.getByRole('button', { name: '恢复' })).toHaveCount(0)
 })
 
-test('marks the digest read and generates a new one', async ({ page }) => {
-  const commands: Array<Record<string, unknown>> = []
-  await routeCommands(page, commands)
+test('keeps the supervisor panel as a chat stream', async ({ page }) => {
+  await routeCommands(page, [])
   await mockAutomationApi(page)
   await page.goto('/?workspace=w1')
 
-  await expect(page.getByText('本轮汇报')).toBeVisible()
-  await expect(page.getByText('待验收 2', { exact: true })).toBeVisible()
-  await expect(page.getByLabel('未读')).toBeVisible()
-
-  await page.getByRole('button', { name: '知道了' }).click()
-  await expect(page.getByLabel('未读')).toHaveCount(0)
-
-  await page.getByRole('button', { name: '历史' }).click()
-  await expect(page.getByText('已读')).toHaveCount(2)
-
-  await page.getByRole('button', { name: '生成汇报' }).click()
-  await expect(page.getByLabel('未读')).toBeVisible()
-  await expect(page.getByText('有未读汇报')).toBeAttached()
-
-  await page.getByRole('button', { name: /任务一/ }).click()
-  await expect(page.getByTestId('task-detail')).toContainText('任务一')
+  await expect(page.getByLabel('总管对话')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '本轮汇报' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '生成汇报' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '历史' })).toHaveCount(0)
+  await expect(page.getByText('待我处理 1')).toHaveCount(0)
 })
 
 test('batch starts todo tasks and shows task automation', async ({ page }) => {
