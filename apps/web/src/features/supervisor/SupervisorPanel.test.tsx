@@ -123,6 +123,8 @@ describe('SupervisorPanel', () => {
           meta: {
             contextNodeIds: [],
             targetNodeId: null,
+            deliveryId: null,
+            stageKey: null,
             digest: {
               noticeId: 'n1',
               trigger: 'schedule',
@@ -191,6 +193,8 @@ describe('SupervisorPanel', () => {
           meta: {
             contextNodeIds: [],
             targetNodeId: null,
+            deliveryId: null,
+            stageKey: null,
             digest: {
               noticeId: 'n1',
               trigger: 'schedule',
@@ -235,7 +239,13 @@ describe('SupervisorPanel', () => {
           content: '建个任务',
           toolCalls: [],
           decision: null,
-          meta: { contextNodeIds: [], targetNodeId: null, digest: null },
+          meta: {
+            contextNodeIds: [],
+            targetNodeId: null,
+            digest: null,
+            deliveryId: null,
+            stageKey: null,
+          },
           status: 'ok',
           error: null,
           createdAt: 1,
@@ -266,6 +276,60 @@ describe('SupervisorPanel', () => {
         requestId: expect.any(String),
         text: '建个任务',
         contextNodeIds: [],
+      },
+    })
+  })
+
+  it('keeps the requirement scope when retrying', async () => {
+    vi.mocked(getSupervisorMessages).mockResolvedValue({
+      threadId: 'th1',
+      messages: [
+        {
+          id: 'm1',
+          threadId: 'th1',
+          role: 'user',
+          content: '看看画板',
+          toolCalls: [],
+          decision: null,
+          meta: {
+            contextNodeIds: [],
+            targetNodeId: null,
+            digest: null,
+            deliveryId: 'd1',
+            stageKey: 'design',
+          },
+          status: 'ok',
+          error: null,
+          createdAt: 1,
+        },
+        {
+          id: 'm2',
+          threadId: 'th1',
+          role: 'assistant',
+          content: '总管执行失败：模型不可用',
+          toolCalls: [],
+          decision: null,
+          meta: null,
+          status: 'error',
+          error: { code: 'supervisor_unavailable', message: '模型不可用' },
+          createdAt: 2,
+        },
+      ],
+    })
+    const send = vi.fn().mockResolvedValue(undefined)
+    renderPanel(send)
+
+    expect(await screen.findByText(/本轮失败 · supervisor_unavailable/)).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: '重试' }))
+    expect(send).toHaveBeenCalledWith({
+      type: 'supervisor.send',
+      payload: {
+        workspaceId: 'w1',
+        requestId: expect.any(String),
+        text: '看看画板',
+        contextNodeIds: [],
+        deliveryId: 'd1',
+        stageKey: 'design',
       },
     })
   })

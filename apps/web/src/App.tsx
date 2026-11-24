@@ -183,6 +183,13 @@ function AppShell() {
 
   const activeWorkspace =
     workspaces.data?.find((workspace) => workspace.id === activeWorkspaceId) ?? null
+  const activeStage =
+    delivery.data?.stages.find((stage) => stage.key === delivery.data?.currentStageKey) ?? null
+  const supervisorScopeLabel = activeDeliveryId
+    ? `${activeWorkspace?.name ?? '项目'} / ${delivery.data?.title ?? '需求'}${
+        activeStage ? ` · ${activeStage.label}` : ''
+      }`
+    : `${activeWorkspace?.name ?? '项目'} · 项目`
   const unauthorized =
     wsStatus === 'unauthorized' ||
     [workspaces.error, tasks.error, deliveries.error].some(
@@ -449,6 +456,9 @@ function AppShell() {
             <div className="min-h-0 flex-1 pb-[calc(4rem+env(safe-area-inset-bottom))]">
               <SupervisorPanel
                 workspaceId={activeWorkspaceId}
+                deliveryId={activeDeliveryId}
+                stageKey={delivery.data?.currentStageKey ?? null}
+                scopeLabel={supervisorScopeLabel}
                 contextNodes={contextNodes}
                 targetAgent={targetAgent}
                 mobile
@@ -652,6 +662,9 @@ function AppShell() {
             supervisor={
               <SupervisorPanel
                 workspaceId={activeWorkspaceId}
+                deliveryId={activeDeliveryId}
+                stageKey={delivery.data?.currentStageKey ?? null}
+                scopeLabel={supervisorScopeLabel}
                 contextNodes={contextNodes}
                 targetAgent={targetAgent}
                 nodes={canvasNodes}

@@ -68,6 +68,49 @@ describe('SupervisorComposer', () => {
     expect(useSupervisorStreamStore.getState().status).toBe('streaming')
   })
 
+  it('sends the requirement scope and shows the scope chip', async () => {
+    const send = vi.fn().mockResolvedValue({ threadId: 'th1', messageId: 'm1' })
+    const { client } = renderComposer(send, {
+      deliveryId: 'd1',
+      stageKey: 'design',
+      scopeLabel: '项目 A / 需求 B · 设计',
+    })
+    client.setQueryData<SupervisorMessagesResponse>(queryKeys.supervisorMessages('w1'), {
+      threadId: 'th1',
+      messages: [],
+    })
+    expect(screen.getByTestId('supervisor-scope')).toHaveTextContent('项目 A / 需求 B · 设计')
+
+    await userEvent.type(screen.getByRole('textbox'), '把这个画板整理一下')
+    await userEvent.click(screen.getByRole('button', { name: '发送' }))
+    expect(send).toHaveBeenCalledWith({
+      type: 'supervisor.send',
+      payload: expect.objectContaining({
+        workspaceId: 'w1',
+        deliveryId: 'd1',
+        stageKey: 'design',
+      }),
+    })
+
+    const cached = client.getQueryData<SupervisorMessagesResponse>(
+      queryKeys.supervisorMessages('w1'),
+    )
+    expect(cached?.messages[0]?.meta).toMatchObject({ deliveryId: 'd1', stageKey: 'design' })
+  })
+
+  it('does not send a half scope', async () => {
+    const send = vi.fn().mockResolvedValue({ threadId: 'th1', messageId: 'm1' })
+    renderComposer(send, { deliveryId: 'd1', stageKey: null })
+
+    await userEvent.type(screen.getByRole('textbox'), '你好')
+    await userEvent.click(screen.getByRole('button', { name: '发送' }))
+    const payload = vi.mocked(send).mock.calls[0]?.[0] as {
+      payload: Record<string, unknown>
+    }
+    expect(payload.payload).not.toHaveProperty('deliveryId')
+    expect(payload.payload).not.toHaveProperty('stageKey')
+  })
+
   it('does not send on IME composition Enter', async () => {
     const send = vi.fn()
     renderComposer(send)

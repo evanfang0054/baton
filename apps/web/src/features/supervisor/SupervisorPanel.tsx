@@ -16,12 +16,18 @@ import { useSupervisorStream, useSupervisorStreamStore } from './stream-store'
 
 export function SupervisorPanel({
   workspaceId,
+  deliveryId = null,
+  stageKey = null,
+  scopeLabel,
   contextNodes,
   targetAgent,
   mobile = false,
   nodes = [],
 }: {
   workspaceId: string | null
+  deliveryId?: string | null
+  stageKey?: string | null
+  scopeLabel?: string
   contextNodes: ProtocolNode[]
   targetAgent: SupervisorTargetAgent | null
   mobile?: boolean
@@ -109,6 +115,10 @@ export function SupervisorPanel({
   const resend = async (userMessage: SupervisorMessage) => {
     if (!workspaceId || retrying || stream.status === 'streaming') return
     const meta = userMessage.meta
+    const scope =
+      meta?.deliveryId && meta.stageKey
+        ? { deliveryId: meta.deliveryId, stageKey: meta.stageKey }
+        : null
     setRetrying(true)
     // 与输入框保持一致：重试后立刻进入“正在思考”，避免重复点击再发一轮。
     useSupervisorStreamStore.getState().waitForReply()
@@ -121,6 +131,7 @@ export function SupervisorPanel({
           text: userMessage.content,
           contextNodeIds: meta?.contextNodeIds ?? [],
           ...(meta?.targetNodeId ? { targetNodeId: meta.targetNodeId } : {}),
+          ...(scope ?? {}),
         },
       })
     } catch (cause) {
@@ -233,6 +244,9 @@ export function SupervisorPanel({
       {workspaceId && history.data ? (
         <SupervisorComposer
           workspaceId={workspaceId}
+          deliveryId={deliveryId}
+          stageKey={stageKey}
+          {...(scopeLabel ? { scopeLabel } : {})}
           contextNodes={contextNodes}
           targetAgent={targetAgent}
           initialText={quickPrompt.text}

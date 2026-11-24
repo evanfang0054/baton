@@ -14,6 +14,8 @@ const plan = {
   source: { nodeIds: ['n1'] },
   templateId: 'bugfix' as const,
   contextDigest: [],
+  deliveryId: null,
+  stageKey: null,
   items: [
     {
       title: '修复登录',

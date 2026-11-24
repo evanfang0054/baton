@@ -40,6 +40,9 @@ function contextLabel(node: ProtocolNode): string {
 
 export function SupervisorComposer({
   workspaceId,
+  deliveryId = null,
+  stageKey = null,
+  scopeLabel,
   contextNodes,
   targetAgent,
   initialText = '',
@@ -48,6 +51,9 @@ export function SupervisorComposer({
   nodes = [],
 }: {
   workspaceId: string
+  deliveryId?: string | null
+  stageKey?: string | null
+  scopeLabel?: string
   contextNodes: ProtocolNode[]
   targetAgent: SupervisorTargetAgent | null
   initialText?: string
@@ -70,6 +76,8 @@ export function SupervisorComposer({
   const busy = sending || stream.status === 'streaming'
   const effectiveTarget = pickedTarget ?? targetAgent
   const effectiveContext = pickedContext ?? contextNodes
+  // 作用域必须成对：只有需求没有阶段时按项目作用域发送，避免读写串到别的需求。
+  const scope = deliveryId && stageKey ? { deliveryId, stageKey } : null
 
   useEffect(() => {
     setPickedTarget(null)
@@ -116,7 +124,13 @@ export function SupervisorComposer({
       content: value,
       toolCalls: [],
       decision: null,
-      meta: { contextNodeIds, targetNodeId: targetNodeId ?? null, digest: null },
+      meta: {
+        contextNodeIds,
+        targetNodeId: targetNodeId ?? null,
+        digest: null,
+        deliveryId: scope?.deliveryId ?? null,
+        stageKey: scope?.stageKey ?? null,
+      },
       status: 'ok',
       error: null,
       createdAt: Date.now(),
@@ -135,6 +149,7 @@ export function SupervisorComposer({
           text: value,
           contextNodeIds,
           ...(targetNodeId ? { targetNodeId } : {}),
+          ...(scope ?? {}),
         },
       })
       requestIdRef.current = null
@@ -164,6 +179,13 @@ export function SupervisorComposer({
 
   return (
     <div className="flex shrink-0 flex-col gap-2 border-t border-separator p-3">
+      {scopeLabel ? (
+        <div className="flex items-center gap-2">
+          <Chip size="sm" variant="soft" color="default" data-testid="supervisor-scope">
+            {scopeLabel}
+          </Chip>
+        </div>
+      ) : null}
       {mobile ? (
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="tertiary" onPress={() => setPicker('target')}>
