@@ -157,15 +157,20 @@ export function registerDeliveryRoutes(app: FastifyInstance, deps: DeliveryRoute
     })
   })
 
-  app.post('/api/deliveries/:deliveryId/annotations', async (req) => {
-    const { deliveryId } = req.params as { deliveryId: string }
-    const input = AnnotationCreateInput.safeParse(req.body)
-    if (!input.success)
-      throw appError('invalid_payload', 'invalid annotation input', input.error.issues)
-    return AnnotationResponse.parse({
-      annotation: deps.annotations.createAnnotation({ deliveryId, ...input.data }),
-    })
-  })
+  // 标注会带整块画布截图，默认 1MB body limit 会先于 schema 的 14MB 拒绝。
+  app.post(
+    '/api/deliveries/:deliveryId/annotations',
+    { bodyLimit: 16 * 1024 * 1024 },
+    async (req) => {
+      const { deliveryId } = req.params as { deliveryId: string }
+      const input = AnnotationCreateInput.safeParse(req.body)
+      if (!input.success)
+        throw appError('invalid_payload', 'invalid annotation input', input.error.issues)
+      return AnnotationResponse.parse({
+        annotation: deps.annotations.createAnnotation({ deliveryId, ...input.data }),
+      })
+    },
+  )
 
   app.patch('/api/deliveries/:deliveryId/annotations/:annotationId', async (req) => {
     const { annotationId } = req.params as { annotationId: string }
@@ -203,15 +208,19 @@ export function registerDeliveryRoutes(app: FastifyInstance, deps: DeliveryRoute
     })
   })
 
-  app.post('/api/workspaces/:workspaceId/annotations', async (req) => {
-    const { workspaceId } = req.params as { workspaceId: string }
-    const input = WorkspaceAnnotationCreateInput.safeParse(req.body)
-    if (!input.success)
-      throw appError('invalid_payload', 'invalid annotation input', input.error.issues)
-    return AnnotationResponse.parse({
-      annotation: deps.annotations.createWorkspaceAnnotation({ workspaceId, ...input.data }),
-    })
-  })
+  app.post(
+    '/api/workspaces/:workspaceId/annotations',
+    { bodyLimit: 16 * 1024 * 1024 },
+    async (req) => {
+      const { workspaceId } = req.params as { workspaceId: string }
+      const input = WorkspaceAnnotationCreateInput.safeParse(req.body)
+      if (!input.success)
+        throw appError('invalid_payload', 'invalid annotation input', input.error.issues)
+      return AnnotationResponse.parse({
+        annotation: deps.annotations.createWorkspaceAnnotation({ workspaceId, ...input.data }),
+      })
+    },
+  )
 }
 
 function command(

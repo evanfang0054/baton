@@ -175,6 +175,22 @@ describe('delivery REST', () => {
     expect(saved.statusCode, saved.body).toBe(200)
   })
 
+  it('accepts annotation images larger than the default 1MB body limit', async () => {
+    const { app, handle } = await setup()
+    const created = await app.inject({
+      method: 'POST',
+      url: `/api/workspaces/${handle.seeded.workspaceId}/annotations`,
+      payload: {
+        targetNodeIds: [],
+        note: '大截图',
+        strokesJson: '[]',
+        bbox: { x: 0, y: 0, w: 10, h: 10 },
+        imageBase64: 'A'.repeat(1_500_000),
+      },
+    })
+    expect(created.statusCode, created.body).toBe(200)
+  })
+
   it('returns payload_too_large for oversized bodies outside drawing saves', async () => {
     const { app, handle } = await setup()
     const oversized = await app.inject({
