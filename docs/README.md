@@ -41,6 +41,7 @@
 - [2026-11-24 工作区标注与画布删除设计](specs/2026-11-24-workspace-annotations-canvas-delete-design.md)
 - [2026-11-24 标注文字与验收清单反馈设计](specs/2026-11-24-annotation-text-and-acceptance-feedback-design.md)
 - [2026-11-24 标注定位与常驻显示设计](specs/2026-11-24-annotation-anchoring-display-design.md)
+- [2026-11-24 画布与画板收敛设计](specs/2026-11-24-canvas-drawing-scope-design.md)
 
 ## 现行 ADR
 
