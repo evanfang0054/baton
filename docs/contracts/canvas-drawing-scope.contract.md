@@ -6,26 +6,26 @@
 
 ## Definition of Done
 
-- [ ] 左栏渲染「通知 N」+ 项目树；不存在「全部项目」「项目画布」入口；项目展开后显示「需求看板」「需求列表」「新建需求」；点项目名或箭头只展开/收起，不切换主区；需求列表按项目懒加载。
-- [ ] 点击需求进入该需求画布；未选需求时主区显示空态；顶部无项目切换器，只读面包屑显示「项目 / 需求」；URL 含 `workspaceId + deliveryId`，刷新与深链恢复到同一画布。
-- [ ] 用户可见导航/看板/创建对话框/阶段卡/提示语不再用「工作区」「交付」指代项目/需求；代码标识符、协议、文档内部命名不变。
-- [ ] 画布工具栏只含画板、文件、分组、Agent、整理画布、投喂、快速标注、视口；不存在添加文本/添加图片按钮；画布不响应拖拽文件/图片；文件按钮仍能创建文件引用节点。
-- [ ] 文本节点不能再手动新建；总管 `create_text`、任务结果节点、任务交接节点仍能创建文本节点，且正常显示、投喂与进入任务上下文。
-- [ ] 需求画布新建画板 → 编辑文字/图形/图片 → 保存/关闭 → drawing 节点显示 PNG 缩略图；双击重开、刷新页面后内容完整；缩略图 URL 随保存版本更新。
-- [ ] 模拟 source 读取失败或 JSON 损坏：画板显示错误与重试，不挂载可保存的空场景；关闭不写盘、不覆盖原文件。
-- [ ] 编辑后 2 秒内发起 `mode='source'` 自动保存；保存单飞；失败显示重试并保留编辑内容；自动保存不写审计、不广播 `artifact.updated`、不改 `status/version`。
-- [ ] 有未保存修改时关闭画板先执行 `mode='full'` 保存；保存失败不关闭且保留内容；提供「重试」与「放弃并关闭（二次确认）」；Esc 不直接关闭画板。
-- [ ] 总管在当前需求画布调用 `get_drawing` 返回全部文字与元素（含元素 id、bounds），不返回 base64、`appState` 或绝对路径；`list_canvas` 默认当前需求，并能按 `deliveryId` 读取同项目其他需求。
-- [ ] 总管 `create_drawing` 能创建 drawing 节点与 artifact；`update_drawing` 支持 `add_text`、`add_shape`、`add_arrow`、`add_line`、`add_freedraw`、`update_text`、`move_element`、`resize_element`、`delete_elements`、`set_style`、`set_title`；真实 Excalidraw 编辑器能打开并渲染生成的场景。
-- [ ] 总管 `add_image` 能从工作区相对路径插入 png/jpeg/webp/gif/svg；越权路径、敏感路径、超限、不支持 MIME、远程 URL 均返回明确错误。
-- [ ] 单次超过 50 个操作、单画板超过 500 个元素、单图片超过 5MB、源文件超过 10MB 时写入被拒绝；每个 artifact 串行写入；每次写入写审计 `drawing.update`。
-- [ ] 总管写画板后 `artifact.updated.previewStale=true` 且 drawing 节点 `previewStale=true`；浏览器后台生成 PNG 并以 `mode='preview'` 保存；成功后节点 stale 清除、缩略图刷新；渲染失败显示「缩略图待刷新」，人打开画板后能恢复。
-- [ ] 人正在编辑的画板被总管更新时出现冲突横幅；点「加载最新」后编辑器显示总管写入的文字/元素；「保留本地」不会强制覆盖。
-- [ ] 画板节点可被选中投喂任务；任务上下文包含画板文字；注入记录与现有文本/文件一致；现有 context 快照除新增 drawing 外不变。
-- [ ] 需求级标注、交付阶段、验收的现有测试全部通过；工作区级标注不再出现在 UI，`annotation` 表/API/图片保留。
-- [ ] 通知区跨项目聚合注意力项；点击条目切到对应项目、需求、任务现场；无通知时显示「没有需要你处理的」。
-- [ ] 不新增破坏性 migration；旧 workspace canvas 不出现在新 UI；未绑定需求的任务不出现在看板与总管；第 10 节重置 runbook 可执行。
-- [ ] `pnpm verify`、`pnpm verify:full` 通过；`scripts/check-web-bundles.mjs` 确认 Excalidraw 不在主包；ego-lite 证据覆盖左栏、画板缩略图、重开内容、总管画板卡片、冲突横幅。
+- [x] 左栏渲染「通知 N」+ 项目树；不存在「全部项目」「项目画布」入口；项目展开后显示「需求看板」「需求列表」「新建需求」；点项目名或箭头只展开/收起，不切换主区；需求列表按项目懒加载。
+- [x] 点击需求进入该需求画布；未选需求时主区显示空态；顶部无项目切换器，只读面包屑显示「项目 / 需求」；URL 含 `workspaceId + deliveryId`，刷新与深链恢复到同一画布。
+- [x] 用户可见导航/看板/创建对话框/阶段卡/提示语不再用「工作区」「交付」指代项目/需求；代码标识符、协议、文档内部命名不变。
+- [x] 画布工具栏只含画板、文件、分组、Agent、整理画布、投喂、快速标注、视口；不存在添加文本/添加图片按钮；画布不响应拖拽文件/图片；文件按钮仍能创建文件引用节点。
+- [x] 文本节点不能再手动新建；总管 `create_text`、任务结果节点、任务交接节点仍能创建文本节点，且正常显示、投喂与进入任务上下文。
+- [x] 需求画布新建画板 → 编辑文字/图形/图片 → 保存/关闭 → drawing 节点显示 PNG 缩略图；双击重开、刷新页面后内容完整；缩略图 URL 随保存版本更新。
+- [x] 模拟 source 读取失败或 JSON 损坏：画板显示错误与重试，不挂载可保存的空场景；关闭不写盘、不覆盖原文件。
+- [x] 编辑后 2 秒内发起 `mode='source'` 自动保存；保存单飞；失败显示重试并保留编辑内容；自动保存不写审计、不广播 `artifact.updated`、不改 `status/version`。
+- [x] 有未保存修改时关闭画板先执行 `mode='full'` 保存；保存失败不关闭且保留内容；提供「重试」与「放弃并关闭（二次确认）」；Esc 不直接关闭画板。
+- [x] 总管在当前需求画布调用 `get_drawing` 返回全部文字与元素（含元素 id、bounds），不返回 base64、`appState` 或绝对路径；`list_canvas` 默认当前需求，并能按 `deliveryId` 读取同项目其他需求。
+- [x] 总管 `create_drawing` 能创建 drawing 节点与 artifact；`update_drawing` 支持 `add_text`、`add_shape`、`add_arrow`、`add_line`、`add_freedraw`、`update_text`、`move_element`、`resize_element`、`delete_elements`、`set_style`、`set_title`；真实 Excalidraw 编辑器能打开并渲染生成的场景。
+- [x] 总管 `add_image` 能从工作区相对路径插入 png/jpeg/webp/gif/svg；越权路径、敏感路径、超限、不支持 MIME、远程 URL 均返回明确错误。
+- [x] 单次超过 50 个操作、单画板超过 500 个元素、单图片超过 5MB、源文件超过 10MB 时写入被拒绝；每个 artifact 串行写入；每次写入写审计 `drawing.update`。
+- [x] 总管写画板后 `artifact.updated.previewStale=true` 且 drawing 节点 `previewStale=true`；浏览器后台生成 PNG 并以 `mode='preview'` 保存；成功后节点 stale 清除、缩略图刷新；渲染失败显示「缩略图待刷新」，人打开画板后能恢复。
+- [x] 人正在编辑的画板被总管更新时出现冲突横幅；点「加载最新」后编辑器显示总管写入的文字/元素；「保留本地」不会强制覆盖。
+- [x] 画板节点可被选中投喂任务；任务上下文包含画板文字；注入记录与现有文本/文件一致；现有 context 快照除新增 drawing 外不变。
+- [x] 需求级标注、交付阶段、验收的现有测试全部通过；工作区级标注不再出现在 UI，`annotation` 表/API/图片保留。
+- [x] 通知区跨项目聚合注意力项；点击条目切到对应项目、需求、任务现场；无通知时显示「没有需要你处理的」。
+- [x] 不新增破坏性 migration；旧 workspace canvas 不出现在新 UI；未绑定需求的任务不出现在看板与总管；第 10 节重置 runbook 可执行。
+- [x] `pnpm verify`、`pnpm verify:full` 通过；`scripts/check-web-bundles.mjs` 确认 Excalidraw 不在主包；ego-lite 证据覆盖左栏、画板缩略图、重开内容、总管画板卡片、冲突横幅。
 
 ## Boundary Conditions
 
@@ -66,3 +66,12 @@
 - Generator（第 3 轮）：把文案范围写入第 3 条；把队列断言写入第 14 条与 Acceptance；把固定 fixture 写入第 11 条；把「无新 migration 文件 + 旧库启动」写入第 19 条与 Acceptance。
 - Evaluator（第 3 轮）：逐条可由测试或证据判定 yes/no；接受，无进一步挑战。
 - Final consensus：以上 Definition of Done 为「画布与画板收敛」的完成定义。
+
+
+## Verification Record (2026-11-24)
+
+- `pnpm verify:full`：typecheck / lint / format / boundaries / protocol / unit / build / bundle / Playwright 全绿。
+- 新增 `apps/web/e2e/drawing.spec.ts`：缩略图 → 编辑器 → 保存 → 刷新、总管画板卡、冲突横幅、stale → browser preview。
+- 迁移全部 legacy 画布 e2e 到需求画布：canvas-context、canvas-group、context-injection、handoff、task-scene、acceptance-evidence、automation、mobile-controls。
+- 证据：`docs/evidence/2026-11-24-m9-5/`（ego-lite：项目树/缩略图/编辑器真实渲染/刷新持久化；Playwright：总管画板卡/冲突横幅）。
+- 真实 Excalidraw 编辑器已验证文字、形状、箭头与图片渲染；箭头 `points` 使用 Excalidraw 序列化的 `[x, y]` 元组。

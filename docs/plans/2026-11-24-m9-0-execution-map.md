@@ -1,7 +1,7 @@
 ---
 spec_ref: ../specs/2026-11-24-canvas-drawing-scope-design.md
 spec_topic: canvas-drawing-scope
-status: active
+status: completed
 ---
 
 # M9 画布与画板收敛实施执行图
@@ -59,6 +59,7 @@ M9-1 → M9-2 → M9-3 → M9-4 → M9-5
 - M9-2 已完成（2026-11-24）：source/full/preview 保存、drawing 节点同步、编辑器 fail-safe、缩略图与内容抽取；`pnpm verify` + `delivery.spec` 通过。
 - M9-3 已完成（2026-11-24）：总管消息作用域、需求画布解析、`list_canvas` 跨需求、`get_drawing` 全量读取、计划作用域落库、无需求明确报错；`pnpm verify` + `delivery.spec`/`supervisor.spec` 通过。
 - M9-4 已完成（2026-11-24）：画板场景纯函数、画板写入服务、`create_drawing`/`update_drawing`、图片路径校验、`previewStale`、浏览器后台预览、冲突横幅与画板工具卡；`pnpm verify` + 定向 e2e 通过。
+- M9-5 已完成（2026-11-24）：`NodeType`/画板上下文、投喂白名单、legacy e2e 迁移、`drawing.spec`、20 条 contract DoD、`pnpm verify:full`、ego-lite + Playwright 证据落盘。
 
 ## 数据重置
 
