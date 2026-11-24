@@ -39,9 +39,11 @@ test('injects selected node into a waiting task from the canvas', async ({ page 
     taskDetail: detail,
   })
 
-  await page.goto('/?workspace=w1')
+  await page.goto('/?workspace=w1&delivery=d1')
+  await page.addStyleTag({
+    content: '[data-testid="delivery-summary-card"]{display:none}',
+  })
   await page.locator('.react-flow__node[data-id="n1"]').click()
-  await page.getByRole('button', { name: '关闭节点详情' }).click()
   await page.getByRole('button', { name: '投喂给任务' }).click()
   await expect(page.getByRole('heading', { name: '投喂给任务' })).toBeVisible()
   await page.getByLabel('投喂说明').fill('补充报错')
@@ -65,9 +67,11 @@ test('rejects with the current canvas selection', async ({ page }) => {
     taskDetail: detail,
   })
 
-  await page.goto('/?workspace=w1')
+  await page.goto('/?workspace=w1&delivery=d1')
+  await page.addStyleTag({
+    content: '[data-testid="delivery-summary-card"]{display:none}',
+  })
   await page.locator('.react-flow__node[data-id="n1"]').click()
-  await page.getByRole('button', { name: '关闭节点详情' }).click()
   await page.getByRole('button', { name: '任务', exact: true }).click()
   await page.getByTestId('task-board-overlay').getByText('待验收任务').click()
 
@@ -98,7 +102,10 @@ test('requires confirmation when passing a failed verify', async ({ page }) => {
     acceptance: acceptanceBundle({ acceptance: passSummary }),
   })
 
-  await page.goto('/?workspace=w1')
+  await page.goto('/?workspace=w1&delivery=d1')
+  await page.addStyleTag({
+    content: '[data-testid="delivery-summary-card"]{display:none}',
+  })
   await page.getByRole('button', { name: '任务', exact: true }).click()
   await page.getByTestId('task-board-overlay').getByText('待验收任务').click()
 

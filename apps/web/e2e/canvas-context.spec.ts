@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { mockDelivery, mockDeliveryDetail } from './m6-helpers'
 
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
 
@@ -48,6 +49,18 @@ test('creates a task with canvas context', async ({ page }) => {
         },
       })
     }
+    if (path === '/api/deliveries') {
+      return route.fulfill({ json: { deliveries: [mockDelivery] } })
+    }
+    if (path === '/api/deliveries/d1') {
+      return route.fulfill({ json: { delivery: mockDeliveryDetail } })
+    }
+    if (path === '/api/deliveries/d1/artifacts') {
+      return route.fulfill({ json: { artifacts: [] } })
+    }
+    if (path === '/api/attention') {
+      return route.fulfill({ json: { items: [], total: 0 } })
+    }
     if (path === '/api/canvas') {
       return route.fulfill({
         json: {
@@ -57,8 +70,8 @@ test('creates a task with canvas context', async ({ page }) => {
               id: 't1',
               canvasId: 'c1',
               type: 'text',
-              x: 80,
-              y: 80,
+              x: 500,
+              y: 120,
               w: 240,
               h: 120,
               groupId: null,
@@ -70,8 +83,8 @@ test('creates a task with canvas context', async ({ page }) => {
               id: 't2',
               canvasId: 'c1',
               type: 'text',
-              x: 80,
-              y: 260,
+              x: 500,
+              y: 300,
               w: 240,
               h: 120,
               groupId: null,
@@ -83,8 +96,8 @@ test('creates a task with canvas context', async ({ page }) => {
               id: 'a1',
               canvasId: 'c1',
               type: 'agent',
-              x: 480,
-              y: 160,
+              x: 620,
+              y: 500,
               w: 240,
               h: 120,
               groupId: null,
@@ -148,8 +161,11 @@ test('creates a task with canvas context', async ({ page }) => {
     return route.fulfill({ status: 404, json: { code: 'not_found', message: 'not found' } })
   })
 
-  await page.goto('/?workspace=w1')
-  await expect(page.getByText('需求 A')).toBeVisible()
+  await page.goto('/?workspace=w1&delivery=d1')
+  await page.addStyleTag({
+    content: '[data-testid="delivery-summary-card"]{display:none}',
+  })
+  await expect(page.locator('.react-flow__node', { hasText: '需求 A' })).toBeVisible()
 
   // 键盘删除不能绕过 NodePanel 的服务端删除：节点保留、不发送 node.delete。
   await page.locator('.react-flow__node', { hasText: '需求 A' }).click()
@@ -157,11 +173,9 @@ test('creates a task with canvas context', async ({ page }) => {
   await page.waitForTimeout(300)
   expect(commands.some((message) => message.type === 'node.delete')).toBe(false)
   await expect(page.locator('.react-flow__node', { hasText: '需求 A' })).toBeVisible()
-  await page.getByRole('button', { name: '关闭节点详情' }).click()
 
-  await page.locator('.react-flow__node', { hasText: '需求 A' }).click({ modifiers: [modifier] })
   await page.locator('.react-flow__node', { hasText: '需求 B' }).click({ modifiers: [modifier] })
-  await page.locator('.react-flow__node', { hasText: 'Agent 1' }).click()
+  await page.locator('.react-flow__node', { hasText: 'Agent 1' }).dblclick()
 
   const panel = page.getByTestId('node-detail')
   await expect(panel.getByTestId('context-chips')).toContainText('需求 A')

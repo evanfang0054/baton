@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { mockDelivery, mockDeliveryDetail } from './m6-helpers'
 
 const workspace = {
   id: 'w1',
@@ -74,6 +75,8 @@ const task = {
   updatedAt: 2,
   context: null,
   origin: null,
+  deliveryId: 'd1',
+  stageKey: 'requirement',
 }
 
 const review = {
@@ -94,6 +97,18 @@ async function mockRest(
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname
     if (path === '/api/workspaces') return route.fulfill({ json: { workspaces: [workspace] } })
+    if (path === '/api/deliveries') {
+      return route.fulfill({ json: { deliveries: [mockDelivery] } })
+    }
+    if (path === '/api/deliveries/d1') {
+      return route.fulfill({ json: { delivery: mockDeliveryDetail } })
+    }
+    if (path === '/api/deliveries/d1/artifacts') {
+      return route.fulfill({ json: { artifacts: [] } })
+    }
+    if (path === '/api/attention') {
+      return route.fulfill({ json: { items: [], total: 0 } })
+    }
     if (path === '/api/canvas') {
       const count = options.handoffCount?.() ?? 0
       const nodes =
@@ -187,7 +202,7 @@ test('creates a handoff node from the task detail and refreshes the canvas', asy
   let handoffCount = 0
   await mockRest(page, { handoffCount: () => handoffCount })
   await mockHandoffCommand(page)
-  await page.goto('/?workspace=w1&task=task-1')
+  await page.goto('/?workspace=w1&delivery=d1&task=task-1')
 
   await expect(page.getByRole('button', { name: '生成交接节点' })).toBeVisible()
   handoffCount = 1
@@ -220,7 +235,7 @@ test('keeps both snapshots when handoff is repeated', async ({ page }) => {
       )
     })
   })
-  await page.goto('/?workspace=w1&task=task-1')
+  await page.goto('/?workspace=w1&delivery=d1&task=task-1')
 
   await page.getByRole('button', { name: '生成交接节点' }).click()
   await expect(page.getByText('【交接】登录页改造')).toBeVisible()

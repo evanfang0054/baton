@@ -30,7 +30,7 @@ test('review card opens evidence and AC override sends reason', async ({ page })
     acceptance,
   })
 
-  await page.goto('/?workspace=w1')
+  await page.goto('/?workspace=w1&delivery=d1')
   await expect(
     page.getByRole('button', { name: '打开任务 待验收任务' }).getByText('AC 2/3'),
   ).toBeVisible()

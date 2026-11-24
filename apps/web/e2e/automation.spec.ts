@@ -1,5 +1,6 @@
 import type { Notice } from '@baton/protocol'
 import { expect, test, type Page } from '@playwright/test'
+import { mockDelivery, mockDeliveryDetail } from './m6-helpers'
 
 const workspace = {
   id: 'w1',
@@ -32,6 +33,8 @@ function taskSummary(id: string, title: string, nodeId: string) {
     updatedAt: 1,
     attention: 'none',
     waitingSince: null,
+    deliveryId: 'd1',
+    stageKey: 'requirement',
   }
 }
 
@@ -142,6 +145,18 @@ async function mockAutomationApi(page: Page, options: MockOptions = {}) {
 
     if (path === '/api/workspaces') {
       return route.fulfill({ json: { workspaces: [workspace] } })
+    }
+    if (path === '/api/deliveries') {
+      return route.fulfill({ json: { deliveries: [mockDelivery] } })
+    }
+    if (path === '/api/deliveries/d1') {
+      return route.fulfill({ json: { delivery: mockDeliveryDetail } })
+    }
+    if (path === '/api/deliveries/d1/artifacts') {
+      return route.fulfill({ json: { artifacts: [] } })
+    }
+    if (path === '/api/attention') {
+      return route.fulfill({ json: { items: [], total: 0 } })
     }
     if (path === '/api/canvas') {
       return route.fulfill({
@@ -423,7 +438,7 @@ test('batch starts todo tasks and shows task automation', async ({ page }) => {
   const commands: Array<Record<string, unknown>> = []
   await routeCommands(page, commands)
   await mockAutomationApi(page)
-  await page.goto('/?workspace=w1')
+  await page.goto('/?workspace=w1&delivery=d1')
 
   await page.getByRole('button', { name: '任务', exact: true }).click()
   await page.getByRole('button', { name: '批量开工' }).click()
@@ -444,7 +459,9 @@ test('batch starts todo tasks and shows task automation', async ({ page }) => {
   await expect(page.getByTestId('task-automation')).toContainText('自动重试 1 次')
 
   await page.getByRole('button', { name: '关闭', exact: true }).click()
-  await page.getByRole('button', { name: '任务', exact: true }).click()
+  if (!(await page.locator('#task-board').isVisible())) {
+    await page.getByRole('button', { name: '任务', exact: true }).click()
+  }
   await page.locator('#task-board').getByText('任务二').click()
   await expect(page.getByTestId('task-automation')).toContainText('本任务没有自动决策')
 })
@@ -453,7 +470,7 @@ test('selects all todos up to the limit and reports partial failure', async ({ p
   const commands: Array<Record<string, unknown>> = []
   await routeCommands(page, commands, ['t2'])
   await mockAutomationApi(page, { taskCount: 21 })
-  await page.goto('/?workspace=w1')
+  await page.goto('/?workspace=w1&delivery=d1')
 
   await page.getByRole('button', { name: '任务', exact: true }).click()
   await page.getByRole('button', { name: '批量开工' }).click()

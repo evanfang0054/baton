@@ -30,7 +30,7 @@ test('image node and task scene', async ({ page }) => {
     taskDetail: sceneDetail(),
   })
 
-  await page.goto('/?workspace=w1')
+  await page.goto('/?workspace=w1&delivery=d1')
   await expect(page.locator('.react-flow__node[data-id="i1"]')).toBeVisible()
   await expect(page.getByRole('img', { name: '图片' })).toBeVisible()
 
