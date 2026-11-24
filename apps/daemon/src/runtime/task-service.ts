@@ -1,4 +1,4 @@
-import { annotationRegion, assembleContext, buildAnnotationBlock } from '@baton/core'
+import { annotationRegion, assembleContext, buildAnnotationBlock, parsePlaybook } from '@baton/core'
 import { annotationCoordinateSpace } from '@baton/protocol'
 import type { AppError, Node, TaskCreateInput, TaskOrigin } from '@baton/protocol'
 import type { Config } from '../config.js'
@@ -6,6 +6,7 @@ import {
   getAnnotation,
   getArtifact,
   getCanvasByDelivery,
+  getDelivery,
   updateAnnotation,
 } from '../db/delivery-repositories.js'
 import {
@@ -120,6 +121,53 @@ export function createTaskService(deps: TaskServiceDeps) {
           error: appError('invalid_payload', 'target node must be an agent node', {
             nodeId: input.nodeId,
           }),
+        }
+      }
+
+      if (input.stageKey && !input.deliveryId) {
+        return {
+          ok: false,
+          error: appError('invalid_payload', 'stageKey requires deliveryId'),
+        }
+      }
+      if (input.deliveryId) {
+        const delivery = getDelivery(deps.db, input.deliveryId)
+        if (!delivery || delivery.workspaceId !== workspace.id) {
+          return {
+            ok: false,
+            error: appError('delivery_not_found', 'delivery not found', {
+              deliveryId: input.deliveryId,
+            }),
+          }
+        }
+        const deliveryCanvas = getCanvasByDelivery(deps.db, delivery.id)
+        if (!deliveryCanvas || deliveryCanvas.id !== target.canvasId) {
+          return {
+            ok: false,
+            error: appError('canvas_not_found', 'target node is not on the delivery canvas', {
+              deliveryId: delivery.id,
+              nodeId: target.id,
+            }),
+          }
+        }
+        if (input.stageKey) {
+          let valid = false
+          try {
+            const parsed = parsePlaybook(JSON.parse(delivery.playbookJson) as unknown)
+            valid =
+              parsed.ok && parsed.playbook.stages.some((stage) => stage.key === input.stageKey)
+          } catch {
+            valid = false
+          }
+          if (!valid) {
+            return {
+              ok: false,
+              error: appError('stage_not_found', 'stage not found', {
+                deliveryId: delivery.id,
+                stageKey: input.stageKey,
+              }),
+            }
+          }
         }
       }
 

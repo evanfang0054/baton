@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { Config } from '../src/config.js'
 import { randomUUID } from 'node:crypto'
 import { insertDelivery } from '../src/db/delivery-repositories.js'
+import { STANDARD_PLAYBOOK } from '../src/delivery/playbook.js'
 import { getTask, insertNode } from '../src/db/repositories.js'
 import { createTaskService } from '../src/runtime/task-service.js'
 import { createTestDb, seedTask, seedTextNode, type TestDb } from './helpers/db.js'
@@ -91,12 +92,15 @@ describe('createTask', () => {
         goal: '',
         playbookId: 'standard-delivery',
         playbookVersion: 1,
-        playbookJson: '{}',
+        playbookJson: JSON.stringify(STANDARD_PLAYBOOK),
         createdAt: 1,
         updatedAt: 1,
         cancelledAt: null,
       }),
     )
+    database.raw
+      .prepare('update canvas set delivery_id = ? where id = ?')
+      .run('d1', deliveryCanvasId)
     database.db.transaction((tx) =>
       insertNode(tx, {
         id: 'agent-d1',
@@ -317,5 +321,19 @@ describe('createTask', () => {
     expect(JSON.parse(row.context_json).included).toEqual([
       expect.objectContaining({ id: 'drawing-1', title: '流程草图' }),
     ])
+  })
+
+  it('validates delivery and stage binding from client input', () => {
+    const { seeded, service } = setup()
+    const withoutDelivery = service.createTask({ ...input(seeded), stageKey: 'requirement' })
+    expect(withoutDelivery).toMatchObject({
+      ok: false,
+      error: { code: 'invalid_payload' },
+    })
+    const missingDelivery = service.createTask({ ...input(seeded), deliveryId: 'missing' })
+    expect(missingDelivery).toMatchObject({
+      ok: false,
+      error: { code: 'delivery_not_found' },
+    })
   })
 })

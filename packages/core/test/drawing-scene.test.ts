@@ -286,4 +286,33 @@ describe('applyDrawingOperations', () => {
       }),
     ).toThrowError(/too many elements/)
   })
+
+  it('prunes unreferenced image files and caps images at 20', () => {
+    const image = {
+      dataURL: 'data:image/png;base64,AA==',
+      mimeType: 'image/png',
+      width: 10,
+      height: 10,
+    }
+    const scene = applyDrawingOperations(
+      createEmptyScene(),
+      [
+        { op: 'add_image', id: 'img1', path: 'a.png', x: 0, y: 0, image },
+        { op: 'delete_elements', ids: ['img1'] },
+      ],
+      { newId: ids(), now: 1 },
+    )
+    expect(scene.files).toEqual({})
+
+    const many = Array.from({ length: 21 }, (_, index) => ({
+      op: 'add_image' as const,
+      path: `img-${index}.png`,
+      x: index,
+      y: 0,
+      image,
+    }))
+    expect(() =>
+      applyDrawingOperations(createEmptyScene(), many, { newId: ids(), now: 1 }),
+    ).toThrowError(/too many images/)
+  })
 })

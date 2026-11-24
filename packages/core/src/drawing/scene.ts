@@ -204,7 +204,10 @@ export interface DrawingImageFile {
 export type ResolvedDrawingOperation = DrawingOperation & { image?: DrawingImageFile }
 
 export type DrawingOperationErrorCode =
-  'drawing_operation_invalid' | 'drawing_too_many_elements' | 'drawing_too_large'
+  | 'drawing_operation_invalid'
+  | 'drawing_too_many_elements'
+  | 'drawing_too_many_images'
+  | 'drawing_too_large'
 
 export class DrawingOperationError extends Error {
   constructor(
@@ -688,6 +691,18 @@ export function applyDrawingOperations(
   )
   if (textChars > use.maxTextChars) {
     throw new DrawingOperationError('drawing_too_large', 'drawing text is too large')
+  }
+  const images = live.filter((item) => item.type === 'image')
+  if (images.length > 20) {
+    throw new DrawingOperationError(
+      'drawing_too_many_images',
+      `drawing has too many images: ${images.length}`,
+    )
+  }
+  // 删除/替换图片后清掉无人引用的 base64，避免 source 永久卡在 10MB 上限。
+  const referenced = new Set(images.map((item) => String(item.fileId ?? '')))
+  for (const fileId of Object.keys(next.files)) {
+    if (!referenced.has(fileId)) delete next.files[fileId]
   }
   return next
 }

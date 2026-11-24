@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createArtifactService } from '../src/artifact/service.js'
@@ -137,7 +137,15 @@ describe('drawing service', () => {
     })
     expect(card).toMatchObject({ elements: 1, texts: 0 })
 
-    for (const path of ['../outside.png', '/tmp/outside.png', '.env', 'assets/missing.png']) {
+    writeFileSync(join(workspace, '.env'), 'SECRET=1')
+    symlinkSync('../.env', join(workspace, 'assets/secret.png'))
+    for (const path of [
+      '../outside.png',
+      '/tmp/outside.png',
+      '.env',
+      'assets/missing.png',
+      'assets/secret.png',
+    ]) {
       await expect(
         drawings.mutateDrawing({
           artifactId: card.artifactId,
@@ -214,5 +222,38 @@ describe('drawing service', () => {
         (entry) => entry.action,
       ),
     ).toEqual(expect.arrayContaining(['drawing.create', 'drawing.update']))
+  })
+
+  it('refuses to overwrite a corrupt drawing source', async () => {
+    const { artifacts, drawings, deliveryId, stageKey } = setup()
+    const card = await drawings.createDrawing({ deliveryId, stageKey })
+    artifacts.saveArtifactContent({
+      artifactId: card.artifactId,
+      sourceBase64: Buffer.from('{not-json').toString('base64'),
+      mode: 'source',
+    })
+    await expect(
+      drawings.mutateDrawing({
+        artifactId: card.artifactId,
+        operations: [{ op: 'add_text', x: 0, y: 0, text: '不要覆盖' }],
+      }),
+    ).rejects.toMatchObject({ code: 'drawing_operation_invalid' })
+    expect(artifacts.readArtifactContent(card.artifactId, 'source').data.toString()).toBe(
+      '{not-json',
+    )
+  })
+
+  it('finds the drawing node by artifact id when the canvas has multiple drawings', async () => {
+    const { artifacts, drawings, deliveryId, stageKey } = setup()
+    const first = await drawings.createDrawing({ deliveryId, stageKey, title: '第一块' })
+    const second = await drawings.createDrawing({ deliveryId, stageKey, title: '第二块' })
+    const updated = await drawings.mutateDrawing({
+      artifactId: second.artifactId,
+      operations: [{ op: 'add_text', x: 0, y: 0, text: '只改第二块' }],
+    })
+    expect(updated).toMatchObject({ artifactId: second.artifactId, title: '第二块', texts: 1 })
+    expect(artifacts.readArtifactContent(first.artifactId, 'source').data.toString()).not.toContain(
+      '只改第二块',
+    )
   })
 })

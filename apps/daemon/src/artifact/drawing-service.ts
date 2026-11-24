@@ -8,12 +8,12 @@ import {
 } from '@baton/core'
 import type { Artifact, DrawingOperation, SupervisorDrawingCard } from '@baton/protocol'
 import { existsSync, readFileSync, statSync } from 'node:fs'
-import { isAbsolute } from 'node:path'
+import { isAbsolute, relative } from 'node:path'
 import type { Config } from '../config.js'
 import { getArtifact, getCanvasByDelivery, getDelivery } from '../db/delivery-repositories.js'
 import type { Db } from '../db/types.js'
 import { insertAudit, insertNode, listNodes, updateNode } from '../db/repositories.js'
-import { appError } from '../errors.js'
+import { appError, isAppError } from '../errors.js'
 import { resolveWithin } from '../workspace/resolver.js'
 import type { ArtifactService } from './service.js'
 
@@ -42,10 +42,14 @@ export interface DrawingServiceDeps {
 
 function imageSize(buffer: Buffer, mime: string): { width: number; height: number } {
   if (mime === 'image/png' && buffer.length >= 24) {
-    return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) }
+    const width = buffer.readUInt32BE(16)
+    const height = buffer.readUInt32BE(20)
+    if (width > 0 && height > 0) return { width, height }
   }
   if (mime === 'image/gif' && buffer.length >= 10) {
-    return { width: buffer.readUInt16LE(6), height: buffer.readUInt16LE(8) }
+    const width = buffer.readUInt16LE(6)
+    const height = buffer.readUInt16LE(8)
+    if (width > 0 && height > 0) return { width, height }
   }
   if (mime === 'image/jpeg') {
     let offset = 2
@@ -129,6 +133,9 @@ export function createDrawingService(deps: DrawingServiceDeps) {
       } catch {
         throw appError('image_path_invalid', 'image path is outside the workspace', { path })
       }
+      if (isSensitivePath(relative(workspacePath, target))) {
+        throw appError('image_path_invalid', 'image path is not allowed', { path })
+      }
       if (!existsSync(target) || !statSync(target).isFile()) {
         throw appError('image_path_invalid', 'image file not found', { path })
       }
@@ -174,8 +181,10 @@ export function createDrawingService(deps: DrawingServiceDeps) {
   ): { id: string; title: string } | null {
     const canvas = getCanvasByDelivery(deps.db, deliveryId)
     if (!canvas) return null
-    const node = listNodes(deps.db, canvas.id).find((item) => item.type === 'drawing')
-    if (!node || node.type !== 'drawing' || node.data.artifactId !== artifactId) return null
+    const node = listNodes(deps.db, canvas.id).find(
+      (item) => item.type === 'drawing' && item.data.artifactId === artifactId,
+    )
+    if (!node || node.type !== 'drawing') return null
     return { id: node.id, title: node.data.title }
   }
 
@@ -317,12 +326,28 @@ export function createDrawingService(deps: DrawingServiceDeps) {
           artifactId: input.artifactId,
         })
       }
+      if (!drawingNode(artifact.id, artifact.deliveryId)) {
+        throw appError('drawing_not_found', 'drawing node not found', {
+          artifactId: artifact.id,
+        })
+      }
       let scene: unknown = createEmptyScene()
+      let source: Buffer | null = null
       try {
-        const { data } = deps.artifacts.readArtifactContent(artifact.id, 'source')
-        scene = JSON.parse(data.toString('utf8')) as unknown
-      } catch {
-        // 新画板还没有 source 时允许从空场景开始写入。
+        source = deps.artifacts.readArtifactContent(artifact.id, 'source').data
+      } catch (error) {
+        // 只有“源文件不存在”可以按空画板开始；权限/IO 错误必须原样抛出。
+        if (!isAppError(error) || error.code !== 'artifact_not_found') throw error
+      }
+      if (source) {
+        try {
+          scene = JSON.parse(source.toString('utf8')) as unknown
+        } catch {
+          // 损坏的 source 绝不能降级为空场景再写回，否则会丢掉用户内容。
+          throw appError('drawing_operation_invalid', 'drawing source is invalid JSON', {
+            artifactId: artifact.id,
+          })
+        }
       }
       const next = applyScene(scene, input.operations, artifact.deliveryId)
       const title = titleFromOperations(input.operations)
