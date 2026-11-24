@@ -13,7 +13,9 @@ import {
   waitingSinceFor,
 } from '@baton/core'
 import {
+  DrawingOperation,
   Engine,
+  SupervisorDrawingCard,
   SupervisorHandoffResult,
   SupervisorTaskCard,
   TaskStatus,
@@ -35,6 +37,7 @@ import {
 import { z } from 'zod'
 import { getAcceptanceResponse } from '../acceptance/report-service.js'
 import type { AnnotationService } from '../annotation/service.js'
+import type { DrawingService } from '../artifact/drawing-service.js'
 import type { ArtifactService } from '../artifact/service.js'
 import type { DeliveryService } from '../delivery/service.js'
 import { listAcceptanceSummaries } from '../db/acceptance-repository.js'
@@ -139,6 +142,8 @@ export interface SupervisorToolset {
   list_annotations: SupervisorTool
   get_annotation: SupervisorTool
   get_drawing: SupervisorTool
+  create_drawing: SupervisorTool
+  update_drawing: SupervisorTool
 }
 
 export interface BoundTool {
@@ -178,6 +183,8 @@ export interface BoundToolset {
   list_annotations: BoundTool
   get_annotation: BoundTool
   get_drawing: BoundTool
+  create_drawing: BoundTool
+  update_drawing: BoundTool
 }
 
 export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundToolset {
@@ -217,6 +224,8 @@ export function bindTools(tools: SupervisorToolset, ctx: ToolContext): BoundTool
     list_annotations: bind(tools.list_annotations),
     get_annotation: bind(tools.get_annotation),
     get_drawing: bind(tools.get_drawing),
+    create_drawing: bind(tools.create_drawing),
+    update_drawing: bind(tools.update_drawing),
   }
 }
 
@@ -239,6 +248,23 @@ const getDrawingInput = z
     artifactId: z.string().min(1).optional(),
     offset: z.number().int().nonnegative().default(0),
     limit: z.number().int().min(1).max(500).optional(),
+  })
+  .refine((value) => Boolean(value.nodeId) !== Boolean(value.artifactId), {
+    message: 'exactly one of nodeId or artifactId is required',
+  })
+
+const drawingOperations = z.array(DrawingOperation).min(1).max(100)
+
+const createDrawingInput = z.object({
+  title: z.string().trim().min(1).max(80).optional(),
+  operations: z.array(DrawingOperation).max(100).default([]),
+})
+
+const updateDrawingInput = z
+  .object({
+    nodeId: z.string().min(1).optional(),
+    artifactId: z.string().min(1).optional(),
+    operations: drawingOperations,
   })
   .refine((value) => Boolean(value.nodeId) !== Boolean(value.artifactId), {
     message: 'exactly one of nodeId or artifactId is required',
@@ -470,6 +496,7 @@ export interface SupervisorToolsDeps {
   deliveries?: () => DeliveryService | undefined
   annotations?: () => AnnotationService | undefined
   artifacts?: () => ArtifactService | undefined
+  drawings?: () => DrawingService | undefined
   logger?: Logger
 }
 
@@ -684,6 +711,12 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
       status,
       ...(startError ? { startError } : {}),
     }
+  }
+
+  function requireDrawings(): DrawingService {
+    const service = deps.drawings?.()
+    if (!service) throw appError('artifact_unavailable', 'drawing service is unavailable')
+    return service
   }
 
   function audit(
@@ -2100,6 +2133,65 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         } catch {
           return empty
         }
+      },
+    },
+
+    create_drawing: {
+      description:
+        '在当前需求画板新建一个画板节点，可一次写入文字/矩形/椭圆/箭头/工作区图片。' +
+        '图片路径必须是工作区相对路径（如 assets/shot.png），不能传 base64、绝对路径或远程 URL。',
+      parameters: createDrawingInput,
+      async execute(input, ctx) {
+        const parsed = createDrawingInput.parse(input)
+        if (!ctx.deliveryId || !ctx.stageKey) {
+          throw appError('canvas_not_found', '请先在左侧选择一个有当前阶段的需求')
+        }
+        const card = await requireDrawings().createDrawing({
+          deliveryId: ctx.deliveryId,
+          stageKey: ctx.stageKey,
+          ...(parsed.title ? { title: parsed.title } : {}),
+          operations: parsed.operations,
+        })
+        return SupervisorDrawingCard.parse(card)
+      },
+    },
+
+    update_drawing: {
+      description:
+        '修改当前需求画板：按 nodeId 或 artifactId 指定画板，追加/更新/软删除元素。' +
+        '只允许写当前需求的画板；图片路径规则与 create_drawing 相同。',
+      parameters: updateDrawingInput,
+      async execute(input, ctx) {
+        const parsed = updateDrawingInput.parse(input)
+        const canvas = resolver.canvasFor(ctx)
+        let artifactId: string
+        if (parsed.nodeId) {
+          const node = getNode(deps.db, parsed.nodeId)
+          if (!node || node.type !== 'drawing' || node.canvasId !== canvas.id) {
+            throw appError('drawing_not_found', 'drawing node not found', {
+              nodeId: parsed.nodeId,
+            })
+          }
+          artifactId = node.data.artifactId
+        } else {
+          const artifact = getArtifact(deps.db, parsed.artifactId!)
+          if (
+            !artifact ||
+            artifact.kind !== 'drawing' ||
+            artifact.workspaceId !== ctx.workspaceId ||
+            artifact.deliveryId !== ctx.deliveryId
+          ) {
+            throw appError('drawing_not_found', 'drawing artifact not found', {
+              artifactId: parsed.artifactId,
+            })
+          }
+          artifactId = artifact.id
+        }
+        const card = await requireDrawings().mutateDrawing({
+          artifactId,
+          operations: parsed.operations,
+        })
+        return SupervisorDrawingCard.parse(card)
       },
     },
 

@@ -59,6 +59,7 @@ import type { Logger } from '../log.js'
 import type { TaskService } from '../runtime/task-service.js'
 import type { TransitionOutcome } from '../runtime/types.js'
 import type { AnnotationService } from '../annotation/service.js'
+import type { DrawingService } from '../artifact/drawing-service.js'
 import type { ArtifactService } from '../artifact/service.js'
 import type { DeliveryService } from '../delivery/service.js'
 import { buildWsFrame } from '../ws/hub.js'
@@ -112,6 +113,7 @@ export interface SupervisorServiceDeps {
   deliveries?: () => DeliveryService | undefined
   annotations?: () => AnnotationService | undefined
   artifacts?: () => ArtifactService | undefined
+  drawings?: () => DrawingService | undefined
   /** 仅旧测试/迁移期允许回退到工作区画布；生产路径必须显式选中需求。 */
   allowWorkspaceCanvas?: boolean
   remindAttention?: (input: {
@@ -266,6 +268,7 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
     ...(deps.requireMandate ? { requireMandate: deps.requireMandate } : {}),
     ...(deps.actions ? { actions: deps.actions } : {}),
     ...(deps.artifacts ? { artifacts: deps.artifacts } : {}),
+    ...(deps.drawings ? { drawings: deps.drawings } : {}),
     assertAutomationAllowed: (workspaceId: string) => {
       if (deps.killSwitch()) {
         return appError('automation_paused', '自动化已暂停，需要你手动恢复')
@@ -1290,6 +1293,18 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         get_drawing: wrapTool(
           'get_drawing',
           bound.get_drawing,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        create_drawing: wrapTool(
+          'create_drawing',
+          bound.create_drawing,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        update_drawing: wrapTool(
+          'update_drawing',
+          bound.update_drawing,
           input.assistantMessageId,
           input.threadId,
         ),

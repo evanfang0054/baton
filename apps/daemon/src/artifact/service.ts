@@ -174,7 +174,7 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
     return listArtifactsByDelivery(deps.db, deliveryId)
   }
 
-  function emitArtifact(artifact: Artifact): void {
+  function emitArtifact(artifact: Artifact, previewStale?: boolean): void {
     deps.emit?.({
       type: 'artifact.updated',
       payload: {
@@ -182,6 +182,7 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
         deliveryId: artifact.deliveryId,
         stageKey: artifact.stageKey,
         status: artifact.status,
+        ...(previewStale === undefined ? {} : { previewStale }),
       },
       ts: artifact.updatedAt,
     })
@@ -365,6 +366,42 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
     return updated
   }
 
+  /**
+   * 总管/画板服务写 source 时使用：更新 updatedAt 与 previewStale，并广播。
+   * 编辑器自动保存仍走 saveArtifactContent(mode='source')，不会触发这里。
+   */
+  function updateDrawingSource(input: {
+    artifactId: string
+    sourceBase64: string
+    previewStale: boolean
+  }): Artifact {
+    const artifact = getArtifact(deps.db, input.artifactId)
+    if (!artifact) throw appError('artifact_not_found', 'artifact not found')
+    if (artifact.kind !== 'drawing') {
+      throw appError('invalid_payload', 'artifact is not a drawing')
+    }
+    const workspacePath = workspacePathOf(deps.db, deps.config, artifact.deliveryId)
+    if (!workspacePath) throw appError('workspace_not_found', 'workspace not found')
+    const source = Buffer.from(input.sourceBase64, 'base64')
+    if (source.length > MAX_ARTIFACT_BYTES) {
+      throw appError('payload_too_large', 'source exceeds 10MB')
+    }
+    const sourcePath =
+      artifact.sourcePath ?? artifact.path.replace(/\.(png|jpg|jpeg|webp)$/i, '.excalidraw')
+    const updated: Artifact = {
+      ...artifact,
+      sourcePath,
+      updatedAt: deps.now(),
+    }
+    deps.db.transaction((tx) => {
+      writeFileSync(safeRootPath(workspacePath, sourcePath), source)
+      upsertArtifact(tx, updated)
+      syncDrawingNode(tx, updated, input.previewStale)
+    })
+    emitArtifact(updated, input.previewStale)
+    return updated
+  }
+
   function readArtifactContent(
     artifactId: string,
     variant: 'preview' | 'source' | 'svg' = 'preview',
@@ -392,6 +429,7 @@ export function createArtifactService(deps: ArtifactServiceDeps) {
     checkRequiredArtifacts,
     createDraftArtifact,
     saveArtifactContent,
+    updateDrawingSource,
     readArtifactContent,
     workspacePathOf: (deliveryId: string) => workspacePathOf(deps.db, deps.config, deliveryId),
   }

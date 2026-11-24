@@ -72,6 +72,7 @@ import { handleAcceptanceUpdate } from './acceptance-command.js'
 import { createEdge, deleteEdge } from './edge-service.js'
 import { createHandoffNode } from '../handoff/service.js'
 import { createDeliveryService } from '../delivery/service.js'
+import { createDrawingService } from '../artifact/drawing-service.js'
 import { createArtifactService } from '../artifact/service.js'
 import { createAnnotationService } from '../annotation/service.js'
 import type { EngineRegistry } from './engines.js'
@@ -145,6 +146,7 @@ export function createRuntime(deps: RuntimeDeps) {
   const deliveryServiceHolder: { value?: ReturnType<typeof createDeliveryService> } = {}
   const annotationServiceHolder: { value?: ReturnType<typeof createAnnotationService> } = {}
   const artifactServiceHolder: { value?: ReturnType<typeof createArtifactService> } = {}
+  const drawingServiceHolder: { value?: ReturnType<typeof createDrawingService> } = {}
   let closing = false
   let booting = false
 
@@ -567,6 +569,7 @@ export function createRuntime(deps: RuntimeDeps) {
     deliveries: () => deliveryServiceHolder.value,
     annotations: () => annotationServiceHolder.value,
     artifacts: () => artifactServiceHolder.value,
+    drawings: () => drawingServiceHolder.value,
     remindAttention,
     loadPolicy: (workspaceId) => loadWorkspacePolicy(deps.db, deps.config, workspaceId),
     requireMandate: (taskId, action, strength) => requireMandate(taskId, action, strength),
@@ -609,6 +612,13 @@ export function createRuntime(deps: RuntimeDeps) {
     emit: publish,
   })
   artifactServiceHolder.value = artifacts
+  drawingServiceHolder.value = createDrawingService({
+    db: deps.db,
+    config: deps.config,
+    artifacts,
+    now,
+    newId,
+  })
   deliveryServiceHolder.value = createDeliveryService({
     db: deps.db,
     config: deps.config,

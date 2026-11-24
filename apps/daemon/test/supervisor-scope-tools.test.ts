@@ -1,4 +1,7 @@
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { createDrawingService } from '../src/artifact/drawing-service.js'
 import { createArtifactService } from '../src/artifact/service.js'
 import { getCanvasByDelivery } from '../src/db/delivery-repositories.js'
 import { insertNode } from '../src/db/repositories.js'
@@ -51,6 +54,13 @@ function setup() {
     now: handle.now,
     newId: handle.newId,
   })
+  const drawings = createDrawingService({
+    db,
+    config: handle.config,
+    artifacts,
+    now: handle.now,
+    newId: handle.newId,
+  })
   let taskSeq = 0
   const taskService = createTaskService({
     db,
@@ -72,6 +82,7 @@ function setup() {
     cancelTask: () => ({ ok: false, error: appError('not_used', 'not used') }),
     deliveries: () => deliveries,
     artifacts: () => artifacts,
+    drawings: () => drawings,
   })
 
   function createDelivery(title: string): string {
@@ -117,7 +128,7 @@ function setup() {
     return artifact.id
   }
 
-  return { handle, deliveries, artifacts, tools, createDelivery, createDrawing }
+  return { handle, deliveries, artifacts, drawings, tools, createDelivery, createDrawing }
 }
 
 function ctxFor(
@@ -273,5 +284,74 @@ describe('supervisor scoped canvas and drawing tools', () => {
       ctxFor(handle.seeded.workspaceId, deliveryId),
     )) as { empty?: boolean; texts: unknown[]; totalElements: number }
     expect(result).toMatchObject({ empty: true, texts: [], totalElements: 0 })
+  })
+
+  it('creates and updates a drawing on the current requirement only', async () => {
+    const { handle, tools, createDelivery } = setup()
+    const first = createDelivery('需求 A')
+    const second = createDelivery('需求 B')
+    const workspace = join(handle.root, handle.seeded.relPath)
+    mkdirSync(join(workspace, 'assets'), { recursive: true })
+    writeFileSync(join(workspace, 'assets/logo.png'), Buffer.alloc(24))
+
+    const created = (await tools.create_drawing.execute(
+      {
+        title: '流程草图',
+        operations: [
+          { op: 'add_rectangle', id: 'box', x: 20, y: 20, w: 200, h: 80, text: '入口' },
+          { op: 'add_image', path: 'assets/logo.png', x: 20, y: 140 },
+        ],
+      },
+      ctxFor(handle.seeded.workspaceId, first),
+    )) as {
+      artifactId: string
+      nodeId: string
+      deliveryId: string
+      title: string
+      elements: number
+      texts: number
+    }
+    expect(created).toMatchObject({
+      deliveryId: first,
+      title: '流程草图',
+      elements: 3,
+      texts: 1,
+    })
+
+    const updated = (await tools.update_drawing.execute(
+      { nodeId: created.nodeId, operations: [{ op: 'add_text', x: 0, y: 240, text: '补充说明' }] },
+      ctxFor(handle.seeded.workspaceId, first),
+    )) as { elements: number; texts: number }
+    expect(updated).toMatchObject({ elements: 4, texts: 2 })
+
+    const read = (await tools.get_drawing.execute(
+      { nodeId: created.nodeId },
+      ctxFor(handle.seeded.workspaceId, first),
+    )) as { texts: Array<{ text: string }> }
+    expect(read.texts.map((item) => item.text)).toEqual(['入口', '补充说明'])
+
+    await expect(
+      tools.update_drawing.execute(
+        { nodeId: created.nodeId, operations: [{ op: 'add_text', x: 0, y: 0, text: '越界' }] },
+        ctxFor(handle.seeded.workspaceId, second),
+      ),
+    ).rejects.toMatchObject({ code: 'drawing_not_found' })
+
+    await expect(
+      tools.create_drawing.execute(
+        { operations: [{ op: 'add_image', path: '.env', x: 0, y: 0 }] },
+        ctxFor(handle.seeded.workspaceId, first),
+      ),
+    ).rejects.toMatchObject({ code: 'image_path_invalid' })
+  })
+
+  it('refuses drawing writes without a requirement', async () => {
+    const { handle, tools } = setup()
+    await expect(
+      tools.create_drawing.execute(
+        { operations: [{ op: 'add_text', x: 0, y: 0, text: 'hi' }] },
+        ctxFor(handle.seeded.workspaceId, null),
+      ),
+    ).rejects.toMatchObject({ code: 'canvas_not_found' })
   })
 })
