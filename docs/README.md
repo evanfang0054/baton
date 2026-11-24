@@ -55,6 +55,7 @@
 - [0008 总管委派验收与委派审批（代验收被 0009 取代）](adr/0008-supervisor-delegated-authority.md)
 - [0009 总管预验收与人工终审](adr/0009-supervisor-preliminary-review.md)
 - [0011 交付拥有画布](adr/0011-delivery-owned-canvas.md)
+- [0012 需求画布唯一与总管画板权限](adr/0012-requirement-only-canvas.md)
 
 ## 现行 contract
 

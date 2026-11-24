@@ -3,7 +3,7 @@ spec_topic: canvas-drawing-scope
 decision_summary: "画布收敛为需求画布：多项目树按项目挂需求，工具栏以画板为主，画板缩略图与自动保存闭环，总管读写并完整编辑画板，画板内容进入总管与任务上下文"
 design_approved: true
 user_approved_at: 2026-11-24T17:10:52+08:00
-gates: [design-approved]
+gates: [design-approved, user-review-passed]
 spec_ref: 2026-11-22-m7-delivery-playbook-design.md
 domain_terms: [project, requirement, delivery-canvas, drawing, drawing-thumbnail, canvas-scope, drawing-content, attention-inbox, drawing-agent]
 ---
