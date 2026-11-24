@@ -1,15 +1,18 @@
-import type { AgentAdapter, AgentEvent, AgentRun } from '@baton/protocol'
+import type { AgentAdapter, AgentEvent, AgentRun, Policy } from '@baton/protocol'
 import { EventType, PolicySchema } from '@baton/protocol'
 import { describe, expect, it } from 'vitest'
 import { createEventStore } from '../src/db/event-store.js'
-import { listApprovalsByTask, updateApprovalResponse } from '../src/db/repositories.js'
+import { listApprovalsByTask, listAudit, updateApprovalResponse } from '../src/db/repositories.js'
 import { createAdapterFactory } from '../src/runtime/adapter-factory.js'
 import { createSessionRunner, isReadOnlyVerifierRequest } from '../src/runtime/session-runner.js'
 import type { TransitionOutcome } from '../src/runtime/types.js'
 import { waitFor } from './helpers/async.js'
 import { createTestDb, seedTask } from './helpers/db.js'
 
-function approvalAdapter(approvals: Array<{ requestId: string; decision: string }>): AgentAdapter {
+function approvalAdapter(
+  approvals: Array<{ requestId: string; decision: string }>,
+  command = 'pnpm test',
+): AgentAdapter {
   return {
     name: 'claude-sdk',
     async start(): Promise<AgentRun> {
@@ -20,7 +23,7 @@ function approvalAdapter(approvals: Array<{ requestId: string; decision: string 
           name: 'approval.request',
           value: {
             requestId: 'req-1',
-            request: { toolName: 'Bash', input: { command: 'pnpm test' }, risk: 'high' },
+            request: { toolName: 'Bash', input: { command }, risk: 'high' },
           },
         } as AgentEvent
         yield { type: EventType.RUN_FINISHED, threadId: 'thread-1', runId: 'run-1' } as AgentEvent
@@ -111,7 +114,6 @@ describe('session runner approval failures', () => {
     const runner = createSessionRunner({
       db: database.db,
       dataDir: process.cwd(),
-      claudeMaxBudgetUsd: 2,
       adapters: createAdapterFactory({ 'claude-sdk': approvalAdapter(approvals) }),
       eventStore,
       broadcast: () => {},
@@ -180,7 +182,6 @@ describe('session runner approval failures', () => {
     const runner = createSessionRunner({
       db: database.db,
       dataDir: process.cwd(),
-      claudeMaxBudgetUsd: 2,
       adapters: createAdapterFactory({ 'claude-sdk': approvalAdapter(approvals) }),
       eventStore,
       broadcast: () => {},
@@ -232,7 +233,6 @@ describe('session runner approval failures', () => {
     const runner = createSessionRunner({
       db: database.db,
       dataDir: process.cwd(),
-      claudeMaxBudgetUsd: 2,
       adapters: createAdapterFactory({ 'claude-sdk': questionAdapter(replies) }),
       eventStore,
       broadcast: () => {},
@@ -307,7 +307,6 @@ describe('session runner approval failures', () => {
     const runner = createSessionRunner({
       db: database.db,
       dataDir: process.cwd(),
-      claudeMaxBudgetUsd: 2,
       adapters: createAdapterFactory({ 'claude-sdk': questionAdapter(replies, denials) }),
       eventStore,
       broadcast: () => {},
@@ -345,6 +344,139 @@ describe('session runner approval failures', () => {
 
     await runner.close()
     database.raw.close()
+  })
+})
+
+describe('workspace authority approvals', () => {
+  function setup(options: {
+    trusted: boolean
+    policy: Policy
+    killSwitch?: boolean
+    command?: string
+  }) {
+    const database = createTestDb()
+    const seeded = seedTask(database.raw, { trusted: options.trusted })
+    const approvals: Array<{ requestId: string; decision: string }> = []
+    const transitions: string[] = []
+    let id = 0
+    const eventStore = createEventStore(database.db, {
+      now: () => 1,
+      newId: () => `event-${++id}`,
+    })
+    const runner = createSessionRunner({
+      db: database.db,
+      dataDir: process.cwd(),
+      adapters: createAdapterFactory({
+        'claude-sdk': approvalAdapter(approvals, options.command),
+      }),
+      eventStore,
+      broadcast: () => {},
+      killSwitch: () => options.killSwitch ?? false,
+      applyTransition: (_taskId, event): TransitionOutcome => {
+        transitions.push(event.type)
+        if (event.type === 'approval_requested') {
+          return {
+            ok: true,
+            taskId: seeded.taskId,
+            status: 'waiting_input',
+            previousStatus: 'running',
+            retryCount: 0,
+            waitingReason: 'approval',
+            events: [],
+          }
+        }
+        return {
+          ok: true,
+          taskId: seeded.taskId,
+          status: 'running',
+          previousStatus: 'running',
+          retryCount: 0,
+          waitingReason: null,
+          events: [],
+        }
+      },
+      now: () => 1,
+      newId: () => `id-${++id}`,
+    })
+    return { database, seeded, approvals, transitions, runner }
+  }
+
+  async function start(test: ReturnType<typeof setup>, policy: Policy): Promise<void> {
+    await test.runner.start({
+      taskId: test.seeded.taskId,
+      sessionId: test.seeded.sessionId!,
+      workspacePath: '.',
+      policy,
+      workspaceTrust: { projectSettings: true, projectHooks: false },
+      bypassPermissions: false,
+    })
+    await test.runner.close()
+  }
+
+  it('auto-allows high-risk Bash and audits workspace authority', async () => {
+    const policy = PolicySchema.parse({ autopilot: { enabled: true } })
+    const test = setup({ trusted: true, policy, command: 'which baton; baton --help' })
+    await start(test, policy)
+
+    expect(test.approvals).toEqual([{ requestId: 'req-1', decision: 'allow' }])
+    expect(test.transitions).not.toContain('approval_requested')
+    expect(listApprovalsByTask(test.database.db, test.seeded.taskId)[0]).toMatchObject({
+      decision: 'allow',
+      decidedBy: 'auto',
+    })
+    expect(
+      listAudit(test.database.db, { actionPrefix: 'approval.auto_allow', limit: 10 })[0]?.detail,
+    ).toMatchObject({
+      approvalId: expect.any(String),
+      taskId: test.seeded.taskId,
+      toolName: 'Bash',
+      risk: 'high',
+      authority: 'workspace',
+      policyVersion: expect.any(String),
+    })
+    test.database.raw.close()
+  })
+
+  it('does not cap workspace authority approvals', async () => {
+    const policy = PolicySchema.parse({
+      autopilot: { enabled: true, maxAutoApprovalsPerTask: 0 },
+    })
+    const test = setup({ trusted: true, policy, command: 'which baton; baton --help' })
+    await start(test, policy)
+
+    expect(test.approvals).toEqual([{ requestId: 'req-1', decision: 'allow' }])
+    expect(test.transitions).not.toContain('approval_requested')
+    expect(
+      listAudit(test.database.db, { actionPrefix: 'approval.cap_reached', limit: 10 }),
+    ).toHaveLength(0)
+    expect(
+      listAudit(test.database.db, { actionPrefix: 'approval.auto_allow', limit: 10 })[0]?.detail,
+    ).toMatchObject({ authority: 'workspace' })
+    test.database.raw.close()
+  })
+
+  it('falls back to ask when the kill switch is on', async () => {
+    const policy = PolicySchema.parse({ autopilot: { enabled: true } })
+    const test = setup({ trusted: true, policy, killSwitch: true })
+    await start(test, policy)
+
+    expect(test.approvals).toEqual([])
+    expect(test.transitions).toContain('approval_requested')
+    expect(listApprovalsByTask(test.database.db, test.seeded.taskId)[0]?.decision).toBeNull()
+    test.database.raw.close()
+  })
+
+  it('keeps deny rules above workspace authority', async () => {
+    const policy = PolicySchema.parse({ autopilot: { enabled: true } })
+    const test = setup({ trusted: true, policy, command: 'rm -rf /tmp/demo' })
+    await start(test, policy)
+
+    expect(test.approvals).toEqual([{ requestId: 'req-1', decision: 'deny' }])
+    expect(test.transitions).not.toContain('approval_requested')
+    expect(
+      listAudit(test.database.db, { actionPrefix: 'approval.auto_deny', limit: 10 })[0]?.detail,
+    ).toMatchObject({ taskId: test.seeded.taskId, toolName: 'Bash', risk: 'high' })
+    test.database.raw.close()
   })
 })
 

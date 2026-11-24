@@ -28,19 +28,12 @@ describe('board projection', () => {
     expect(needsPerson({ status: 'running', attention: 'none' })).toBe(false)
   })
 
-  it('includes acceptance failures and over-budget tasks in needsMe', () => {
+  it('includes acceptance failures in needsMe', () => {
     expect(
       needsMe({
         status: 'running',
         attention: 'none',
         acceptance: { counts: { fail: 1 } },
-      }),
-    ).toBe(true)
-    expect(
-      needsMe({
-        status: 'running',
-        attention: 'none',
-        budget: { overBudget: true },
       }),
     ).toBe(true)
     expect(needsMe({ status: 'running', attention: 'none' })).toBe(false)

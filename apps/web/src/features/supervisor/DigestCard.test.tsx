@@ -150,7 +150,7 @@ describe('DigestCard', () => {
                   action: { type: 'apply_proposal', proposalId: 'a1' },
                 },
               ],
-              counts: { approval: 0, reply: 0, review: 0, failed: 1, budget: 0, stale: 0 },
+              counts: { approval: 0, reply: 0, review: 0, failed: 1, stale: 0 },
             },
           },
         }}

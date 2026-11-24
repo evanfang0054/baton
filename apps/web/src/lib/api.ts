@@ -4,6 +4,11 @@ import {
   AutomationPolicyPatch,
   AutomationSummary,
   CanvasResponse,
+  DeliveryActionResponse,
+  DeliveryCreateInput,
+  DeliveryCreateResponse,
+  DeliveryDetailResponse,
+  DeliveryListResponse,
   DigestGenerateResponse,
   EngineListResponse,
   KillSwitchResponse,
@@ -18,6 +23,14 @@ import {
   TaskDetailResponse,
   TaskHistoryResponse,
   TaskListResponse,
+  AnnotationListResponse,
+  AnnotationCreateInput,
+  AnnotationResponse,
+  AnnotationUpdateInput,
+  ArtifactCreateInput,
+  ArtifactListResponse,
+  ArtifactResponse,
+  ArtifactSaveInput,
   WorkspaceBrowseResponse,
   WorkspaceCapabilitiesResponse,
   WorkspaceCreateInput,
@@ -134,10 +147,151 @@ export async function listTasks(workspaceId: string) {
   ).tasks
 }
 
-export async function getCanvas(workspaceId: string) {
-  return CanvasResponse.parse(
-    await request(`/api/canvas?workspaceId=${encodeURIComponent(workspaceId)}`),
+export async function getCanvas(workspaceId: string, deliveryId?: string) {
+  const params = new URLSearchParams({ workspaceId })
+  if (deliveryId) params.set('deliveryId', deliveryId)
+  return CanvasResponse.parse(await request(`/api/canvas?${params.toString()}`))
+}
+
+export async function listDeliveries(workspaceId: string) {
+  return DeliveryListResponse.parse(
+    await request(`/api/deliveries?workspaceId=${encodeURIComponent(workspaceId)}`),
+  ).deliveries
+}
+
+export async function getDelivery(deliveryId: string) {
+  return DeliveryDetailResponse.parse(
+    await request(`/api/deliveries/${encodeURIComponent(deliveryId)}`),
+  ).delivery
+}
+
+export async function createDelivery(input: DeliveryCreateInput) {
+  return DeliveryCreateResponse.parse(
+    await request('/api/deliveries', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    }),
   )
+}
+
+export async function enqueueDelivery(deliveryId: string) {
+  return DeliveryActionResponse.parse(
+    await request(`/api/deliveries/${encodeURIComponent(deliveryId)}/enqueue`, {
+      method: 'POST',
+    }),
+  )
+}
+
+export async function cancelDelivery(deliveryId: string) {
+  return DeliveryActionResponse.parse(
+    await request(`/api/deliveries/${encodeURIComponent(deliveryId)}/cancel`, {
+      method: 'POST',
+    }),
+  )
+}
+
+export async function listArtifacts(deliveryId: string) {
+  return ArtifactListResponse.parse(
+    await request(`/api/deliveries/${encodeURIComponent(deliveryId)}/artifacts`),
+  ).artifacts
+}
+
+export function artifactContentUrl(
+  deliveryId: string,
+  artifactId: string,
+  variant?: 'preview' | 'source' | 'svg',
+): string {
+  const suffix = variant ? `?variant=${variant}` : ''
+  return `/api/deliveries/${encodeURIComponent(deliveryId)}/artifacts/${encodeURIComponent(artifactId)}/content${suffix}`
+}
+
+export async function fetchArtifactText(
+  deliveryId: string,
+  artifactId: string,
+  variant?: 'preview' | 'source' | 'svg',
+): Promise<string> {
+  const response = await fetch(artifactContentUrl(deliveryId, artifactId, variant), {
+    credentials: 'same-origin',
+  })
+  if (!response.ok) throw new ApiError(response.status, 'http_error', 'artifact content failed')
+  return response.text()
+}
+
+export async function createArtifactDraft(
+  deliveryId: string,
+  stageKey: string,
+  input: ArtifactCreateInput,
+) {
+  return ArtifactResponse.parse(
+    await request(
+      `/api/deliveries/${encodeURIComponent(deliveryId)}/stages/${encodeURIComponent(stageKey)}/artifacts`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      },
+    ),
+  ).artifact
+}
+
+export async function saveArtifact(
+  deliveryId: string,
+  artifactId: string,
+  input: ArtifactSaveInput,
+) {
+  return ArtifactResponse.parse(
+    await request(
+      `/api/deliveries/${encodeURIComponent(deliveryId)}/artifacts/${encodeURIComponent(artifactId)}`,
+      {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      },
+    ),
+  ).artifact
+}
+
+export async function listAnnotations(
+  deliveryId: string,
+  filter: { stageKey?: string; status?: 'open' | 'resolved' | 'dismissed' } = {},
+) {
+  const params = new URLSearchParams()
+  if (filter.stageKey) params.set('stageKey', filter.stageKey)
+  if (filter.status) params.set('status', filter.status)
+  const query = params.toString()
+  return AnnotationListResponse.parse(
+    await request(
+      `/api/deliveries/${encodeURIComponent(deliveryId)}/annotations${query ? `?${query}` : ''}`,
+    ),
+  ).annotations
+}
+
+export async function createAnnotation(deliveryId: string, input: AnnotationCreateInput) {
+  return AnnotationResponse.parse(
+    await request(`/api/deliveries/${encodeURIComponent(deliveryId)}/annotations`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    }),
+  ).annotation
+}
+
+export async function updateAnnotation(
+  deliveryId: string,
+  annotationId: string,
+  input: AnnotationUpdateInput,
+) {
+  return AnnotationResponse.parse(
+    await request(
+      `/api/deliveries/${encodeURIComponent(deliveryId)}/annotations/${encodeURIComponent(annotationId)}`,
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      },
+    ),
+  ).annotation
 }
 
 export async function getTask(taskId: string) {

@@ -24,6 +24,9 @@ describe('resolveVerifyCommand', () => {
     expect(
       resolveVerifyCommand({ packageScripts: { verify: 'vitest run' }, packageManager: 'npm' }),
     ).toEqual({ ok: true, command: 'npm run verify', source: 'package' })
+    expect(
+      resolveVerifyCommand({ packageScripts: { test: 'node verify.mjs' }, packageManager: 'npm' }),
+    ).toEqual({ ok: true, command: 'npm test', source: 'package' })
     expect(resolveVerifyCommand({})).toEqual({
       ok: true,
       command: 'pnpm test',

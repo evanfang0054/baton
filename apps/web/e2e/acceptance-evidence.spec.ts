@@ -1,34 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import {
   acceptanceBundle,
   acceptanceSummary,
   agentNode,
-  budgetSummary,
   mockWorkspace,
   sceneDetail,
   task,
+  wsRecorder,
 } from './m6-helpers'
-
-type WsRoute = Parameters<Parameters<Page['routeWebSocket']>[1]>[0]
-
-function wsRecorder(commands: Array<{ type?: string; payload?: unknown }>) {
-  return (ws: WsRoute) => {
-    ws.onMessage((raw) => {
-      const message = JSON.parse(String(raw)) as { id?: string; type?: string; payload?: unknown }
-      if (!message.id) return
-      commands.push(message)
-      ws.send(
-        JSON.stringify({
-          v: 1,
-          id: `ack-${message.id}`,
-          type: 'ack',
-          ts: Date.now(),
-          payload: { commandId: message.id, ok: true, data: {} },
-        }),
-      )
-    })
-  }
-}
 
 test('review card opens evidence and AC override sends reason', async ({ page }) => {
   const commands: Array<{ type?: string; payload?: unknown }> = []
@@ -43,7 +22,6 @@ test('review card opens evidence and AC override sends reason', async ({ page })
     status: 'review',
     attention: 'needs_review',
     acceptance: summary,
-    budget: acceptance.budget,
   })
   await mockWorkspace(page, {
     nodes: [agentNode('a1', 420, 80)],
@@ -53,60 +31,17 @@ test('review card opens evidence and AC override sends reason', async ({ page })
   })
 
   await page.goto('/?workspace=w1')
-  await expect(page.getByText('AC 2/3')).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '打开任务 待验收任务' }).getByText('AC 2/3'),
+  ).toBeVisible()
   await page.getByRole('button', { name: '查看证据' }).click()
   await expect(page.getByRole('heading', { name: '验收清单' })).toBeVisible()
-  await page.getByRole('button', { name: '通过' }).click()
+  await page.getByTestId('task-detail').getByRole('button', { name: '通过' }).click()
   await expect(page.getByText('仍有验收项未通过，仍要通过吗？')).toBeVisible()
   await page.getByLabel('通过理由').fill('已知风险')
-  await page.getByRole('button', { name: '确认通过' }).click()
+  await page.getByTestId('task-detail').getByRole('button', { name: '确认通过' }).click()
 
   await expect
     .poll(() => commands.find((command) => command.type === 'review.decide')?.payload)
     .toMatchObject({ decision: 'approve', overrideReason: '已知风险' })
-})
-
-test('budget card raises the budget and continues', async ({ page }) => {
-  const commands: Array<{ type?: string; payload?: unknown }> = []
-  await page.routeWebSocket('**/ws', wsRecorder(commands))
-
-  const budget = budgetSummary({
-    budgetUsd: 2,
-    spentUsd: 2,
-    remainingUsd: 0,
-    ratio: 1,
-    overBudget: true,
-  })
-  const acceptance = acceptanceBundle({ budget })
-  const waiting = task({
-    id: 't1',
-    nodeId: 'a1',
-    title: '超预算任务',
-    status: 'waiting_input',
-    waitingReason: 'budget',
-    attention: 'needs_attention',
-    budget,
-  })
-  const detail = sceneDetail()
-  detail.task = { ...detail.task, status: 'waiting_input', waitingReason: 'budget' }
-  detail.attention = 'needs_attention'
-  detail.review = null
-
-  await mockWorkspace(page, {
-    nodes: [agentNode('a1', 420, 80)],
-    tasks: [waiting],
-    taskDetail: detail,
-    acceptance,
-  })
-
-  await page.goto('/?workspace=w1')
-  await page.getByRole('button', { name: '展开看板' }).click()
-  await page.getByTestId('task-board-overlay').getByText('超预算任务').click()
-  await expect(page.getByText('预算已用完')).toBeVisible()
-  await page.getByLabel('新预算').fill('3')
-  await page.getByRole('button', { name: '提额并继续' }).click()
-
-  await expect
-    .poll(() => commands.find((command) => command.type === 'task.set_budget')?.payload)
-    .toEqual({ taskId: 't1', budgetUsd: 3 })
 })

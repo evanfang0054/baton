@@ -20,6 +20,7 @@ const STATUS_BY_CODE: Record<string, number> = {
   canvas_not_found: 404,
   node_not_found: 404,
   task_not_found: 404,
+  delivery_not_found: 404,
   approval_not_found: 404,
   review_not_found: 404,
   acceptance_not_found: 404,
@@ -39,6 +40,10 @@ const STATUS_BY_CODE: Record<string, number> = {
   approval_expired: 409,
   already_decided: 409,
   review_expired: 409,
+  delivery_not_cancellable: 409,
+  delivery_cancelled: 409,
+  no_stage: 409,
+  not_todo: 409,
 }
 
 function statusFor(code: string): number {

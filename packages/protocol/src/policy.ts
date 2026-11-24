@@ -7,18 +7,45 @@ const DEFAULT_ALLOW = [
   'Glob',
   'Edit:src/**',
   'Edit:tests/**',
+  // 交付产物必须落在 .baton/deliveries；这是阶段 prompt 明确要求的路径。
+  'Edit:.baton/deliveries/**',
+  'Write:.baton/deliveries/**',
   'Bash:pnpm {test,lint,typecheck,build,install --frozen-lockfile}',
 ]
 
+// .baton 下只有控制面（策略/skill/playbook）必须禁止 agent 改写；
+// deliveries/uploads 是数据面，不能一起封死，否则真实交付无法产出。
 const DEFAULT_DENY = [
   'Bash:sudo *',
   'Bash:rm -rf *',
   'Bash:curl * | sh',
   'Bash:git push *',
+  'Bash:mkfs*',
+  'Bash:dd *',
   'Edit:**/.env*',
   'Edit:.git/**',
-  'Edit:.baton/**',
-  'Write:.baton/**',
+  'Edit:**/.ssh/**',
+  'Write:**/.ssh/**',
+  'Edit:**/.aws/**',
+  'Write:**/.aws/**',
+  'Edit:**/.gnupg/**',
+  'Write:**/.gnupg/**',
+  'Edit:/etc/**',
+  'Write:/etc/**',
+  'Edit:/usr/**',
+  'Write:/usr/**',
+  'Edit:/bin/**',
+  'Write:/bin/**',
+  'Edit:/sbin/**',
+  'Write:/sbin/**',
+  'Edit:/var/**',
+  'Write:/var/**',
+  'Edit:.baton/policy.json',
+  'Write:.baton/policy.json',
+  'Edit:.baton/skills/**',
+  'Write:.baton/skills/**',
+  'Edit:.baton/playbooks/**',
+  'Write:.baton/playbooks/**',
 ]
 
 const VerifyPolicy = z.object({

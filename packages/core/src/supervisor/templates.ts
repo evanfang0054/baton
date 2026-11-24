@@ -13,7 +13,6 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
       maxContextNodes: 5,
     },
     defaultEngine: null,
-    defaultBudgetUsd: null,
   },
   {
     id: 'feature',
@@ -27,7 +26,6 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
       maxContextNodes: 5,
     },
     defaultEngine: null,
-    defaultBudgetUsd: null,
   },
   {
     id: 'review',
@@ -41,7 +39,6 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
       maxContextNodes: 5,
     },
     defaultEngine: null,
-    defaultBudgetUsd: null,
   },
   {
     id: 'handoff',
@@ -55,7 +52,6 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
       maxContextNodes: 5,
     },
     defaultEngine: null,
-    defaultBudgetUsd: null,
   },
 ]
 

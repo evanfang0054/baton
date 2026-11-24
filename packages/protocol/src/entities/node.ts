@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { Id, Timestamp } from '../common.js'
 import { Engine } from '../enums.js'
+import { ArtifactKind, ArtifactStatus } from './artifact.js'
 
 const NodeBase = z.object({
   id: Id,
@@ -53,6 +54,29 @@ export const GroupNode = NodeBase.extend({
     label: z.string().min(1),
     color: z.string().min(1).optional(),
     collapsed: z.boolean().default(false),
+    stageKey: z.string().min(1).max(32).optional(),
+  }),
+})
+
+export const ArtifactNode = NodeBase.extend({
+  type: z.literal('artifact'),
+  data: z.object({
+    artifactId: Id,
+    kind: ArtifactKind,
+    title: z.string().min(1).max(120),
+    path: z.string().min(1).max(1024),
+    thumbnailPath: z.string().min(1).max(1024).nullable().optional(),
+    status: ArtifactStatus,
+  }),
+})
+
+export const DrawingNode = NodeBase.extend({
+  type: z.literal('drawing'),
+  data: z.object({
+    artifactId: Id,
+    title: z.string().min(1).max(120),
+    thumbnailPath: z.string().min(1).max(1024).nullable().optional(),
+    status: ArtifactStatus,
   }),
 })
 
@@ -63,5 +87,7 @@ export const Node = z.discriminatedUnion('type', [
   AgentNode,
   ReviewNode,
   GroupNode,
+  ArtifactNode,
+  DrawingNode,
 ])
 export type Node = z.infer<typeof Node>

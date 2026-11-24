@@ -23,7 +23,6 @@ function setup() {
   const tools = createSupervisorTools({
     db: database.db,
     workspacesRoot: '/tmp',
-    claudeMaxBudgetUsd: 2,
     taskService: {
       createTask: () => {
         createCalls += 1

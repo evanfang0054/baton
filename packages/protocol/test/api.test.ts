@@ -41,14 +41,14 @@ const task = {
   verifyCommand: null,
   retryCount: 0,
   dangerouslySkipPermissions: false,
-  budgetUsd: null,
   enqueuedAt: null,
+  deliveryId: null,
+  stageKey: null,
   createdAt: 1,
   updatedAt: 1,
   attention: 'none',
   waitingSince: null,
   acceptance: null,
-  budget: null,
 }
 
 describe('REST DTO schemas', () => {
@@ -146,17 +146,6 @@ describe('REST DTO schemas', () => {
       waitingSince: null,
       attention: 'none',
       acceptance: null,
-      budget: {
-        budgetUsd: 2,
-        spentUsd: 0,
-        remainingUsd: 2,
-        ratio: 0,
-        overBudget: false,
-        nearBudget: false,
-        workerCostUsd: 0,
-        verifierCostUsd: 0,
-        turns: 0,
-      },
     })
     expect(detail.review).toBeNull()
   })

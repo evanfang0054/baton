@@ -5,9 +5,18 @@ export type WsStatus = 'connecting' | 'online' | 'reconnecting' | 'offline' | 'u
 
 export type SelectionNode = Pick<Node, 'id' | 'type'>
 
-export type RightPanelMode = 'supervisor' | 'task' | 'node'
+export type RightPanelMode = 'supervisor'
 
 export type MobileTab = 'board' | 'supervisor' | 'digest'
+
+export type DeliveryView = 'canvas' | 'board'
+
+export type AppOverlay =
+  | { kind: 'stage'; taskId: string }
+  | { kind: 'artifact'; deliveryId: string; artifactId: string }
+  | { kind: 'drawing'; deliveryId: string; artifactId: string }
+  | { kind: 'annotations'; deliveryId: string }
+  | { kind: 'acceptance'; deliveryId: string }
 
 const CONTEXT_TYPES = new Set<Node['type']>(['text', 'file', 'image', 'group'])
 
@@ -18,6 +27,10 @@ function sameIds(a: string[], b: string[]): boolean {
 interface AppState {
   activeWorkspaceId: string | null
   activeTaskId: string | null
+  activeDeliveryId: string | null
+  deliveryView: DeliveryView
+  overlay: AppOverlay | null
+  rightPanelCollapsed: boolean
   selectedNodeId: string | null
   selectedNodeIds: string[]
   sceneTaskId: string | null
@@ -30,6 +43,11 @@ interface AppState {
   lastSeq: number
   setWorkspace: (id: string | null) => void
   setTask: (id: string | null) => void
+  openStage: (taskId: string) => void
+  setDelivery: (id: string | null) => void
+  setDeliveryView: (view: DeliveryView) => void
+  setOverlay: (overlay: AppOverlay | null) => void
+  setRightPanelCollapsed: (value: boolean) => void
   setSelectedNode: (id: string | null) => void
   setSelection: (nodes: SelectionNode[]) => void
   setSceneTask: (id: string | null) => void
@@ -46,6 +64,10 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   activeWorkspaceId: null,
   activeTaskId: null,
+  activeDeliveryId: null,
+  deliveryView: 'board',
+  overlay: null,
+  rightPanelCollapsed: false,
   selectedNodeId: null,
   selectedNodeIds: [],
   sceneTaskId: null,
@@ -60,6 +82,9 @@ export const useAppStore = create<AppState>((set) => ({
     set({
       activeWorkspaceId,
       activeTaskId: null,
+      activeDeliveryId: null,
+      deliveryView: 'board',
+      overlay: null,
       selectedNodeId: null,
       selectedNodeIds: [],
       sceneTaskId: null,
@@ -72,6 +97,25 @@ export const useAppStore = create<AppState>((set) => ({
       activeTaskId,
       sceneTaskId: state.sceneTaskId === activeTaskId ? state.sceneTaskId : null,
     })),
+  openStage: (taskId) =>
+    set({
+      activeTaskId: taskId,
+      overlay: { kind: 'stage', taskId },
+      selectedNodeId: null,
+    }),
+  setDelivery: (activeDeliveryId) =>
+    set({
+      activeDeliveryId,
+      activeTaskId: null,
+      sceneTaskId: null,
+      selectedNodeId: null,
+      selectedNodeIds: [],
+      overlay: null,
+      deliveryView: activeDeliveryId ? 'canvas' : 'board',
+    }),
+  setDeliveryView: (deliveryView) => set({ deliveryView }),
+  setOverlay: (overlay) => set({ overlay }),
+  setRightPanelCollapsed: (rightPanelCollapsed) => set({ rightPanelCollapsed }),
   setSelectedNode: (selectedNodeId) => set({ selectedNodeId }),
   setSceneTask: (sceneTaskId) => set({ sceneTaskId }),
   setSelection: (nodes) =>

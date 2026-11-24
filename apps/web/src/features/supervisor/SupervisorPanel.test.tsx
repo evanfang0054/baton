@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getSupervisorMessages, getSupervisorStatus } from '../../lib/api'
+import { getSupervisorMessages, getSupervisorStatus, getTask, listTasks } from '../../lib/api'
 import { CommandProvider } from '../../lib/command-context'
 import { useAppStore } from '../../stores/app'
 import { SupervisorPanel } from './SupervisorPanel'
@@ -12,6 +12,8 @@ vi.mock('../../lib/api', () => ({
   getSupervisorStatus: vi.fn(),
   getSupervisorMessages: vi.fn(),
   listNotices: vi.fn().mockResolvedValue({ notices: [] }),
+  listTasks: vi.fn().mockResolvedValue([]),
+  getTask: vi.fn(),
 }))
 
 function renderPanel(send = vi.fn().mockResolvedValue(undefined)) {
@@ -60,6 +62,7 @@ beforeEach(() => {
     policyVersion: 'p1',
   })
   vi.mocked(getSupervisorMessages).mockResolvedValue({ threadId: 'th1', messages: [] })
+  vi.mocked(listTasks).mockResolvedValue([])
 })
 
 describe('SupervisorPanel', () => {
@@ -103,7 +106,82 @@ describe('SupervisorPanel', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '打开任务' }))
     expect(useAppStore.getState().activeTaskId).toBe('t1')
-    expect(useAppStore.getState().rightPanel).toBe('task')
+    expect(useAppStore.getState().overlay).toEqual({ kind: 'stage', taskId: 't1' })
+  })
+
+  it('shows pending approval tasks as gate cards', async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      {
+        id: 't1',
+        workspaceId: 'w1',
+        nodeId: null,
+        title: '登录页修复',
+        prompt: '',
+        status: 'waiting_input',
+        waitingReason: 'approval',
+        engine: 'claude-sdk',
+        workspaceMode: 'main',
+        branch: null,
+        worktreePath: null,
+        verifyCommand: null,
+        retryCount: 0,
+        dangerouslySkipPermissions: false,
+        enqueuedAt: null,
+        createdAt: 1,
+        updatedAt: 2,
+        attention: 'needs_approval',
+        waitingSince: Date.now() - 60_000,
+        acceptance: null,
+      },
+    ])
+    vi.mocked(getTask).mockResolvedValue({
+      task: {
+        id: 't1',
+        workspaceId: 'w1',
+        nodeId: null,
+        title: '登录页修复',
+        prompt: '',
+        status: 'waiting_input',
+        waitingReason: 'approval',
+        engine: 'claude-sdk',
+        workspaceMode: 'main',
+        branch: null,
+        worktreePath: null,
+        verifyCommand: null,
+        retryCount: 0,
+        dangerouslySkipPermissions: false,
+        enqueuedAt: null,
+        createdAt: 1,
+        updatedAt: 2,
+        context: null,
+        origin: null,
+      },
+      contextInvalid: false,
+      originInvalid: false,
+      sessions: [],
+      approvals: [
+        {
+          id: 'a1',
+          sessionId: 's1',
+          request: { toolName: 'Bash', input: { command: 'pnpm test' }, risk: 'high' },
+          decision: null,
+          decidedBy: null,
+          decidedAt: null,
+          response: null,
+        },
+      ],
+      review: null,
+      waitingSince: Date.now() - 60_000,
+      attention: 'needs_approval',
+      acceptance: null,
+      lastFailure: null,
+      lastOutcome: null,
+    })
+    renderPanel()
+
+    expect(await screen.findByText('待我处理 1')).toBeVisible()
+    expect(screen.getByText('登录页修复')).toBeVisible()
+    expect(screen.getByRole('button', { name: '允许' })).toBeVisible()
   })
 
   it('retries a failed turn with the previous user message', async () => {

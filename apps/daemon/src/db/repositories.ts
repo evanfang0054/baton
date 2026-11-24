@@ -116,8 +116,9 @@ function toTask(row: typeof task.$inferSelect): Task {
     verifyCommand: row.verifyCommand,
     retryCount: row.retryCount,
     dangerouslySkipPermissions: row.dangerouslySkipPermissions,
-    budgetUsd: row.budgetUsd ?? null,
     enqueuedAt: row.enqueuedAt ?? null,
+    deliveryId: row.deliveryId ?? null,
+    stageKey: row.stageKey ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   })
@@ -619,8 +620,20 @@ export function getTaskDetail(
     }
   }
 
+  let annotationIds: string[] = []
+  if (row.annotationIdsJson) {
+    try {
+      const parsed = JSON.parse(row.annotationIdsJson) as unknown
+      if (Array.isArray(parsed)) {
+        annotationIds = parsed.filter((id): id is string => typeof id === 'string')
+      }
+    } catch {
+      annotationIds = []
+    }
+  }
+
   return {
-    task: TaskDetail.parse({ ...base, context, origin }),
+    task: TaskDetail.parse({ ...base, context, origin, annotationIds }),
     contextInvalid,
     originInvalid,
   }
@@ -656,9 +669,11 @@ export function listQueuedTasksByEnqueuedAt(db: Db): Task[] {
 
 export function insertTask(
   tx: Tx,
-  input: Omit<Task, 'enqueuedAt' | 'budgetUsd'> & {
+  input: Omit<Task, 'enqueuedAt' | 'deliveryId' | 'stageKey'> & {
     enqueuedAt?: number | null
-    budgetUsd?: number | null
+    deliveryId?: string | null
+    stageKey?: string | null
+    annotationIds?: string[]
   },
   contextJson: string | null = null,
   originJson: string | null = null,
@@ -679,10 +694,12 @@ export function insertTask(
       verifyCommand: input.verifyCommand,
       retryCount: input.retryCount,
       dangerouslySkipPermissions: input.dangerouslySkipPermissions,
-      budgetUsd: input.budgetUsd ?? null,
       contextJson,
       originJson,
       enqueuedAt: input.enqueuedAt ?? null,
+      deliveryId: input.deliveryId ?? null,
+      stageKey: input.stageKey ?? null,
+      annotationIdsJson: input.annotationIds?.length ? JSON.stringify(input.annotationIds) : null,
       createdAt: input.createdAt,
       updatedAt: input.updatedAt,
     })
@@ -744,10 +761,6 @@ export function updateTaskTitle(
 /** 人重新授权时写入新的 origin 快照；不改任务状态。 */
 export function updateTaskOrigin(tx: Tx, id: string, originJson: string, updatedAt: number): void {
   tx.update(task).set({ originJson, updatedAt }).where(eq(task.id, id)).run()
-}
-
-export function updateTaskBudget(tx: Tx, id: string, budgetUsd: number, updatedAt: number): void {
-  tx.update(task).set({ budgetUsd, updatedAt }).where(eq(task.id, id)).run()
 }
 
 export function getTaskPolicy(db: Db, id: string): Policy | null {

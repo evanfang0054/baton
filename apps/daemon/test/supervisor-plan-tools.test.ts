@@ -32,7 +32,6 @@ describe('plan_tasks', () => {
     const tools = createSupervisorTools({
       db: database.db,
       workspacesRoot: '/tmp',
-      claudeMaxBudgetUsd: 2,
       taskService: {
         createTask: () => ({ ok: false, error: { code: 'unused', message: 'unused' } as never }),
       } as never,

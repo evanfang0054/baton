@@ -19,7 +19,6 @@ export const TaskTemplate = z
       })
       .strict(),
     defaultEngine: Engine.nullable(),
-    defaultBudgetUsd: z.number().finite().nonnegative().nullable(),
   })
   .strict()
 export type TaskTemplate = z.infer<typeof TaskTemplate>

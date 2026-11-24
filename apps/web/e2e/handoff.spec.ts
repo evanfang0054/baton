@@ -307,7 +307,6 @@ test('shows a handoff card with its source and worktree warning in the superviso
   })
 
   await page.goto('/?workspace=w1')
-  await page.getByRole('tab', { name: '总管' }).click()
   const composer = page.getByRole('textbox', { name: '对总管说' })
   await composer.fill('把登录页的结果交给新任务继续修改')
   await expect(composer).toHaveValue('把登录页的结果交给新任务继续修改')

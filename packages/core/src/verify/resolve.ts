@@ -22,9 +22,15 @@ export function resolveVerifyCommand(input: VerifyCommandInput): VerifyCommandRe
   if (policy) return { ok: true, command: policy, source: 'policy' }
 
   const script = input.packageScripts?.verify?.trim()
+  const manager = input.packageManager ?? 'pnpm'
   if (script) {
-    const manager = input.packageManager ?? 'pnpm'
     return { ok: true, command: `${manager} run verify`, source: 'package' }
+  }
+
+  // package.json 可能只声明了 test 脚本；此时必须沿用项目自己的包管理器，
+  // 否则 npm 项目会被硬编码的 pnpm test 拒绝。
+  if (input.packageScripts?.test?.trim()) {
+    return { ok: true, command: `${manager} test`, source: 'package' }
   }
 
   return { ok: true, command: 'pnpm test', source: 'fallback' }

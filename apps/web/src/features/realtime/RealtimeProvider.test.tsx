@@ -591,4 +591,60 @@ describe('RealtimeProvider', () => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.task('t1') })
     })
   })
+
+  it('invalidates delivery, artifacts, and canvas when delivery events arrive', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    renderProvider(client)
+    const socket = FakeSocket.instances[0]!
+    socket.open()
+    invalidate.mockClear()
+
+    socket.message({
+      v: 1,
+      ts: 50,
+      seq: 20,
+      type: 'delivery.updated',
+      payload: { deliveryId: 'd1', status: 'running', currentStageKey: 'design' },
+    })
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.deliveries('w1') })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.delivery('d1') })
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: queryKeys.deliveryCanvas('w1', 'd1'),
+      })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.artifacts('d1') })
+    })
+
+    invalidate.mockClear()
+    socket.message({
+      v: 1,
+      ts: 51,
+      seq: 21,
+      type: 'artifact.updated',
+      payload: { artifactId: 'a1', deliveryId: 'd1', stageKey: 'requirement', status: 'ready' },
+    })
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.artifacts('d1') })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.delivery('d1') })
+    })
+
+    invalidate.mockClear()
+    socket.message({
+      v: 1,
+      ts: 52,
+      seq: 22,
+      type: 'annotation.updated',
+      payload: {
+        annotationId: 'an1',
+        deliveryId: 'd1',
+        stageKey: 'requirement',
+        status: 'resolved',
+      },
+    })
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.annotations('d1') })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.delivery('d1') })
+    })
+  })
 })

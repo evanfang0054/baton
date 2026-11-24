@@ -53,6 +53,8 @@ import { appError, isAppError } from '../errors.js'
 import type { Logger } from '../log.js'
 import type { TaskService } from '../runtime/task-service.js'
 import type { TransitionOutcome } from '../runtime/types.js'
+import type { AnnotationService } from '../annotation/service.js'
+import type { DeliveryService } from '../delivery/service.js'
 import { buildWsFrame } from '../ws/hub.js'
 import { canvasOverviewXml, nodeTitle } from './canvas-summary.js'
 import type { createSupervisorActionService } from './actions.js'
@@ -97,11 +99,11 @@ export interface SupervisorServiceDeps {
     | { ok: false; error: AppError }
   cancelTask: (taskId: string, reason?: string) => TransitionOutcome
   workspacesRoot: string
-  claudeMaxBudgetUsd: number
-  verifierBudgetUsd: number
   killSwitch: () => boolean
   actions?: ReturnType<typeof createSupervisorActionService>
   failures?: FailureService
+  deliveries?: () => DeliveryService | undefined
+  annotations?: () => AnnotationService | undefined
   remindAttention?: (input: {
     workspaceId: string
     taskId: string
@@ -186,7 +188,7 @@ export interface SupervisorToolClaim {
 }
 
 /**
- * 验收/预算/审批类结论只能来自工具事实；否则追加免责声明。
+ * 验收/审批类结论只能来自工具事实；否则追加免责声明。
  * 这里只处理读证据能覆盖的断言，写操作断言仍由调用点的工具结果检查兜底。
  */
 export function guardAcceptanceClaims(
@@ -212,10 +214,6 @@ export function guardAcceptanceClaims(
     next += '\n\n（我没有验收通过的工具结果；请以任务详情里的验收清单为准。）'
     flagged = true
   }
-  if (/已(经)?(提额|提高预算|增加预算)/.test(text)) {
-    next += '\n\n（我没有提额工具，不能替你改预算；请在任务详情里操作。）'
-    flagged = true
-  }
   const approvedFact = toolCalls.some(
     (call) =>
       call.ok &&
@@ -237,7 +235,6 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
   const tools = createSupervisorTools({
     db: deps.db,
     workspacesRoot: deps.workspacesRoot,
-    claudeMaxBudgetUsd: deps.claudeMaxBudgetUsd,
     taskService: deps.taskService,
     now: deps.now,
     newId: deps.newId,
@@ -267,6 +264,8 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       : {}),
     ...(contextDigest ? { contextDigest } : {}),
     ...(deps.failures ? { failures: deps.failures } : {}),
+    ...(deps.deliveries ? { deliveries: deps.deliveries } : {}),
+    ...(deps.annotations ? { annotations: deps.annotations } : {}),
     ...(deps.logger ? { logger: deps.logger } : {}),
   })
   const policyVersion = supervisorPolicyVersion(SUPERVISOR_POLICY, PROMPT_VERSION)
@@ -374,6 +373,9 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
   }
 
   function notify(threadId: string, key: string, content: string): void {
+    // 人工任务没有总管会话，验收员 origin 里的 threadId 只是来源标记；
+    // 这类 thread 不存在，不应落站内消息，更不能撞 supervisor_message 的外键。
+    if (!store.hasThread(threadId)) return
     try {
       const result = store.insertNotification({ threadId, dedupeKey: key, content })
       if (result.duplicate) return
@@ -532,7 +534,6 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
         engine: deps.defaultEngine,
         workspaceMode: task.workspaceMode,
         dangerouslySkipPermissions: false,
-        budgetUsd: deps.verifierBudgetUsd,
       },
       {
         origin: buildTaskOrigin({
@@ -1203,6 +1204,48 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
           input.assistantMessageId,
           input.threadId,
         ),
+        create_delivery: wrapTool(
+          'create_delivery',
+          bound.create_delivery,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        list_deliveries: wrapTool(
+          'list_deliveries',
+          bound.list_deliveries,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        get_delivery: wrapTool(
+          'get_delivery',
+          bound.get_delivery,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        enqueue_delivery: wrapTool(
+          'enqueue_delivery',
+          bound.enqueue_delivery,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        cancel_delivery: wrapTool(
+          'cancel_delivery',
+          bound.cancel_delivery,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        list_annotations: wrapTool(
+          'list_annotations',
+          bound.list_annotations,
+          input.assistantMessageId,
+          input.threadId,
+        ),
+        get_annotation: wrapTool(
+          'get_annotation',
+          bound.get_annotation,
+          input.assistantMessageId,
+          input.threadId,
+        ),
       }
       const history = trimHistory(store.listMessages(input.threadId, 21).messages.slice(-20))
       const engine = deps.engine ?? createAiSdkSupervisorEngine(input.config)
@@ -1252,9 +1295,14 @@ export function createSupervisorService(deps: SupervisorServiceDeps) {
       }
       const hasAfterSales = result.toolCalls.some(
         (call) =>
-          ['retry_task', 'reopen_task', 'cancel_task', 'reply_task', 'inject_context'].includes(
-            call.name,
-          ) && call.ok,
+          [
+            'retry_task',
+            'reopen_task',
+            'cancel_task',
+            'cancel_delivery',
+            'reply_task',
+            'inject_context',
+          ].includes(call.name) && call.ok,
       )
       if (
         /已(经)?(为你|帮你)?(重试|重开|取消|回复|注入|补给它|补投)/.test(text) &&

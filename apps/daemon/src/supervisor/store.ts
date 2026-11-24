@@ -54,6 +54,7 @@ export interface SupervisorStore {
     message: SupervisorMessageValue
     decision: SupervisorDecision
   }
+  hasThread(threadId: string): boolean
   /** 观察者消息：assistant 角色、无 decision，用 dedupeKey 保证同一事件只落一次。 */
   insertNotification(input: { threadId: string; dedupeKey: string; content: string }): {
     message: SupervisorMessageValue
@@ -144,6 +145,15 @@ export function createSupervisorStore(deps: SupervisorStoreDeps): SupervisorStor
         .limit(1)
         .get()
       return row ? toThread(row) : null
+    },
+
+    hasThread(threadId) {
+      const row = deps.db
+        .select({ id: supervisorThread.id })
+        .from(supervisorThread)
+        .where(eq(supervisorThread.id, threadId))
+        .get()
+      return row !== undefined
     },
 
     getOrCreateThread(workspaceId) {

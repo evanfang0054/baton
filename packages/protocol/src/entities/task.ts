@@ -20,9 +20,9 @@ export const Task = z.object({
   retryCount: z.number().int().nonnegative(),
   /** 仅该任务跳过 SDK 权限审批；默认 false，需全局开关与已信任 workspace。 */
   dangerouslySkipPermissions: z.boolean(),
-  /** 任务级预算；null 表示继承全局 claudeMaxBudgetUsd。 */
-  budgetUsd: z.number().nonnegative().nullable().default(null),
   enqueuedAt: Timestamp.nullable().default(null),
+  deliveryId: Id.nullable().optional(),
+  stageKey: z.string().min(1).max(32).nullable().optional(),
   createdAt: Timestamp,
   updatedAt: Timestamp,
 })
@@ -31,5 +31,6 @@ export type Task = z.infer<typeof Task>
 export const TaskDetail = Task.extend({
   context: ContextSnapshot.nullable().default(null),
   origin: TaskOrigin.nullable().default(null),
+  annotationIds: z.array(Id).optional(),
 })
 export type TaskDetail = z.infer<typeof TaskDetail>

@@ -7,6 +7,12 @@ export const queryKeys = {
   engines: ['engines'] as const,
   tasks: (workspaceId: string) => ['tasks', workspaceId] as const,
   canvas: (workspaceId: string) => ['canvas', workspaceId] as const,
+  deliveries: (workspaceId: string) => ['deliveries', workspaceId] as const,
+  delivery: (deliveryId: string) => ['delivery', deliveryId] as const,
+  deliveryCanvas: (workspaceId: string, deliveryId: string) =>
+    ['delivery-canvas', workspaceId, deliveryId] as const,
+  artifacts: (deliveryId: string) => ['artifacts', deliveryId] as const,
+  annotations: (deliveryId: string) => ['annotations', deliveryId] as const,
   task: (taskId: string) => ['task', taskId] as const,
   taskHistory: (taskId: string) => ['task-history', taskId] as const,
   taskAcceptance: (taskId: string) => ['task-acceptance', taskId] as const,
@@ -41,4 +47,17 @@ export async function invalidateTaskQueries(
   if (workspaceId) {
     await client.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
   }
+}
+
+/** 交付命令后统一刷新交付/画布/任务查询，避免人工入口与实时入口漏键。 */
+export async function invalidateDeliveryQueries(
+  client: QueryClient,
+  workspaceId: string,
+  deliveryId: string,
+): Promise<void> {
+  await client.invalidateQueries({ queryKey: queryKeys.deliveries(workspaceId) })
+  await client.invalidateQueries({ queryKey: queryKeys.delivery(deliveryId) })
+  await client.invalidateQueries({ queryKey: queryKeys.deliveryCanvas(workspaceId, deliveryId) })
+  await client.invalidateQueries({ queryKey: queryKeys.artifacts(deliveryId) })
+  await client.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
 }

@@ -14,7 +14,6 @@ const base = {
   bypassPermissions: false,
   systemPromptAppend: '<baton_protocol/>',
   maxTurns: 30,
-  maxBudgetUsd: 2,
 }
 
 describe('createBatonReportHandler', () => {
@@ -84,7 +83,6 @@ describe('buildClaudeOptions', () => {
     expect(options.allowDangerouslySkipPermissions).toBe(false)
     expect(options.includePartialMessages).toBe(false)
     expect(options.maxTurns).toBe(30)
-    expect(options.maxBudgetUsd).toBe(2)
     expect(options.systemPrompt).toMatchObject({ type: 'preset', preset: 'claude_code' })
     expect(options.disallowedTools).toEqual(expect.arrayContaining([...DISALLOWED_TOOLS]))
     expect(options.env?.CLAUDE_AGENT_SDK_CLIENT_APP).toBe('baton/0.0.0')

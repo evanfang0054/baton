@@ -288,6 +288,9 @@ describe('REST API', () => {
       outcome: 'blocked',
       reason: '缺少具体任务',
     })
+    const detail = response.json() as { sessions: Array<Record<string, unknown>> }
+    expect(detail.sessions[0]).not.toHaveProperty('costUsd')
+    expect(detail.sessions[0]).not.toHaveProperty('turns')
   })
 
   it('returns needs_review for review tasks', async () => {

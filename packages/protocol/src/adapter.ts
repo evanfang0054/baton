@@ -24,8 +24,6 @@ export interface StartInput {
   workspaceTrust: WorkspaceTrustSnapshot
   /** 仅该任务跳过权限审批；由 daemon 校验全局开关与 workspace trust 后传入。 */
   bypassPermissions: boolean
-  /** 本次 run 的预算上限；缺省时由 adapter 使用自身默认值。 */
-  maxBudgetUsd?: number
 }
 
 export interface AgentRun {

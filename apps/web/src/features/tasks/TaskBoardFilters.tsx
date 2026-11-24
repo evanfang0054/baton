@@ -27,7 +27,6 @@ export function filterTasks(
           status: task.status,
           attention: task.attention,
           acceptance: task.acceptance,
-          budget: task.budget,
         })
       }
       if (input.filter === 'review') return task.status === 'review'

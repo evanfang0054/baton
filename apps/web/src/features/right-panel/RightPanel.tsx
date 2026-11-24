@@ -1,86 +1,73 @@
 import type { ReactNode } from 'react'
-import type { RightPanelMode } from '../../stores/app'
-
-const TABS: Array<{ mode: RightPanelMode; label: string }> = [
-  { mode: 'supervisor', label: '总管' },
-  { mode: 'task', label: '任务' },
-  { mode: 'node', label: '节点' },
-]
-
-const tabClass = [
-  'inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-].join(' ')
 
 export function RightPanel({
   compact = false,
-  mode,
-  onModeChange,
-  hasTask,
-  hasNode,
+  collapsed = false,
+  onToggleCollapsed,
   hasUnreadNotice = false,
   supervisor,
-  task,
-  node,
 }: {
   compact?: boolean
-  mode: RightPanelMode
-  onModeChange: (mode: RightPanelMode) => void
-  hasTask: boolean
-  hasNode: boolean
+  collapsed?: boolean
+  onToggleCollapsed?: () => void
   hasUnreadNotice?: boolean
   supervisor: ReactNode
-  task: ReactNode
-  node: ReactNode
 }) {
-  const isAvailable = (candidate: RightPanelMode) =>
-    candidate === 'supervisor' ||
-    (candidate === 'task' && hasTask) ||
-    (candidate === 'node' && hasNode)
-  // 选中的任务/节点被关闭后，右栏不能停在空白页。
-  const effectiveMode = isAvailable(mode) ? mode : 'supervisor'
-  const content = effectiveMode === 'task' ? task : effectiveMode === 'node' ? node : supervisor
+  if (collapsed) {
+    return (
+      <div
+        className={
+          compact
+            ? 'absolute right-3 top-3 z-20'
+            : 'flex w-12 shrink-0 flex-col items-center border-l border-separator bg-surface py-3'
+        }
+      >
+        <button
+          type="button"
+          aria-label="展开总管"
+          onClick={onToggleCollapsed}
+          className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-default hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          <span aria-hidden="true">总</span>
+          {hasUnreadNotice ? (
+            <span
+              aria-hidden="true"
+              className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-accent"
+            />
+          ) : null}
+        </button>
+      </div>
+    )
+  }
 
   return (
     <aside
       data-testid="right-panel"
-      aria-label="右栏"
+      aria-label="精灵总管"
       className={
         compact
           ? 'absolute inset-y-0 right-0 z-20 flex min-h-0 w-[min(400px,92vw)] shrink-0 flex-col border-l border-separator bg-surface shadow-overlay'
           : 'flex min-h-0 w-[400px] shrink-0 flex-col border-l border-separator bg-surface'
       }
     >
-      <div
-        role="tablist"
-        aria-label="右栏视图"
-        className="flex shrink-0 items-center gap-1 border-b border-separator px-2 py-2"
-      >
-        {TABS.filter((tab) => isAvailable(tab.mode)).map((tab) => {
-          const selected = effectiveMode === tab.mode
-          return (
-            <button
-              key={tab.mode}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => onModeChange(tab.mode)}
-              className={`${tabClass} ${
-                selected ? 'bg-default text-default-foreground' : 'text-muted hover:text-foreground'
-              }`}
-            >
-              {tab.label}
-              {tab.mode === 'supervisor' && hasUnreadNotice ? (
-                <span className="ml-1 inline-flex items-center">
-                  <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-accent" />
-                  <span className="sr-only">有未读汇报</span>
-                </span>
-              ) : null}
-            </button>
-          )
-        })}
+      <div className="flex shrink-0 items-center gap-2 border-b border-separator px-3 py-2">
+        <span className="text-xs font-medium text-muted">精灵总管</span>
+        {hasUnreadNotice ? (
+          <span className="inline-flex items-center gap-1 text-xs text-accent">
+            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-accent" />
+            有未读汇报
+          </span>
+        ) : null}
+        <button
+          type="button"
+          aria-label="收起总管"
+          onClick={onToggleCollapsed}
+          className="ml-auto rounded-md px-2 py-1 text-xs text-muted transition-colors hover:bg-default hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          收起
+        </button>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{content}</div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{supervisor}</div>
     </aside>
   )
 }

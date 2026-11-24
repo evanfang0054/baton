@@ -206,7 +206,7 @@ describe('automation protocol', () => {
     })
     expect(parsed.attention).toEqual({
       items: [],
-      counts: { approval: 0, reply: 0, review: 0, failed: 0, budget: 0, stale: 0 },
+      counts: { approval: 0, reply: 0, review: 0, failed: 0, stale: 0 },
     })
   })
 })

@@ -73,7 +73,6 @@ function stubTaskApi() {
     verifyCommand: null,
     retryCount: 0,
     dangerouslySkipPermissions: false,
-    budgetUsd: null,
     enqueuedAt: null,
     createdAt: 1,
     updatedAt: 2,
@@ -97,6 +96,9 @@ function stubTaskApi() {
           ],
         })
       }
+      if (url.startsWith('/api/deliveries?workspaceId=w1')) {
+        return json({ deliveries: [] })
+      }
       if (url.startsWith('/api/tasks?workspaceId=w1')) {
         return json({ tasks: [{ ...task, attention: 'needs_reply', waitingSince: 2 }] })
       }
@@ -116,17 +118,6 @@ function stubTaskApi() {
           waitingSince: 2,
           attention: 'needs_reply',
           acceptance: null,
-          budget: {
-            budgetUsd: 2,
-            spentUsd: 0,
-            remainingUsd: 2,
-            ratio: 0,
-            overBudget: false,
-            nearBudget: false,
-            workerCostUsd: 0,
-            verifierCostUsd: 0,
-            turns: 0,
-          },
         })
       }
       if (url === '/api/tasks/t1/automation') {
@@ -178,14 +169,18 @@ describe('App shell', () => {
     expect(screen.queryByTestId('right-panel')).not.toBeInTheDocument()
   })
 
-  it('renders the three-pane shell and empty workspace state', async () => {
+  it('renders the desktop shell with delivery rail, board and supervisor only', async () => {
     renderApp()
     expect(screen.getByText('baton')).toBeInTheDocument()
-    expect(await screen.findByTestId('board-rail')).toBeInTheDocument()
-    expect(screen.getByTestId('canvas')).toBeInTheDocument()
+    expect(await screen.findByLabelText('交付列表')).toBeInTheDocument()
+    expect(screen.getByLabelText('交付看板')).toBeInTheDocument()
     expect(screen.getByTestId('right-panel')).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: '总管' })).toHaveAttribute('aria-selected', 'true')
-    await waitFor(() => expect(screen.getAllByText('尚未选择工作区').length).toBeGreaterThan(0))
+    expect(screen.getByText('精灵总管')).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: '任务' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: '节点' })).not.toBeInTheDocument()
+    expect(
+      await screen.findByText('还没有交付。在左侧点“新建交付”，把第一条需求放到画布上。'),
+    ).toBeInTheDocument()
   })
 
   it('opens the create-workspace dialog', async () => {
@@ -271,10 +266,10 @@ describe('App shell', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('未认证')
   })
 
-  it('selects a task and shows it in the detail panel', async () => {
+  it('selects a task and shows it in the stage overlay', async () => {
     stubTaskApi()
     renderApp()
-    fireEvent.click(screen.getByLabelText('展开看板'))
+    fireEvent.click(await screen.findByRole('button', { name: '任务' }))
     fireEvent.click(await screen.findByText('修复登录页'))
     await waitFor(() => expect(screen.getByTestId('task-detail')).toHaveTextContent('修复登录页'))
   })
@@ -291,7 +286,10 @@ describe('App shell', () => {
     window.history.replaceState(null, '', '/?workspace=w1&task=t1')
     renderApp()
     await waitFor(() => expect(screen.getByTestId('task-detail')).toHaveTextContent('修复登录页'))
-    act(() => useAppStore.getState().setTask(null))
+    act(() => {
+      useAppStore.getState().setTask(null)
+      useAppStore.getState().setOverlay(null)
+    })
     await waitFor(() => expect(new URLSearchParams(window.location.search).has('task')).toBe(false))
   })
 })

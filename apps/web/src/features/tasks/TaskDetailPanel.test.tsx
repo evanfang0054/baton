@@ -25,7 +25,6 @@ const baseTask: TaskDetailResponse['task'] = {
   worktreePath: null,
   verifyCommand: null,
   dangerouslySkipPermissions: false,
-  budgetUsd: null,
   enqueuedAt: null,
   retryCount: 0,
   ...{ context: null, origin: null },
@@ -44,8 +43,6 @@ function detail(overrides: Partial<TaskDetailResponse> = {}): TaskDetailResponse
         engineSessionId: null,
         status: 'running',
         outcome: null,
-        costUsd: null,
-        turns: null,
         startedAt: 1,
         endedAt: null,
       },
@@ -55,17 +52,6 @@ function detail(overrides: Partial<TaskDetailResponse> = {}): TaskDetailResponse
     waitingSince: null,
     attention: 'none',
     acceptance: null,
-    budget: {
-      budgetUsd: 2,
-      spentUsd: 0,
-      remainingUsd: 2,
-      ratio: 0,
-      overBudget: false,
-      nearBudget: false,
-      workerCostUsd: 0,
-      verifierCostUsd: 0,
-      turns: 0,
-    },
     lastFailure: null,
     lastOutcome: null,
     ['contextInvalid']: false,
@@ -125,31 +111,10 @@ function acceptanceBundle(): TaskAcceptanceResponse {
         counts: { total: 1, pass: 1, fail: 0, pending: 0, waived: 0 },
         verdict: 'pass',
       },
-      usage: {
-        workerCostUsd: 0.2,
-        verifierCostUsd: 0.1,
-        turns: 2,
-        budgetUsd: 2,
-        spentUsd: 0.2,
-        remainingUsd: 1.8,
-        overBudget: false,
-        nearBudget: false,
-      },
       risks: [],
       unverified: [],
       preliminary: { verdict: 'pass', summary: '满足要求' },
       hash: 'a'.repeat(64),
-    },
-    budget: {
-      budgetUsd: 2,
-      spentUsd: 0.2,
-      remainingUsd: 1.8,
-      ratio: 0.1,
-      overBudget: false,
-      nearBudget: false,
-      workerCostUsd: 0.2,
-      verifierCostUsd: 0.1,
-      turns: 2,
     },
   }
 }
@@ -253,7 +218,7 @@ describe('TaskDetailPanel', () => {
     expect(screen.getByText('prompt-1')).toBeInTheDocument()
   })
 
-  it('shows injection timeline and aggregate usage', async () => {
+  it('shows injection timeline without cost', async () => {
     stubFetch(
       detail({
         task: {
@@ -291,8 +256,6 @@ describe('TaskDetailPanel', () => {
             engineSessionId: null,
             status: 'ended',
             outcome: 'ready',
-            costUsd: 0.42,
-            turns: 3,
             startedAt: 1,
             endedAt: 3,
           },
@@ -303,7 +266,7 @@ describe('TaskDetailPanel', () => {
 
     expect(await screen.findByText('注入 #1')).toBeInTheDocument()
     expect(screen.getByText('补充报错')).toBeInTheDocument()
-    expect(screen.getByText(/累计 \$0\.42 · 3 turns/)).toBeInTheDocument()
+    expect(screen.queryByText(/累计 \$/)).not.toBeInTheDocument()
   })
 
   it('shows a todo task, enqueues it and invalidates its queries', async () => {
@@ -312,7 +275,7 @@ describe('TaskDetailPanel', () => {
     const invalidate = vi.spyOn(client, 'invalidateQueries')
 
     expect(await screen.findByText('修复登录页')).toBeInTheDocument()
-    expect(screen.getByText('累计 — · —')).toBeInTheDocument()
+    expect(screen.queryByText('累计 — · —')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '立即开工' }))
     await waitFor(() =>
       expect(send).toHaveBeenCalledWith({
@@ -701,5 +664,13 @@ describe('TaskDetailPanel', () => {
     const button = await screen.findByRole('button', { name: '看现场' })
     fireEvent.click(button)
     expect(useAppStore.getState().sceneTaskId).toBe('t1')
+  })
+
+  it('does not render task budget or accumulated cost', async () => {
+    stubFetch(detail())
+    renderPanel()
+    expect(await screen.findByText('修复登录页')).toBeInTheDocument()
+    expect(screen.queryByText('任务预算')).not.toBeInTheDocument()
+    expect(screen.queryByText(/累计 \$/)).not.toBeInTheDocument()
   })
 })

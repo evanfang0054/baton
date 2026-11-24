@@ -42,7 +42,7 @@ pnpm dev
 - 如果不用本机登录态，可设置 `ANTHROPIC_API_KEY`；这会走 API key 计费，而不是本机订阅。
 - 项目级 `.claude/settings.json`、`.mcp.json`、hooks 是否加载由 workspace trust 决定；默认不信任、不加载。
 - 引擎探测：`GET /api/engines` 返回 `claude-sdk` 的 `available | unknown | unavailable`；`unknown` 表示无法读取 macOS Keychain，但仍允许尝试。
-- 预算：默认 `BATON_CLAUDE_MAX_TURNS=30`、`BATON_CLAUDE_MAX_BUDGET_USD=2`。
+- 运行上限：默认 `BATON_CLAUDE_MAX_TURNS=30`；用取消任务、kill switch 与并发上限止损，不再有金钱预算上限。
 - hooks：`BATON_CLAUDE_PROJECT_HOOKS=off` 可强制关闭所有项目 hooks，优先于 workspace 设置。
 
 ## 跳过审批与结构化提问

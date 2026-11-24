@@ -96,7 +96,6 @@ function setup(count: number, cap: number) {
   const runner = createSessionRunner({
     db: database.db,
     dataDir: process.cwd(),
-    claudeMaxBudgetUsd: 2,
     adapters: createAdapterFactory({ 'claude-sdk': approvalBurstAdapter(count, decisions) }),
     eventStore,
     broadcast: () => {},

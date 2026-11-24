@@ -1,10 +1,12 @@
 import { findContainingGroup, type TaskScene } from '@baton/core'
 import type {
+  Artifact,
+  DeliverySummary,
   Edge as ProtocolEdge,
   Node as ProtocolNode,
   ReviewView,
+  StageSummary,
   TaskAcceptanceSummary,
-  TaskBudgetSummary,
   TaskSummary,
 } from '@baton/protocol'
 import type { Edge as FlowEdge, Node as FlowNode } from '@xyflow/react'
@@ -16,9 +18,10 @@ export interface CanvasNodeData extends Record<string, unknown> {
   imageUrl?: string
   review?: ReviewView | null
   acceptance?: TaskAcceptanceSummary | null
-  budget?: TaskBudgetSummary | null
   childCount?: number
   injected?: boolean
+  stage?: StageSummary | null
+  artifact?: Artifact | null
 }
 
 export interface CanvasRenderOptions {
@@ -26,6 +29,9 @@ export interface CanvasRenderOptions {
   reviewDetails?: Record<string, ReviewView>
   workspaceId?: string
   injectedNodeIds?: ReadonlySet<string>
+  delivery?: DeliverySummary | null
+  stages?: StageSummary[]
+  artifacts?: Artifact[]
 }
 
 export type CanvasAddType = 'text' | 'file' | 'image' | 'agent' | 'group'
@@ -37,6 +43,8 @@ const CUSTOM_TYPES = new Set<ProtocolNode['type']>([
   'image',
   'group',
   'review',
+  'artifact',
+  'drawing',
 ])
 
 export const REVIEW_CARD_PREFIX = 'review:'
@@ -65,6 +73,8 @@ export function toFlowNodes(
   const groupById = new Map(
     nodes.filter((node) => node.type === 'group').map((node) => [node.id, node]),
   )
+  const stageByKey = new Map((options.stages ?? []).map((stage) => [stage.key, stage]))
+  const artifactById = new Map((options.artifacts ?? []).map((artifact) => [artifact.id, artifact]))
 
   // 同一 Agent 可能有多条历史任务；节点徽标必须显示最新创建的一条。
   const taskByNode = new Map<string, TaskSummary>()
@@ -87,6 +97,7 @@ export function toFlowNodes(
         dimmed: scene ? !relatedGroups.has(node.id) : false,
         childCount: nodes.filter((child) => child.groupId === node.id).length,
         injected: options.injectedNodeIds?.has(node.id) ?? false,
+        stage: node.data.stageKey ? (stageByKey.get(node.data.stageKey) ?? null) : null,
       },
     }))
 
@@ -112,6 +123,9 @@ export function toFlowNodes(
           injected: options.injectedNodeIds?.has(node.id) ?? false,
           ...(node.type === 'image'
             ? { imageUrl: resolveImageUrl(node.data.src, options.workspaceId) }
+            : {}),
+          ...(node.type === 'artifact'
+            ? { artifact: artifactById.get(node.data.artifactId) ?? null }
             : {}),
         },
       }
@@ -155,7 +169,6 @@ export function toFlowNodes(
         dimmed: false,
         review: options.reviewDetails?.[task.id] ?? null,
         acceptance: task.acceptance ?? null,
-        budget: task.budget ?? null,
       },
     }
   })

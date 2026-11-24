@@ -1,7 +1,7 @@
 import { isStale } from '@baton/core'
 import type { Node, TaskSummary } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
-import { Modal } from '@heroui/react/modal'
+import { ConfirmDialog } from '../overlays/ConfirmDialog'
 import { toast } from '@heroui/react/toast'
 import { useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
@@ -498,49 +498,23 @@ export function TaskBoard({
           </p>
         </div>
       ) : null}
-      <Modal
-        isOpen={cancelTarget !== null}
+      <ConfirmDialog
+        open={cancelTarget !== null}
+        title="取消任务？"
+        description={`将「${cancelTarget?.title ?? ''}」移到已取消。执行中的任务会被中断。`}
+        confirmLabel="确认取消"
+        onConfirm={confirmCancel}
         onOpenChange={(open) => {
           if (!open && !dropPending) setCancelTarget(null)
         }}
-      >
-        <Modal.Backdrop>
-          <Modal.Container>
-            <Modal.Dialog aria-label="取消任务">
-              <Modal.Header>
-                <Modal.Heading>取消任务？</Modal.Heading>
-              </Modal.Header>
-              <Modal.Body>
-                <p className="text-sm text-muted">
-                  将「{cancelTarget?.title}」移到已取消。执行中的任务会被中断。
-                </p>
-              </Modal.Body>
-              <Modal.Footer>
-                <Button
-                  variant="tertiary"
-                  isDisabled={dropPending}
-                  onPress={() => setCancelTarget(null)}
-                >
-                  返回
-                </Button>
-                <Button
-                  variant="danger"
-                  isDisabled={dropPending}
-                  onPress={() => void confirmCancel()}
-                >
-                  确认取消
-                </Button>
-              </Modal.Footer>
-            </Modal.Dialog>
-          </Modal.Container>
-        </Modal.Backdrop>
-      </Modal>
+      />
     </>
   )
 
   if (pinned) {
     return (
       <div
+        data-testid="task-board"
         className={
           compact
             ? 'w-[min(420px,72vw)] shrink-0 border-r border-separator'

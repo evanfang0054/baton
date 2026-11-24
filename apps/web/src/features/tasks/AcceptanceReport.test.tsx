@@ -43,16 +43,6 @@ const report: AcceptanceReport = {
     counts: { total: 2, pass: 1, fail: 1, pending: 0, waived: 0 },
     verdict: 'fail',
   },
-  usage: {
-    workerCostUsd: 1.2,
-    verifierCostUsd: 0.1,
-    turns: 4,
-    budgetUsd: 2,
-    spentUsd: 1.2,
-    remainingUsd: 0.8,
-    overBudget: false,
-    nearBudget: false,
-  },
   risks: ['1 条验收未通过'],
   unverified: ['错误提示'],
   preliminary: { verdict: 'fail', summary: '1 条未过' },
@@ -64,7 +54,7 @@ describe('AcceptanceReport', () => {
     render(<AcceptanceReportView report={report} />)
     expect(screen.getByText('改动')).toBeInTheDocument()
     expect(screen.getByText('校验')).toBeInTheDocument()
-    expect(screen.getByText('成本')).toBeInTheDocument()
+    expect(screen.queryByText('成本')).not.toBeInTheDocument()
     expect(screen.getByText('风险与未验证')).toBeInTheDocument()
     expect(screen.getAllByText(/错误提示/).length).toBeGreaterThan(0)
     expect(screen.queryByText(/diff --git/)).toBeNull()

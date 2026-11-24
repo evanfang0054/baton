@@ -19,18 +19,6 @@ const item = (
   updatedAt: 1,
 })
 
-const budget = {
-  budgetUsd: 2,
-  spentUsd: 1.7,
-  remainingUsd: 0.3,
-  ratio: 0.85,
-  overBudget: false,
-  nearBudget: true,
-  workerCostUsd: 1.7,
-  verifierCostUsd: 0.08,
-  turns: 3,
-}
-
 const input = {
   task: { id: 't1', title: '登录页', workspaceMode: 'worktree' as const, worktreePath: '/tmp/w' },
   contract: { id: 'ac1', version: 2, revision: 1 },
@@ -48,9 +36,6 @@ const input = {
     preliminaryReason: null,
   },
   changedFiles: ['/workspace/demo/src/login.tsx', '/external/secret.ts', 'src/app.tsx'],
-  worker: { costUsd: 1.7, turns: 3 },
-  verifier: { costUsd: 0.08, turns: 1 },
-  budget,
   verifyCommand: 'pnpm test',
   workspaceRoot: '/workspace/demo',
 }
@@ -71,12 +56,7 @@ describe('buildAcceptanceReport', () => {
     expect(report.verify.outputSummary).toContain('<workspace>')
     expect(report.verify.outputSummary).not.toContain('/workspace/demo')
     expect(report.risks).toEqual(
-      expect.arrayContaining([
-        '1 条验收未通过',
-        '1 条验收未完成',
-        '预算接近上限',
-        '在 worktree 中执行',
-      ]),
+      expect.arrayContaining(['1 条验收未通过', '1 条验收未完成', '在 worktree 中执行']),
     )
     expect(report.unverified).toEqual(expect.arrayContaining(['深链参数校验', '记住我']))
     expect(JSON.stringify(report)).not.toContain('diff --git')

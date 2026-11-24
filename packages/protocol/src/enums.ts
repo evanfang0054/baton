@@ -33,7 +33,7 @@ export type SessionStatus = z.infer<typeof SessionStatus>
 export const SessionOutcome = z.enum(['ready', 'blocked', 'dropped', 'unreported'])
 export type SessionOutcome = z.infer<typeof SessionOutcome>
 
-export const WaitingReason = z.enum(['approval', 'question', 'stalled', 'dropped', 'budget'])
+export const WaitingReason = z.enum(['approval', 'question', 'stalled', 'dropped'])
 export type WaitingReason = z.infer<typeof WaitingReason>
 
 export const Attention = z.enum([

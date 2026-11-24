@@ -185,7 +185,7 @@ test('uses a full-screen sheet on mobile', async ({ page }) => {
   await mockWorkspace(page)
   await page.goto('/?workspace=w1&task=t1')
 
-  await page.getByRole('button', { name: '查看改动' }).click()
+  await page.getByTestId('mobile-task-scroll').getByRole('button', { name: '查看改动' }).click()
   const dialog = page.getByRole('dialog', { name: '改动详情' })
   await expect(dialog).toBeVisible()
   const box = await dialog.boundingBox()

@@ -58,7 +58,6 @@ const task: TaskSummary = {
   worktreePath: null,
   verifyCommand: null,
   dangerouslySkipPermissions: false,
-  budgetUsd: null,
   enqueuedAt: null,
   retryCount: 0,
   createdAt: 1,
@@ -66,7 +65,6 @@ const task: TaskSummary = {
   attention: 'none',
   waitingSince: null,
   acceptance: null,
-  budget: null,
 }
 
 const review: ReviewView = {
@@ -148,7 +146,7 @@ describe('canvas model', () => {
     })
   })
 
-  it('carries acceptance and budget onto the review card', () => {
+  it('carries acceptance onto the review card', () => {
     const reviewTask: TaskSummary = {
       ...task,
       status: 'review',
@@ -162,25 +160,14 @@ describe('canvas model', () => {
         verdict: 'fail',
         topFailures: [{ text: '深链参数未校验', evidence: null }],
       },
-      budget: {
-        budgetUsd: 2,
-        spentUsd: 1.2,
-        remainingUsd: 0.8,
-        ratio: 0.6,
-        overBudget: false,
-        nearBudget: false,
-        workerCostUsd: 1.2,
-        verifierCostUsd: 0,
-        turns: 2,
-      },
     }
     const card = toFlowNodes([agentNode], [reviewTask], {
       reviewDetails: { t1: review },
     }).find((node) => node.id === 'review:t1')
     expect(card?.data).toMatchObject({
       acceptance: { counts: { pass: 2, total: 3, fail: 1 } },
-      budget: { spentUsd: 1.2, budgetUsd: 2 },
     })
+    expect(card?.data).not.toHaveProperty('budget')
   })
 
   it('adds a derived review card for review tasks', () => {

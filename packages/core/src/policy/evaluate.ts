@@ -53,6 +53,27 @@ export function evaluateApproval(
       risk,
       autoApproved: true,
       reason: 'delegated supervisor authority',
+      authority: 'delegated',
+    }
+  }
+
+  // 工作区授权：信任工作区 + 自动驾驶开启 + kill switch 关闭时，所有非 deny 放行。
+  // deny 已在最前面返回，因此这里不会绕过安全规则。
+  const workspaceAuthority =
+    ctx.workspaceAuthority === true &&
+    policy.autopilot.enabled &&
+    canAutopilot({
+      workspaceTrusted: ctx.workspaceTrusted === true,
+      killSwitch: ctx.killSwitch,
+    })
+
+  if (workspaceAuthority) {
+    return {
+      decision: 'allow',
+      risk,
+      autoApproved: true,
+      reason: 'workspace authority',
+      authority: 'workspace',
     }
   }
 

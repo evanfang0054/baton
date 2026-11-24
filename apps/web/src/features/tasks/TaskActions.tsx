@@ -1,10 +1,9 @@
-import type { Attention, TaskBudgetSummary, TaskStatus, WaitingReason } from '@baton/protocol'
+import type { Attention, TaskStatus } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { TextArea } from '@heroui/react/textarea'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { invalidateTaskQueries } from '../../lib/query'
-import { BudgetCard } from './BudgetCard'
 import { useCommandAction } from './useCommandAction'
 
 export function TaskActions({
@@ -12,16 +11,12 @@ export function TaskActions({
   workspaceId,
   status,
   attention,
-  waitingReason = null,
-  budget = null,
   sticky = false,
 }: {
   taskId: string
   workspaceId: string
   status: TaskStatus
   attention: Attention
-  waitingReason?: WaitingReason | null
-  budget?: TaskBudgetSummary | null
   sticky?: boolean
 }) {
   const queryClient = useQueryClient()
@@ -40,9 +35,6 @@ export function TaskActions({
     : 'shrink-0 rounded-lg border border-warning border-l-2 bg-background p-3'
 
   if (status === 'waiting_input') {
-    if (waitingReason === 'budget' && budget) {
-      return <BudgetCard taskId={taskId} budget={budget} onDone={refresh} />
-    }
     if (attention !== 'needs_attention') return null
     return (
       <section className={waitingClass}>

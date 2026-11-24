@@ -10,6 +10,7 @@ import { queryKeys } from '../../lib/query'
 import { useAppStore } from '../../stores/app'
 import { DigestCard } from './DigestCard'
 import { SupervisorComposer } from './SupervisorComposer'
+import { SupervisorGateCards } from './SupervisorGateCards'
 import { SupervisorMessageList } from './SupervisorMessageList'
 import { SupervisorStatusBar } from './SupervisorStatusBar'
 import { createRequestId, type SupervisorTargetAgent } from './supervisor-model'
@@ -118,6 +119,11 @@ export function SupervisorPanel({
       .find((item) => item.role === 'user')
     if (previousUser) await resend(previousUser)
   }
+  const openTask = (taskId: string) => {
+    const state = useAppStore.getState()
+    state.setSelectedNode(null)
+    state.openStage(taskId)
+  }
 
   return (
     <div data-testid="supervisor-panel" className="flex h-full min-h-0 flex-col">
@@ -132,12 +138,7 @@ export function SupervisorPanel({
       {workspaceId ? (
         <DigestCard
           workspaceId={workspaceId}
-          onOpenTask={(taskId) => {
-            const state = useAppStore.getState()
-            state.setSelectedNode(null)
-            state.setTask(taskId)
-            state.setRightPanel('task')
-          }}
+          onOpenTask={openTask}
           onDecideAction={async (actionId, decision) => {
             await send({
               type: 'supervisor.action.decide',
@@ -215,6 +216,7 @@ export function SupervisorPanel({
           }
         />
       ) : null}
+      {workspaceId ? <SupervisorGateCards workspaceId={workspaceId} onOpenTask={openTask} /> : null}
       {workspaceId && history.data ? (
         <SupervisorComposer
           workspaceId={workspaceId}

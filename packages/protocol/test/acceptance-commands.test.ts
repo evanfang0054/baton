@@ -41,15 +41,16 @@ describe('acceptance commands', () => {
     ).toThrow()
   })
 
-  it('parses task.set_budget', () => {
-    const parsed = ClientMessage.parse({
-      v: 1,
-      id: 'c3',
-      ts: 1,
-      type: 'task.set_budget',
-      payload: { taskId: 't1', budgetUsd: 3 },
-    })
-    expect(parsed.type).toBe('task.set_budget')
+  it('rejects task.set_budget as an unknown command', () => {
+    expect(
+      ClientMessage.safeParse({
+        v: 1,
+        id: 'c3',
+        ts: 1,
+        type: 'task.set_budget',
+        payload: { taskId: 't1', budgetUsd: 3 },
+      }).success,
+    ).toBe(false)
   })
 })
 
@@ -77,11 +78,11 @@ describe('context inject requestId', () => {
   })
 })
 
-describe('budget transitions', () => {
-  it('parses budget_exceeded and budget_raise', () => {
-    expect(TaskTransitionEvent.parse({ type: 'budget_exceeded' }).type).toBe('budget_exceeded')
-    expect(TaskTransitionEvent.parse({ type: 'budget_raise', budgetUsd: 3 }).type).toBe(
-      'budget_raise',
+describe('removed budget transitions', () => {
+  it('rejects budget_exceeded and budget_raise', () => {
+    expect(TaskTransitionEvent.safeParse({ type: 'budget_exceeded' }).success).toBe(false)
+    expect(TaskTransitionEvent.safeParse({ type: 'budget_raise', budgetUsd: 3 }).success).toBe(
+      false,
     )
   })
 })

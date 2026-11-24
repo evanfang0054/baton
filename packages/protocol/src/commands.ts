@@ -3,6 +3,8 @@ import { Id, Timestamp } from './common.js'
 import {
   AcceptanceItemStatus,
   AgentNode,
+  ArtifactNode,
+  DrawingNode,
   FileNode,
   GroupNode,
   ImageNode,
@@ -28,7 +30,9 @@ export const TaskCreateInput = z.object({
   workspaceMode: WorkspaceMode.default('main'),
   verifyCommand: z.string().min(1).optional(),
   dangerouslySkipPermissions: z.boolean().default(false),
-  budgetUsd: z.number().finite().positive().optional(),
+  deliveryId: Id.optional(),
+  stageKey: z.string().min(1).max(32).optional(),
+  annotationIds: z.array(Id).max(20).optional(),
 })
 export type TaskCreateInput = z.infer<typeof TaskCreateInput>
 
@@ -137,14 +141,6 @@ export const AcceptanceUpdateInput = z
   .strict()
 export type AcceptanceUpdateInput = z.infer<typeof AcceptanceUpdateInput>
 
-export const TaskSetBudgetInput = z
-  .object({
-    taskId: Id,
-    budgetUsd: z.number().finite().positive(),
-  })
-  .strict()
-export type TaskSetBudgetInput = z.infer<typeof TaskSetBudgetInput>
-
 const NodeCreateBase = z.object({
   x: z.number(),
   y: z.number(),
@@ -177,6 +173,14 @@ export const NodeCreateValue = z.discriminatedUnion('type', [
   NodeCreateBase.extend({
     type: z.literal('group'),
     data: GroupNode.shape.data,
+  }),
+  NodeCreateBase.extend({
+    type: z.literal('artifact'),
+    data: ArtifactNode.shape.data,
+  }),
+  NodeCreateBase.extend({
+    type: z.literal('drawing'),
+    data: DrawingNode.shape.data,
   }),
 ])
 export type NodeCreateValue = z.infer<typeof NodeCreateValue>
@@ -249,7 +253,6 @@ export const ClientMessage = z.discriminatedUnion('type', [
   CommandBase.extend({ type: z.literal('task.retry'), payload: TaskRetryInput }),
   CommandBase.extend({ type: z.literal('task.reopen'), payload: TaskReopenInput }),
   CommandBase.extend({ type: z.literal('task.handoff'), payload: TaskHandoffInput }),
-  CommandBase.extend({ type: z.literal('task.set_budget'), payload: TaskSetBudgetInput }),
   CommandBase.extend({ type: z.literal('session.reply'), payload: SessionReplyInput }),
   CommandBase.extend({ type: z.literal('context.inject'), payload: ContextInjectInput }),
   CommandBase.extend({ type: z.literal('acceptance.update'), payload: AcceptanceUpdateInput }),

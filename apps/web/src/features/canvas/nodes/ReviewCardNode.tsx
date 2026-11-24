@@ -13,7 +13,6 @@ export function ReviewCardNode({ data }: CanvasFlowNodeProps) {
   const task = data.task
   const review = data.review
   const acceptance = data.acceptance ?? null
-  const budget = data.budget ?? null
   const actions = useCanvasActions()
   if (!task) return null
   const failure = acceptance?.topFailures[0]
@@ -55,11 +54,6 @@ export function ReviewCardNode({ data }: CanvasFlowNodeProps) {
         {review ? (
           <span>
             verify {review.verifyExitCode === VERIFY_SKIPPED ? '未执行' : review.verifyExitCode}
-          </span>
-        ) : null}
-        {budget ? (
-          <span className={budget.overBudget ? 'text-danger' : 'text-muted'}>
-            ${budget.spentUsd.toFixed(2)}/${budget.budgetUsd.toFixed(2)}
           </span>
         ) : null}
       </div>

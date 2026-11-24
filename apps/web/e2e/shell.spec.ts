@@ -5,7 +5,7 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/**', (route) => route.fulfill({ json: { workspaces: [] } }))
 })
 
-test('renders the three-pane shell without console errors', async ({ page }) => {
+test('renders the delivery shell without console errors', async ({ page }) => {
   const errors: string[] = []
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(message.text())
@@ -13,10 +13,10 @@ test('renders the three-pane shell without console errors', async ({ page }) => 
 
   await page.goto('/')
 
-  await expect(page.getByTestId('board-rail')).toBeVisible()
-  await expect(page.getByTestId('canvas')).toBeVisible()
+  await expect(page.locator('aside[aria-label="交付列表"]')).toBeVisible()
+  await expect(page.getByLabel('交付看板')).toBeVisible()
   await expect(page.getByTestId('right-panel')).toBeVisible()
-  await expect(page.getByRole('tab', { name: '总管' })).toHaveAttribute('aria-selected', 'true')
-  await expect(page.getByTestId('canvas')).toContainText('尚未选择工作区')
+  await expect(page.getByText('精灵总管')).toBeVisible()
+  await expect(page.getByRole('tab', { name: '总管' })).toHaveCount(0)
   expect(errors).toEqual([])
 })

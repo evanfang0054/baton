@@ -23,7 +23,6 @@ const plan = {
       agentTitle: 'Agent 1',
       contextNodeIds: ['n1'],
       engine: null,
-      budgetUsd: null,
     },
   ],
 }
@@ -133,7 +132,6 @@ test('plan card applies through WS and shows created count', async ({ page }) =>
   })
 
   await page.goto('/')
-  await page.getByRole('tab', { name: '总管' }).click()
   await expect(page.getByText('计划：1 个任务')).toBeVisible()
   await page.getByRole('button', { name: '应用全部' }).click()
   await expect(page.getByText(/已创建 1 个/)).toBeVisible()
@@ -174,7 +172,7 @@ function digestReport(attention: unknown[]) {
     },
     attention: {
       items: attention,
-      counts: { approval: 0, reply: 0, review: 0, failed: 1, budget: 0, stale: 0 },
+      counts: { approval: 0, reply: 0, review: 0, failed: 1, stale: 0 },
     },
     oldestWaiting: null,
   }
@@ -205,7 +203,6 @@ const failedTask = {
   worktreePath: null,
   verifyCommand: 'pnpm test',
   dangerouslySkipPermissions: false,
-  budgetUsd: null,
   enqueuedAt: null,
   retryCount: 1,
   createdAt: 1,
@@ -213,7 +210,6 @@ const failedTask = {
   attention: 'needs_attention',
   waitingSince: 2,
   acceptance: null,
-  budget: null,
 }
 
 const failedDetail = {
@@ -230,7 +226,6 @@ const failedDetail = {
   waitingSince: 2,
   attention: 'needs_attention',
   acceptance: null,
-  budget: null,
   lastFailure: {
     stage: 'verify',
     lastError: 'pnpm test failed at <workspace>/src/login.ts',
@@ -346,7 +341,7 @@ test('observe proposal applies only through the human digest action', async ({ p
   await page.getByRole('button', { name: '应用建议' }).click()
   await expect.poll(() => commands).toContain('supervisor.action.decide')
   await expect(page.getByLabel('需要你决定')).toHaveCount(0)
-  await page.getByRole('button', { name: '展开看板' }).click()
+  await page.getByRole('button', { name: '任务', exact: true }).click()
   await expect(page.getByTestId('task-board-overlay').getByText('重试中的登录修复')).toBeVisible()
 })
 

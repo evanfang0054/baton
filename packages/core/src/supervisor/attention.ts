@@ -13,11 +13,10 @@ export interface AttentionCandidate {
   title: string
   status: TaskStatus
   attention: 'none' | 'needs_approval' | 'needs_reply' | 'needs_attention' | 'needs_review'
-  waitingReason: 'approval' | 'question' | 'stalled' | 'dropped' | 'budget' | null
+  waitingReason: 'approval' | 'question' | 'stalled' | 'dropped' | null
   waitingSince: number | null
   updatedAt: number
   acceptance: { counts: { fail: number } } | null
-  budget: { overBudget: boolean } | null
   proposalId: string | null
   lastFailure: Pick<FailureSummary, 'stage' | 'summary'> | null
 }
@@ -27,12 +26,10 @@ const PRIORITY: Record<AttentionKind, number> = {
   reply: 5,
   review: 4,
   failed: 3,
-  budget: 2,
   stale: 1,
 }
 
 function kindFor(task: AttentionCandidate, now: number): AttentionKind | null {
-  if (task.waitingReason === 'budget') return 'budget'
   if (task.attention === 'needs_approval' || task.waitingReason === 'approval') return 'approval'
   if (
     task.attention === 'needs_reply' ||
@@ -43,7 +40,6 @@ function kindFor(task: AttentionCandidate, now: number): AttentionKind | null {
   }
   if (task.status === 'review' || task.attention === 'needs_review') return 'review'
   if (task.status === 'failed' || (task.acceptance?.counts.fail ?? 0) > 0) return 'failed'
-  if (task.budget?.overBudget) return 'budget'
   if (task.waitingReason === 'stalled' || isStale(task.waitingSince, now)) return 'stale'
   return null
 }
@@ -52,7 +48,6 @@ function reasonFor(kind: AttentionKind, task: AttentionCandidate): string {
   if (kind === 'approval') return '等待你审批'
   if (kind === 'reply') return '等待你回复'
   if (kind === 'review') return '等待你验收'
-  if (kind === 'budget') return '超出预算，等你决定'
   if (kind === 'stale') return '已等待超过 30 分钟'
   const text = task.lastFailure?.summary.trim() ?? ''
   if (!text) return '执行失败，等你决定'
@@ -108,7 +103,6 @@ export function buildAttentionItems(input: {
     reply: 0,
     review: 0,
     failed: 0,
-    budget: 0,
     stale: 0,
   }
   for (const item of items) counts[item.kind] += 1

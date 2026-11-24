@@ -28,7 +28,12 @@ import { createDigestScheduler, createTimeoutSchedule } from '../automation/sche
 import { createAutomationService } from '../automation/service.js'
 import { createAutomationState } from '../automation/state.js'
 import type { Config } from '../config.js'
-import { createEventStore, type BroadcastEvent, type WsEventRow } from '../db/event-store.js'
+import {
+  createEventStore,
+  type BroadcastEvent,
+  type WsEventDraft,
+  type WsEventRow,
+} from '../db/event-store.js'
 import {
   countActiveTasks,
   countLiveSessions,
@@ -64,9 +69,11 @@ import { createVerifyRunner, type VerifyRunner } from '../verify/runner.js'
 import type { AdapterFactory } from './adapter-factory.js'
 import { createContextService } from './context-service.js'
 import { handleAcceptanceUpdate } from './acceptance-command.js'
-import { handleTaskSetBudget } from './budget-command.js'
 import { createEdge, deleteEdge } from './edge-service.js'
 import { createHandoffNode } from '../handoff/service.js'
+import { createDeliveryService } from '../delivery/service.js'
+import { createArtifactService } from '../artifact/service.js'
+import { createAnnotationService } from '../annotation/service.js'
 import type { EngineRegistry } from './engines.js'
 import { createScheduler, type Scheduler } from './scheduler.js'
 import { createSessionRunner, type SessionRunner } from './session-runner.js'
@@ -135,6 +142,8 @@ export function createRuntime(deps: RuntimeDeps) {
   const verifyHolder: { value?: VerifyRunner } = {}
   const supervisorHolder: { value?: ReturnType<typeof createSupervisorService> } = {}
   const transitionRunnerHolder: { value?: ReturnType<typeof createTransitionRunner> } = {}
+  const deliveryServiceHolder: { value?: ReturnType<typeof createDeliveryService> } = {}
+  const annotationServiceHolder: { value?: ReturnType<typeof createAnnotationService> } = {}
   let closing = false
   let booting = false
 
@@ -179,6 +188,17 @@ export function createRuntime(deps: RuntimeDeps) {
         deps.logger?.error(
           { event: 'supervisor.cancel_verifiers_failed', taskId: targetTaskId, code: failure.code },
           'failed to cancel verifiers',
+        )
+      }
+    },
+    onReviewReady: (taskId) => {
+      try {
+        deliveryServiceHolder.value?.maybeAutoApprove(taskId)
+      } catch (error) {
+        const failure = toAppError(error)
+        deps.logger?.error(
+          { event: 'delivery.auto_approve_failed', taskId, code: failure.code },
+          'delivery auto approve failed',
         )
       }
     },
@@ -461,14 +481,19 @@ export function createRuntime(deps: RuntimeDeps) {
             engine: resolver.resolveEngine(item.engine ?? undefined, target),
             workspaceMode: 'main',
             dangerouslySkipPermissions: false,
-            ...(item.budgetUsd !== null ? { budgetUsd: item.budgetUsd } : {}),
+            ...(item.annotationIds ? { annotationIds: item.annotationIds } : {}),
           },
           {
             origin,
             audit: {
               actor: 'human',
               action: 'supervisor.plan.apply',
-              detail: { actionId: action.id, index, templateId: item.templateId },
+              detail: {
+                actionId: action.id,
+                index,
+                templateId: item.templateId,
+                ...(item.annotationIds ? { annotationIds: item.annotationIds } : {}),
+              },
             },
           },
         )
@@ -530,11 +555,11 @@ export function createRuntime(deps: RuntimeDeps) {
     injectContext: contextService.injectContext,
     cancelTask: cancel,
     workspacesRoot: deps.config.workspacesRoot,
-    claudeMaxBudgetUsd: deps.config.claudeMaxBudgetUsd,
-    verifierBudgetUsd: deps.config.verifierBudgetUsd,
     killSwitch: () => automationState.isKillSwitchOn(),
     actions,
     failures,
+    deliveries: () => deliveryServiceHolder.value,
+    annotations: () => annotationServiceHolder.value,
     remindAttention,
     loadPolicy: (workspaceId) => loadWorkspacePolicy(deps.db, deps.config, workspaceId),
     requireMandate: (taskId, action, strength) => requireMandate(taskId, action, strength),
@@ -561,6 +586,37 @@ export function createRuntime(deps: RuntimeDeps) {
   function applyTransition(taskId: string, event: TaskTransitionEvent): TransitionOutcome {
     return transitionRunner.applyTransition(taskId, event)
   }
+
+  /** 先落 ws_event 再广播；事务提交后才推送，避免客户端看到回滚事件。 */
+  function publish(draft: WsEventDraft): void {
+    const event = deps.db.transaction((tx) => eventStore.appendWs(tx, draft))
+    deps.broadcast(event)
+  }
+
+  const artifacts = createArtifactService({
+    db: deps.db,
+    config: deps.config,
+    now,
+    newId,
+    emit: publish,
+  })
+  deliveryServiceHolder.value = createDeliveryService({
+    db: deps.db,
+    config: deps.config,
+    now,
+    newId,
+    applyTransition,
+    killSwitch: () => automationState.isKillSwitchOn(),
+    emit: publish,
+    checkArtifacts: artifacts.checkRequiredArtifacts,
+  })
+  annotationServiceHolder.value = createAnnotationService({
+    db: deps.db,
+    config: deps.config,
+    now,
+    newId,
+    emit: publish,
+  })
 
   if (!deps.runVerify) {
     verifyHolder.value = createVerifyRunner({
@@ -598,8 +654,31 @@ export function createRuntime(deps: RuntimeDeps) {
       type: 'cancel',
       ...(reason ? { reason } : {}),
     })
-    if (outcome.ok && outcome.previousStatus === 'verifying') {
+    if (!outcome.ok) return outcome
+    if (outcome.previousStatus === 'verifying') {
       verifyHolder.value?.cancel(taskId)
+    }
+    const task = getTask(deps.db, taskId)
+    if (task?.deliveryId && task.stageKey) {
+      try {
+        const cascade = deliveryServiceHolder.value?.markDeliveryCancelled(task.deliveryId, {
+          actor: 'system',
+          source: 'task_cancel',
+          ...(reason ? { reason } : {}),
+          taskId,
+        })
+        if (cascade && !cascade.ok) {
+          deps.logger?.warn(
+            { event: 'delivery_cancel_cascade_failed', taskId, code: cascade.code },
+            'delivery cancel cascade failed',
+          )
+        }
+      } catch (error) {
+        deps.logger?.warn(
+          { event: 'delivery_cancel_cascade_failed', taskId, error: String(error) },
+          'delivery cancel cascade failed',
+        )
+      }
     }
     return outcome
   }
@@ -741,6 +820,21 @@ export function createRuntime(deps: RuntimeDeps) {
           ),
         }
       }
+      if (task?.deliveryId && task.stageKey) {
+        const checked = deliveryServiceHolder.value?.checkStageArtifacts(
+          task.deliveryId,
+          task.stageKey,
+        )
+        if (checked && !checked.ok) {
+          return {
+            ok: false,
+            error: appError('artifact_missing', 'required artifacts are missing', {
+              taskId: task.id,
+              missing: checked.missing,
+            }),
+          }
+        }
+      }
       const reasonProvided = Boolean(input.reason?.trim())
       const override =
         reasonProvided || review.verifyExitCode !== 0
@@ -759,6 +853,23 @@ export function createRuntime(deps: RuntimeDeps) {
           acceptance,
           ...(input.overrideReason ? { overrideReason: input.overrideReason } : {}),
         })
+        const reviewed = getTask(deps.db, review.taskId)
+        if (reviewed?.deliveryId && reviewed.stageKey) {
+          try {
+            deliveryServiceHolder.value?.advanceDelivery(reviewed.deliveryId, reviewed.stageKey)
+          } catch (error) {
+            const failure = toAppError(error)
+            deps.logger?.error(
+              {
+                event: 'delivery.advance_failed',
+                taskId: reviewed.id,
+                deliveryId: reviewed.deliveryId,
+                code: failure.code,
+              },
+              'failed to advance delivery',
+            )
+          }
+        }
       }
       return outcome
     }
@@ -824,19 +935,6 @@ export function createRuntime(deps: RuntimeDeps) {
             ...(message.payload.note ? { note: message.payload.note } : {}),
           }),
         )
-      }
-      case 'task.set_budget': {
-        const result = handleTaskSetBudget(
-          {
-            db: deps.db,
-            config: deps.config,
-            applyTransition,
-            now,
-            newId,
-          },
-          message.payload,
-        )
-        return result.ok ? { ok: true, ack: result.ack } : { ok: false, error: result.error }
       }
       case 'task.reopen': {
         const mandate = requireMandate(message.payload.taskId, 'reopen', 'explicit')
@@ -1326,6 +1424,7 @@ export function createRuntime(deps: RuntimeDeps) {
     decideReview,
     handleCommand,
     replay,
+    publish,
     maxOrdinal: eventStore.maxOrdinal,
     settle,
     beginBoot: () => {
@@ -1368,7 +1467,6 @@ export function createRuntime(deps: RuntimeDeps) {
     sessionHolder.value = createSessionRunner({
       db: deps.db,
       dataDir: deps.config.dataDir,
-      claudeMaxBudgetUsd: deps.config.claudeMaxBudgetUsd,
       adapters: deps.adapters,
       eventStore,
       broadcast: deps.broadcast,
@@ -1377,10 +1475,25 @@ export function createRuntime(deps: RuntimeDeps) {
       newId,
       killSwitch: () => automationState.isKillSwitchOn(),
       failures,
+      onTaskCompleted: (taskId) => {
+        const task = getTask(deps.db, taskId)
+        if (task?.deliveryId && task.stageKey) {
+          deliveryServiceHolder.value?.syncStageArtifacts(task.deliveryId, task.stageKey)
+        }
+      },
     })
   }
 
-  return { ...runtime, scheduler: created, supervisor, automation, digest, actions, failures }
+  return {
+    ...runtime,
+    scheduler: created,
+    supervisor,
+    automation,
+    digest,
+    actions,
+    failures,
+    artifacts,
+  }
 }
 
 export type Runtime = ReturnType<typeof createRuntime>

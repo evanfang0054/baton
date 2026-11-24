@@ -24,6 +24,8 @@ const typeLabels: Record<ProtocolNode['type'], string> = {
   image: '图片',
   review: '验收',
   group: '分组',
+  artifact: '产物',
+  drawing: '画板',
 }
 
 const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-accent'

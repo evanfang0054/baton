@@ -32,7 +32,6 @@ describe('failure summary', () => {
         verifyCommand: null,
         retryCount: 0,
         dangerouslySkipPermissions: false,
-        budgetUsd: null,
         enqueuedAt: null,
         createdAt: 1,
         updatedAt: 1,
@@ -47,7 +46,6 @@ describe('failure summary', () => {
       waitingSince: null,
       attention: 'none',
       acceptance: null,
-      budget: null,
     })
     expect(parsed.lastFailure).toBeNull()
   })

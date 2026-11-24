@@ -20,11 +20,23 @@ describe('attention schemas', () => {
     expect(
       DigestAttention.parse({
         items: [],
-        counts: { approval: 0, reply: 0, review: 0, failed: 0, budget: 0, stale: 0 },
+        counts: { approval: 0, reply: 0, review: 0, failed: 0, stale: 0 },
       }),
     ).toEqual({
       items: [],
-      counts: { approval: 0, reply: 0, review: 0, failed: 0, budget: 0, stale: 0 },
+      counts: { approval: 0, reply: 0, review: 0, failed: 0, stale: 0 },
+    })
+  })
+
+  it('ignores the legacy budget count from old digests', () => {
+    expect(
+      DigestAttention.parse({
+        items: [],
+        counts: { approval: 1, reply: 0, review: 0, failed: 0, stale: 0, budget: 3 },
+      }),
+    ).toEqual({
+      items: [],
+      counts: { approval: 1, reply: 0, review: 0, failed: 0, stale: 0 },
     })
   })
 
@@ -40,5 +52,23 @@ describe('attention schemas', () => {
         action: { type: 'open_task' },
       }).success,
     ).toBe(false)
+  })
+  it('downgrades legacy budget attention items to stale', () => {
+    expect(
+      DigestAttention.parse({
+        items: [
+          {
+            taskId: 't1',
+            title: '旧预算任务',
+            kind: 'budget',
+            reason: '超出预算',
+            waitingSince: 1,
+            proposalId: null,
+            action: { type: 'open_task' },
+          },
+        ],
+        counts: { approval: 0, reply: 0, review: 0, failed: 0, stale: 0 },
+      }).items[0]?.kind,
+    ).toBe('stale')
   })
 })

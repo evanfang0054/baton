@@ -36,6 +36,7 @@
 - [2026-11-21 M6-2 上下文再注入与轻验收证据设计](specs/2026-11-21-m6-2-context-injection-design.md)
 - [2026-11-21 M6-3 验收证据与放权护栏设计](specs/2026-11-21-m6-3-acceptance-evidence-design.md)
 - [2026-11-22 M6-5 总管自治与注意力设计](specs/2026-11-22-m6-5-supervisor-autonomy-design.md)
+- [2026-11-22 M7 交付工作台与 SOP 流程设计](specs/2026-11-22-m7-delivery-playbook-design.md)
 
 ## 现行 ADR
 
@@ -48,6 +49,7 @@
 - [0007 移动端从只读改为响应式控制台](adr/0007-mobile-control-console.md)
 - [0008 总管委派验收与委派审批（代验收被 0009 取代）](adr/0008-supervisor-delegated-authority.md)
 - [0009 总管预验收与人工终审](adr/0009-supervisor-preliminary-review.md)
+- [0011 交付拥有画布](adr/0011-delivery-owned-canvas.md)
 
 ## 现行 contract
 
@@ -69,6 +71,7 @@
 - [M6-2 上下文再注入与轻验收证据](contracts/M6-2-context-injection.contract.md)
 - [M6-3 验收证据与放权护栏](contracts/M6-3-acceptance-evidence.contract.md)
 - [M6-5 总管自治与注意力](contracts/M6-5-supervisor-autonomy.contract.md)
+- [M7 交付工作台与 SOP 流程](contracts/M7-delivery-playbook.contract.md)
 
 ## 现行 plan
 
@@ -128,6 +131,10 @@
 - [M6-5 注意力与失败摘要实施计划](plans/2026-11-22-m6-5-attention-failure.md)
 - [M6-5 计划、模板与批量实施计划](plans/2026-11-22-m6-5-plan-templates-batch.md)
 - [M6-5 验收收口实施计划](plans/2026-11-22-m6-5-acceptance.md)
+- [M7 交付工作台执行图](plans/2026-11-22-m7-0-execution-map.md)
+- [M7-1 protocol + core + migration 0015 实施计划](plans/2026-11-22-m7-1-protocol-core-migration.md)
+- [M7-2 daemon 交付、产物与标注实施计划](plans/2026-11-22-m7-2-daemon-delivery-artifact-annotation.md)
+- [M7-3 Web 交付工作台实施计划](plans/2026-11-22-m7-3-web-shell-board-canvas.md)
 
 ## 验收证据
 

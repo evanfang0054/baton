@@ -1,14 +1,20 @@
 import { z } from 'zod'
 import { Id, Timestamp } from './common.js'
 
-export const AttentionKind = z.enum(['approval', 'reply', 'review', 'failed', 'budget', 'stale'])
+export const AttentionKind = z.enum(['approval', 'reply', 'review', 'failed', 'stale'])
 export type AttentionKind = z.infer<typeof AttentionKind>
+
+// 旧 digest 可能仍带已删除的 budget 条目；读取时降级为 stale，避免整条摘要解析失败。
+const AttentionItemKind = z.union([
+  AttentionKind,
+  z.literal('budget').transform((): AttentionKind => 'stale'),
+])
 
 export const AttentionItem = z
   .object({
     taskId: Id,
     title: z.string().min(1),
-    kind: AttentionKind,
+    kind: AttentionItemKind,
     reason: z.string().min(1).max(200),
     waitingSince: Timestamp.nullable(),
     proposalId: Id.nullable(),
@@ -27,10 +33,10 @@ export const AttentionCounts = z
     reply: z.number().int().nonnegative(),
     review: z.number().int().nonnegative(),
     failed: z.number().int().nonnegative(),
-    budget: z.number().int().nonnegative(),
     stale: z.number().int().nonnegative(),
   })
-  .strict()
+  // 旧 digest 可能带已删除的 budget 计数；按忽略处理，避免历史 notice 解析失败。
+  .strip()
 export type AttentionCounts = z.infer<typeof AttentionCounts>
 
 export const EMPTY_ATTENTION_COUNTS: AttentionCounts = {
@@ -38,7 +44,6 @@ export const EMPTY_ATTENTION_COUNTS: AttentionCounts = {
   reply: 0,
   review: 0,
   failed: 0,
-  budget: 0,
   stale: 0,
 }
 

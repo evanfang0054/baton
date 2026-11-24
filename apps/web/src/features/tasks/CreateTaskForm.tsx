@@ -253,7 +253,7 @@ export function CreateTaskForm({
           ) : null}
         </label>
         <p className="text-xs text-muted">
-          任务进入待验收后，总管会派验收 Agent 做初步检查，消耗额外预算；最终通过或打回仍由你决定。
+          任务进入待验收后，总管会派验收 Agent 做初步检查；最终通过或打回仍由你决定。
         </p>
         <label className="flex items-start gap-2 text-xs text-muted">
           <input

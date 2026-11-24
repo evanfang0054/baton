@@ -31,19 +31,14 @@ export function needsPerson(input: { status: TaskStatus; attention: Attention })
 
 /**
  * 看板 rail 计数与“需要我”筛选必须共用这个口径，否则计数会小于列表长度。
- * 验收失败和超预算也算需要人，即使任务状态本身还没有进入 review。
+ * 验收失败也算需要人，即使任务状态本身还没有进入 review。
  */
 export function needsMe(input: {
   status: TaskStatus
   attention: Attention
   acceptance?: { counts: { fail: number } } | null
-  budget?: { overBudget: boolean } | null
 }): boolean {
-  return (
-    needsPerson(input) ||
-    (input.acceptance?.counts.fail ?? 0) > 0 ||
-    input.budget?.overBudget === true
-  )
+  return needsPerson(input) || (input.acceptance?.counts.fail ?? 0) > 0
 }
 
 /** 只对等待人处理的状态返回等待起点；其他状态不显示“已等多久”。 */

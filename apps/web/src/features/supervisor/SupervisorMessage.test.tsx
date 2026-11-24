@@ -164,7 +164,6 @@ describe('SupervisorMessage', () => {
                           agentTitle: 'Agent 1',
                           contextNodeIds: ['n1'],
                           engine: null,
-                          budgetUsd: null,
                         },
                       ],
                     },

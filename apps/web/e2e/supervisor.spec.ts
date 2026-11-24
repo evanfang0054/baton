@@ -121,8 +121,8 @@ async function mockSupervisorRest(
 
 async function selectContextAndAgent(page: import('@playwright/test').Page) {
   await page.locator('.react-flow__node', { hasText: '需求 A' }).click()
+  await page.getByRole('button', { name: '关闭节点详情' }).click()
   await page.locator('.react-flow__node', { hasText: 'Agent 1' }).click({ modifiers: [modifier] })
-  await page.getByRole('tab', { name: '总管' }).click()
 }
 
 test('creates a todo task from canvas context without starting it', async ({ page }) => {
@@ -220,7 +220,7 @@ test('creates a todo task from canvas context without starting it', async ({ pag
   await expect(page.getByText('需求 A')).toBeVisible()
 
   await selectContextAndAgent(page)
-  await page.getByRole('textbox').fill('给这个 Agent 建个任务')
+  await page.getByLabel('对总管说').fill('给这个 Agent 建个任务')
   await page.getByRole('button', { name: '发送' }).click()
 
   await expect(page.getByText('已建到待办，请打开任务后点「立即开工」。')).toBeVisible()
@@ -297,13 +297,12 @@ test('answers attention query and refuses to start work', async ({ page }) => {
 
   await mockSupervisorRest(page, () => messages)
   await page.goto('/?workspace=w1')
-  await page.getByRole('tab', { name: '总管' }).click()
-  await page.getByRole('textbox').fill('现在哪些任务在等我')
+  await page.getByLabel('对总管说').fill('现在哪些任务在等我')
   await page.getByRole('button', { name: '发送' }).click()
   await expect(page.getByText(/task-1/)).toBeVisible()
   await expect(page.getByText(/review/)).toBeVisible()
 
-  await page.getByRole('textbox').fill('帮我把 task-1 开工')
+  await page.getByLabel('对总管说').fill('帮我把 task-1 开工')
   await page.getByRole('button', { name: '发送' }).click()
   await expect(page.getByText(/总管不替你开工/)).toBeVisible()
   expect(commands.some((command) => command.type === 'task.enqueue')).toBe(false)

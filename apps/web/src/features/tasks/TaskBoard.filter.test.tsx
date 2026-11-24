@@ -21,7 +21,6 @@ function task(overrides: Partial<TaskSummary>): TaskSummary {
     worktreePath: null,
     verifyCommand: null,
     dangerouslySkipPermissions: false,
-    budgetUsd: null,
     enqueuedAt: null,
     retryCount: 0,
     createdAt: 1,
@@ -29,7 +28,6 @@ function task(overrides: Partial<TaskSummary>): TaskSummary {
     attention: 'none',
     waitingSince: null,
     acceptance: null,
-    budget: null,
     ...overrides,
   }
 }
@@ -71,7 +69,7 @@ describe('TaskBoard filters', () => {
     expect(screen.queryByText('待验收任务')).not.toBeInTheDocument()
   })
 
-  it('includes AC failures and over-budget tasks in needs-me', async () => {
+  it('includes AC failures in needs-me', async () => {
     renderBoard([
       task({
         id: 'ac-fail',
@@ -87,28 +85,11 @@ describe('TaskBoard filters', () => {
           topFailures: [{ text: '错误提示', evidence: null }],
         },
       }),
-      task({
-        id: 'over-budget',
-        title: '超预算任务',
-        status: 'running',
-        budget: {
-          budgetUsd: 2,
-          spentUsd: 2.5,
-          remainingUsd: 0,
-          ratio: 1.25,
-          overBudget: true,
-          nearBudget: false,
-          workerCostUsd: 2.5,
-          verifierCostUsd: 0,
-          turns: 3,
-        },
-      }),
       task({ id: 'plain', title: '普通任务', status: 'running' }),
     ])
 
     await userEvent.click(screen.getByRole('button', { name: '需要我' }))
     expect(screen.getByText('AC 未过任务')).toBeInTheDocument()
-    expect(screen.getByText('超预算任务')).toBeInTheDocument()
     expect(screen.queryByText('普通任务')).not.toBeInTheDocument()
   })
 })

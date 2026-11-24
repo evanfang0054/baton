@@ -5,7 +5,6 @@ export type AdapterFactory = (engine: Engine) => AgentAdapter | Promise<AgentAda
 
 export interface AdapterFactoryOptions {
   maxTurns?: number
-  maxBudgetUsd?: number
   projectHooksGlobal?: boolean
 }
 
@@ -30,7 +29,6 @@ export function createAdapterFactory(
           const { ClaudeAdapter } = await import('@baton/adapters/claude')
           claude = new ClaudeAdapter({
             ...(options.maxTurns ? { maxTurns: options.maxTurns } : {}),
-            ...(options.maxBudgetUsd ? { maxBudgetUsd: options.maxBudgetUsd } : {}),
             ...(options.projectHooksGlobal !== undefined
               ? { projectHooksGlobal: options.projectHooksGlobal }
               : {}),

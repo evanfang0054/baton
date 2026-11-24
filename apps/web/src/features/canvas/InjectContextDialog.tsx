@@ -14,6 +14,8 @@ const NODE_TYPE_LABELS: Record<Node['type'], string> = {
   agent: 'Agent',
   review: '验收',
   group: '分组',
+  artifact: '产物',
+  drawing: '画板',
 }
 
 export function InjectContextDialog({

@@ -38,7 +38,6 @@ const task: TaskSummary = {
   worktreePath: null,
   verifyCommand: null,
   dangerouslySkipPermissions: false,
-  budgetUsd: null,
   enqueuedAt: null,
   retryCount: 0,
   createdAt: 1,
@@ -46,7 +45,6 @@ const task: TaskSummary = {
   attention: 'needs_review',
   waitingSince: 1,
   acceptance: null,
-  budget: null,
 }
 
 function actions(overrides: Partial<CanvasActions> = {}): CanvasActions {

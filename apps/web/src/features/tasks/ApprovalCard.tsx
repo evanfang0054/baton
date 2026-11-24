@@ -4,13 +4,13 @@ import { Chip } from '@heroui/react/chip'
 import { useCommandAction } from './useCommandAction'
 import { codeBlockClass } from './styles'
 
-const riskLabel: Record<RiskLevel, string> = {
+export const riskLabel: Record<RiskLevel, string> = {
   low: '低风险',
   medium: '中风险',
   high: '高风险',
 }
 
-const riskColor: Record<RiskLevel, 'success' | 'warning' | 'danger'> = {
+export const riskColor: Record<RiskLevel, 'success' | 'warning' | 'danger'> = {
   low: 'success',
   medium: 'warning',
   high: 'danger',

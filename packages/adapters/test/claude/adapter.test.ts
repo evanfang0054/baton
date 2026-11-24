@@ -254,19 +254,4 @@ describe('ClaudeAdapter', () => {
     await expect(run.send('late')).rejects.toThrow('session_closed')
     await expect(run.approve('req-1', 'allow')).rejects.toThrow('session_closed')
   })
-
-  it('uses per-run maxBudgetUsd when provided', async () => {
-    const transport = new FakeTransport()
-    let captured!: ClaudeTransportInput
-    const adapter = new ClaudeAdapter({
-      maxBudgetUsd: 2,
-      transportFactory: async (input) => {
-        captured = input
-        return transport
-      },
-    })
-    const run = await adapter.start({ ...startInput(), maxBudgetUsd: 1.5 })
-    expect(captured.maxBudgetUsd).toBe(1.5)
-    await run.dispose()
-  })
 })

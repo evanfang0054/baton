@@ -2,7 +2,7 @@ import type { AcceptanceContract, AcceptanceItem, AcceptanceRun, Task } from '@b
 import { cloneAcceptanceItems } from '@baton/core'
 import {
   getAcceptanceItems,
-  getLatestFrozenAcceptanceContract,
+  getLatestAcceptanceContract,
   insertAcceptanceContract,
   insertAcceptanceItems,
   insertAcceptanceRun,
@@ -26,9 +26,12 @@ export function ensureAcceptanceForReview(
   tx: Tx,
   input: EnsureAcceptanceForReviewInput,
 ): EnsureAcceptanceForReviewResult {
-  const previous = getLatestFrozenAcceptanceContract(tx, input.task.id)
-  const previousItems = previous ? getAcceptanceItems(tx, previous.id) : []
-  const version = previous ? previous.version + 1 : 1
+  // verify 失败自动重试不会经过 review，上一版合同可能仍是 draft；
+  // 版本号必须对所有历史合同单调递增，否则会撞 (task_id, version) 唯一索引，
+  // 导致 verify 结果无法落库、任务永久停在 verifying。
+  const latest = getLatestAcceptanceContract(tx, input.task.id)
+  const previousItems = latest ? getAcceptanceItems(tx, latest.id) : []
+  const version = (latest?.version ?? 0) + 1
   const contractId = input.newId()
 
   const contract: AcceptanceContract = {

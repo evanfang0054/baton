@@ -67,8 +67,9 @@ const task = {
   verifyCommand: null,
   retryCount: 0,
   dangerouslySkipPermissions: false,
-  budgetUsd: null,
   enqueuedAt: null,
+  deliveryId: null,
+  stageKey: null,
   createdAt: 1,
   updatedAt: 1,
   context: {
@@ -92,6 +93,7 @@ const task = {
     promptVersion: 'v',
     createdAt: 1,
   },
+  annotationIds: [],
 } satisfies TaskDetail
 
 describe('buildTaskScene', () => {

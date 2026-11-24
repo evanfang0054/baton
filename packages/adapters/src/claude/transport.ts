@@ -43,7 +43,6 @@ export interface ClaudeTransportInput {
   bypassPermissions: boolean
   systemPromptAppend: string
   maxTurns: number
-  maxBudgetUsd: number
 }
 
 export type ClaudeEvent =
@@ -162,7 +161,6 @@ export function buildClaudeOptions(input: ClaudeTransportInput): Options {
     allowDangerouslySkipPermissions: input.bypassPermissions,
     includePartialMessages: false,
     maxTurns: input.maxTurns,
-    maxBudgetUsd: input.maxBudgetUsd,
     disallowedTools: [...DISALLOWED_TOOLS],
     systemPrompt: {
       type: 'preset',

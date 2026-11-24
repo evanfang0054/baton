@@ -55,36 +55,29 @@ describe('loadConfig', () => {
     expect(() => loadConfig([], { BATON_MAX_LIVE_SESSIONS: '0' })).toThrow()
   })
 
-  it('defaults Claude budget and hooks, and reads overrides', () => {
+  it('defaults Claude turns and hooks, and reads overrides', () => {
     const base = loadConfig([], {})
     expect(base.claudeMaxTurns).toBe(30)
-    expect(base.claudeMaxBudgetUsd).toBe(2)
     expect(base.claudeProjectHooks).toBe('on')
 
     const overridden = loadConfig([], {
       BATON_CLAUDE_MAX_TURNS: '10',
-      BATON_CLAUDE_MAX_BUDGET_USD: '0.5',
       BATON_CLAUDE_PROJECT_HOOKS: 'off',
     })
     expect(overridden.claudeMaxTurns).toBe(10)
-    expect(overridden.claudeMaxBudgetUsd).toBe(0.5)
     expect(overridden.claudeProjectHooks).toBe('off')
     expect(() => loadConfig([], { BATON_CLAUDE_MAX_TURNS: '0' })).toThrow()
   })
 
-  it('defaults verifier and task budget caps, and reads overrides', () => {
-    const base = loadConfig([], {})
-    expect(base.verifierBudgetUsd).toBe(0.5)
-    expect(base.maxTaskBudgetUsd).toBe(50)
-
-    const overridden = loadConfig([], {
+  it('ignores removed budget environment variables', () => {
+    const config = loadConfig([], {
+      BATON_CLAUDE_MAX_BUDGET_USD: '0.5',
       BATON_VERIFIER_BUDGET_USD: '0.2',
       BATON_MAX_TASK_BUDGET_USD: '10',
     })
-    expect(overridden.verifierBudgetUsd).toBe(0.2)
-    expect(overridden.maxTaskBudgetUsd).toBe(10)
-    expect(() => loadConfig([], { BATON_VERIFIER_BUDGET_USD: '0' })).toThrow()
-    expect(() => loadConfig([], { BATON_MAX_TASK_BUDGET_USD: '0' })).toThrow()
+    expect(config).not.toHaveProperty('claudeMaxBudgetUsd')
+    expect(config).not.toHaveProperty('verifierBudgetUsd')
+    expect(config).not.toHaveProperty('maxTaskBudgetUsd')
   })
 
   it('reads the global kill switch from BATON_KILL_SWITCH', () => {
