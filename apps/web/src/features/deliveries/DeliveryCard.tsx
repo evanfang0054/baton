@@ -42,7 +42,7 @@ export function DeliveryCard({
         type="button"
         onClick={() => onSelect(delivery.id)}
         className="absolute inset-0 z-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        aria-label={`打开交付 ${delivery.title}`}
+        aria-label={`打开需求 ${delivery.title}`}
       />
       <div className="pointer-events-none relative z-10">
         <div className="flex items-start gap-2">
@@ -84,10 +84,10 @@ export function DeliveryCard({
               size="sm"
               variant="danger-soft"
               className="pointer-events-auto relative z-20 ml-auto"
-              aria-label={`停止交付 ${delivery.title}`}
+              aria-label={`停止需求 ${delivery.title}`}
               onPress={() => onCancel(delivery.id)}
             >
-              停止交付
+              停止需求
             </Button>
           ) : null}
         </div>

@@ -34,7 +34,7 @@ export function GroupNode({ data, selected }: CanvasFlowNodeProps) {
                     ? `已加载 .baton/skills/${stage.skillId}/SKILL.md`
                     : stage.skillStatus === 'missing'
                       ? `未找到 .baton/skills/${stage.skillId}/SKILL.md；阶段仍会执行，但没有技能指引`
-                      : '工作区未信任，技能不会注入阶段 prompt'
+                      : '项目未信任，技能不会注入阶段 prompt'
                 }
                 className={`shrink-0 text-[10px] ${
                   stage.skillStatus === 'ok'

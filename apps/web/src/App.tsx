@@ -6,7 +6,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { AutomationSettingsDialog } from './features/automation/AutomationSettingsDialog'
 import { AutomationStatus } from './features/automation/AutomationStatus'
-import { MobileNodeManager } from './features/canvas/MobileNodeManager'
 import { CreateDeliveryDialog } from './features/deliveries/CreateDeliveryDialog'
 import { DeliveryBoard } from './features/deliveries/DeliveryBoard'
 import { DeliveryCanvas } from './features/deliveries/DeliveryCanvas'
@@ -105,7 +104,6 @@ function AppShell() {
   const [automationSettingsOpen, setAutomationSettingsOpen] = useState(false)
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
   const [mobileTaskFormOpen, setMobileTaskFormOpen] = useState(false)
-  const [mobileNodesOpen, setMobileNodesOpen] = useState(false)
   const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false)
   const [deliveryDialogWorkspaceId, setDeliveryDialogWorkspaceId] = useState<string | null>(null)
   const [cancelDeliveryId, setCancelDeliveryId] = useState<string | null>(null)
@@ -303,10 +301,10 @@ function AppShell() {
     if (!cancelDeliveryId) return
     try {
       await cancelDeliveryRequest(cancelDeliveryId)
-      toast.success('交付已停止')
+      toast.success('需求已停止')
       await invalidateDeliveryQueries(queryClient, activeWorkspaceId ?? '', cancelDeliveryId)
     } catch (cause) {
-      toast.danger(cause instanceof Error ? cause.message : '停止交付失败')
+      toast.danger(cause instanceof Error ? cause.message : '停止需求失败')
     }
   }
   const openDelivery = (workspaceId: string, deliveryId: string) => {
@@ -442,7 +440,7 @@ function AppShell() {
                 writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
               }}
               onOpenSupervisor={() => setMobileTab('supervisor')}
-              onCreateTask={() => setMobileTaskFormOpen(true)}
+              onCreateTask={activeDeliveryId ? () => setMobileTaskFormOpen(true) : undefined}
             />
           ) : null}
           {mobileTab === 'supervisor' ? (
@@ -481,14 +479,14 @@ function AppShell() {
           <MobileMoreMenu
             open={mobileMoreOpen}
             onOpenChange={setMobileMoreOpen}
-            onOpenTask={() => {
-              setMobileMoreOpen(false)
-              setMobileTaskFormOpen(true)
-            }}
-            onOpenNodes={() => {
-              setMobileMoreOpen(false)
-              setMobileNodesOpen(true)
-            }}
+            onOpenTask={
+              activeDeliveryId
+                ? () => {
+                    setMobileMoreOpen(false)
+                    setMobileTaskFormOpen(true)
+                  }
+                : undefined
+            }
             onCreateWorkspace={() => {
               setMobileMoreOpen(false)
               setCreateWorkspaceOpen(true)
@@ -514,7 +512,7 @@ function AppShell() {
                   onRevoked={() => setTrustPromptedFor(activeWorkspace.id)}
                 />
               ) : (
-                <p className="text-xs text-muted">尚未选择工作区</p>
+                <p className="text-xs text-muted">尚未选择项目</p>
               )
             }
           />
@@ -530,13 +528,6 @@ function AppShell() {
                 writeUrlState({ workspaceId: activeWorkspaceId, taskId })
               }}
               onCancel={() => setMobileTaskFormOpen(false)}
-            />
-          ) : null}
-          {mobileNodesOpen && deliveryCanvas.data ? (
-            <MobileNodeManager
-              canvasId={deliveryCanvas.data.canvas.id}
-              nodes={deliveryCanvas.data.nodes}
-              onClose={() => setMobileNodesOpen(false)}
             />
           ) : null}
         </div>
@@ -694,8 +685,8 @@ function AppShell() {
       />
       <ConfirmDialog
         open={cancelDeliveryId !== null}
-        title="停止这条交付？"
-        description="会取消整条交付和当前阶段任务；产物与标注保留。"
+        title="停止这条需求？"
+        description="会取消整条需求和当前阶段任务；产物与标注保留。"
         confirmLabel="确认停止"
         onConfirm={confirmStopDelivery}
         onOpenChange={(open) => {

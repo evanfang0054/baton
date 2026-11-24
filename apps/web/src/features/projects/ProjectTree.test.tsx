@@ -151,7 +151,7 @@ describe('ProjectTree', () => {
 
   it('opens a requirement, its board and a new requirement from the project group', async () => {
     const props = renderTree()
-    await userEvent.click(await screen.findByRole('button', { name: '打开交付 优惠券领取页' }))
+    await userEvent.click(await screen.findByRole('button', { name: '打开需求 优惠券领取页' }))
     expect(props.onOpenDelivery).toHaveBeenCalledWith('w1', 'd1')
 
     await userEvent.click(screen.getByRole('button', { name: '需求看板' }))
@@ -166,9 +166,7 @@ describe('ProjectTree', () => {
     const props = renderTree({ attention: { items: [item], total: 1 } })
     expect(screen.getByText('通知 1')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /1 条通知/ })).toBeInTheDocument()
-    await userEvent.click(
-      screen.getByRole('button', { name: 'demo 优惠券领取页 待验收' }),
-    )
+    await userEvent.click(screen.getByRole('button', { name: 'demo 优惠券领取页 待验收' }))
     expect(props.onOpenAttention).toHaveBeenCalledWith(item)
   })
 

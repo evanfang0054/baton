@@ -73,14 +73,14 @@ export function CreateFileNodeDialog({
                 />
                 <Input
                   aria-label="文件路径"
-                  placeholder="相对工作区的路径，如 README.md"
+                  placeholder="相对项目的路径，如 README.md"
                   value={path}
                   onChange={(event) => setPath(event.target.value)}
                   fullWidth
                 />
                 <div className="rounded-lg border border-dashed border-separator p-3">
                   <p className="text-xs text-muted">
-                    也可以从本机选择文件；上传后会保存到工作区
+                    也可以从本机选择文件；上传后会保存到项目
                     <span className="font-mono"> .baton/uploads/ </span>
                     并作为文件节点使用。
                   </p>

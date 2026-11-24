@@ -57,12 +57,12 @@ describe('HandoffButton', () => {
 
   it('shows worktree warnings from the ack', async () => {
     const send = vi.fn(async (_input: CommandInput) => ({
-      warnings: ['源任务在隔离 worktree，变更文件在主工作区不可读。'],
+      warnings: ['源任务在隔离 worktree，变更文件在主项目不可读。'],
     }))
     renderButton('review', send)
     fireEvent.click(screen.getByRole('button', { name: '生成交接节点' }))
     await waitFor(() =>
-      expect(toast.info).toHaveBeenCalledWith('源任务在隔离 worktree，变更文件在主工作区不可读。'),
+      expect(toast.info).toHaveBeenCalledWith('源任务在隔离 worktree，变更文件在主项目不可读。'),
     )
   })
 

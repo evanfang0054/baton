@@ -50,11 +50,11 @@ export function CreateWorkspaceDialog({
     },
     onError: (cause) => {
       if (cause instanceof ApiError && cause.code === 'invalid_path') {
-        setError('路径不存在或不在工作区根目录内')
+        setError('路径不存在或不在项目根目录内')
         return
       }
       if (cause instanceof ApiError && cause.code === 'conflict') {
-        setError('同名工作区已存在')
+        setError('同名项目已存在')
         return
       }
       setError(cause instanceof Error ? cause.message : '创建失败')
@@ -63,24 +63,24 @@ export function CreateWorkspaceDialog({
 
   return (
     <Modal isOpen={open} onOpenChange={handleOpenChange}>
-      {controlledOpen === undefined ? <Button variant="secondary">新建工作区</Button> : null}
+      {controlledOpen === undefined ? <Button variant="secondary">新建项目</Button> : null}
       <Modal.Backdrop>
         <Modal.Container>
           <Modal.Dialog className={mobile ? 'h-dvh w-screen max-w-none rounded-none' : undefined}>
             <Modal.Header>
-              <Modal.Heading>新建工作区</Modal.Heading>
+              <Modal.Heading>新建项目</Modal.Heading>
             </Modal.Header>
             <Modal.Body>
               <div className="flex flex-col gap-3">
                 <Input
-                  aria-label="工作区名称"
+                  aria-label="项目名称"
                   placeholder="名称，如 baton"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   fullWidth
                 />
                 <div className="flex flex-col gap-2">
-                  <span className="text-sm font-medium text-foreground">工作区目录</span>
+                  <span className="text-sm font-medium text-foreground">项目目录</span>
                   <div className="flex items-center gap-2">
                     <div className={PATH_DISPLAY_CLASS}>
                       {relPath ? (

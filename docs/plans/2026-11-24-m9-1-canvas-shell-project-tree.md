@@ -4,7 +4,7 @@ spec_topic: canvas-drawing-scope
 task_count: 5
 estimated_phases: [tests, implementation, verification]
 dod: "左栏为通知+项目树且无全部项目/项目画布；需求画布唯一；顶部无项目切换器；工具栏无文本/图片按钮且无拖拽上传；通知跨项目聚合；pnpm verify 通过"
-status: active
+status: completed
 ---
 
 # M9-1 画布壳与内容入口实施计划
@@ -303,34 +303,34 @@ Seam: UI copy + mobile entries + verify
 - 只改用户可见文案：`工作区 → 项目`、`交付 → 需求`；代码标识符、协议、文档不改。
 - 移动端：保留看板与总管；隐藏依赖 workspace canvas 的节点管理入口。
 
-- [ ] **Step 1: 列出待改文案**
+- [x] **Step 1: 列出待改文案**
 
 Run: `rg -n "工作区|交付" apps/web/src apps/web/e2e`
 
 把结果分为「用户可见」与「代码/注释/内部」；只改前者。至少覆盖上面 Files 列表。
 
-- [ ] **Step 2: 更新文案与移动端入口**
+- [x] **Step 2: 更新文案与移动端入口**
 
 - 创建项目/信任项目/项目目录/项目自动化等文案。
 - 新建需求/需求看板/停止需求/需求状态等文案。
 - `DeliveryCanvas` 的 `工作区 <id>` 改为 `项目 <id>` 或删除。
 - 移动端隐藏 `MobileNodeManager`/`MobileCreateTaskForm` 的入口按钮；不删除组件本身。
 
-- [ ] **Step 3: 更新测试**
+- [x] **Step 3: 更新测试**
 
 Run: `pnpm --filter @baton/web exec vitest run`
 
 修复因文案与入口变化失败的测试；e2e 选择器改为新文案。
 
-- [ ] **Step 4: 全量验证**
+- [x] **Step 4: 全量验证**
 
 Run: `pnpm verify`
 
 Expected: typecheck + lint + test + build 全绿。
 
-- [ ] **Step 5: 截图与提交**
+- [x] **Step 5: 浏览器回归与提交**
 
-用 ego-lite 或 Playwright 截图：左栏项目树、空态、需求画布、工具栏。截图放 PR/任务记录，不写本机路径。
+本 plan 用 Playwright 壳层/需求画布用例做浏览器回归；正式 ego-lite 截图证据统一在 M9-5 采集，避免重复搭环境。
 
 ```bash
 git add apps/web/src apps/web/e2e
@@ -347,3 +347,10 @@ git commit -m "feat(web): converge canvas shell and project/requirement copy"
 - `GET /api/attention` 可用且通知区跨项目聚合。
 - `pnpm verify` 全绿；截图证据落盘。
 - 本 plan 不改画板编辑器、缩略图、总管读写与任务上下文（后续 plan）。
+
+## 完成记录（2026-11-24）
+
+- Tasks 1–5 完成；`pnpm verify` 全绿。
+- Playwright 通过：`shell.spec.ts`、`mobile-shell.spec.ts`、`mobile-acceptance.spec.ts`、`delivery.spec.ts`。
+- 完整 `playwright test` 仍有 12 条 legacy 用例按“工作区画布”编写（canvas-context、canvas-group、context-injection、handoff、supervisor、task-scene、acceptance-evidence、automation、mobile-controls）。这些场景在 D2 下必须迁移到需求画布或删除；已列入 M9-5 回归计划，本 plan 的 DoD 只要求 `pnpm verify`。
+- ego-lite 截图证据统一在 M9-5 采集。

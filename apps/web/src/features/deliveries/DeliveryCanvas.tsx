@@ -80,7 +80,7 @@ export function DeliveryCanvas({
   }
 
   return (
-    <section className="relative min-h-0 flex-1" aria-label={`交付画布 ${delivery.title}`}>
+    <section className="relative min-h-0 flex-1" aria-label={`需求画布 ${delivery.title}`}>
       <CanvasPanel
         ref={canvasRef}
         canvas={canvas}
@@ -172,18 +172,11 @@ export function DeliveryCanvas({
             </Button>
             {canCancelDeliveryStatus(delivery.status) ? (
               <Button size="sm" variant="danger-soft" onPress={() => onCancelDelivery(delivery.id)}>
-                停止交付
+                停止需求
               </Button>
             ) : null}
-            <Button
-              size="sm"
-              variant={annotating ? 'primary' : 'tertiary'}
-              onPress={() => setAnnotating(!annotating)}
-            >
-              快速标注
-            </Button>
           </div>
-          <p className="mt-1 text-[10px] text-muted">工作区 {workspaceId.slice(0, 8)}</p>
+          <p className="mt-1 text-[10px] text-muted">项目 {workspaceId.slice(0, 8)}</p>
         </div>
       </div>
       {detailNode ? (
@@ -195,9 +188,9 @@ export function DeliveryCanvas({
             workspaceId={workspaceId}
             workspaceTrusted={workspaceTrusted}
             contextNodes={contextNodes}
-            groupChildCount={(canvas?.nodes ?? []).filter(
-              (item) => item.groupId === detailNode.id,
-            ).length}
+            groupChildCount={
+              (canvas?.nodes ?? []).filter((item) => item.groupId === detailNode.id).length
+            }
             onOpenTask={(taskId) => {
               setDetailNode(null)
               onOpenTask(taskId)

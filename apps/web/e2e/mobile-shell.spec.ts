@@ -32,11 +32,11 @@ test.describe('mobile shell', () => {
 test.describe('compact desktop', () => {
   test.use({ viewport: { width: 820, height: 1180 } })
 
-  test('keeps the canvas and collapses the board by default', async ({ page }) => {
+  test('shows the project tree and empty canvas by default', async ({ page }) => {
     await page.goto('/')
 
-    await expect(page.getByLabel('交付看板')).toBeVisible()
-    await expect(page.locator('aside[aria-label="交付列表"]')).toBeVisible()
+    await expect(page.getByTestId('empty-canvas')).toBeVisible()
+    await expect(page.locator('aside[aria-label="项目与需求"]')).toBeVisible()
     await expect(page.getByTestId('right-panel')).toBeVisible()
     await expect(page.getByTestId('task-board-overlay')).toHaveCount(0)
     await expect(page.getByRole('navigation', { name: '移动端导航' })).toHaveCount(0)
@@ -54,7 +54,7 @@ test.describe('desktop', () => {
   test('does not render the mobile navigation', async ({ page }) => {
     await page.goto('/')
 
-    await expect(page.getByLabel('交付看板')).toBeVisible()
+    await expect(page.getByTestId('empty-canvas')).toBeVisible()
     await expect(page.getByTestId('right-panel')).toBeVisible()
     await expect(page.getByRole('navigation', { name: '移动端导航' })).toHaveCount(0)
   })

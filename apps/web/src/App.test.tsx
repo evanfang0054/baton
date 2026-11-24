@@ -188,9 +188,9 @@ describe('App shell', () => {
     const user = userEvent.setup()
     renderApp()
     await user.click(await screen.findByRole('button', { name: '新建项目' }))
-    expect(await screen.findByRole('heading', { name: '新建工作区' })).toBeInTheDocument()
-    expect(screen.getByLabelText('工作区名称')).toBeInTheDocument()
-    expect(screen.getByText('工作区目录')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '新建项目' })).toBeInTheDocument()
+    expect(screen.getByLabelText('项目名称')).toBeInTheDocument()
+    expect(screen.getByText('项目目录')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '选择目录' })).toBeInTheDocument()
   })
 
@@ -218,7 +218,7 @@ describe('App shell', () => {
     await user.click(await screen.findByRole('button', { name: '选择目录 Desktop/baton' }))
 
     expect(screen.getByText('Desktop/baton')).toBeInTheDocument()
-    expect(screen.getByLabelText('工作区名称')).toHaveValue('baton')
+    expect(screen.getByLabelText('项目名称')).toHaveValue('baton')
   })
 
   it('searches directories and selects a nested result', async () => {

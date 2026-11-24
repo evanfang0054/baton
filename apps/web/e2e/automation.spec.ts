@@ -393,7 +393,7 @@ test('blocks automation settings in an untrusted workspace', async ({ page }) =>
 
   await expect(page.getByTestId('automation-status').getByText('自动化关闭')).toBeVisible()
   await page.getByRole('button', { name: '设置' }).click()
-  await expect(page.getByText('先信任工作区，才能启用自动化。')).toBeVisible()
+  await expect(page.getByText('先信任项目，才能启用自动化。')).toBeVisible()
   await expect(page.getByRole('button', { name: '保存' })).toBeDisabled()
 })
 

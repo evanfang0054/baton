@@ -26,7 +26,7 @@ export function AnnotationListOverlay({
               className="rounded-lg border border-separator bg-surface p-3 text-sm"
             >
               <div className="flex items-center gap-2 text-xs text-muted">
-                <span>{annotation.stageKey ?? '工作区'}</span>
+                <span>{annotation.stageKey ?? '项目'}</span>
                 <span>{annotation.status}</span>
                 <span className="font-mono">
                   {annotation.bbox.x},{annotation.bbox.y},{annotation.bbox.w},{annotation.bbox.h}
@@ -67,7 +67,7 @@ export function AnnotationListOverlay({
                     ? `产物 ${annotation.targetArtifactId}`
                     : annotation.deliveryId
                       ? '阶段'
-                      : '工作区'}
+                      : '项目'}
                 {annotation.imagePath ? ` · ${annotation.imagePath}` : ''}
               </p>
             </li>

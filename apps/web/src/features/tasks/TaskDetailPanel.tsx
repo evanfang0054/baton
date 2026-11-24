@@ -121,7 +121,7 @@ export function TaskDetailPanel({ mobile = false }: { mobile?: boolean }) {
       }
     >
       {!activeWorkspaceId ? (
-        <p className="text-sm text-muted">尚未选择工作区</p>
+        <p className="text-sm text-muted">尚未选择项目</p>
       ) : !activeTaskId ? (
         <p className="text-sm text-muted">选择一个任务</p>
       ) : detail.isLoading ? (

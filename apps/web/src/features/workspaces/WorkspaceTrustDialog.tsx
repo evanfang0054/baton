@@ -43,12 +43,12 @@ export function WorkspaceTrustDialog({
         <Modal.Container>
           <Modal.Dialog className={mobile ? 'h-dvh w-screen max-w-none rounded-none' : undefined}>
             <Modal.Header>
-              <Modal.Heading>信任此工作区？</Modal.Heading>
+              <Modal.Heading>信任此项目？</Modal.Heading>
             </Modal.Header>
             <Modal.Body>
               <div className="flex flex-col gap-3 text-sm text-foreground">
                 <p>
-                  信任后，baton 会加载当前工作区的 <code>CLAUDE.md</code>、项目 skills、
+                  信任后，baton 会加载当前项目的 <code>CLAUDE.md</code>、项目 skills、
                   <code>.mcp.json</code> 以及项目 settings 中启用的 plugins。
                 </p>
                 <p className="text-muted">来源：当前 workspace 目录。撤销信任只影响新会话。</p>

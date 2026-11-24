@@ -270,7 +270,7 @@ export function MobileCreateTaskForm({
               使用独立工作树
               <br />
               {capabilities.data?.worktree === false
-                ? '该工作区不是 git 仓库。'
+                ? '该项目不是 git 仓库。'
                 : '任务在独立目录执行，结束后保留。'}
             </span>
           </label>

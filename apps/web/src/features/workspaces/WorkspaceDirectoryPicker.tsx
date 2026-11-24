@@ -20,7 +20,7 @@ const CRUMB_BUTTON_CLASS = [
 function crumbsFor(path: string): Array<{ label: string; path: string }> {
   const parts = path ? path.split('/') : []
   return [
-    { label: '工作区根目录', path: '' },
+    { label: '项目根目录', path: '' },
     ...parts.map((part, index) => ({
       label: part,
       path: parts.slice(0, index + 1).join('/'),
@@ -65,7 +65,7 @@ export function WorkspaceDirectoryPicker({ onSelect }: WorkspaceDirectoryPickerP
         fullWidth
       />
       {searching ? (
-        <p className="text-xs text-muted">在工作区根目录内搜索，结果可直接选择。</p>
+        <p className="text-xs text-muted">在项目根目录内搜索，结果可直接选择。</p>
       ) : (
         <div className="flex flex-wrap items-center gap-1 text-xs text-muted">
           {crumbs.map((crumb, index) => (
@@ -139,7 +139,7 @@ export function WorkspaceDirectoryPicker({ onSelect }: WorkspaceDirectoryPickerP
           结果可能不完整：已达到搜索数量或深度上限，请缩小范围或输入更精确的关键词。
         </p>
       ) : null}
-      <p className="text-xs text-muted">只能选择工作区根目录下的子目录；选择后自动填入名称。</p>
+      <p className="text-xs text-muted">只能选择项目根目录下的子目录；选择后自动填入名称。</p>
     </div>
   )
 }

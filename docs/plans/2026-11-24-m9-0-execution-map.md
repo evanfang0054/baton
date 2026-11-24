@@ -52,6 +52,11 @@ M9-1 → M9-2 → M9-3 → M9-4 → M9-5
 - 每个 plan 内的 task 完成测试后提交；plan 完成把 frontmatter `status` 改为 `completed` 并提交。
 - 合入前跑 `pnpm verify:full`；squash merge 到 `main`，不 force push。
 
+## 完成记录
+
+- M9-1 已完成（2026-11-24）：项目树、需求画布壳、通知、工具栏收敛、拖拽移除、文案与移动端降级；`pnpm verify` 全绿。
+- 12 条 legacy Playwright 仍按工作区画布编写，已列入 M9-5 迁移，不在 M9-1 的 `pnpm verify` 门内。
+
 ## 数据重置
 
 - 执行前由用户按 spec 第 10 节手动重置本地测试数据；本执行图不自动删库、不写破坏性 migration。

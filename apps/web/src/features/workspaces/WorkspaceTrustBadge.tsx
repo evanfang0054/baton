@@ -34,7 +34,7 @@ export function WorkspaceTrustBadge({
           未信任
         </Chip>
         <Button variant="secondary" onPress={onTrust}>
-          信任工作区
+          信任项目
         </Button>
       </div>
     )

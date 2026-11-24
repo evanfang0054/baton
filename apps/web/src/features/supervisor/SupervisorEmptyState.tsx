@@ -14,7 +14,7 @@ export function SupervisorEmptyState({ onPick }: { onPick: (text: string) => voi
         把画布上的上下文交给总管
       </p>
       <p className="text-xs text-muted">
-        总管可以创建文本/Agent 节点、建任务并按你的要求开工；验收仍由你决定。开启工作区自动化后，非
+        总管可以创建文本/Agent 节点、建任务并按你的要求开工；验收仍由你决定。开启项目自动化后，非
         deny 操作（含高风险）会按策略自动批准。
       </p>
       <div className="flex flex-wrap gap-2">

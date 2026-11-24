@@ -89,7 +89,7 @@ interface CanvasPanelProps {
   onAnnotate?: () => void
   onCreateDrawing?: () => void
   delivery?: DeliverySummary | null
-  /** 交付画布：刷新时必须失效 deliveryCanvas，而不是 workspace canvas。 */
+  /** 需求画布：刷新时必须失效 deliveryCanvas，而不是 workspace canvas。 */
   deliveryId?: string | null
   annotations?: AnnotationSummary[]
   stages?: StageSummary[]
@@ -588,11 +588,7 @@ function FlowCanvas({
   }
 
   return (
-    <section
-      ref={containerRef}
-      data-testid="canvas"
-      className="relative h-full bg-background"
-    >
+    <section ref={containerRef} data-testid="canvas" className="relative h-full bg-background">
       <CanvasToolbar
         onAdd={addNode}
         onArrange={() => void arrangeCanvas()}

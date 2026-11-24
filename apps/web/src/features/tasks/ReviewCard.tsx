@@ -112,7 +112,7 @@ export function ReviewCard({
               缺少必需产物：{missingArtifacts.join('、')}
             </p>
             <p className="mt-1 text-xs text-muted">
-              必需产物未写入交付目录，不能通过验收。请打回任务重新执行，产物落盘后再验收。
+              必需产物未写入需求目录，不能通过验收。请打回任务重新执行，产物落盘后再验收。
             </p>
           </div>
         ) : (
@@ -122,7 +122,7 @@ export function ReviewCard({
         )
       ) : null}
       <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted">
-        <span title="仅统计 Git 已跟踪文件；非 git 工作区或未跟踪文件不计入">
+        <span title="仅统计 Git 已跟踪文件；非 git 项目或未跟踪文件不计入">
           Git 文件 {review.diffStat.filesChanged}
         </span>
         <span className="text-success">+{review.diffStat.insertions}</span>
@@ -196,7 +196,7 @@ export function ReviewCard({
                     setConfirmingApprove(false)
                     setRejecting(true)
                     setFeedback(
-                      `缺少必需产物：${missingArtifacts.join('、')}，请重新执行并写入交付目录。`,
+                      `缺少必需产物：${missingArtifacts.join('、')}，请重新执行并写入需求目录。`,
                     )
                   }}
                 >

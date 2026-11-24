@@ -53,7 +53,7 @@ export async function invalidateTaskQueries(
   }
 }
 
-/** 交付命令后统一刷新交付/画布/任务查询，避免人工入口与实时入口漏键。 */
+/** 需求命令后统一刷新需求/画布/任务查询，避免人工入口与实时入口漏键。 */
 export async function invalidateDeliveryQueries(
   client: QueryClient,
   workspaceId: string,

@@ -25,7 +25,7 @@ export function AutomationStatus({
     )
   }
   const paused = summary.killSwitch
-  // 有效自动化 = 策略开启 && 工作区已信任 && 未暂停；未信任时不能显示“运行中”。
+  // 有效自动化 = 策略开启 && 项目已信任 && 未暂停；未信任时不能显示“运行中”。
   const running = summary.policy.autopilot.enabled && summary.trusted && !paused
   const label = paused ? '自动化已暂停' : running ? '自动化运行中' : '自动化关闭'
   const compactLabel = paused ? '已暂停' : running ? '运行中' : '已关闭'

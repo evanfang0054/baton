@@ -246,7 +246,7 @@ test('creates a drawing board from the delivery canvas', async ({ page }) => {
   await expect(page.getByText('优惠券领取页').first()).toBeVisible()
   // 画布数据到达后 createDrawing 才有 canvasId；先等阶段分组渲染。
   await expect(page.getByText('1 需求').first()).toBeVisible()
-  await page.getByRole('button', { name: '新建画板' }).click()
+  await page.getByRole('button', { name: '画板' }).click()
   await expect(page.getByText('画板 · drawing-test.png')).toBeVisible({ timeout: 15_000 })
 })
 
@@ -256,8 +256,8 @@ test('stops a delivery after confirmation', async ({ page }) => {
 
   await page.goto('/?workspace=w1&delivery=d1')
   await expect(page.getByText('优惠券领取页').first()).toBeVisible()
-  await page.getByRole('button', { name: '停止交付', exact: true }).first().click()
-  await expect(page.getByText('停止这条交付？')).toBeVisible()
+  await page.getByRole('button', { name: '停止需求', exact: true }).first().click()
+  await expect(page.getByText('停止这条需求？')).toBeVisible()
   await page.getByRole('button', { name: '确认停止' }).click()
 
   await expect.poll(() => state.cancelCalls).toBe(1)

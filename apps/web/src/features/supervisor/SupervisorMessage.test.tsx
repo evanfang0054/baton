@@ -119,7 +119,7 @@ describe('SupervisorMessage', () => {
                   fromTitle: '登录页改造',
                   fromStatus: 'review',
                   worktree: true,
-                  warnings: ['源任务在隔离 worktree，变更文件在主工作区不可读。'],
+                  warnings: ['源任务在隔离 worktree，变更文件在主项目不可读。'],
                 },
               },
             },
@@ -129,7 +129,7 @@ describe('SupervisorMessage', () => {
     )
     expect(screen.getByText('跟进：登录页改造')).toBeVisible()
     expect(screen.getByText(/交接自《登录页改造》/)).toBeVisible()
-    expect(screen.getByText(/变更文件在主工作区不可读/)).toBeVisible()
+    expect(screen.getByText(/变更文件在主项目不可读/)).toBeVisible()
   })
 
   it('renders a plan card from plan_tasks', () => {

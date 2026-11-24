@@ -12,8 +12,8 @@ export function MobileMoreMenu({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onOpenTask: () => void
-  onOpenNodes: () => void
+  onOpenTask?: () => void
+  onOpenNodes?: () => void
   onCreateWorkspace: () => void
   automationSlot: ReactNode
   trustSlot: ReactNode
@@ -45,14 +45,18 @@ export function MobileMoreMenu({
           </button>
         </div>
         <div className="flex flex-col gap-2">
-          <Button variant="secondary" onPress={onOpenTask}>
-            新建任务
-          </Button>
-          <Button variant="secondary" onPress={onOpenNodes}>
-            节点列表
-          </Button>
+          {onOpenTask ? (
+            <Button variant="secondary" onPress={onOpenTask}>
+              新建任务
+            </Button>
+          ) : null}
+          {onOpenNodes ? (
+            <Button variant="secondary" onPress={onOpenNodes}>
+              节点列表
+            </Button>
+          ) : null}
           <Button variant="secondary" onPress={onCreateWorkspace}>
-            创建工作区
+            创建项目
           </Button>
           <div className="rounded-lg border border-separator p-3">{automationSlot}</div>
           <div className="rounded-lg border border-separator p-3">{trustSlot}</div>

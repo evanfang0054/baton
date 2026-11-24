@@ -162,7 +162,7 @@ export function SupervisorPanel({
   return (
     <div data-testid="supervisor-panel" className="flex h-full min-h-0 flex-col">
       <SupervisorStatusBar status={status.data} />
-      {!workspaceId ? <p className="p-4 text-sm text-muted">先选择一个工作区</p> : null}
+      {!workspaceId ? <p className="p-4 text-sm text-muted">先选择一个项目</p> : null}
       {workspaceId && status.isError ? (
         <div role="alert" className="m-4 rounded-lg border border-danger bg-danger/10 p-3">
           <p className="text-sm font-medium text-danger">无法读取总管状态</p>

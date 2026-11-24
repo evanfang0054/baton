@@ -159,7 +159,7 @@ test('trusts a workspace and resolves an approval card', async ({ page }) => {
 
   await page.goto('/?workspace=w1&task=t1')
 
-  await expect(page.getByText('信任此工作区？')).toBeVisible()
+  await expect(page.getByText('信任此项目？')).toBeVisible()
   await page.getByRole('button', { name: '信任并加载' }).click()
   await expect(page.getByText('已信任')).toBeVisible()
 

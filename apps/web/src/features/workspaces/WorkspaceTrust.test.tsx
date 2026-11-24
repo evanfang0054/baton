@@ -37,7 +37,7 @@ describe('workspace trust UI', () => {
     )
     wrap(<WorkspaceTrustDialog workspace={workspace} open onOpenChange={() => {}} />)
 
-    expect(await screen.findByText('信任此工作区？')).toBeInTheDocument()
+    expect(await screen.findByText('信任此项目？')).toBeInTheDocument()
     expect(screen.getByText(/CLAUDE\.md/)).toBeInTheDocument()
     expect(screen.getByText(/审批卡不再是最终闸门/)).toBeInTheDocument()
 

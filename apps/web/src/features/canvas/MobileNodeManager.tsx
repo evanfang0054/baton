@@ -204,7 +204,7 @@ export function MobileNodeManager({
                   onChange={(event) => setDraft({ ...draft, mime: event.target.value })}
                   fullWidth
                 />
-                <p className="text-xs text-muted">路径必须相对于工作区根目录，且不能包含 ..</p>
+                <p className="text-xs text-muted">路径必须相对于项目根目录，且不能包含 ..</p>
               </>
             ) : null}
             {draft.type === 'agent' ? (

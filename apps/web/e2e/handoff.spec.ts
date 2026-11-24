@@ -263,7 +263,7 @@ test('shows a handoff card with its source and worktree warning in the superviso
                 fromTitle: '登录页改造',
                 fromStatus: 'review',
                 worktree: true,
-                warnings: ['源任务在隔离 worktree，变更文件在主工作区不可读。'],
+                warnings: ['源任务在隔离 worktree，变更文件在主项目不可读。'],
               },
             },
           },
@@ -315,5 +315,5 @@ test('shows a handoff card with its source and worktree warning in the superviso
 
   await expect(page.getByText('跟进：登录页改造')).toBeVisible()
   await expect(page.getByText(/交接自《登录页改造》/)).toBeVisible()
-  await expect(page.getByText(/变更文件在主工作区不可读/)).toBeVisible()
+  await expect(page.getByText(/变更文件在主项目不可读/)).toBeVisible()
 })

@@ -67,9 +67,7 @@ export function ProjectTree({
 
   const toggle = (workspaceId: string) => {
     setExpanded((prev) =>
-      prev.includes(workspaceId)
-        ? prev.filter((id) => id !== workspaceId)
-        : [...prev, workspaceId],
+      prev.includes(workspaceId) ? prev.filter((id) => id !== workspaceId) : [...prev, workspaceId],
     )
   }
 
