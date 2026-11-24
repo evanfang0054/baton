@@ -62,7 +62,9 @@ describe('extractDrawingContent', () => {
     expect(byElement.truncated).toBe(true)
 
     const huge = extractDrawingContent({
-      elements: [{ id: 't', type: 'text', x: 0, y: 0, width: 10, height: 10, text: 'x'.repeat(200_001) }],
+      elements: [
+        { id: 't', type: 'text', x: 0, y: 0, width: 10, height: 10, text: 'x'.repeat(200_001) },
+      ],
     })
     expect(huge.texts[0]?.text).toHaveLength(200_000)
     expect(huge.truncated).toBe(true)

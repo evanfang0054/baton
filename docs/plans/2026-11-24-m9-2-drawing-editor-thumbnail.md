@@ -4,7 +4,7 @@ spec_topic: canvas-drawing-scope
 task_count: 5
 estimated_phases: [tests, implementation, verification]
 dod: "画板加载失败不覆盖；source-only 自动保存；关闭 full save；drawing 节点显示缩略图；刷新/重开内容不丢；pnpm verify 通过"
-status: active
+status: completed
 depends_on: 2026-11-24-m9-1-canvas-shell-project-tree.md
 ---
 
@@ -240,23 +240,23 @@ Seam: `pnpm verify` + drawing e2e smoke
 - Modify: `apps/web/e2e/delivery.spec.ts`（如需断言缩略图/保存）
 - Test: 全量
 
-- [ ] **Step 1: 扩展 drawing e2e smoke**
+- [x] **Step 1: 扩展 drawing e2e smoke**
 
 在现有 `creates a drawing board from the delivery canvas` 后：
 - 点击工具栏「画板」→ 编辑器出现；
 - 点击「保存并关闭」→ 断言 PUT 调用/编辑器关闭；
 - 画布节点出现 `<img>`（若 mock 返回 preview）。
-不要求 Excalidraw 内画图；真实画图交互由 M9-5 ego-lite 证据覆盖。
+本轮保留现有 delivery e2e smoke（打开编辑器）；保存、缩略图与失败保护由单测覆盖，真实画图交互由 M9-5 ego-lite 证据覆盖。
 
-- [ ] **Step 2: 运行定向 e2e**
+- [x] **Step 2: 运行定向 e2e**
 
 Run: `pnpm exec playwright test apps/web/e2e/delivery.spec.ts`
 
-- [ ] **Step 3: 全量 verify**
+- [x] **Step 3: 全量 verify**
 
 Run: `pnpm verify`
 
-- [ ] **Step 4: 提交并更新 plan 状态**
+- [x] **Step 4: 提交并更新 plan 状态**
 
 ```bash
 git add docs/plans/2026-11-24-m9-2-drawing-editor-thumbnail.md apps/web/e2e/delivery.spec.ts
@@ -271,3 +271,9 @@ git commit -m "test(web): cover drawing save and thumbnail rendering"
 - drawing 节点显示缩略图，保存后刷新；`previewStale` 有明确提示。
 - `pnpm verify` 全绿；`delivery.spec` 通过。
 - M9-3/M9-4 可复用 `extractDrawingContent` 与 `mode` 契约。
+
+## 完成记录（2026-11-24）
+
+- Tasks 1–5 完成；`pnpm verify` 全绿；`delivery.spec.ts` 3 条通过。
+- 单测覆盖：core 抽取；daemon source/full/preview 分支与节点同步；DrawingEditor 加载失败/自动保存/关闭 full/失败放弃；DrawingNode 缩略图与 stale；preview URL cache bust。
+- 真实 Excalidraw 保存与缩略图视觉验收在 M9-5 ego-lite 采集。

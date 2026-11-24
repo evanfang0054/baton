@@ -118,7 +118,6 @@ export function extractDrawingContent(
     }
     if (text.text.length > remaining) {
       texts.push({ id: text.id, text: text.text.slice(0, remaining), x: text.x, y: text.y })
-      textChars = maxTextChars
       truncated = true
       break
     }

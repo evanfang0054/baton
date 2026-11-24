@@ -80,9 +80,7 @@ function artifact(overrides: Partial<Artifact> = {}): Artifact {
 }
 
 function renderEditor(input = artifact(), onClose = vi.fn(), onSaved = vi.fn()) {
-  render(
-    <DrawingEditor deliveryId="d1" artifact={input} onClose={onClose} onSaved={onSaved} />,
-  )
+  render(<DrawingEditor deliveryId="d1" artifact={input} onClose={onClose} onSaved={onSaved} />)
   return { onClose, onSaved }
 }
 

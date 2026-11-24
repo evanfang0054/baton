@@ -143,7 +143,9 @@ describe('canvas model', () => {
     expect(flow[0]?.data.previewUrl).toBe(
       '/api/deliveries/d1/artifacts/a1/content?variant=preview&v=42',
     )
-    expect(toFlowNodes([drawing], [], { artifacts: [artifact] })[0]?.data.previewUrl).toBeUndefined()
+    expect(
+      toFlowNodes([drawing], [], { artifacts: [artifact] })[0]?.data.previewUrl,
+    ).toBeUndefined()
   })
 
   it('maps protocol nodes to flow nodes with size and task', () => {
