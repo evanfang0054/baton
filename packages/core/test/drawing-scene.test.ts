@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { drawingSummary, extractDrawingContent } from '../src/drawing/scene.js'
+import {
+  applyDrawingOperations,
+  createEmptyScene,
+  DrawingOperationError,
+  drawingSummary,
+  extractDrawingContent,
+} from '../src/drawing/scene.js'
 
 function fixture() {
   return {
@@ -77,5 +83,117 @@ describe('drawingSummary', () => {
     expect(summary.summary).toBe('第一条 / 第二条')
     expect(summary.textCount).toBe(2)
     expect(summary.imageCount).toBe(1)
+  })
+})
+
+describe('applyDrawingOperations', () => {
+  function ids() {
+    let index = 0
+    return () => `n-${++index}`
+  }
+
+  it('adds labeled shapes, arrows and images with Excalidraw bindings', () => {
+    const scene = applyDrawingOperations(
+      createEmptyScene(),
+      [
+        { op: 'add_rectangle', id: 'box', x: 10, y: 10, w: 200, h: 100, text: '入口' },
+        { op: 'add_ellipse', id: 'oval', x: 300, y: 10, w: 120, h: 80 },
+        { op: 'add_arrow', id: 'arrow', x: 210, y: 60, w: 90, h: 0, fromId: 'box', toId: 'oval' },
+        {
+          op: 'add_image',
+          id: 'img',
+          path: 'assets/shot.png',
+          x: 10,
+          y: 180,
+          image: {
+            dataURL: 'data:image/png;base64,AA==',
+            mimeType: 'image/png',
+            width: 40,
+            height: 30,
+          },
+        },
+      ],
+      { newId: ids(), now: 100 },
+    )
+
+    expect(scene.elements.map((element) => element.id)).toEqual([
+      'box',
+      'n-1',
+      'oval',
+      'arrow',
+      'img',
+    ])
+    const box = scene.elements.find((element) => element.id === 'box')
+    expect(box?.boundElements).toEqual([
+      { id: 'n-1', type: 'text' },
+      { id: 'arrow', type: 'arrow' },
+    ])
+    const label = scene.elements.find((element) => element.id === 'n-1')
+    expect(label).toMatchObject({ type: 'text', text: '入口', containerId: 'box' })
+    expect(scene.elements.find((element) => element.id === 'arrow')).toMatchObject({
+      type: 'arrow',
+      startBinding: { elementId: 'box' },
+      endBinding: { elementId: 'oval' },
+    })
+    expect(scene.files).toHaveProperty('n-2-file')
+    const content = extractDrawingContent(scene)
+    expect(content.counts).toMatchObject({ rectangle: 1, ellipse: 1, arrow: 1, image: 1, text: 1 })
+    expect(content.texts.map((text) => text.text)).toEqual(['入口'])
+  })
+
+  it('updates labels and moves bound text with the shape', () => {
+    const scene = applyDrawingOperations(
+      createEmptyScene(),
+      [
+        { op: 'add_rectangle', id: 'box', x: 10, y: 10, w: 200, h: 100, text: '旧标题' },
+        { op: 'update_element', id: 'box', x: 60, y: 40, text: '新标题' },
+      ],
+      { newId: ids(), now: 100 },
+    )
+    const texts = extractDrawingContent(scene).texts
+    expect(texts[0]?.text).toBe('新标题')
+    expect(texts[0]?.x).toBeGreaterThan(60)
+    expect(texts[0]?.y).toBeGreaterThan(40)
+  })
+
+  it('soft deletes shapes and their labels', () => {
+    const scene = applyDrawingOperations(
+      createEmptyScene(),
+      [
+        { op: 'add_rectangle', id: 'box', x: 0, y: 0, w: 100, h: 50, text: '删掉' },
+        { op: 'delete_element', id: 'box' },
+      ],
+      { newId: ids(), now: 100 },
+    )
+    expect(scene.elements.every((element) => element.isDeleted === true)).toBe(true)
+    expect(extractDrawingContent(scene).elements).toHaveLength(0)
+  })
+
+  it('enforces element and text limits and invalid references', () => {
+    expect(() =>
+      applyDrawingOperations(createEmptyScene(), [{ op: 'delete_element', id: 'missing' }], {
+        newId: ids(),
+        now: 1,
+      }),
+    ).toThrow(DrawingOperationError)
+
+    expect(() =>
+      applyDrawingOperations(
+        createEmptyScene(),
+        [
+          { op: 'add_text', x: 0, y: 0, text: 'a' },
+          { op: 'add_text', x: 0, y: 30, text: 'b' },
+        ],
+        { newId: ids(), now: 1, limits: { maxElements: 1 } },
+      ),
+    ).toThrowError(/too many elements/)
+
+    expect(() =>
+      applyDrawingOperations(createEmptyScene(), [{ op: 'add_text', x: 0, y: 0, text: 'hello' }], {
+        newId: ids(),
+        now: 1,
+        limits: { maxTextChars: 3 },
+      }),
+    ).toThrowError(/text is too large/)
   })
 })

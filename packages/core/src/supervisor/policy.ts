@@ -39,6 +39,8 @@ export const SUPERVISOR_POLICY: SupervisorPolicy = {
     'list_annotations',
     'get_annotation',
     'get_drawing',
+    'create_drawing',
+    'update_drawing',
   ],
   maxSteps: 4,
   timeoutMs: 60_000,
