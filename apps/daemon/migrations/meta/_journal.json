@@ -110,7 +110,7 @@
     {
       "idx": 15,
       "version": "6",
-      "when": 1795359859835,
+      "when": 1795400000001,
       "tag": "0015_m7_delivery_playbook",
       "breakpoints": true
     },
@@ -119,6 +119,13 @@
       "version": "6",
       "when": 1795418734259,
       "tag": "0016_m8_budget_removal",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1795493138420,
+      "tag": "0017_workspace_annotation_scope",
       "breakpoints": true
     }
   ]

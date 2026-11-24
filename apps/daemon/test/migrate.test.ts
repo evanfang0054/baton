@@ -40,6 +40,25 @@ function columns(db: ReturnType<typeof openDb>, table: string): ColumnRow[] {
   return db.prepare(`pragma table_info(${table})`).all() as ColumnRow[]
 }
 
+describe('migration journal', () => {
+  // drizzle 只按 journal 的 when 与库内最大 created_at 比较决定是否执行；
+  // when 不递增会让已升级到前一条的库永久跳过后续迁移。
+  it('keeps entry timestamps increasing', () => {
+    const journal = JSON.parse(
+      readFileSync(join(migrationsDir, 'meta', '_journal.json'), 'utf8'),
+    ) as { entries: Array<{ idx: number; tag: string; when: number }> }
+
+    for (let index = 1; index < journal.entries.length; index += 1) {
+      const prev = journal.entries[index - 1]!
+      const current = journal.entries[index]!
+      expect(
+        current.when,
+        `${current.tag} (idx ${current.idx}) must come after ${prev.tag}`,
+      ).toBeGreaterThan(prev.when)
+    }
+  })
+})
+
 describe('migrateDb', () => {
   it('is idempotent on a fresh directory', () => {
     const dir = mkdtempSync(join(tmpdir(), 'baton-db-'))
@@ -70,6 +89,7 @@ describe('migrateDb', () => {
       'acceptance_run_task_created_idx',
       'annotation_delivery_idx',
       'annotation_task_idx',
+      'annotation_workspace_idx',
       'approval_session_request_idx',
       'artifact_delivery_idx',
       'artifact_name_idx',

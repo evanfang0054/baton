@@ -95,6 +95,8 @@ export function DeliveryCanvas({
           }
         }}
         delivery={delivery}
+        deliveryId={delivery.id}
+        annotations={delivery.annotations}
         stages={delivery.stages}
         artifacts={artifacts}
       />

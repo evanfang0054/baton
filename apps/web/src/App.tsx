@@ -13,6 +13,7 @@ import { DeliveryBoard } from './features/deliveries/DeliveryBoard'
 import { DeliveryCanvas } from './features/deliveries/DeliveryCanvas'
 import { DeliveryRail } from './features/deliveries/DeliveryRail'
 import { AnnotationListOverlay } from './features/overlays/AnnotationListOverlay'
+import { QuickAnnotationLayer } from './features/annotations/QuickAnnotationLayer'
 import { AcceptanceMatrixOverlay } from './features/overlays/AcceptanceMatrixOverlay'
 import { ArtifactViewerOverlay } from './features/overlays/ArtifactViewerOverlay'
 import { ConfirmDialog } from './features/overlays/ConfirmDialog'
@@ -24,7 +25,6 @@ import { RightPanel } from './features/right-panel/RightPanel'
 import { ConnectionStatus } from './features/shared/ConnectionStatus'
 import { MobileMoreMenu } from './features/shared/MobileMoreMenu'
 import { MobileNav } from './features/shared/MobileNav'
-import { DigestCard } from './features/supervisor/DigestCard'
 import { SupervisorPanel } from './features/supervisor/SupervisorPanel'
 import type { SupervisorTargetAgent } from './features/supervisor/supervisor-model'
 import { MobileBoardList } from './features/tasks/MobileBoardList'
@@ -42,10 +42,12 @@ import {
   getDelivery,
   cancelDelivery as cancelDeliveryRequest,
   createArtifactDraft,
+  deleteAnnotation,
   listArtifacts,
   listDeliveries,
   listNotices,
   listTasks,
+  listWorkspaceAnnotations,
   listWorkspaces,
   setKillSwitch,
   UnauthorizedError,
@@ -111,6 +113,8 @@ function AppShell() {
   const [cancelDeliveryId, setCancelDeliveryId] = useState<string | null>(null)
   const [showTasks, setShowTasks] = useState(false)
   const [showWorkspace, setShowWorkspace] = useState(false)
+  const [workspaceAnnotating, setWorkspaceAnnotating] = useState(false)
+  const [workspaceAnnotationsOpen, setWorkspaceAnnotationsOpen] = useState(false)
 
   const workspaces = useQuery({ queryKey: queryKeys.workspaces, queryFn: listWorkspaces })
   const tasks = useQuery({
@@ -151,6 +155,11 @@ function AppShell() {
   const notices = useQuery({
     queryKey: queryKeys.notices(activeWorkspaceId ?? ''),
     queryFn: () => listNotices(activeWorkspaceId!, { kind: 'digest', limit: 5 }),
+    enabled: Boolean(activeWorkspaceId),
+  })
+  const workspaceAnnotations = useQuery({
+    queryKey: queryKeys.workspaceAnnotations(activeWorkspaceId ?? ''),
+    queryFn: () => listWorkspaceAnnotations(activeWorkspaceId!),
     enabled: Boolean(activeWorkspaceId),
   })
 
@@ -459,17 +468,6 @@ function AppShell() {
               />
             </div>
           ) : null}
-          {mobileTab === 'digest' ? (
-            <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-[calc(6rem+env(safe-area-inset-bottom))]">
-              <DigestCard
-                workspaceId={activeWorkspaceId ?? undefined}
-                onOpenTask={(id) => {
-                  setTask(id)
-                  writeUrlState({ workspaceId: activeWorkspaceId, taskId: id })
-                }}
-              />
-            </div>
-          ) : null}
           <MobileNav
             tab={mobileTab}
             onChange={setMobileTab}
@@ -585,15 +583,49 @@ function AppShell() {
                 onClose={() => setShowTasks(false)}
               />
             ) : showWorkspace || hasNoDeliveries ? (
-              <CanvasPanel
-                ref={canvasRef}
-                canvas={workspaceCanvas.data ?? null}
-                tasks={tasks.data ?? []}
-                selectedNodeId={selectedNodeId}
-                onSelectNode={(id) => setSelectedNode(id)}
-                onSelectNodes={setSelection}
-                onOpenTask={openTask}
-              />
+              <section className="relative flex min-h-0 flex-1 flex-col">
+                <CanvasPanel
+                  ref={canvasRef}
+                  canvas={workspaceCanvas.data ?? null}
+                  tasks={tasks.data ?? []}
+                  selectedNodeId={selectedNodeId}
+                  onSelectNode={(id) => setSelectedNode(id)}
+                  onSelectNodes={setSelection}
+                  onOpenTask={openTask}
+                  onAnnotate={() => setWorkspaceAnnotating(true)}
+                  annotations={workspaceAnnotations.data ?? []}
+                />
+                <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+                  {(workspaceAnnotations.data ?? []).filter((item) => item.status === 'open')
+                    .length > 0 ? (
+                    <Button
+                      size="sm"
+                      variant="tertiary"
+                      onPress={() => setWorkspaceAnnotationsOpen(true)}
+                    >
+                      标注{' '}
+                      {
+                        (workspaceAnnotations.data ?? []).filter((item) => item.status === 'open')
+                          .length
+                      }
+                    </Button>
+                  ) : null}
+                </div>
+                {workspaceAnnotating && activeWorkspaceId ? (
+                  <QuickAnnotationLayer
+                    workspaceId={activeWorkspaceId}
+                    annotations={(workspaceAnnotations.data ?? []).filter(
+                      (item) => item.status === 'open',
+                    )}
+                    onClose={() => setWorkspaceAnnotating(false)}
+                    onSaved={() =>
+                      void queryClient.invalidateQueries({
+                        queryKey: queryKeys.workspaceAnnotations(activeWorkspaceId),
+                      })
+                    }
+                  />
+                ) : null}
+              </section>
             ) : activeDeliveryId && delivery.data ? (
               <DeliveryCanvas
                 workspaceId={activeWorkspaceId ?? ''}
@@ -720,15 +752,51 @@ function AppShell() {
             setOverlay(null)
           }}
           onDismiss={(annotation) => {
-            if (!delivery.data) return
-            void updateAnnotation(annotation.deliveryId, annotation.id, { status: 'dismissed' })
+            const deliveryId = annotation.deliveryId
+            if (!deliveryId) return
+            void updateAnnotation(deliveryId, annotation.id, { status: 'dismissed' })
               .then(() =>
                 queryClient.invalidateQueries({
-                  queryKey: queryKeys.delivery(annotation.deliveryId),
+                  queryKey: queryKeys.delivery(deliveryId),
                 }),
               )
               .catch((cause: unknown) =>
                 toast.danger(cause instanceof Error ? cause.message : '忽略标注失败'),
+              )
+          }}
+          onDelete={(annotation) => {
+            const deliveryId = annotation.deliveryId
+            if (!deliveryId) return
+            void deleteAnnotation(annotation.id)
+              .then(() =>
+                queryClient.invalidateQueries({
+                  queryKey: queryKeys.delivery(deliveryId),
+                }),
+              )
+              .catch((cause: unknown) =>
+                toast.danger(cause instanceof Error ? cause.message : '删除标注失败'),
+              )
+          }}
+        />
+      ) : null}
+      {workspaceAnnotationsOpen && activeWorkspaceId ? (
+        <AnnotationListOverlay
+          annotations={workspaceAnnotations.data ?? []}
+          onClose={() => setWorkspaceAnnotationsOpen(false)}
+          onLocate={(annotation) => {
+            const nodeId = annotation.targetNodeIds[0]
+            if (nodeId) setSelectedNode(nodeId)
+            setWorkspaceAnnotationsOpen(false)
+          }}
+          onDelete={(annotation) => {
+            void deleteAnnotation(annotation.id)
+              .then(() =>
+                queryClient.invalidateQueries({
+                  queryKey: queryKeys.workspaceAnnotations(activeWorkspaceId),
+                }),
+              )
+              .catch((cause: unknown) =>
+                toast.danger(cause instanceof Error ? cause.message : '删除标注失败'),
               )
           }}
         />

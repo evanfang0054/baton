@@ -245,8 +245,14 @@ export function RealtimeProvider({
         }
         if (event.type === 'annotation.updated') {
           const { deliveryId } = event.payload
-          void queryClient.invalidateQueries({ queryKey: queryKeys.annotations(deliveryId) })
-          void queryClient.invalidateQueries({ queryKey: queryKeys.delivery(deliveryId) })
+          if (deliveryId) {
+            void queryClient.invalidateQueries({ queryKey: queryKeys.annotations(deliveryId) })
+            void queryClient.invalidateQueries({ queryKey: queryKeys.delivery(deliveryId) })
+          } else {
+            void queryClient.invalidateQueries({
+              queryKey: queryKeys.workspaceAnnotations(workspaceId),
+            })
+          }
           return
         }
         if (INVALIDATING_EVENTS.has(event.type)) invalidate()

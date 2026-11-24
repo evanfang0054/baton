@@ -100,4 +100,52 @@ describe('annotation service', () => {
       }),
     ).toThrow()
   })
+
+  it('creates and deletes workspace-scoped annotations independent of deliveries', () => {
+    const { handle, annotations, deliveryId } = setup()
+    const created = annotations.createWorkspaceAnnotation({
+      workspaceId: handle.seeded.workspaceId,
+      targetNodeIds: ['text-1'],
+      note: '工作区备注',
+      strokesJson: '[]',
+      bbox: { x: 0, y: 0, w: 10, h: 10 },
+      imageBase64: Buffer.from('png').toString('base64'),
+    })
+    expect(created).toMatchObject({
+      workspaceId: handle.seeded.workspaceId,
+      deliveryId: null,
+      stageKey: null,
+    })
+
+    const list = annotations.listWorkspaceScopeAnnotations({
+      workspaceId: handle.seeded.workspaceId,
+    })
+    expect(list.map((item) => item.id)).toEqual([created.id])
+    expect(annotations.listAnnotations({ deliveryId })).toHaveLength(0)
+
+    annotations.removeAnnotation(created.id)
+
+    expect(
+      annotations.listWorkspaceScopeAnnotations({ workspaceId: handle.seeded.workspaceId }),
+    ).toHaveLength(0)
+    expect(annotations.getAnnotationForSupervisor(created.id)).toBeNull()
+  })
+
+  it('deletes delivery annotations', () => {
+    const { annotations, deliveryId, nodeId } = setup()
+    const created = annotations.createAnnotation({
+      deliveryId,
+      stageKey: 'design',
+      targetNodeIds: [nodeId],
+      note: '先删掉',
+      strokesJson: '[]',
+      bbox: { x: 0, y: 0, w: 10, h: 10 },
+      imageBase64: Buffer.from('png').toString('base64'),
+    })
+
+    annotations.removeAnnotation(created.id)
+
+    expect(annotations.listAnnotations({ deliveryId })).toHaveLength(0)
+    expect(annotations.getAnnotationForSupervisor(created.id)).toBeNull()
+  })
 })

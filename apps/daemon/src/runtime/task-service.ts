@@ -1,10 +1,11 @@
-import { assembleContext, buildAnnotationBlock } from '@baton/core'
+import { annotationRegion, assembleContext, buildAnnotationBlock } from '@baton/core'
+import { annotationCoordinateSpace } from '@baton/protocol'
 import type { AppError, Node, TaskCreateInput, TaskOrigin } from '@baton/protocol'
 import type { Config } from '../config.js'
 import {
   getAnnotation,
   getArtifact,
-  getDelivery,
+  getCanvasByDelivery,
   updateAnnotation,
 } from '../db/delivery-repositories.js'
 import {
@@ -40,7 +41,7 @@ export interface CreateTaskOptions {
 function nodeLabel(node: Node | undefined): string | undefined {
   if (!node) return undefined
   const data = node.data as Record<string, unknown>
-  const value = data.title ?? data.label ?? data.content
+  const value = data.title ?? data.label ?? data.content ?? data.name ?? data.alt
   return typeof value === 'string' && value.trim() ? value.trim().slice(0, 80) : undefined
 }
 
@@ -143,8 +144,7 @@ export function createTaskService(deps: TaskServiceDeps) {
       }
       for (const annotation of loadedAnnotations) {
         if (!annotation) continue
-        const annotationDelivery = getDelivery(deps.db, annotation.deliveryId)
-        if (!annotationDelivery || annotationDelivery.workspaceId !== workspace.id) {
+        if (annotation.workspaceId !== workspace.id) {
           return {
             ok: false,
             error: appError('annotation_not_found', 'annotation not found', {
@@ -165,18 +165,39 @@ export function createTaskService(deps: TaskServiceDeps) {
           }
         }
       }
+      // 交付标注的目标节点在交付画布，不在当前工作区画布里；必须分别解析。
+      const annotationTargetNodes = new Map<string, Node>()
+      for (const annotation of loadedAnnotations) {
+        if (!annotation || annotation.targetNodeIds.length === 0) continue
+        const canvas = annotation.deliveryId
+          ? getCanvasByDelivery(deps.db, annotation.deliveryId)
+          : null
+        const pool = canvas ? listNodes(deps.db, canvas.id) : nodes
+        for (const nodeId of annotation.targetNodeIds) {
+          const node = pool.find((item) => item.id === nodeId)
+          if (node) annotationTargetNodes.set(nodeId, node)
+        }
+      }
       const annotationBlock = buildAnnotationBlock(
         loadedAnnotations
           .filter((annotation) => annotation !== null)
           .map((annotation) => {
             const targetNode = annotation.targetNodeIds
-              .map((id) => nodes.find((node) => node.id === id))
+              .map((id) => annotationTargetNodes.get(id))
               .find((node) => node !== undefined)
             const targetArtifact = annotation.targetArtifactId
               ? getArtifact(deps.db, annotation.targetArtifactId)
               : null
             const targetTitle = nodeLabel(targetNode) ?? targetArtifact?.name
-            return { ...annotation, ...(targetTitle ? { targetTitle } : {}) }
+            const targetRegion =
+              targetNode && annotationCoordinateSpace(annotation.strokesJson) === 'flow'
+                ? annotationRegion(annotation.bbox, targetNode)
+                : null
+            return {
+              ...annotation,
+              ...(targetTitle ? { targetTitle } : {}),
+              ...(targetRegion ? { targetRegion } : {}),
+            }
           }),
       )
       const taskPrompt = annotationBlock ? `${input.prompt}\n\n${annotationBlock}` : input.prompt

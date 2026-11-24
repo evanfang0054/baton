@@ -6,6 +6,7 @@ import {
 } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { AlertTriangle } from 'lucide-react'
+import { SupervisorDigestActions } from './SupervisorDigestActions'
 import { SupervisorPlanCard } from './SupervisorPlanCard'
 import { SupervisorTaskCard } from './SupervisorTaskCard'
 import { SupervisorToolCard, type SupervisorToolView } from './SupervisorToolCard'
@@ -40,9 +41,15 @@ type BatchResult = {
 export function SupervisorMessage({
   message,
   onRetry,
+  onOpenTask,
+  onApplyProposal,
+  digestActions = true,
 }: {
   message: SupervisorMessageRecord
   onRetry?: () => void
+  onOpenTask?: (taskId: string) => void
+  onApplyProposal?: (proposalId: string) => Promise<boolean> | boolean | void
+  digestActions?: boolean
 }) {
   const singleCards = message.toolCalls
     .filter((call) => call.name === 'create_task' && call.ok)
@@ -94,6 +101,14 @@ export function SupervisorMessage({
               </Button>
             ) : null}
           </div>
+        ) : null}
+        {message.meta?.digest ? (
+          <SupervisorDigestActions
+            items={message.meta.digest.items}
+            actionsEnabled={digestActions}
+            onOpenTask={onOpenTask}
+            onApplyProposal={onApplyProposal}
+          />
         ) : null}
         {message.toolCalls.map((call) => (
           <SupervisorToolCard key={call.id} tool={toToolView(call)} />

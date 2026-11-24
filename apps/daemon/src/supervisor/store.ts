@@ -2,6 +2,7 @@ import {
   AppError,
   SupervisorDecision,
   SupervisorMessage,
+  SupervisorMessageMeta,
   SupervisorThread,
   ToolCallRecord,
 } from '@baton/protocol'
@@ -13,9 +14,7 @@ import type { Db } from '../db/types.js'
 type SupervisorMessageValue = z.infer<typeof SupervisorMessage>
 type SupervisorThreadValue = z.infer<typeof SupervisorThread>
 
-const messageMeta = z
-  .object({ contextNodeIds: z.array(z.string()), targetNodeId: z.string().nullable() })
-  .nullable()
+const messageMeta = SupervisorMessageMeta.nullable()
 
 const toolCallsSchema = z.array(ToolCallRecord)
 
@@ -29,7 +28,7 @@ export interface InsertUserMessageInput {
   threadId: string
   triggerId: string
   text: string
-  meta: z.infer<typeof messageMeta>
+  meta: z.input<typeof SupervisorMessageMeta> | null
 }
 
 export interface InsertAssistantTurnInput {
@@ -56,7 +55,12 @@ export interface SupervisorStore {
   }
   hasThread(threadId: string): boolean
   /** 观察者消息：assistant 角色、无 decision，用 dedupeKey 保证同一事件只落一次。 */
-  insertNotification(input: { threadId: string; dedupeKey: string; content: string }): {
+  insertNotification(input: {
+    threadId: string
+    dedupeKey: string
+    content: string
+    meta?: z.input<typeof SupervisorMessageMeta> | null
+  }): {
     message: SupervisorMessageValue
     duplicate: boolean
   }
@@ -282,7 +286,7 @@ export function createSupervisorStore(deps: SupervisorStoreDeps): SupervisorStor
             role: 'assistant',
             content: input.content,
             toolCallsJson: null,
-            metaJson: null,
+            metaJson: input.meta ? JSON.stringify(input.meta) : null,
             triggerId: input.dedupeKey,
             status: 'ok',
             errorJson: null,

@@ -6,16 +6,18 @@ export function AnnotationListOverlay({
   onClose,
   onLocate,
   onDismiss,
+  onDelete,
 }: {
   annotations: AnnotationSummary[]
   onClose: () => void
   onLocate?: (annotation: AnnotationSummary) => void
   onDismiss?: (annotation: AnnotationSummary) => void
+  onDelete?: (annotation: AnnotationSummary) => void
 }) {
   return (
     <Overlay title="标注" onClose={onClose} width="min(720px, 92vw)">
       {annotations.length === 0 ? (
-        <p className="text-sm text-muted">当前交付还没有标注。</p>
+        <p className="text-sm text-muted">还没有标注。</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {annotations.map((annotation) => (
@@ -24,7 +26,7 @@ export function AnnotationListOverlay({
               className="rounded-lg border border-separator bg-surface p-3 text-sm"
             >
               <div className="flex items-center gap-2 text-xs text-muted">
-                <span>{annotation.stageKey}</span>
+                <span>{annotation.stageKey ?? '工作区'}</span>
                 <span>{annotation.status}</span>
                 <span className="font-mono">
                   {annotation.bbox.x},{annotation.bbox.y},{annotation.bbox.w},{annotation.bbox.h}
@@ -47,6 +49,15 @@ export function AnnotationListOverlay({
                     忽略
                   </button>
                 ) : null}
+                {onDelete ? (
+                  <button
+                    type="button"
+                    onClick={() => onDelete(annotation)}
+                    className="text-danger underline underline-offset-2"
+                  >
+                    删除
+                  </button>
+                ) : null}
               </div>
               <p className="mt-1 text-foreground">{annotation.note || '（无说明）'}</p>
               <p className="mt-1 truncate font-mono text-[11px] text-muted">
@@ -54,7 +65,9 @@ export function AnnotationListOverlay({
                   ? `节点 ${annotation.targetNodeIds.join(', ')}`
                   : annotation.targetArtifactId
                     ? `产物 ${annotation.targetArtifactId}`
-                    : '阶段'}
+                    : annotation.deliveryId
+                      ? '阶段'
+                      : '工作区'}
                 {annotation.imagePath ? ` · ${annotation.imagePath}` : ''}
               </p>
             </li>

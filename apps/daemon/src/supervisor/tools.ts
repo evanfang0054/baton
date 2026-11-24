@@ -256,7 +256,8 @@ const cancelDeliveryInput = z.object({
 })
 
 const listAnnotationsInput = z.object({
-  deliveryId: z.string().min(1),
+  // 不传 deliveryId 时返回当前工作区级标注；工作区画布上的标注不再挂到某个交付。
+  deliveryId: z.string().min(1).optional(),
   stageKey: z.string().min(1).max(32).optional(),
   status: z.enum(['open', 'resolved', 'dismissed']).optional(),
 })
@@ -1931,25 +1932,45 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
     },
 
     list_annotations: {
-      description: '列出交付/阶段的标注；用户说“按标注改”时先查这里，不要把笔迹当上下文猜。',
+      description:
+        '列出当前工作区级标注（不传 deliveryId）或某个交付/阶段的标注，并返回圈选目标节点与相对区域；用户说“按标注改”时先查这里。',
       parameters: listAnnotationsInput,
       async execute(input, ctx) {
         const parsed = listAnnotationsInput.parse(input)
-        requireDelivery(ctx, parsed.deliveryId)
         const service = deps.annotations?.()
         if (!service) throw appError('annotation_unavailable', 'annotation service is unavailable')
+        if (parsed.deliveryId) {
+          requireDelivery(ctx, parsed.deliveryId)
+          return {
+            annotations: service
+              .listAnnotations({
+                deliveryId: parsed.deliveryId,
+                ...(parsed.stageKey ? { stageKey: parsed.stageKey } : {}),
+                ...(parsed.status ? { status: parsed.status } : {}),
+              })
+              .map((annotation) => ({
+                ...annotation,
+                targets: service.describeAnnotationTargets(annotation),
+              })),
+          }
+        }
         return {
-          annotations: service.listAnnotations({
-            deliveryId: parsed.deliveryId,
-            ...(parsed.stageKey ? { stageKey: parsed.stageKey } : {}),
-            ...(parsed.status ? { status: parsed.status } : {}),
-          }),
+          annotations: service
+            .listWorkspaceScopeAnnotations({
+              workspaceId: ctx.workspaceId,
+              ...(parsed.status ? { status: parsed.status } : {}),
+            })
+            .map((annotation) => ({
+              ...annotation,
+              targets: service.describeAnnotationTargets(annotation),
+            })),
         }
       },
     },
 
     get_annotation: {
-      description: '读取一条标注的 note、目标、bbox 和合成图路径；不返回 strokes。',
+      description:
+        '读取一条标注的 note、目标节点/相对圈选区域、bbox 和合成图路径；不返回 strokes。',
       parameters: getAnnotationInput,
       async execute(input, ctx) {
         const parsed = getAnnotationInput.parse(input)
@@ -1957,8 +1978,17 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         if (!service) throw appError('annotation_unavailable', 'annotation service is unavailable')
         const annotation = service.getAnnotationForSupervisor(parsed.annotationId)
         if (!annotation) throw appError('annotation_not_found', 'annotation not found')
-        requireDelivery(ctx, annotation.deliveryId)
-        return { annotation }
+        if (annotation.deliveryId) {
+          requireDelivery(ctx, annotation.deliveryId)
+        } else if (annotation.workspaceId !== ctx.workspaceId) {
+          throw appError('annotation_not_found', 'annotation not found')
+        }
+        return {
+          annotation: {
+            ...annotation,
+            targets: service.describeAnnotationTargets(annotation),
+          },
+        }
       },
     },
   }

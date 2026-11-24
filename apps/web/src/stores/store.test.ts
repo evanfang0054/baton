@@ -46,8 +46,8 @@ describe('mobile tab', () => {
   beforeEach(() => useAppStore.setState({ mobileTab: 'board' }))
 
   it('switches tabs', () => {
-    useAppStore.getState().setMobileTab('digest')
-    expect(useAppStore.getState().mobileTab).toBe('digest')
+    useAppStore.getState().setMobileTab('supervisor')
+    expect(useAppStore.getState().mobileTab).toBe('supervisor')
   })
 
   it('resets to board when workspace changes', () => {

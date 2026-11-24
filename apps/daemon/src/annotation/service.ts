@@ -1,19 +1,22 @@
-import { validateAnnotationTargets } from '@baton/core'
-import type { Annotation, AnnotationSummary, AnnotationStatus } from '@baton/protocol'
+import { annotationRegion, validateAnnotationTargets, type AnnotationRegion } from '@baton/core'
+import { annotationCoordinateSpace } from '@baton/protocol'
+import type { Annotation, AnnotationSummary, AnnotationStatus, Node } from '@baton/protocol'
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { dirname, relative } from 'node:path'
 import type { Config } from '../config.js'
 import {
+  deleteAnnotation as deleteAnnotationRow,
   getAnnotation,
   getArtifact,
   getCanvasByDelivery,
   getDelivery,
   listAnnotations as listAnnotationRows,
+  listWorkspaceAnnotations,
   resolveAnnotationsForTask as resolveRepository,
   insertAnnotation,
   updateAnnotation as updateAnnotationRow,
 } from '../db/delivery-repositories.js'
-import { getWorkspace, insertAudit, listNodes } from '../db/repositories.js'
+import { getCanvasByWorkspace, getWorkspace, insertAudit, listNodes } from '../db/repositories.js'
 import type { Db } from '../db/types.js'
 import type { WsEventDraft } from '../db/event-store.js'
 import { appError } from '../errors.js'
@@ -30,14 +33,6 @@ export interface AnnotationServiceDeps {
 const MAX_STROKES = 2_000_000
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
-function workspacePathOf(db: Db, config: Config, deliveryId: string): string | null {
-  const delivery = getDelivery(db, deliveryId)
-  if (!delivery) return null
-  const workspace = getWorkspace(db, delivery.workspaceId)
-  if (!workspace) return null
-  return resolveWorkspaceDir(config.workspacesRoot, workspace.relPath)
-}
-
 function safeWrite(workspacePath: string, relPath: string, data: Buffer): void {
   const target = resolveWithin(workspacePath, relPath)
   mkdirSync(dirname(target), { recursive: true })
@@ -52,6 +47,7 @@ function safeWrite(workspacePath: string, relPath: string, data: Buffer): void {
 function summary(annotation: Annotation): AnnotationSummary {
   return {
     id: annotation.id,
+    workspaceId: annotation.workspaceId,
     deliveryId: annotation.deliveryId,
     stageKey: annotation.stageKey,
     targetNodeIds: annotation.targetNodeIds,
@@ -62,13 +58,30 @@ function summary(annotation: Annotation): AnnotationSummary {
     status: annotation.status,
     taskId: annotation.taskId,
     createdAt: annotation.createdAt,
+    coordinateSpace: annotationCoordinateSpace(annotation.strokesJson),
   }
 }
 
+export interface AnnotationTargetInfo {
+  id: string
+  type: Node['type']
+  title: string
+  region: AnnotationRegion | null
+}
+
+function nodeTitle(node: Node): string {
+  const data = node.data as Record<string, unknown>
+  const value = data.title ?? data.label ?? data.content ?? data.name ?? data.alt
+  return typeof value === 'string' && value.trim()
+    ? value.trim().slice(0, 120)
+    : `${node.type} ${node.id.slice(0, 8)}`
+}
+
 export function createAnnotationService(deps: AnnotationServiceDeps) {
-  function createAnnotation(input: {
-    deliveryId: string
-    stageKey: string
+  function createForScope(input: {
+    workspaceId: string
+    deliveryId: string | null
+    stageKey: string | null
     targetNodeIds?: string[]
     targetArtifactId?: string | null
     note?: string
@@ -76,15 +89,21 @@ export function createAnnotationService(deps: AnnotationServiceDeps) {
     bbox: { x: number; y: number; w: number; h: number }
     imageBase64: string
   }): Annotation {
-    const delivery = getDelivery(deps.db, input.deliveryId)
-    if (!delivery) throw appError('delivery_not_found', 'delivery not found')
-    const workspacePath = workspacePathOf(deps.db, deps.config, input.deliveryId)
-    if (!workspacePath) throw appError('workspace_not_found', 'workspace not found')
-    const canvas = getCanvasByDelivery(deps.db, input.deliveryId)
-    if (!canvas) throw appError('canvas_not_found', 'delivery canvas not found')
+    const workspace = getWorkspace(deps.db, input.workspaceId)
+    if (!workspace) throw appError('workspace_not_found', 'workspace not found')
+    const workspacePath = resolveWorkspaceDir(deps.config.workspacesRoot, workspace.relPath)
+    const canvas = input.deliveryId
+      ? getCanvasByDelivery(deps.db, input.deliveryId)
+      : getCanvasByWorkspace(deps.db, input.workspaceId)
+    if (!canvas) {
+      throw appError(
+        'canvas_not_found',
+        input.deliveryId ? 'delivery canvas not found' : 'workspace canvas not found',
+      )
+    }
     const nodeIds = new Set(listNodes(deps.db, canvas.id).map((node) => node.id))
     const artifactIds = new Set(
-      input.targetArtifactId
+      input.deliveryId && input.targetArtifactId
         ? [getArtifact(deps.db, input.targetArtifactId)].filter(Boolean).map((item) => item!.id)
         : [],
     )
@@ -105,15 +124,17 @@ export function createAnnotationService(deps: AnnotationServiceDeps) {
     }
     const id = deps.newId()
     const now = deps.now()
-    const imagePath = `.baton/deliveries/${input.deliveryId}/${input.stageKey}/annotations/${id}.png`
+    const imagePath = input.deliveryId
+      ? `.baton/deliveries/${input.deliveryId}/${input.stageKey}/annotations/${id}.png`
+      : `.baton/annotations/${input.workspaceId}/${id}.png`
     safeWrite(workspacePath, imagePath, image)
     const annotation: Annotation = {
       id,
-      workspaceId: delivery.workspaceId,
+      workspaceId: input.workspaceId,
       deliveryId: input.deliveryId,
       stageKey: input.stageKey,
       targetNodeIds,
-      targetArtifactId: input.targetArtifactId ?? null,
+      targetArtifactId: input.deliveryId ? (input.targetArtifactId ?? null) : null,
       note: (input.note ?? '').slice(0, 2000),
       strokesJson: input.strokesJson,
       bbox: input.bbox,
@@ -131,7 +152,12 @@ export function createAnnotationService(deps: AnnotationServiceDeps) {
         ts: now,
         actor: 'human',
         action: 'annotation.create',
-        detail: { annotationId: id, deliveryId: input.deliveryId, stageKey: input.stageKey },
+        detail: {
+          annotationId: id,
+          workspaceId: input.workspaceId,
+          deliveryId: input.deliveryId,
+          stageKey: input.stageKey,
+        },
       })
     })
     deps.emit?.({
@@ -145,6 +171,42 @@ export function createAnnotationService(deps: AnnotationServiceDeps) {
       ts: now,
     })
     return annotation
+  }
+
+  function createAnnotation(input: {
+    deliveryId: string
+    stageKey: string
+    targetNodeIds?: string[]
+    targetArtifactId?: string | null
+    note?: string
+    strokesJson: string
+    bbox: { x: number; y: number; w: number; h: number }
+    imageBase64: string
+  }): Annotation {
+    const delivery = getDelivery(deps.db, input.deliveryId)
+    if (!delivery) throw appError('delivery_not_found', 'delivery not found')
+    return createForScope({
+      ...input,
+      workspaceId: delivery.workspaceId,
+      deliveryId: input.deliveryId,
+      stageKey: input.stageKey,
+    })
+  }
+
+  function createWorkspaceAnnotation(input: {
+    workspaceId: string
+    targetNodeIds?: string[]
+    note?: string
+    strokesJson: string
+    bbox: { x: number; y: number; w: number; h: number }
+    imageBase64: string
+  }): Annotation {
+    return createForScope({
+      ...input,
+      deliveryId: null,
+      stageKey: null,
+      targetArtifactId: null,
+    })
   }
 
   function updateAnnotation(input: {
@@ -196,9 +258,71 @@ export function createAnnotationService(deps: AnnotationServiceDeps) {
     return listAnnotationRows(deps.db, filter).map(summary)
   }
 
+  function listWorkspaceScopeAnnotations(filter: {
+    workspaceId: string
+    status?: AnnotationStatus
+  }): AnnotationSummary[] {
+    return listWorkspaceAnnotations(deps.db, filter).map(summary)
+  }
+
+  function removeAnnotation(annotationId: string): void {
+    const annotation = getAnnotation(deps.db, annotationId)
+    if (!annotation) throw appError('annotation_not_found', 'annotation not found')
+    const now = deps.now()
+    deps.db.transaction((tx) => {
+      deleteAnnotationRow(tx, annotation.id)
+      insertAudit(tx, {
+        id: deps.newId(),
+        ts: now,
+        actor: 'human',
+        action: 'annotation.delete',
+        detail: {
+          annotationId: annotation.id,
+          deliveryId: annotation.deliveryId,
+          stageKey: annotation.stageKey,
+        },
+      })
+    })
+    // 复用 updated 事件让前端失效列表；记录已不存在。
+    deps.emit?.({
+      type: 'annotation.updated',
+      payload: {
+        annotationId: annotation.id,
+        deliveryId: annotation.deliveryId,
+        stageKey: annotation.stageKey,
+        status: annotation.status,
+      },
+      ts: now,
+    })
+  }
+
   function getAnnotationForSupervisor(id: string): AnnotationSummary | null {
     const annotation = getAnnotation(deps.db, id)
     return annotation ? summary(annotation) : null
+  }
+
+  function getAnnotationDetail(id: string): Annotation | null {
+    return getAnnotation(deps.db, id)
+  }
+
+  // 总管/任务需要知道“圈的是哪个节点、节点里的哪一块”，而不只是抽象坐标。
+  function describeAnnotationTargets(annotation: AnnotationSummary): AnnotationTargetInfo[] {
+    if (annotation.targetNodeIds.length === 0) return []
+    const canvas = annotation.deliveryId
+      ? getCanvasByDelivery(deps.db, annotation.deliveryId)
+      : getCanvasByWorkspace(deps.db, annotation.workspaceId)
+    if (!canvas) return []
+    const nodes = listNodes(deps.db, canvas.id)
+    return annotation.targetNodeIds
+      .map((id) => nodes.find((node) => node.id === id))
+      .filter((node): node is Node => node !== undefined)
+      .map((node) => ({
+        id: node.id,
+        type: node.type,
+        title: nodeTitle(node),
+        region:
+          annotation.coordinateSpace === 'flow' ? annotationRegion(annotation.bbox, node) : null,
+      }))
   }
 
   function resolveAnnotationsForTask(taskId: string): string[] {
@@ -226,9 +350,14 @@ export function createAnnotationService(deps: AnnotationServiceDeps) {
 
   return {
     createAnnotation,
+    createWorkspaceAnnotation,
     updateAnnotation,
     listAnnotations,
+    listWorkspaceScopeAnnotations,
+    removeAnnotation,
     getAnnotationForSupervisor,
+    getAnnotationDetail,
+    describeAnnotationTargets,
     resolveAnnotationsForTask,
   }
 }

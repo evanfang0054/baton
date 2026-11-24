@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { RiskLevel } from './enums.js'
 
-const DEFAULT_ALLOW = [
+export const DEFAULT_APPROVAL_ALLOW = [
   'Read',
   'Grep',
   'Glob',
@@ -15,7 +15,7 @@ const DEFAULT_ALLOW = [
 
 // .baton 下只有控制面（策略/skill/playbook）必须禁止 agent 改写；
 // deliveries/uploads 是数据面，不能一起封死，否则真实交付无法产出。
-const DEFAULT_DENY = [
+export const DEFAULT_APPROVAL_DENY = [
   'Bash:sudo *',
   'Bash:rm -rf *',
   'Bash:curl * | sh',
@@ -56,8 +56,8 @@ const VerifyPolicy = z.object({
 
 const ApprovalPolicy = z.object({
   default: z.literal('ask').default('ask'),
-  allow: z.array(z.string().min(1)).default(DEFAULT_ALLOW),
-  deny: z.array(z.string().min(1)).default(DEFAULT_DENY),
+  allow: z.array(z.string().min(1)).default(DEFAULT_APPROVAL_ALLOW),
+  deny: z.array(z.string().min(1)).default(DEFAULT_APPROVAL_DENY),
   autoApproveMaxRisk: RiskLevel.default('low'),
 })
 

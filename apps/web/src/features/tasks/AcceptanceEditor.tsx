@@ -1,5 +1,6 @@
 import type { AcceptanceContract, AcceptanceItem, AcceptanceItemStatus } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
+import { toast } from '@heroui/react/toast'
 import { useEffect, useState } from 'react'
 import { useCommand } from '../../lib/command-context'
 import { CommandError } from '../../lib/ws'
@@ -48,11 +49,13 @@ export function AcceptanceEditor({
   const [draft, setDraft] = useState<DraftItem[]>(() => toDraft(items))
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
   const readOnly = disabled || contract.status !== 'draft'
 
   useEffect(() => {
     setDraft(toDraft(items))
     setError(null)
+    setSaved(false)
   }, [contract.id, contract.revision, items])
 
   const totalChars = draft.reduce((sum, item) => sum + item.text.length + item.evidence.length, 0)
@@ -63,6 +66,7 @@ export function AcceptanceEditor({
     draft.some((item) => item.evidence.length > MAX_TEXT)
 
   const update = (index: number, patch: Partial<DraftItem>) => {
+    setSaved(false)
     setDraft((previous) =>
       previous.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)),
     )
@@ -70,10 +74,12 @@ export function AcceptanceEditor({
 
   const add = () => {
     if (draft.length >= MAX_ITEMS) return
+    setSaved(false)
     setDraft((previous) => [...previous, { text: '', status: 'pending', evidence: '' }])
   }
 
   const remove = (index: number) => {
+    setSaved(false)
     setDraft((previous) => previous.filter((_, itemIndex) => itemIndex !== index))
   }
 
@@ -101,6 +107,8 @@ export function AcceptanceEditor({
         },
       })
       await onSaved()
+      setSaved(true)
+      toast.success('验收清单已保存')
     } catch (cause) {
       if (cause instanceof CommandError && cause.code === 'revision_conflict') {
         setError('清单已被更新，请重载')
@@ -118,9 +126,13 @@ export function AcceptanceEditor({
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-medium">验收清单</h3>
         <span className="text-xs text-muted">
+          {saved ? <span className="mr-2 text-success">已保存</span> : null}
           {draft.length}/{MAX_ITEMS} 条 · {totalChars}/{MAX_TOTAL} 字
         </span>
       </div>
+      {readOnly ? (
+        <p className="mt-1 text-xs text-muted">验收清单当前为只读，不能再修改。</p>
+      ) : null}
       <ul className="mt-2 flex flex-col gap-2">
         {draft.map((item, index) => (
           <li key={item.id ?? `new-${index}`} className="rounded border border-separator p-2">
@@ -147,6 +159,7 @@ export function AcceptanceEditor({
                 value={item.text}
                 maxLength={MAX_TEXT}
                 disabled={readOnly}
+                autoFocus={!item.id}
                 placeholder="可验证的验收条件"
                 onChange={(event) => update(index, { text: event.target.value })}
               />
@@ -202,6 +215,7 @@ export function AcceptanceEditor({
           onPress={() => {
             setDraft(toDraft(items))
             setError(null)
+            setSaved(false)
           }}
         >
           重置
@@ -212,7 +226,7 @@ export function AcceptanceEditor({
           isDisabled={readOnly || overLimit || pending}
           onPress={() => void save()}
         >
-          保存验收清单
+          {pending ? '保存中…' : '保存验收清单'}
         </Button>
       </div>
     </section>

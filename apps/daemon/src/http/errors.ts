@@ -28,6 +28,7 @@ const STATUS_BY_CODE: Record<string, number> = {
   image_not_found: 404,
   image_type_unsupported: 415,
   image_too_large: 413,
+  payload_too_large: 413,
   image_src_invalid: 400,
   worktree_not_found: 404,
   worktree_remove_failed: 500,
@@ -55,10 +56,19 @@ export function registerErrorHandler(app: FastifyInstance): void {
     // Fastify 自带错误（如非法 JSON）带 statusCode，不能被降级成 500。
     const statusCode = (error as { statusCode?: unknown }).statusCode
     if (typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500) {
+      const code =
+        statusCode === 400
+          ? 'invalid_payload'
+          : statusCode === 413
+            ? 'payload_too_large'
+            : 'invalid_request'
       reply
         .code(statusCode)
         .send(
-          appError(statusCode === 400 ? 'invalid_payload' : 'invalid_request', 'invalid request'),
+          appError(
+            code,
+            code === 'payload_too_large' ? 'request body too large' : 'invalid request',
+          ),
         )
       return
     }

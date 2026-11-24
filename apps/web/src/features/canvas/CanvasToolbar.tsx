@@ -6,6 +6,7 @@ import {
   Image as ImageIcon,
   LayoutGrid,
   Maximize,
+  PenLine,
   Send,
   Type,
   ZoomIn,
@@ -57,6 +58,7 @@ export function CanvasToolbar({
   onZoomOut,
   onInject,
   injectDisabled = false,
+  onAnnotate,
   readOnly = false,
 }: {
   onAdd: (type: CanvasAddType) => void
@@ -67,6 +69,7 @@ export function CanvasToolbar({
   onZoomOut: () => void
   onInject: () => void
   injectDisabled?: boolean
+  onAnnotate?: () => void
   readOnly?: boolean
 }) {
   return (
@@ -105,6 +108,11 @@ export function CanvasToolbar({
           >
             <Send size={16} />
           </ToolButton>
+          {onAnnotate ? (
+            <ToolButton label="快速标注" hint="在当前画布上画标注" onPress={onAnnotate}>
+              <PenLine size={16} />
+            </ToolButton>
+          ) : null}
           <span className="mx-1 h-5 w-px bg-separator" />
         </>
       )}

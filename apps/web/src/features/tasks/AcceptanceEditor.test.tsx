@@ -45,6 +45,7 @@ describe('AcceptanceEditor', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: '添加条目' }))
+    await waitFor(() => expect(screen.getByLabelText('验收条目 2')).toHaveFocus())
     fireEvent.change(screen.getByLabelText('验收条目 2'), { target: { value: '错误提示正确' } })
     fireEvent.click(screen.getByRole('button', { name: '豁免第 1 条' }))
     fireEvent.click(screen.getByRole('button', { name: '保存验收清单' }))
@@ -64,6 +65,7 @@ describe('AcceptanceEditor', () => {
       }),
     )
     expect(onSaved).toHaveBeenCalled()
+    expect(await screen.findByText('已保存')).toBeInTheDocument()
   })
 
   it('is read-only after the contract is frozen', () => {
@@ -79,5 +81,6 @@ describe('AcceptanceEditor', () => {
     )
     expect(screen.getByRole('button', { name: '保存验收清单' })).toBeDisabled()
     expect(screen.getByLabelText('验收条目 1')).toBeDisabled()
+    expect(screen.getByText('验收清单当前为只读，不能再修改。')).toBeInTheDocument()
   })
 })

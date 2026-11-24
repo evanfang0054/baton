@@ -51,6 +51,24 @@ describe('loadPolicy', () => {
     expect(policy.autopilot.enabled).toBe(true)
   })
 
+  it('loads a legacy policy with the .baton blanket deny and narrows it', () => {
+    const root = tempDir()
+    mkdirSync(join(root, '.baton'))
+    writeFileSync(
+      join(root, '.baton', 'policy.json'),
+      JSON.stringify({
+        approval: {
+          allow: ['Read'],
+          deny: ['Edit:.baton/**', 'Write:.baton/**', 'Bash:sudo *'],
+        },
+      }),
+    )
+    const policy = loadPolicy(root)
+    expect(policy.approval.deny).not.toContain('Write:.baton/**')
+    expect(policy.approval.deny).toContain('Bash:sudo *')
+    expect(policy.approval.allow).toContain('Write:.baton/deliveries/**')
+  })
+
   it('rejects invalid JSON and invalid schema without leaking content', () => {
     const root = tempDir()
     mkdirSync(join(root, '.baton'))

@@ -7,7 +7,7 @@ export type SelectionNode = Pick<Node, 'id' | 'type'>
 
 export type RightPanelMode = 'supervisor'
 
-export type MobileTab = 'board' | 'supervisor' | 'digest'
+export type MobileTab = 'board' | 'supervisor'
 
 export type DeliveryView = 'canvas' | 'board'
 

@@ -11,6 +11,7 @@ import {
   AnnotationBBox,
   AnnotationStatus,
   AnnotationSummary,
+  Annotation,
   Approval,
   Artifact,
   ArtifactKind,
@@ -344,8 +345,7 @@ export type AnnotationListQuery = z.infer<typeof AnnotationListQuery>
 export const AnnotationListResponse = z.object({ annotations: z.array(AnnotationSummary) })
 export type AnnotationListResponse = z.infer<typeof AnnotationListResponse>
 
-export const AnnotationCreateInput = z.object({
-  stageKey: z.string().min(1).max(32),
+const AnnotationCreateBase = z.object({
   targetNodeIds: z.array(Id).max(20).default([]),
   targetArtifactId: Id.nullable().optional(),
   note: z.string().max(2000).default(''),
@@ -353,7 +353,17 @@ export const AnnotationCreateInput = z.object({
   bbox: AnnotationBBox,
   imageBase64: z.string().min(1).max(14_000_000),
 })
+
+export const AnnotationCreateInput = AnnotationCreateBase.extend({
+  stageKey: z.string().min(1).max(32),
+})
 export type AnnotationCreateInput = z.infer<typeof AnnotationCreateInput>
+
+/** 工作区级标注没有交付与阶段，targetArtifactId 也不适用。 */
+export const WorkspaceAnnotationCreateInput = AnnotationCreateBase.omit({
+  targetArtifactId: true,
+})
+export type WorkspaceAnnotationCreateInput = z.infer<typeof WorkspaceAnnotationCreateInput>
 
 export const AnnotationUpdateInput = z.object({
   note: z.string().max(2000).optional(),
@@ -363,3 +373,7 @@ export type AnnotationUpdateInput = z.infer<typeof AnnotationUpdateInput>
 
 export const AnnotationResponse = z.object({ annotation: AnnotationSummary })
 export type AnnotationResponse = z.infer<typeof AnnotationResponse>
+
+/** 画布重绘需要完整笔画；总管工具仍只拿 summary，不返回 strokes。 */
+export const AnnotationDetailResponse = z.object({ annotation: Annotation })
+export type AnnotationDetailResponse = z.infer<typeof AnnotationDetailResponse>

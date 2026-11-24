@@ -1,5 +1,5 @@
 import { attentionFor, buildAttentionItems, buildDigest, waitingSinceFor } from '@baton/core'
-import { Notice } from '@baton/protocol'
+import { Notice, type DigestReport } from '@baton/protocol'
 import type { BroadcastEvent, EventStore } from '../db/event-store.js'
 import { listAcceptanceSummaries } from '../db/acceptance-repository.js'
 import {
@@ -24,6 +24,13 @@ import { hashPolicy } from './version.js'
 
 export type DigestTrigger = 'manual' | 'schedule' | 'attention'
 
+export interface DigestDeliveryInput {
+  workspaceId: string
+  notice: Notice
+  report: DigestReport
+  trigger: DigestTrigger
+}
+
 export interface DigestServiceDeps {
   db: Db
   config: Config
@@ -33,6 +40,8 @@ export interface DigestServiceDeps {
   newId: () => string
   actions?: ReturnType<typeof createSupervisorActionService>
   failures?: FailureService
+  /** 汇报同时投递到总管会话；失败不影响 notice 生成。 */
+  deliver?: (input: DigestDeliveryInput) => void
 }
 
 export interface DigestService {
@@ -121,7 +130,7 @@ export function createDigestService(deps: DigestServiceDeps): DigestService {
       })),
     })
 
-    const report = {
+    const report: DigestReport = {
       ...buildDigest({
         workspaceId,
         now,
@@ -164,6 +173,11 @@ export function createDigestService(deps: DigestServiceDeps): DigestService {
       return deps.eventStore.appendWs(tx, { type: 'notice', payload: notice, ts: now })
     })
     deps.broadcast(event)
+    try {
+      deps.deliver?.({ workspaceId, notice, report, trigger })
+    } catch {
+      // 会话投递失败不阻塞汇报本身；下一轮汇报会重新进入聊天流。
+    }
     return notice
   }
 

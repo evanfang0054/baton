@@ -466,10 +466,8 @@ export const annotation = sqliteTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id),
-    deliveryId: text('delivery_id')
-      .notNull()
-      .references(() => delivery.id),
-    stageKey: text('stage_key').notNull(),
+    deliveryId: text('delivery_id').references(() => delivery.id),
+    stageKey: text('stage_key'),
     targetNodeIdsJson: text('target_node_ids_json').notNull().default('[]'),
     targetArtifactId: text('target_artifact_id').references(() => artifact.id),
     note: text('note').notNull().default(''),
@@ -484,6 +482,7 @@ export const annotation = sqliteTable(
   },
   (t) => [
     index('annotation_delivery_idx').on(t.deliveryId, t.stageKey, t.status, t.createdAt),
+    index('annotation_workspace_idx').on(t.workspaceId, t.deliveryId, t.status, t.createdAt),
     index('annotation_task_idx').on(t.taskId),
   ],
 )

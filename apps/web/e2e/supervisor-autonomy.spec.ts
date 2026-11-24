@@ -189,6 +189,26 @@ function digestNotice(attention: unknown[]) {
   }
 }
 
+function digestMessage(attention: unknown[]) {
+  return {
+    id: 'm-digest',
+    threadId: 'th1',
+    role: 'assistant',
+    content:
+      '本轮汇报 · 11/24 10:00\n共 1 个任务：待处理 1，待验收 0，进行中 0\n需要你决定 1 件（见下方动作）。',
+    toolCalls: [],
+    decision: null,
+    meta: {
+      contextNodeIds: [],
+      targetNodeId: null,
+      digest: { noticeId: 'n1', trigger: 'schedule', generatedAt: 2, items: attention },
+    },
+    status: 'ok',
+    error: null,
+    createdAt: 2,
+  }
+}
+
 const failedTask = {
   id: 't1',
   workspaceId: 'w1',
@@ -241,12 +261,14 @@ async function mockShell(
   options: {
     tasks?: () => unknown[]
     notices?: () => unknown[]
+    messages?: () => unknown[]
     taskDetail?: () => unknown
     automation?: unknown
   } = {},
 ) {
   const tasks = options.tasks ?? (() => [])
   const notices = options.notices ?? (() => [])
+  const messages = options.messages ?? (() => [])
   const taskDetail = options.taskDetail ?? (() => failedDetail)
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url())
@@ -267,7 +289,7 @@ async function mockShell(
       return route.fulfill({ json: { configured: true, mode: 'explicit', policyVersion: 'p1' } })
     }
     if (path === '/api/supervisor/messages') {
-      return route.fulfill({ json: { threadId: 'th1', messages: [] } })
+      return route.fulfill({ json: { threadId: 'th1', messages: messages() } })
     }
     if (path === '/api/notices') return route.fulfill({ json: { notices: notices() } })
     if (/^\/api\/notices\/[^/]+\/read$/.test(path)) {
@@ -312,7 +334,11 @@ test('observe proposal applies only through the human digest action', async ({ p
     },
   ]
   let tasks: unknown[] = [failedTask]
-  await mockShell(page, { tasks: () => tasks, notices: () => [digestNotice(attention)] })
+  await mockShell(page, {
+    tasks: () => tasks,
+    notices: () => [digestNotice(attention)],
+    messages: () => [digestMessage(attention)],
+  })
   await page.routeWebSocket('**/ws', (ws) => {
     ws.onMessage((raw) => {
       const message = JSON.parse(String(raw)) as { id?: string; type?: string }
@@ -340,7 +366,7 @@ test('observe proposal applies only through the human digest action', async ({ p
   await expect(page.getByLabel('需要你决定')).toBeVisible()
   await page.getByRole('button', { name: '应用建议' }).click()
   await expect.poll(() => commands).toContain('supervisor.action.decide')
-  await expect(page.getByLabel('需要你决定')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '应用建议' })).toHaveCount(0)
   await page.getByRole('button', { name: '任务', exact: true }).click()
   await expect(page.getByTestId('task-board-overlay').getByText('重试中的登录修复')).toBeVisible()
 })
@@ -409,21 +435,21 @@ test('task detail shows the failure summary without transcript text', async ({ p
 
 test('kill switch keeps proposals visible and sends no automatic retry', async ({ page }) => {
   const commands: string[] = []
+  const attention = [
+    {
+      taskId: 't1',
+      title: '失败的登录修复',
+      kind: 'failed',
+      reason: '运行失败，建议重试',
+      waitingSince: 2,
+      proposalId: 'act-1',
+      action: { type: 'apply_proposal', proposalId: 'act-1' },
+    },
+  ]
   await mockShell(page, {
     tasks: () => [failedTask],
-    notices: () => [
-      digestNotice([
-        {
-          taskId: 't1',
-          title: '失败的登录修复',
-          kind: 'failed',
-          reason: '运行失败，建议重试',
-          waitingSince: 2,
-          proposalId: 'act-1',
-          action: { type: 'apply_proposal', proposalId: 'act-1' },
-        },
-      ]),
-    ],
+    notices: () => [digestNotice(attention)],
+    messages: () => [digestMessage(attention)],
     automation: {
       workspaceId: 'w1',
       trusted: true,

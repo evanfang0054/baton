@@ -1,5 +1,6 @@
 import {
   AnnotationCreateInput,
+  AnnotationDetailResponse,
   AnnotationListQuery,
   AnnotationListResponse,
   AnnotationResponse,
@@ -14,6 +15,7 @@ import {
   DeliveryDetailResponse,
   DeliveryListQuery,
   DeliveryListResponse,
+  WorkspaceAnnotationCreateInput,
 } from '@baton/protocol'
 import type { ClientMessage } from '@baton/protocol'
 import type { FastifyInstance } from 'fastify'
@@ -130,15 +132,20 @@ export function registerDeliveryRoutes(app: FastifyInstance, deps: DeliveryRoute
     })
   })
 
-  app.put('/api/deliveries/:deliveryId/artifacts/:artifactId', async (req) => {
-    const { artifactId } = req.params as { artifactId: string }
-    const input = ArtifactSaveInput.safeParse(req.body)
-    if (!input.success)
-      throw appError('invalid_payload', 'invalid artifact payload', input.error.issues)
-    return ArtifactResponse.parse({
-      artifact: deps.artifacts.saveArtifactContent({ artifactId, ...input.data }),
-    })
-  })
+  // 画板同时提交 .excalidraw + PNG + SVG，默认 1MB body 限制会直接 413。
+  app.put(
+    '/api/deliveries/:deliveryId/artifacts/:artifactId',
+    { bodyLimit: 48 * 1024 * 1024 },
+    async (req) => {
+      const { artifactId } = req.params as { artifactId: string }
+      const input = ArtifactSaveInput.safeParse(req.body)
+      if (!input.success)
+        throw appError('invalid_payload', 'invalid artifact payload', input.error.issues)
+      return ArtifactResponse.parse({
+        artifact: deps.artifacts.saveArtifactContent({ artifactId, ...input.data }),
+      })
+    },
+  )
 
   app.get('/api/deliveries/:deliveryId/annotations', async (req) => {
     const { deliveryId } = req.params as { deliveryId: string }
@@ -150,15 +157,20 @@ export function registerDeliveryRoutes(app: FastifyInstance, deps: DeliveryRoute
     })
   })
 
-  app.post('/api/deliveries/:deliveryId/annotations', async (req) => {
-    const { deliveryId } = req.params as { deliveryId: string }
-    const input = AnnotationCreateInput.safeParse(req.body)
-    if (!input.success)
-      throw appError('invalid_payload', 'invalid annotation input', input.error.issues)
-    return AnnotationResponse.parse({
-      annotation: deps.annotations.createAnnotation({ deliveryId, ...input.data }),
-    })
-  })
+  // 标注会带整块画布截图，默认 1MB body limit 会先于 schema 的 14MB 拒绝。
+  app.post(
+    '/api/deliveries/:deliveryId/annotations',
+    { bodyLimit: 16 * 1024 * 1024 },
+    async (req) => {
+      const { deliveryId } = req.params as { deliveryId: string }
+      const input = AnnotationCreateInput.safeParse(req.body)
+      if (!input.success)
+        throw appError('invalid_payload', 'invalid annotation input', input.error.issues)
+      return AnnotationResponse.parse({
+        annotation: deps.annotations.createAnnotation({ deliveryId, ...input.data }),
+      })
+    },
+  )
 
   app.patch('/api/deliveries/:deliveryId/annotations/:annotationId', async (req) => {
     const { annotationId } = req.params as { annotationId: string }
@@ -169,6 +181,46 @@ export function registerDeliveryRoutes(app: FastifyInstance, deps: DeliveryRoute
       annotation: deps.annotations.updateAnnotation({ annotationId, ...input.data }),
     })
   })
+
+  app.get('/api/annotations/:annotationId', async (req) => {
+    const { annotationId } = req.params as { annotationId: string }
+    const annotation = deps.annotations.getAnnotationDetail(annotationId)
+    if (!annotation) throw appError('annotation_not_found', 'annotation not found')
+    return AnnotationDetailResponse.parse({ annotation })
+  })
+
+  app.delete('/api/annotations/:annotationId', async (req) => {
+    const { annotationId } = req.params as { annotationId: string }
+    deps.annotations.removeAnnotation(annotationId)
+    return { ok: true }
+  })
+
+  app.get('/api/workspaces/:workspaceId/annotations', async (req) => {
+    const { workspaceId } = req.params as { workspaceId: string }
+    const query = AnnotationListQuery.safeParse(req.query)
+    if (!query.success)
+      throw appError('invalid_payload', 'invalid annotation query', query.error.issues)
+    return AnnotationListResponse.parse({
+      annotations: deps.annotations.listWorkspaceScopeAnnotations({
+        workspaceId,
+        ...(query.data.status ? { status: query.data.status } : {}),
+      }),
+    })
+  })
+
+  app.post(
+    '/api/workspaces/:workspaceId/annotations',
+    { bodyLimit: 16 * 1024 * 1024 },
+    async (req) => {
+      const { workspaceId } = req.params as { workspaceId: string }
+      const input = WorkspaceAnnotationCreateInput.safeParse(req.body)
+      if (!input.success)
+        throw appError('invalid_payload', 'invalid annotation input', input.error.issues)
+      return AnnotationResponse.parse({
+        annotation: deps.annotations.createWorkspaceAnnotation({ workspaceId, ...input.data }),
+      })
+    },
+  )
 }
 
 function command(

@@ -116,7 +116,7 @@ export function SupervisorComposer({
       content: value,
       toolCalls: [],
       decision: null,
-      meta: { contextNodeIds, targetNodeId: targetNodeId ?? null },
+      meta: { contextNodeIds, targetNodeId: targetNodeId ?? null, digest: null },
       status: 'ok',
       error: null,
       createdAt: Date.now(),

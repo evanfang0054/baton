@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildAnnotationBlock } from '../src/annotation/block.js'
+import { annotationRegion, buildAnnotationBlock } from '../src/annotation/block.js'
 import { buildStagePrompt } from '../src/delivery/prompt.js'
 
 const annotation = {
@@ -22,6 +22,32 @@ describe('buildAnnotationBlock', () => {
     expect(block).toContain('按钮右对齐 &amp; 保留间距')
     expect(block).toContain('<image src=".baton/deliveries/d1/design/annotations/an1.png"/>')
     expect(block).not.toContain('strokes')
+  })
+
+  it('includes the target region when available', () => {
+    const block = buildAnnotationBlock([
+      {
+        ...annotation,
+        targetTitle: 'WjCVynRceo8.jpg',
+        targetRegion: { x: 10, y: 20, w: 30, h: 40 },
+      },
+    ])
+    expect(block).toContain('target="WjCVynRceo8.jpg"')
+    expect(block).toContain('region="10,20,30,40"')
+  })
+})
+
+describe('annotationRegion', () => {
+  it('returns percentages relative to the target node', () => {
+    expect(
+      annotationRegion({ x: 120, y: 240, w: 40, h: 20 }, { x: 100, y: 200, w: 200, h: 100 }),
+    ).toEqual({ x: 10, y: 40, w: 20, h: 20 })
+  })
+
+  it('returns null when the bbox misses the node', () => {
+    expect(
+      annotationRegion({ x: 0, y: 0, w: 10, h: 10 }, { x: 100, y: 100, w: 50, h: 50 }),
+    ).toBeNull()
   })
 })
 

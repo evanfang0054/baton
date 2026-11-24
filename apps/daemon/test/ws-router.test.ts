@@ -233,6 +233,65 @@ describe('ws router', () => {
     })
   })
 
+  it('moves artifact and drawing nodes but rejects derived data edits', async () => {
+    const { handle, ws } = await setup()
+    handle.database.raw
+      .prepare(
+        `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
+         values ('drawing-1', ?, 'drawing', 0, 0, 320, 200, null, ?, 1, 1)`,
+      )
+      .run(
+        handle.seeded.canvasId,
+        JSON.stringify({
+          artifactId: 'a1',
+          title: 'drawing.png',
+          status: 'ready',
+        }),
+      )
+    handle.database.raw
+      .prepare(
+        `insert into node (id, canvas_id, type, x, y, w, h, group_id, data_json, created_at, updated_at)
+         values ('artifact-1', ?, 'artifact', 0, 0, 320, 200, null, ?, 1, 1)`,
+      )
+      .run(
+        handle.seeded.canvasId,
+        JSON.stringify({
+          artifactId: 'a2',
+          kind: 'spec',
+          title: 'spec.md',
+          path: '.baton/deliveries/d1/requirement/spec.md',
+          status: 'ready',
+        }),
+      )
+
+    for (const [id, nodeId] of [
+      ['d1', 'drawing-1'],
+      ['a1', 'artifact-1'],
+    ] as const) {
+      ws.send({
+        v: 1,
+        type: 'node.update',
+        id,
+        ts: 1,
+        payload: { nodeId, patch: { x: 40, y: 60 } },
+      })
+      await ws.next('ack')
+      expect(getNode(handle.database.db, nodeId)).toMatchObject({ x: 40, y: 60 })
+    }
+
+    ws.send({
+      v: 1,
+      type: 'node.update',
+      id: 'd2',
+      ts: 1,
+      payload: { nodeId: 'drawing-1', patch: { data: { title: 'renamed.png' } } },
+    })
+    expect((await ws.next('error')).payload).toMatchObject({
+      commandId: 'd2',
+      code: 'invalid_payload',
+    })
+  })
+
   it('creates image nodes and rejects unsafe src', async () => {
     const { handle, ws } = await setup()
     ws.send({

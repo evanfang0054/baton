@@ -72,7 +72,12 @@ export function DrawingEditor({
       if (close) onClose()
       else toast.success('画板已保存')
     } catch (cause) {
-      toast.danger(cause instanceof Error ? cause.message : '保存画板失败')
+      const message = cause instanceof Error ? cause.message : '保存画板失败'
+      toast.danger(
+        message === 'request body too large'
+          ? '画板内容过大，保存失败；请减少图片或笔迹后重试'
+          : message,
+      )
     } finally {
       setSaving(false)
     }

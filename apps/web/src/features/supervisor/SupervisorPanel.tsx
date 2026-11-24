@@ -3,14 +3,12 @@ import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { getSupervisorMessages, getSupervisorStatus } from '../../lib/api'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { getSupervisorMessages, getSupervisorStatus, listNotices, readNotice } from '../../lib/api'
 import { useCommand } from '../../lib/command-context'
 import { queryKeys } from '../../lib/query'
 import { useAppStore } from '../../stores/app'
-import { DigestCard } from './DigestCard'
 import { SupervisorComposer } from './SupervisorComposer'
-import { SupervisorGateCards } from './SupervisorGateCards'
 import { SupervisorMessageList } from './SupervisorMessageList'
 import { SupervisorStatusBar } from './SupervisorStatusBar'
 import { createRequestId, type SupervisorTargetAgent } from './supervisor-model'
@@ -38,6 +36,7 @@ export function SupervisorPanel({
   const [loadingOlder, setLoadingOlder] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [quickPrompt, setQuickPrompt] = useState({ text: '', seq: 0 })
+  const readNoticeIds = useRef(new Set<string>())
 
   const status = useQuery({
     queryKey: queryKeys.supervisorStatus,
@@ -48,12 +47,32 @@ export function SupervisorPanel({
     queryFn: () => getSupervisorMessages(workspaceId!),
     enabled: Boolean(workspaceId),
   })
+  const notices = useQuery({
+    queryKey: queryKeys.notices(workspaceId ?? ''),
+    queryFn: () => listNotices(workspaceId!, { kind: 'digest', limit: 1 }),
+    enabled: Boolean(workspaceId),
+  })
+
+  // 汇报已进入聊天流；面板打开即视为看过最新汇报，收起时保留未读圆点。
+  useEffect(() => {
+    const latest = notices.data?.notices[0]
+    if (!workspaceId || !latest || latest.readAt !== null) return
+    // 服务端未回写 readAt 时也不能反复打已读接口。
+    if (readNoticeIds.current.has(latest.id)) return
+    readNoticeIds.current.add(latest.id)
+    void readNotice(latest.id)
+      .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.notices(workspaceId) }))
+      .catch(() => {
+        // 已读失败不影响聊天；圆点会保留到下一次打开。
+      })
+  }, [notices.data?.notices, queryClient, workspaceId])
 
   useEffect(() => {
     setOlderMessages([])
     setOlderBefore(null)
     setOlderLoaded(false)
     setQuickPrompt({ text: '', seq: 0 })
+    readNoticeIds.current.clear()
     useSupervisorStreamStore.getState().reset()
   }, [workspaceId])
 
@@ -124,31 +143,24 @@ export function SupervisorPanel({
     state.setSelectedNode(null)
     state.openStage(taskId)
   }
+  const applyProposal = async (proposalId: string): Promise<boolean> => {
+    if (!workspaceId) return false
+    try {
+      await send({
+        type: 'supervisor.action.decide',
+        payload: { workspaceId, actionId: proposalId, decision: 'apply' },
+      })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.notices(workspaceId) })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
+      return true
+    } catch (cause) {
+      toast.danger(cause instanceof Error ? cause.message : '应用建议失败')
+      return false
+    }
+  }
 
   return (
     <div data-testid="supervisor-panel" className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-start justify-between gap-2 px-4 py-3">
-        <div>
-          <h2 className="text-sm font-medium text-foreground">总管</h2>
-          <p className="mt-1 text-xs text-muted">
-            上下文 {contextNodes.length} 个 · 目标 Agent {targetAgent?.title ?? '未选'}
-          </p>
-        </div>
-      </div>
-      {workspaceId ? (
-        <DigestCard
-          workspaceId={workspaceId}
-          onOpenTask={openTask}
-          onDecideAction={async (actionId, decision) => {
-            await send({
-              type: 'supervisor.action.decide',
-              payload: { workspaceId, actionId, decision },
-            })
-            await queryClient.invalidateQueries({ queryKey: queryKeys.notices(workspaceId) })
-            await queryClient.invalidateQueries({ queryKey: queryKeys.tasks(workspaceId) })
-          }}
-        />
-      ) : null}
       <SupervisorStatusBar status={status.data} />
       {!workspaceId ? <p className="p-4 text-sm text-muted">先选择一个工作区</p> : null}
       {workspaceId && status.isError ? (
@@ -214,9 +226,10 @@ export function SupervisorPanel({
           onPickQuickPrompt={(text) =>
             setQuickPrompt((previous) => ({ text, seq: previous.seq + 1 }))
           }
+          onOpenTask={openTask}
+          onApplyProposal={applyProposal}
         />
       ) : null}
-      {workspaceId ? <SupervisorGateCards workspaceId={workspaceId} onOpenTask={openTask} /> : null}
       {workspaceId && history.data ? (
         <SupervisorComposer
           workspaceId={workspaceId}

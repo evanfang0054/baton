@@ -571,6 +571,7 @@ export function createRuntime(deps: RuntimeDeps) {
     track: hooks.track,
   })
   supervisorHolder.value = supervisor
+  digestDeps.deliver = (input) => supervisor.deliverDigest(input)
   const transitionRunner = createTransitionRunner({
     db: deps.db,
     config: deps.config,
@@ -1090,26 +1091,22 @@ export function createRuntime(deps: RuntimeDeps) {
             }
           }
         }
-        if (
-          existing.type !== 'text' &&
-          existing.type !== 'file' &&
-          existing.type !== 'agent' &&
-          existing.type !== 'image' &&
-          existing.type !== 'group'
-        ) {
-          return {
-            ok: false,
-            error: appError('unsupported_node_type', 'node type is not supported', {
-              type: existing.type,
-            }),
-          }
-        }
+        // Node 协议是封闭 union；未知类型在 getNode 解析阶段就会失败。
         if (patch.data !== undefined) {
           if (typeof patch.data !== 'object' || patch.data === null || Array.isArray(patch.data)) {
             return { ok: false, error: appError('invalid_payload', 'node data must be an object') }
           }
-          if (existing.type === 'file') {
-            return { ok: false, error: appError('invalid_payload', 'file node data is immutable') }
+          if (
+            existing.type === 'file' ||
+            existing.type === 'review' ||
+            existing.type === 'artifact' ||
+            existing.type === 'drawing'
+          ) {
+            // 这些节点的 data 由 artifact/task 派生，只允许移动与分组，不能手改内容。
+            return {
+              ok: false,
+              error: appError('invalid_payload', `${existing.type} node data is immutable`),
+            }
           }
           if (existing.type === 'text') {
             const data = patch.data as { content?: unknown }
