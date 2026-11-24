@@ -169,10 +169,10 @@ describe('App shell', () => {
     expect(screen.queryByTestId('right-panel')).not.toBeInTheDocument()
   })
 
-  it('renders the desktop shell with delivery rail, board and supervisor only', async () => {
+  it('renders the desktop shell with project tree, board and supervisor only', async () => {
     renderApp()
     expect(screen.getByText('baton')).toBeInTheDocument()
-    expect(await screen.findByLabelText('交付列表')).toBeInTheDocument()
+    expect(await screen.findByLabelText('项目与需求')).toBeInTheDocument()
     expect(screen.getByLabelText('交付看板')).toBeInTheDocument()
     expect(screen.getByTestId('right-panel')).toBeInTheDocument()
     expect(screen.getByText('精灵总管')).toBeInTheDocument()

@@ -101,7 +101,7 @@ Seam: `ProjectTree` props + `listAttention`
 - 点项目名/箭头只 toggle 展开；点「需求看板」→ `onOpenBoard(workspaceId)`；点需求 → `onOpenDelivery(workspaceId, deliveryId)`；点「新建需求」→ `onCreateDelivery(workspaceId)`；点通知项 → `onOpenAttention(item)`。
 - 项目行有通知时显示圆点；通知区空态「没有需要你处理的」。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `ProjectTree.test.tsx`：
 
@@ -115,13 +115,13 @@ Seam: `ProjectTree` props + `listAttention`
 // 无通知时显示「没有需要你处理的」
 ```
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
 Run: `pnpm --filter @baton/web exec vitest run src/features/projects/ProjectTree.test.tsx`
 
 Expected: FAIL，组件不存在。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - `ProjectTree` 左侧固定 `w-72`，深色 token：`bg-surface`/`border-separator`/`text-muted`/`text-foreground`。
 - 项目行：`aria-expanded`、chevron 旋转、`role="tree"`/`treeitem`。
@@ -132,13 +132,13 @@ Expected: FAIL，组件不存在。
 - 通知点击在 App 中处理：`setWorkspace(workspaceId); setDelivery(deliveryId); openStage(taskId)`。
 - 删除 `DeliveryRail` 的引用；保留 `DeliveryCard`。
 
-- [ ] **Step 4: 运行并确认通过**
+- [x] **Step 4: 运行并确认通过**
 
 Run: `pnpm --filter @baton/web exec vitest run src/features/projects/ProjectTree.test.tsx src/features/deliveries`
 
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/web/src/features/projects apps/web/src/lib/api.ts apps/web/src/lib/query.ts apps/web/src/stores/app.ts apps/web/src/App.tsx apps/web/src/features/deliveries

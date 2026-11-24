@@ -1,4 +1,5 @@
 import { needsMe } from '@baton/core'
+import type { AttentionInboxItem } from '@baton/protocol'
 import { Button } from '@heroui/react/button'
 import { toast } from '@heroui/react/toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -11,7 +12,7 @@ import { NodePanel } from './features/canvas/NodePanel'
 import { CreateDeliveryDialog } from './features/deliveries/CreateDeliveryDialog'
 import { DeliveryBoard } from './features/deliveries/DeliveryBoard'
 import { DeliveryCanvas } from './features/deliveries/DeliveryCanvas'
-import { DeliveryRail } from './features/deliveries/DeliveryRail'
+import { ProjectTree } from './features/projects/ProjectTree'
 import { AnnotationListOverlay } from './features/overlays/AnnotationListOverlay'
 import { QuickAnnotationLayer } from './features/annotations/QuickAnnotationLayer'
 import { AcceptanceMatrixOverlay } from './features/overlays/AcceptanceMatrixOverlay'
@@ -44,6 +45,7 @@ import {
   createArtifactDraft,
   deleteAnnotation,
   listArtifacts,
+  listAttention,
   listDeliveries,
   listNotices,
   listTasks,
@@ -89,9 +91,11 @@ function AppShell() {
   const contextNodeIds = useAppStore((state) => state.contextNodeIds)
   const mobileTab = useAppStore((state) => state.mobileTab)
   const wsStatus = useAppStore((state) => state.wsStatus)
+  const deliveryView = useAppStore((state) => state.deliveryView)
   const setWorkspace = useAppStore((state) => state.setWorkspace)
   const setTask = useAppStore((state) => state.setTask)
   const setDelivery = useAppStore((state) => state.setDelivery)
+  const setDeliveryView = useAppStore((state) => state.setDeliveryView)
   const setOverlay = useAppStore((state) => state.setOverlay)
   const setRightPanelCollapsed = useAppStore((state) => state.setRightPanelCollapsed)
   const setSelectedNode = useAppStore((state) => state.setSelectedNode)
@@ -109,7 +113,7 @@ function AppShell() {
   const [mobileTaskFormOpen, setMobileTaskFormOpen] = useState(false)
   const [mobileNodesOpen, setMobileNodesOpen] = useState(false)
   const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false)
-  const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false)
+  const [deliveryDialogWorkspaceId, setDeliveryDialogWorkspaceId] = useState<string | null>(null)
   const [cancelDeliveryId, setCancelDeliveryId] = useState<string | null>(null)
   const [showTasks, setShowTasks] = useState(false)
   const [showWorkspace, setShowWorkspace] = useState(false)
@@ -117,6 +121,11 @@ function AppShell() {
   const [workspaceAnnotationsOpen, setWorkspaceAnnotationsOpen] = useState(false)
 
   const workspaces = useQuery({ queryKey: queryKeys.workspaces, queryFn: listWorkspaces })
+  const attention = useQuery({
+    queryKey: queryKeys.attention,
+    queryFn: () => listAttention(20),
+    enabled: Boolean(workspaces.data?.length),
+  })
   const tasks = useQuery({
     queryKey: queryKeys.tasks(activeWorkspaceId ?? ''),
     queryFn: () => listTasks(activeWorkspaceId!),
@@ -331,6 +340,44 @@ function AppShell() {
     setShowWorkspace(false)
   }
 
+  const openDelivery = (workspaceId: string, deliveryId: string) => {
+    if (workspaceId !== activeWorkspaceId) setWorkspace(workspaceId)
+    setDelivery(deliveryId)
+    setShowTasks(false)
+    setShowWorkspace(false)
+    setOverlay(null)
+    writeUrlState({
+      workspaceId,
+      deliveryId,
+      taskId: null,
+      artifactId: null,
+      annotationId: null,
+    })
+  }
+
+  const openProjectBoard = (workspaceId: string) => {
+    if (workspaceId !== activeWorkspaceId) setWorkspace(workspaceId)
+    setDelivery(null)
+    setDeliveryView('board')
+    setShowTasks(false)
+    setShowWorkspace(false)
+    setOverlay(null)
+    writeUrlState({ workspaceId, deliveryId: null, taskId: null })
+  }
+
+  const openAttention = (item: AttentionInboxItem) => {
+    if (item.workspaceId !== activeWorkspaceId) setWorkspace(item.workspaceId)
+    setDelivery(item.deliveryId)
+    setShowTasks(false)
+    setShowWorkspace(false)
+    openTask(item.taskId)
+    writeUrlState({
+      workspaceId: item.workspaceId,
+      deliveryId: item.deliveryId,
+      taskId: item.taskId,
+    })
+  }
+
   const headerClass =
     viewport === 'compact'
       ? 'flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b border-separator px-3 py-2'
@@ -340,14 +387,16 @@ function AppShell() {
     <div className="flex h-screen flex-col bg-background text-foreground" data-viewport={viewport}>
       <header className={headerClass}>
         <span className="text-sm font-semibold">baton</span>
-        <WorkspaceSwitcher
-          workspaces={workspaces.data ?? []}
-          activeWorkspaceId={activeWorkspaceId}
-          onSelect={(id) => {
-            setWorkspace(id)
-            writeUrlState({ workspaceId: id })
-          }}
-        />
+        {isMobile ? (
+          <WorkspaceSwitcher
+            workspaces={workspaces.data ?? []}
+            activeWorkspaceId={activeWorkspaceId}
+            onSelect={(id) => {
+              setWorkspace(id)
+              writeUrlState({ workspaceId: id })
+            }}
+          />
+        ) : null}
         {activeWorkspaceId ? <ConnectionStatus compact={isMobile} /> : null}
         {activeWorkspace ? (
           <>
@@ -563,12 +612,17 @@ function AppShell() {
         </div>
       ) : (
         <div className="flex min-h-0 flex-1">
-          <DeliveryRail
-            deliveries={deliveries.data ?? []}
+          <ProjectTree
+            workspaces={workspaces.data ?? []}
+            attention={attention.data ?? null}
+            activeWorkspaceId={activeWorkspaceId}
             activeDeliveryId={activeDeliveryId}
-            onCreate={() => setDeliveryDialogOpen(true)}
-            onSelect={selectDelivery}
-            onOpenBoard={goBoard}
+            deliveryView={deliveryView}
+            onCreateProject={() => setCreateWorkspaceOpen(true)}
+            onCreateDelivery={(workspaceId) => setDeliveryDialogWorkspaceId(workspaceId)}
+            onOpenBoard={openProjectBoard}
+            onOpenDelivery={openDelivery}
+            onOpenAttention={openAttention}
           />
           <main className="relative flex min-h-0 min-w-0 flex-1 flex-col">
             {showTasks ? (
@@ -689,10 +743,20 @@ function AppShell() {
         </div>
       )}
       <CreateDeliveryDialog
-        workspaceId={activeWorkspaceId ?? ''}
-        open={deliveryDialogOpen && Boolean(activeWorkspaceId)}
-        onOpenChange={setDeliveryDialogOpen}
-        onCreated={selectDelivery}
+        workspaceId={deliveryDialogWorkspaceId ?? activeWorkspaceId ?? ''}
+        open={deliveryDialogWorkspaceId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeliveryDialogWorkspaceId(null)
+        }}
+        onCreated={(deliveryId) => {
+          const workspaceId = deliveryDialogWorkspaceId ?? activeWorkspaceId
+          if (workspaceId) {
+            setWorkspace(workspaceId)
+            setDelivery(deliveryId)
+            writeUrlState({ workspaceId, deliveryId })
+          }
+          setDeliveryDialogWorkspaceId(null)
+        }}
       />
       <ConfirmDialog
         open={cancelDeliveryId !== null}
