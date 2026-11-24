@@ -97,28 +97,28 @@ Seam: `saveArtifactContent(mode)` + `syncDrawingNode`
 - `mode='preview'`：只写 preview；`status='ready'`；广播；同步节点 `previewStale=false`；不写审计、不改 source/version。
 - `syncDrawingNode(tx, artifact, previewStale)`：找到 delivery canvas 上 `data.artifactId` 匹配的 drawing 节点，更新 `status/thumbnailPath/previewStale/updatedAt`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 在 `artifact-service.test.ts` 增加一个 delivery + drawing 节点 fixture：
 - source 模式：sourcePath 写入，drawing 节点 `previewStale` 不变/无预览，无 audit、无 `artifact.updated`。
 - full 模式：三件套写入，节点 `thumbnailPath` 与 `previewStale=false`，有 audit、有广播。
 - preview 模式：只写 preview，节点 `previewStale=false`，source 不变，无 audit。
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/artifact-service.test.ts`
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - `ArtifactSaveInput` 透传 `mode` 到 `saveArtifactContent`。
 - 把写文件/upsert 放进同一事务；source 模式不触发 `syncArtifactNode`（非 drawing 产物的既有逻辑不变）。
 - drawing 产物不进入 `syncArtifactNode` 的 artifact 节点分支，只走 `syncDrawingNode`。
 
-- [ ] **Step 4: 运行并确认通过**
+- [x] **Step 4: 运行并确认通过**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/artifact-service.test.ts`
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/daemon/src/artifact apps/daemon/src/http/deliveries.ts apps/daemon/test/artifact-service.test.ts

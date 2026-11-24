@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createArtifactService } from '../src/artifact/service.js'
 import { getCanvasByDelivery } from '../src/db/delivery-repositories.js'
-import { insertNode, listNodes, updateNode } from '../src/db/repositories.js'
+import { insertNode, listAudit, listNodes, updateNode } from '../src/db/repositories.js'
 import { createDeliveryService } from '../src/delivery/service.js'
 import { createTestRuntime } from './helpers/runtime.js'
 
@@ -21,11 +21,13 @@ function setup() {
     now: handle.now,
     newId: handle.newId,
   })
+  const events: unknown[] = []
   const artifacts = createArtifactService({
     db: handle.database.db,
     config: handle.config,
     now: handle.now,
     newId: handle.newId,
+    emit: (draft) => events.push(draft),
   })
   const created = deliveries.createDelivery({
     workspaceId: handle.seeded.workspaceId,
@@ -33,10 +35,90 @@ function setup() {
     goal: '做一个领取页',
   })
   if (!created.ok) throw new Error(created.message)
-  return { handle, deliveries, artifacts, deliveryId: created.deliveryId }
+  return { handle, deliveries, artifacts, deliveryId: created.deliveryId, events }
 }
 
 describe('artifact service', () => {
+  it('branches source/full/preview saves and syncs the drawing node', () => {
+    const { handle, artifacts, deliveryId, events } = setup()
+    const artifact = artifacts.createDraftArtifact({
+      deliveryId,
+      stageKey: 'requirement',
+      kind: 'drawing',
+      name: 'drawing-test.png',
+    })
+    const canvas = getCanvasByDelivery(handle.database.db, deliveryId)
+    if (!canvas) throw new Error('canvas missing')
+    handle.database.db.transaction((tx) =>
+      insertNode(tx, {
+        id: 'drawing-node',
+        canvasId: canvas.id,
+        type: 'drawing',
+        x: 0,
+        y: 0,
+        w: 320,
+        h: 200,
+        groupId: null,
+        data: {
+          artifactId: artifact.id,
+          title: '画板',
+          thumbnailPath: null,
+          status: 'draft',
+        },
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    )
+
+    events.length = 0
+    const source = Buffer.from(
+      JSON.stringify({ type: 'excalidraw', version: 2, elements: [] }),
+    ).toString('base64')
+    const auditCount = () =>
+      listAudit(handle.database.db, { actionPrefix: 'artifact.save', limit: 100 }).length
+
+    artifacts.saveArtifactContent({ artifactId: artifact.id, sourceBase64: source, mode: 'source' })
+    expect(events).toHaveLength(0)
+    expect(auditCount()).toBe(0)
+    let node = listNodes(handle.database.db, canvas.id).find((item) => item.id === 'drawing-node')
+    expect(node?.updatedAt).toBe(1)
+    if (node?.type === 'drawing') {
+      expect(node.data).toMatchObject({ status: 'draft', thumbnailPath: null })
+    }
+
+    const preview = Buffer.from('png').toString('base64')
+    const full = artifacts.saveArtifactContent({
+      artifactId: artifact.id,
+      previewBase64: preview,
+      sourceBase64: source,
+      svgBase64: Buffer.from('<svg/>').toString('base64'),
+      mode: 'full',
+    })
+    expect(full.status).toBe('ready')
+    expect(events).toHaveLength(1)
+    expect(auditCount()).toBe(1)
+    node = listNodes(handle.database.db, canvas.id).find((item) => item.id === 'drawing-node')
+    if (node?.type === 'drawing') {
+      expect(node.data).toMatchObject({
+        status: 'ready',
+        thumbnailPath: full.path,
+        previewStale: false,
+      })
+    }
+
+    const previewOnly = artifacts.saveArtifactContent({
+      artifactId: artifact.id,
+      previewBase64: Buffer.from('png-2').toString('base64'),
+      mode: 'preview',
+    })
+    expect(previewOnly.sourcePath).toBe(full.sourcePath)
+    expect(previewOnly.status).toBe('ready')
+    expect(events).toHaveLength(2)
+    expect(auditCount()).toBe(1)
+    node = listNodes(handle.database.db, canvas.id).find((item) => item.id === 'drawing-node')
+    if (node?.type === 'drawing') expect(node.data).toMatchObject({ previewStale: false })
+  })
+
   it('fails required artifacts when missing and records them when present', () => {
     const { handle, artifacts, deliveryId } = setup()
     expect(artifacts.checkRequiredArtifacts(deliveryId, 'requirement')).toEqual({
