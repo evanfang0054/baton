@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  bboxToFlow,
+  flowBBoxToScreen,
   pointsBBox,
+  projectPoint,
   selectionBBox,
   strokePath,
   textBBox,
@@ -75,5 +78,13 @@ describe('quick annotation geometry', () => {
     expect(box.y).toBeLessThanOrEqual(0)
     expect(box.x + box.w).toBeGreaterThanOrEqual(200)
     expect(box.y + box.h).toBeGreaterThanOrEqual(120)
+  })
+
+  it('round-trips bbox between screen and flow coordinates', () => {
+    const viewport = { x: 120, y: -40, zoom: 0.5 }
+    const flow = bboxToFlow({ x: 220, y: 60, w: 100, h: 40 }, viewport)
+    expect(flow).toEqual({ x: 200, y: 200, w: 200, h: 80 })
+    expect(flowBBoxToScreen(flow, viewport)).toEqual({ x: 220, y: 60, w: 100, h: 40 })
+    expect(projectPoint([220, 60], viewport, { x: 0, y: 0, zoom: 1 })).toEqual([200, 200])
   })
 })

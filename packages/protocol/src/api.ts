@@ -11,6 +11,7 @@ import {
   AnnotationBBox,
   AnnotationStatus,
   AnnotationSummary,
+  Annotation,
   Approval,
   Artifact,
   ArtifactKind,
@@ -372,3 +373,7 @@ export type AnnotationUpdateInput = z.infer<typeof AnnotationUpdateInput>
 
 export const AnnotationResponse = z.object({ annotation: AnnotationSummary })
 export type AnnotationResponse = z.infer<typeof AnnotationResponse>
+
+/** 画布重绘需要完整笔画；总管工具仍只拿 summary，不返回 strokes。 */
+export const AnnotationDetailResponse = z.object({ annotation: Annotation })
+export type AnnotationDetailResponse = z.infer<typeof AnnotationDetailResponse>

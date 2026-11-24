@@ -1,5 +1,6 @@
 import {
   AnnotationCreateInput,
+  AnnotationDetailResponse,
   AnnotationListQuery,
   AnnotationListResponse,
   AnnotationResponse,
@@ -169,6 +170,13 @@ export function registerDeliveryRoutes(app: FastifyInstance, deps: DeliveryRoute
     return AnnotationResponse.parse({
       annotation: deps.annotations.updateAnnotation({ annotationId, ...input.data }),
     })
+  })
+
+  app.get('/api/annotations/:annotationId', async (req) => {
+    const { annotationId } = req.params as { annotationId: string }
+    const annotation = deps.annotations.getAnnotationDetail(annotationId)
+    if (!annotation) throw appError('annotation_not_found', 'annotation not found')
+    return AnnotationDetailResponse.parse({ annotation })
   })
 
   app.delete('/api/annotations/:annotationId', async (req) => {

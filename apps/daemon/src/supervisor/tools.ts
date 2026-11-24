@@ -1933,7 +1933,7 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
 
     list_annotations: {
       description:
-        '列出当前工作区级标注（不传 deliveryId）或某个交付/阶段的标注；用户说“按标注改”时先查这里，不要把笔迹当上下文猜。',
+        '列出当前工作区级标注（不传 deliveryId）或某个交付/阶段的标注，并返回圈选目标节点与相对区域；用户说“按标注改”时先查这里。',
       parameters: listAnnotationsInput,
       async execute(input, ctx) {
         const parsed = listAnnotationsInput.parse(input)
@@ -1942,24 +1942,35 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         if (parsed.deliveryId) {
           requireDelivery(ctx, parsed.deliveryId)
           return {
-            annotations: service.listAnnotations({
-              deliveryId: parsed.deliveryId,
-              ...(parsed.stageKey ? { stageKey: parsed.stageKey } : {}),
-              ...(parsed.status ? { status: parsed.status } : {}),
-            }),
+            annotations: service
+              .listAnnotations({
+                deliveryId: parsed.deliveryId,
+                ...(parsed.stageKey ? { stageKey: parsed.stageKey } : {}),
+                ...(parsed.status ? { status: parsed.status } : {}),
+              })
+              .map((annotation) => ({
+                ...annotation,
+                targets: service.describeAnnotationTargets(annotation),
+              })),
           }
         }
         return {
-          annotations: service.listWorkspaceScopeAnnotations({
-            workspaceId: ctx.workspaceId,
-            ...(parsed.status ? { status: parsed.status } : {}),
-          }),
+          annotations: service
+            .listWorkspaceScopeAnnotations({
+              workspaceId: ctx.workspaceId,
+              ...(parsed.status ? { status: parsed.status } : {}),
+            })
+            .map((annotation) => ({
+              ...annotation,
+              targets: service.describeAnnotationTargets(annotation),
+            })),
         }
       },
     },
 
     get_annotation: {
-      description: '读取一条标注的 note、目标、bbox 和合成图路径；不返回 strokes。',
+      description:
+        '读取一条标注的 note、目标节点/相对圈选区域、bbox 和合成图路径；不返回 strokes。',
       parameters: getAnnotationInput,
       async execute(input, ctx) {
         const parsed = getAnnotationInput.parse(input)
@@ -1972,7 +1983,12 @@ export function createSupervisorTools(deps: SupervisorToolsDeps): SupervisorTool
         } else if (annotation.workspaceId !== ctx.workspaceId) {
           throw appError('annotation_not_found', 'annotation not found')
         }
-        return { annotation }
+        return {
+          annotation: {
+            ...annotation,
+            targets: service.describeAnnotationTargets(annotation),
+          },
+        }
       },
     },
   }

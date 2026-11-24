@@ -25,6 +25,7 @@ import {
   TaskListResponse,
   AnnotationListResponse,
   AnnotationCreateInput,
+  AnnotationDetailResponse,
   AnnotationResponse,
   AnnotationUpdateInput,
   WorkspaceAnnotationCreateInput,
@@ -324,6 +325,12 @@ export async function createWorkspaceAnnotation(
 
 export async function deleteAnnotation(annotationId: string) {
   await request(`/api/annotations/${encodeURIComponent(annotationId)}`, { method: 'DELETE' })
+}
+
+export async function getAnnotationDrawing(annotationId: string) {
+  return AnnotationDetailResponse.parse(
+    await request(`/api/annotations/${encodeURIComponent(annotationId)}`),
+  ).annotation
 }
 
 export async function getTask(taskId: string) {

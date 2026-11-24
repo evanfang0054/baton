@@ -9,6 +9,7 @@ import {
   parsePlaybook,
   type StagePromptArtifact,
 } from '@baton/core'
+import { annotationCoordinateSpace } from '@baton/protocol'
 import type {
   Annotation,
   AnnotationSummary,
@@ -365,6 +366,7 @@ function annotationSummary(annotation: Annotation): AnnotationSummary {
     status: annotation.status,
     taskId: annotation.taskId,
     createdAt: annotation.createdAt,
+    coordinateSpace: annotationCoordinateSpace(annotation.strokesJson),
   }
 }
 

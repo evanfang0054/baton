@@ -1,5 +1,6 @@
-import { validateAnnotationTargets } from '@baton/core'
-import type { Annotation, AnnotationSummary, AnnotationStatus } from '@baton/protocol'
+import { annotationRegion, validateAnnotationTargets, type AnnotationRegion } from '@baton/core'
+import { annotationCoordinateSpace } from '@baton/protocol'
+import type { Annotation, AnnotationSummary, AnnotationStatus, Node } from '@baton/protocol'
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { dirname, relative } from 'node:path'
 import type { Config } from '../config.js'
@@ -57,7 +58,23 @@ function summary(annotation: Annotation): AnnotationSummary {
     status: annotation.status,
     taskId: annotation.taskId,
     createdAt: annotation.createdAt,
+    coordinateSpace: annotationCoordinateSpace(annotation.strokesJson),
   }
+}
+
+export interface AnnotationTargetInfo {
+  id: string
+  type: Node['type']
+  title: string
+  region: AnnotationRegion | null
+}
+
+function nodeTitle(node: Node): string {
+  const data = node.data as Record<string, unknown>
+  const value = data.title ?? data.label ?? data.content ?? data.name ?? data.alt
+  return typeof value === 'string' && value.trim()
+    ? value.trim().slice(0, 120)
+    : `${node.type} ${node.id.slice(0, 8)}`
 }
 
 export function createAnnotationService(deps: AnnotationServiceDeps) {
@@ -284,6 +301,30 @@ export function createAnnotationService(deps: AnnotationServiceDeps) {
     return annotation ? summary(annotation) : null
   }
 
+  function getAnnotationDetail(id: string): Annotation | null {
+    return getAnnotation(deps.db, id)
+  }
+
+  // 总管/任务需要知道“圈的是哪个节点、节点里的哪一块”，而不只是抽象坐标。
+  function describeAnnotationTargets(annotation: AnnotationSummary): AnnotationTargetInfo[] {
+    if (annotation.targetNodeIds.length === 0) return []
+    const canvas = annotation.deliveryId
+      ? getCanvasByDelivery(deps.db, annotation.deliveryId)
+      : getCanvasByWorkspace(deps.db, annotation.workspaceId)
+    if (!canvas) return []
+    const nodes = listNodes(deps.db, canvas.id)
+    return annotation.targetNodeIds
+      .map((id) => nodes.find((node) => node.id === id))
+      .filter((node): node is Node => node !== undefined)
+      .map((node) => ({
+        id: node.id,
+        type: node.type,
+        title: nodeTitle(node),
+        region:
+          annotation.coordinateSpace === 'flow' ? annotationRegion(annotation.bbox, node) : null,
+      }))
+  }
+
   function resolveAnnotationsForTask(taskId: string): string[] {
     const now = deps.now()
     const resolved = deps.db.transaction((tx) => {
@@ -315,6 +356,8 @@ export function createAnnotationService(deps: AnnotationServiceDeps) {
     listWorkspaceScopeAnnotations,
     removeAnnotation,
     getAnnotationForSupervisor,
+    getAnnotationDetail,
+    describeAnnotationTargets,
     resolveAnnotationsForTask,
   }
 }

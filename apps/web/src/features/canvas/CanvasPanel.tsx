@@ -6,6 +6,7 @@ import {
   type CanvasNodeMove,
 } from '@baton/core'
 import type {
+  AnnotationSummary,
   Artifact,
   CanvasResponse,
   DeliverySummary,
@@ -44,6 +45,7 @@ import { fileToBase64 } from '../../lib/file'
 import { queryKeys } from '../../lib/query'
 import { CommandError } from '../../lib/ws'
 import { useAppStore, type SelectionNode } from '../../stores/app'
+import { SavedAnnotationOverlay } from '../annotations/SavedAnnotationOverlay'
 import { CanvasActionsProvider } from './actions'
 import { CanvasToolbar } from './CanvasToolbar'
 import { CreateFileNodeDialog } from './CreateFileNodeDialog'
@@ -90,6 +92,7 @@ interface CanvasPanelProps {
   delivery?: DeliverySummary | null
   /** 交付画布：刷新时必须失效 deliveryCanvas，而不是 workspace canvas。 */
   deliveryId?: string | null
+  annotations?: AnnotationSummary[]
   stages?: StageSummary[]
   artifacts?: Artifact[]
 }
@@ -133,6 +136,7 @@ function FlowCanvas({
   onAnnotate,
   delivery,
   deliveryId,
+  annotations = [],
   stages,
   artifacts,
   handleRef,
@@ -877,6 +881,7 @@ function FlowCanvas({
         >
           <Background gap={16} />
         </ReactFlow>
+        <SavedAnnotationOverlay annotations={annotations} />
       </CanvasActionsProvider>
       <CreateFileNodeDialog
         workspaceId={canvas.canvas.workspaceId}

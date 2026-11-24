@@ -593,6 +593,7 @@ function AppShell() {
                   onSelectNodes={setSelection}
                   onOpenTask={openTask}
                   onAnnotate={() => setWorkspaceAnnotating(true)}
+                  annotations={workspaceAnnotations.data ?? []}
                 />
                 <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
                   {(workspaceAnnotations.data ?? []).filter((item) => item.status === 'open')

@@ -188,6 +188,14 @@ describe('delivery REST', () => {
     expect((list.json() as { annotations: unknown[] }).annotations).toHaveLength(1)
 
     const annotationId = (created.json() as { annotation: { id: string } }).annotation.id
+    const drawing = await app.inject({
+      method: 'GET',
+      url: `/api/annotations/${annotationId}`,
+    })
+    expect(drawing.statusCode).toBe(200)
+    expect((drawing.json() as { annotation: { strokesJson: string } }).annotation.strokesJson).toBe(
+      '[]',
+    )
     const removed = await app.inject({
       method: 'DELETE',
       url: `/api/annotations/${annotationId}`,

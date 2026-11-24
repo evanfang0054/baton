@@ -412,8 +412,8 @@ describe('supervisor delivery and annotation tools', () => {
       workspaceId: seeded.workspaceId,
       targetNodeIds: ['text-1'],
       note: '工作区画布上的备注',
-      strokesJson: '[]',
-      bbox: { x: 0, y: 0, w: 10, h: 10 },
+      strokesJson: JSON.stringify({ coordinateSpace: 'flow' }),
+      bbox: { x: 30, y: 40, w: 100, h: 50 },
       imageBase64: Buffer.from('fake-png').toString('base64'),
     })
 
@@ -425,7 +425,16 @@ describe('supervisor delivery and annotation tools', () => {
       workspaceId: seeded.workspaceId,
       deliveryId: null,
       note: '工作区画布上的备注',
+      coordinateSpace: 'flow',
     })
+    expect(listed.annotations[0]?.targets).toEqual([
+      {
+        id: 'text-1',
+        type: 'text',
+        title: '把领取页的按钮改成主色',
+        region: { x: 6, y: 15, w: 31, h: 25 },
+      },
+    ])
 
     const fetched = (await tools.get_annotation.execute(
       { annotationId: annotation.id },
@@ -441,5 +450,39 @@ describe('supervisor delivery and annotation tools', () => {
     await expect(
       tools.get_annotation.execute({ annotationId: annotation.id }, other),
     ).rejects.toMatchObject({ code: 'annotation_not_found' })
+  })
+
+  it('includes the annotation region in generated task prompts', async () => {
+    const { database, tools, annotations, ctx, seeded } = setup()
+    const created = (await tools.create_delivery.execute(
+      { title: '交付 H', goal: '目标 H' },
+      ctx(),
+    )) as { deliveryId: string }
+    const canvas = getCanvasByDelivery(database.db, created.deliveryId)
+    if (!canvas) throw new Error('delivery canvas missing')
+    const agent = listNodes(database.db, canvas.id).find((node) => node.type === 'agent')
+    if (!agent) throw new Error('delivery agent missing')
+    const annotation = annotations.createAnnotation({
+      deliveryId: created.deliveryId,
+      stageKey: 'requirement',
+      targetNodeIds: [agent.id],
+      note: '这里要改',
+      strokesJson: JSON.stringify({ coordinateSpace: 'flow' }),
+      bbox: { x: agent.x + 10, y: agent.y + 20, w: 40, h: 30 },
+      imageBase64: Buffer.from('fake-png').toString('base64'),
+    })
+
+    const task = (await tools.create_task.execute(
+      {
+        title: '按标注改',
+        prompt: '按标注修改',
+        targetNodeId: seeded.nodeId,
+        annotationIds: [annotation.id],
+      },
+      ctx(),
+    )) as { taskId: string }
+    const detail = getTaskDetail(database.db, task.taskId)
+    expect(detail?.task.prompt).toContain('region="')
+    expect(detail?.task.prompt).toContain('这里要改')
   })
 })

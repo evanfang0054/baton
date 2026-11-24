@@ -98,6 +98,93 @@ function hitsText(point: [number, number], text: QuickText): boolean {
   )
 }
 
+export interface FlowViewport {
+  x: number
+  y: number
+  zoom: number
+}
+
+/** bbox 以 flow 坐标保存，才能在平移/缩放后仍贴在原位置。 */
+export function bboxToFlow(
+  bbox: { x: number; y: number; w: number; h: number },
+  viewport: FlowViewport,
+) {
+  return {
+    x: (bbox.x - viewport.x) / viewport.zoom,
+    y: (bbox.y - viewport.y) / viewport.zoom,
+    w: bbox.w / viewport.zoom,
+    h: bbox.h / viewport.zoom,
+  }
+}
+
+export function flowBBoxToScreen(
+  bbox: { x: number; y: number; w: number; h: number },
+  viewport: FlowViewport,
+) {
+  return {
+    x: bbox.x * viewport.zoom + viewport.x,
+    y: bbox.y * viewport.zoom + viewport.y,
+    w: bbox.w * viewport.zoom,
+    h: bbox.h * viewport.zoom,
+  }
+}
+
+export function projectPoint(
+  point: [number, number],
+  from: FlowViewport,
+  to: FlowViewport,
+): [number, number] {
+  const x = (point[0] - from.x) / from.zoom
+  const y = (point[1] - from.y) / from.zoom
+  return [x * to.zoom + to.x, y * to.zoom + to.y]
+}
+
+export function readCanvasViewport(root: HTMLElement | null): FlowViewport | null {
+  const element = root?.parentElement?.querySelector<HTMLElement>('.react-flow__viewport')
+  if (!element) return null
+  const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform)
+  const zoom = matrix.a || 1
+  return { x: matrix.e, y: matrix.f, zoom }
+}
+
+/** 圈选区域命中的画布节点；优先保留被圈选覆盖比例最高的节点，避免边缘擦到的大分组。 */
+export function collectTargetNodeIds(
+  root: HTMLElement | null,
+  bbox: { x: number; y: number; w: number; h: number },
+): string[] {
+  const host = root?.parentElement
+  const rootRect = root?.getBoundingClientRect()
+  if (!host || !rootRect) return []
+  const bboxArea = Math.max(1, bbox.w * bbox.h)
+  return [...host.querySelectorAll<HTMLElement>('.react-flow__node')]
+    .map((element) => {
+      const id = element.dataset.id
+      const rect = element.getBoundingClientRect()
+      const local = {
+        x: rect.left - rootRect.left,
+        y: rect.top - rootRect.top,
+        w: rect.width,
+        h: rect.height,
+      }
+      const overlapW = Math.max(
+        0,
+        Math.min(local.x + local.w, bbox.x + bbox.w) - Math.max(local.x, bbox.x),
+      )
+      const overlapH = Math.max(
+        0,
+        Math.min(local.y + local.h, bbox.y + bbox.h) - Math.max(local.y, bbox.y),
+      )
+      return { id, local, area: rect.width * rect.height, ratio: (overlapW * overlapH) / bboxArea }
+    })
+    .filter((item): item is { id: string; local: typeof bbox; area: number; ratio: number } =>
+      Boolean(item.id),
+    )
+    .filter((item) => item.ratio >= 0.35)
+    .sort((a, b) => b.ratio - a.ratio || a.area - b.area)
+    .slice(0, 5)
+    .map((item) => item.id)
+}
+
 type QuickAnnotationTarget =
   | { deliveryId: string; stageKey: string; workspaceId?: never }
   | { workspaceId: string; deliveryId?: never; stageKey?: never }
@@ -126,6 +213,11 @@ export function QuickAnnotationLayer({
   const [saving, setSaving] = useState(false)
   const drawing = useRef(false)
   const textSeq = useRef(0)
+  const [viewport, setViewport] = useState<FlowViewport | null>(null)
+
+  useEffect(() => {
+    setViewport(readCanvasViewport(rootRef.current))
+  }, [])
 
   const commitDraft = useCallback(() => {
     if (!draft || draft.points.length < 2) {
@@ -238,22 +330,31 @@ export function QuickAnnotationLayer({
     }
     const textNote = cleanedTexts.map((text) => text.text).join('；')
     const annotationNote = [textNote, note.trim()].filter(Boolean).join('；').slice(0, 2000)
+    const targetNodeIds = collectTargetNodeIds(rootRef.current, bbox)
+    const currentViewport = readCanvasViewport(rootRef.current) ?? { x: 0, y: 0, zoom: 1 }
+    const annotationBBox = bboxToFlow(bbox, currentViewport)
+    const drawingJson = JSON.stringify({
+      strokes,
+      texts: cleanedTexts,
+      viewport: currentViewport,
+      coordinateSpace: 'flow',
+    })
     try {
       if (deliveryId) {
         await createAnnotation(deliveryId, {
           stageKey: stageKey!,
-          targetNodeIds: [],
+          targetNodeIds,
           note: annotationNote,
-          strokesJson: JSON.stringify({ strokes, texts: cleanedTexts }),
-          bbox,
+          strokesJson: drawingJson,
+          bbox: annotationBBox,
           imageBase64,
         })
       } else {
         await createWorkspaceAnnotation(workspaceId!, {
-          targetNodeIds: [],
+          targetNodeIds,
           note: annotationNote,
-          strokesJson: JSON.stringify({ strokes, texts: cleanedTexts }),
-          bbox,
+          strokesJson: drawingJson,
+          bbox: annotationBBox,
           imageBase64,
         })
       }
@@ -280,21 +381,22 @@ export function QuickAnnotationLayer({
       <div className="pointer-events-none absolute inset-0">
         {annotations
           .filter((annotation) => annotation.status === 'open')
-          .map((annotation) => (
-            <div
-              key={annotation.id}
-              className="absolute rounded border border-warning/60 bg-warning/10 p-1 text-[11px] leading-tight text-warning/90"
-              style={{
-                left: annotation.bbox.x,
-                top: annotation.bbox.y,
-                width: annotation.bbox.w,
-                height: annotation.bbox.h,
-              }}
-              title={annotation.note}
-            >
-              {annotation.note ? <span className="line-clamp-2">{annotation.note}</span> : null}
-            </div>
-          ))}
+          .map((annotation) => {
+            const box =
+              annotation.coordinateSpace === 'flow' && viewport
+                ? flowBBoxToScreen(annotation.bbox, viewport)
+                : annotation.bbox
+            return (
+              <div
+                key={annotation.id}
+                className="absolute rounded border-2 border-dashed border-warning/70 bg-warning/5 p-1 text-[11px] leading-tight text-warning"
+                style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
+                title={annotation.note}
+              >
+                {annotation.note ? <span className="line-clamp-2">{annotation.note}</span> : null}
+              </div>
+            )
+          })}
         {texts.map((text) => {
           const box = textBBox(text)
           const editing = editingTextId === text.id
