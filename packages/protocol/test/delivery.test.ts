@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   ArtifactNode,
   ArtifactSaveInput,
+  SupervisorMessageMeta,
+  SupervisorSendInput,
   DeliveryDetail,
   DeliverySummary,
   DrawingNode,
@@ -118,6 +120,23 @@ describe('node additions', () => {
       GroupNode.parse({ ...base, type: 'group', data: { label: '② 设计', stageKey: 'design' } })
         .data.stageKey,
     ).toBe('design')
+  })
+})
+
+describe('supervisor scope', () => {
+  it('carries delivery scope in sends and defaults old message meta', () => {
+    expect(
+      SupervisorSendInput.parse({
+        workspaceId: 'w1',
+        requestId: 'r1',
+        text: '看一下画板',
+        deliveryId: 'd1',
+        stageKey: 'requirement',
+      }),
+    ).toMatchObject({ deliveryId: 'd1', stageKey: 'requirement' })
+    expect(
+      SupervisorMessageMeta.parse({ contextNodeIds: [], targetNodeId: null }),
+    ).toMatchObject({ deliveryId: null, stageKey: null })
   })
 })
 

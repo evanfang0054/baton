@@ -113,6 +113,8 @@ export const SupervisorMessageMeta = z
     contextNodeIds: z.array(Id),
     targetNodeId: Id.nullable(),
     digest: SupervisorDigestMeta.nullable().default(null),
+    deliveryId: Id.nullable().default(null),
+    stageKey: z.string().max(32).nullable().default(null),
   })
   .strict()
 export type SupervisorMessageMeta = z.infer<typeof SupervisorMessageMeta>
@@ -139,6 +141,8 @@ export const SupervisorSendInput = z
     text: z.string().min(1).max(8000),
     contextNodeIds: z.array(Id).max(40).default([]),
     targetNodeId: Id.optional(),
+    deliveryId: Id.optional(),
+    stageKey: z.string().min(1).max(32).optional(),
   })
   .strict()
 export type SupervisorSendInput = z.infer<typeof SupervisorSendInput>

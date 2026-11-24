@@ -9,7 +9,7 @@ import {
   updateAnnotation,
 } from '../db/delivery-repositories.js'
 import {
-  getCanvasByWorkspace,
+  getNode,
   getWorkspace,
   insertAudit,
   insertTask,
@@ -96,16 +96,15 @@ export function createTaskService(deps: TaskServiceDeps) {
         }
       }
 
-      const canvas = getCanvasByWorkspace(deps.db, workspace.id)
-      if (!canvas) {
+      const targetNode = getNode(deps.db, input.nodeId)
+      if (!targetNode) {
         return {
           ok: false,
-          error: appError('canvas_not_found', 'canvas not found', { workspaceId: workspace.id }),
+          error: appError('node_not_found', 'target node not found', { nodeId: input.nodeId }),
         }
       }
-
-      const nodes = listNodes(deps.db, canvas.id)
-      const edges = listEdges(deps.db, canvas.id)
+      const nodes = listNodes(deps.db, targetNode.canvasId)
+      const edges = listEdges(deps.db, targetNode.canvasId)
       const target = nodes.find((node) => node.id === input.nodeId)
       if (!target) {
         return {
@@ -242,6 +241,8 @@ export function createTaskService(deps: TaskServiceDeps) {
             verifyCommand: input.verifyCommand ?? null,
             retryCount: 0,
             dangerouslySkipPermissions: input.dangerouslySkipPermissions,
+            deliveryId: input.deliveryId ?? null,
+            stageKey: input.stageKey ?? null,
             ...(input.annotationIds ? { annotationIds: input.annotationIds } : {}),
             createdAt: now,
             updatedAt: now,

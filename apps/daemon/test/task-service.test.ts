@@ -5,7 +5,9 @@ import type { TaskCreateInput } from '@baton/protocol'
 import { execa } from 'execa'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Config } from '../src/config.js'
-import { getTask } from '../src/db/repositories.js'
+import { randomUUID } from 'node:crypto'
+import { insertDelivery } from '../src/db/delivery-repositories.js'
+import { getTask, insertNode } from '../src/db/repositories.js'
 import { createTaskService } from '../src/runtime/task-service.js'
 import { createTestDb, seedTask, seedTextNode, type TestDb } from './helpers/db.js'
 
@@ -71,6 +73,63 @@ afterEach(() => {
 })
 
 describe('createTask', () => {
+  it('creates a delivery-scoped task on the delivery canvas', () => {
+    const { database, seeded, service } = setup()
+    const deliveryCanvasId = randomUUID()
+    database.raw
+      .prepare('insert into canvas (id, workspace_id, viewport_json) values (?, ?, ?)')
+      .run(deliveryCanvasId, seeded.workspaceId, JSON.stringify({ x: 0, y: 0, zoom: 1 }))
+    database.db.transaction((tx) =>
+      insertDelivery(tx, {
+        id: 'd1',
+        workspaceId: seeded.workspaceId,
+        canvasId: deliveryCanvasId,
+        title: '需求',
+        goal: '',
+        playbookId: 'standard-delivery',
+        playbookVersion: 1,
+        playbookJson: '{}',
+        createdAt: 1,
+        updatedAt: 1,
+        cancelledAt: null,
+      }),
+    )
+    for (const [id, type, data] of [
+      ['agent-d1', 'agent', { title: 'Agent', engine: 'claude-sdk', taskId: null }],
+      ['text-d1', 'text', { content: '需求正文' }],
+    ] as const) {
+      database.db.transaction((tx) =>
+        insertNode(tx, {
+          id,
+          canvasId: deliveryCanvasId,
+          type,
+          x: 0,
+          y: 0,
+          w: 320,
+          h: 200,
+          groupId: null,
+          data,
+          createdAt: 1,
+          updatedAt: 1,
+        }),
+      )
+    }
+
+    const result = service.createTask({
+      ...input(seeded),
+      nodeId: 'agent-d1',
+      contextNodeIds: ['text-d1'],
+      deliveryId: 'd1',
+      stageKey: 'requirement',
+    })
+    expect(result).toEqual({ ok: true, taskId: 'task-new' })
+    expect(getTask(database.db, 'task-new')).toMatchObject({
+      deliveryId: 'd1',
+      stageKey: 'requirement',
+      nodeId: 'agent-d1',
+    })
+  })
+
   it('assembles context and persists a todo task', () => {
     const { database, seeded, service } = setup()
     const result = service.createTask(input(seeded))
