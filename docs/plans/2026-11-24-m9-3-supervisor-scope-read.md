@@ -4,7 +4,7 @@ spec_topic: canvas-drawing-scope
 task_count: 5
 estimated_phases: [tests, implementation, verification]
 dod: "supervisor.send 携带 deliveryId/stageKey；总管读写跟随当前需求；list_canvas 可读其他需求；get_drawing 返回画板全部可读内容；无需求时画布工具明确报错；pnpm verify 通过"
-status: active
+status: completed
 depends_on: 2026-11-24-m9-2-drawing-editor-thumbnail.md
 ---
 
@@ -84,27 +84,27 @@ Seam: `ToolContext.deliveryId` + `createTargetResolver.canvasFor`
 - `createTaskForTool` 与批量建任务写入 `deliveryId/stageKey`。
 - 服务端校验 delivery 属于 workspace、stageKey 属于 playbook；候选卡增加 `<canvas_scope scope delivery stage />`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 - 无 deliveryId 且 `allowWorkspaceCanvas=false` 时 `create_text`/`list_canvas` 抛「先选择一个需求」。
 - 有 deliveryId 时 `create_text` 落在交付画布；`create_task` 落库带 delivery/stage。
 - 工具测试的 ctx 增加 `allowWorkspaceCanvas: true` 保持既有用例。
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/supervisor-tools.test.ts test/supervisor-delivery-tools.test.ts`
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - 解析器只做画布选择；不要复制交付校验。
 - 服务端从 `SupervisorSendInput` 读取作用域，写入 ToolContext 与候选卡。
 - 任务创建 helper 统一注入 `ctx.deliveryId/stageKey`。
 
-- [ ] **Step 4: 运行并确认通过**
+- [x] **Step 4: 运行并确认通过**
 
 Run: 同 Step 2。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/daemon/src/supervisor apps/daemon/test/supervisor-tools.test.ts apps/daemon/test/supervisor-delivery-tools.test.ts
@@ -135,27 +135,27 @@ Seam: `list_canvas(scope)` + `get_drawing`
 - `nodeSummary` 文本增加 `content`（≤2000 字）；drawing 保留 artifactId/status。
 - 工具总数 30；prompt 增加作用域/画板规则。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 - `list_canvas` 当前交付只返回当前画布；指定 deliveryId 返回另一需求。
 - `get_drawing` 读取 source → texts/elements/counts/bounds；无 source 返回 empty；不返回 base64。
 - prompt/engine 包含 `get_drawing` 且工具数 30。
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
 Run: `pnpm --filter @evanfang0054/baton exec vitest run test/supervisor-tools.test.ts test/supervisor-prompt.test.ts`
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - tools 增加 `deps.artifacts?: () => ArtifactService`，runtime 注入。
 - `get_drawing` 用 `readArtifactContent` + `extractDrawingContent`。
 - `list_canvas` 只读 scope 画布；文本 content 截断 2000。
 
-- [ ] **Step 4: 运行并确认通过**
+- [x] **Step 4: 运行并确认通过**
 
 Run: 同 Step 2。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/daemon/src/supervisor apps/daemon/src/runtime/index.ts apps/daemon/test
@@ -182,25 +182,25 @@ Seam: `SupervisorPanel`/`SupervisorComposer` payload + retry meta
 - `supervisor.send` 携带 delivery/stage；乐观 meta 与重试 meta 保留；作用域芯片显示「项目 / 需求 · 阶段」。
 - App 传当前 `activeDeliveryId` 与 `delivery.data?.currentStageKey`；无需求显示项目作用域。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 - Composer 发送时 payload 含 deliveryId/stageKey；无需求时不带。
 - Panel 重试使用原消息 meta 的作用域；芯片显示标签。
 
-- [ ] **Step 2: 运行并确认失败**
+- [x] **Step 2: 运行并确认失败**
 
 Run: `pnpm --filter @baton/web exec vitest run src/features/supervisor/SupervisorComposer.test.tsx src/features/supervisor/SupervisorPanel.test.tsx`
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - 只在 deliveryId 存在时发送 delivery/stage；不得发送 half scope。
 - 旧消息 meta 缺失时视为项目作用域。
 
-- [ ] **Step 4: 运行并确认通过**
+- [x] **Step 4: 运行并确认通过**
 
 Run: 同 Step 2。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add apps/web/src/features/supervisor apps/web/src/App.tsx
@@ -215,15 +215,15 @@ Blocking: Task 3 + 4
 Slice type: verification  
 Seam: `pnpm verify` + supervisor e2e
 
-- [ ] **Step 1: 运行全量 verify**
+- [x] **Step 1: 运行全量 verify**
 
 Run: `pnpm verify`
 
-- [ ] **Step 2: 运行 supervisor/delivery e2e smoke**
+- [x] **Step 2: 运行 supervisor/delivery e2e smoke**
 
 Run: `pnpm exec playwright test apps/web/e2e/delivery.spec.ts apps/web/e2e/supervisor.spec.ts`
 
-- [ ] **Step 3: 记录完成状态并提交**
+- [x] **Step 3: 记录完成状态并提交**
 
 ```bash
 git add docs/plans/2026-11-24-m9-3-supervisor-scope-read.md docs/plans/2026-11-24-m9-0-execution-map.md

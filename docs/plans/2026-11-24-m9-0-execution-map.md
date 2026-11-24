@@ -57,6 +57,7 @@ M9-1 → M9-2 → M9-3 → M9-4 → M9-5
 - M9-1 已完成（2026-11-24）：项目树、需求画布壳、通知、工具栏收敛、拖拽移除、文案与移动端降级；`pnpm verify` 全绿。
 - 12 条 legacy Playwright 仍按工作区画布编写，已列入 M9-5 迁移，不在 M9-1 的 `pnpm verify` 门内。
 - M9-2 已完成（2026-11-24）：source/full/preview 保存、drawing 节点同步、编辑器 fail-safe、缩略图与内容抽取；`pnpm verify` + `delivery.spec` 通过。
+- M9-3 已完成（2026-11-24）：总管消息作用域、需求画布解析、`list_canvas` 跨需求、`get_drawing` 全量读取、计划作用域落库、无需求明确报错；`pnpm verify` + `delivery.spec`/`supervisor.spec` 通过。
 
 ## 数据重置
 

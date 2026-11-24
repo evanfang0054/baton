@@ -56,13 +56,69 @@ const workspace = {
   createdAt: 1,
 }
 
+const deliveryStages = [
+  { key: 'requirement', label: '需求', ordinal: 1, gate: 'human', status: 'running' },
+  { key: 'design', label: '设计', ordinal: 2, gate: 'human', status: 'pending' },
+  { key: 'build', label: '开发', ordinal: 3, gate: 'auto', status: 'pending' },
+  { key: 'acceptance', label: '验收', ordinal: 4, gate: 'human', status: 'pending' },
+].map((stage) => ({
+  ...stage,
+  taskId: null,
+  taskStatus: null,
+  attention: 'none',
+  waitingSince: null,
+  artifactCount: 0,
+  openAnnotationCount: 0,
+  skillId: null,
+  skillStatus: null,
+}))
+
+const deliverySummary = {
+  id: 'd1',
+  workspaceId: 'w1',
+  canvasId: 'c1',
+  title: '需求 A',
+  goal: '目标 A',
+  playbookId: 'standard-delivery',
+  playbookVersion: 1,
+  status: 'running',
+  currentStageKey: 'requirement',
+  stageProgress: { done: 0, total: 4 },
+  stages: deliveryStages,
+  attention: 'none',
+  waitingSince: null,
+  openAnnotationCount: 0,
+  createdAt: 1,
+  updatedAt: 1,
+  cancelledAt: null,
+}
+
+const deliveryDetail = {
+  ...deliverySummary,
+  playbook: {
+    id: 'standard-delivery',
+    version: 1,
+    label: '标准交付',
+    stages: deliveryStages.map((stage) => ({
+      key: stage.key,
+      label: stage.label,
+      gate: stage.gate,
+      skill: null,
+      produces: [],
+      acceptance: { checklist: [], verify: false },
+    })),
+  },
+  artifacts: [],
+  annotations: [],
+}
+
 const canvasNodes = [
   {
     id: 'n1',
     canvasId: 'c1',
     type: 'text',
     x: 80,
-    y: 80,
+    y: 380,
     w: 240,
     h: 120,
     groupId: null,
@@ -75,7 +131,7 @@ const canvasNodes = [
     canvasId: 'c1',
     type: 'agent',
     x: 480,
-    y: 160,
+    y: 420,
     w: 240,
     h: 120,
     groupId: null,
@@ -93,6 +149,18 @@ async function mockSupervisorRest(
     const path = new URL(route.request().url()).pathname
     if (path === '/api/workspaces') {
       return route.fulfill({ json: { workspaces: [workspace] } })
+    }
+    if (path === '/api/deliveries') {
+      return route.fulfill({ json: { deliveries: [deliverySummary] } })
+    }
+    if (path === '/api/deliveries/d1') {
+      return route.fulfill({ json: { delivery: deliveryDetail } })
+    }
+    if (path === '/api/deliveries/d1/artifacts') {
+      return route.fulfill({ json: { artifacts: [] } })
+    }
+    if (path === '/api/attention') {
+      return route.fulfill({ json: { items: [], total: 0 } })
     }
     if (path === '/api/canvas') {
       return route.fulfill({
@@ -121,7 +189,6 @@ async function mockSupervisorRest(
 
 async function selectContextAndAgent(page: import('@playwright/test').Page) {
   await page.locator('.react-flow__node', { hasText: '需求 A' }).click()
-  await page.getByRole('button', { name: '关闭节点详情' }).click()
   await page.locator('.react-flow__node', { hasText: 'Agent 1' }).click({ modifiers: [modifier] })
 }
 
@@ -216,8 +283,9 @@ test('creates a todo task from canvas context without starting it', async ({ pag
   })
 
   await mockSupervisorRest(page, () => messages)
-  await page.goto('/?workspace=w1')
-  await expect(page.getByText('需求 A')).toBeVisible()
+  await page.goto('/?workspace=w1&delivery=d1')
+  await expect(page.locator('.react-flow__node', { hasText: '需求 A' })).toBeVisible()
+  await expect(page.getByTestId('supervisor-scope')).toContainText('demo / 需求 A · 需求')
 
   await selectContextAndAgent(page)
   await page.getByLabel('对总管说').fill('给这个 Agent 建个任务')
@@ -233,6 +301,8 @@ test('creates a todo task from canvas context without starting it', async ({ pag
     text: '给这个 Agent 建个任务',
     contextNodeIds: ['n1'],
     targetNodeId: 'a1',
+    deliveryId: 'd1',
+    stageKey: 'requirement',
   })
   expect(commands.some((command) => command.type === 'task.enqueue')).toBe(false)
 })
